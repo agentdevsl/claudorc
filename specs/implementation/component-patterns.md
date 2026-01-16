@@ -1424,10 +1424,11 @@ const statusVariants = cva(
     variants: {
       status: {
         idle: 'bg-slate-700 text-slate-300',
+        starting: 'bg-amber-900 text-amber-300',
         running: 'bg-blue-900 text-blue-300',
-        success: 'bg-green-900 text-green-300',
+        paused: 'bg-yellow-900 text-yellow-300',
         error: 'bg-red-900 text-red-300',
-        queued: 'bg-amber-900 text-amber-300',
+        completed: 'bg-green-900 text-green-300',
       },
     },
   }
@@ -1437,7 +1438,7 @@ export function StatusBadge({
   status,
   children,
 }: {
-  status: 'idle' | 'running' | 'success' | 'error' | 'queued';
+  status: 'idle' | 'starting' | 'running' | 'paused' | 'error' | 'completed';
   children: React.ReactNode;
 }) {
   return (

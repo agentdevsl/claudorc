@@ -140,7 +140,7 @@ export const projects = pgTable('projects', {
   githubOwner: text('github_owner'),
   githubRepo: text('github_repo'),
   githubInstallationId: text('github_installation_id'),
-  configPath: text('config_path').default('.agentpane'),
+  configPath: text('config_path').default('.claude'),
 
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -625,7 +625,7 @@ export const repositoryConfigs = pgTable('repository_configs', {
   fullName: text('full_name').notNull(),  // owner/repo
 
   // Config sync
-  configPath: text('config_path').notNull().default('.agentpane'),
+  configPath: text('config_path').notNull().default('.claude'),
   configSha: text('config_sha'),  // Last synced commit SHA
 
   // Cached config content

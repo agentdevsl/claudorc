@@ -40,13 +40,13 @@ Comprehensive test case catalog for AgentPane, organized by feature area. Each t
 - [ ] **PM-014** `Unit` `P2` - worktreeRoot directory created if missing
 - [ ] **PM-015** `Unit` `P2` - envFile path validated
 - [ ] **PM-016** `Unit` `P2` - initScript path validated
-- [ ] **PM-017** `Integration` `P1` - Config sync from GitHub .agentpane/
+- [ ] **PM-017** `Integration` `P1` - Config sync from GitHub .claude/
 
 ### 1.3 Project Import
 
 - [ ] **PM-018** `Integration` `P1` - Import project from local path
 - [ ] **PM-019** `Integration` `P1` - Import project from GitHub repository
-- [ ] **PM-020** `Integration` `P2` - Import detects existing .agentpane config
+- [ ] **PM-020** `Integration` `P2` - Import detects existing .claude config
 - [ ] **PM-021** `E2E` `P2` - Project picker shows recent projects
 
 ---
@@ -66,15 +66,13 @@ Comprehensive test case catalog for AgentPane, organized by feature area. Each t
 
 ### 2.2 Kanban Column Transitions
 
-- [ ] **TW-009** `Unit` `P0` - Task moves from 'backlog' to 'todo'
-- [ ] **TW-010** `Unit` `P0` - Task moves from 'todo' to 'in_progress'
-- [ ] **TW-011** `Unit` `P0` - Task moves from 'in_progress' to 'review'
-- [ ] **TW-012** `Unit` `P0` - Task moves from 'review' to 'done'
-- [ ] **TW-013** `Unit` `P0` - Task moves from 'done' to 'verified'
-- [ ] **TW-014** `Unit` `P1` - Invalid column transition rejected (e.g., backlog -> done)
-- [ ] **TW-015** `Unit` `P1` - Task requeue moves back to 'todo'
-- [ ] **TW-016** `Integration` `P0` - Column change triggers worktree creation (todo -> in_progress)
-- [ ] **TW-017** `Integration` `P0` - Column change triggers merge (review -> done with approval)
+- [ ] **TW-009** `Unit` `P0` - Task moves from 'backlog' to 'in_progress'
+- [ ] **TW-010** `Unit` `P0` - Task moves from 'in_progress' to 'waiting_approval'
+- [ ] **TW-011** `Unit` `P0` - Task moves from 'waiting_approval' to 'verified'
+- [ ] **TW-012** `Unit` `P1` - Invalid column transition rejected (e.g., backlog -> verified)
+- [ ] **TW-013** `Unit` `P1` - Task requeue moves back to 'backlog'
+- [ ] **TW-014** `Integration` `P0` - Column change triggers worktree creation (backlog -> in_progress)
+- [ ] **TW-015** `Integration` `P0` - Column change triggers merge (waiting_approval -> verified with approval)
 - [ ] **TW-018** `Unit` `P2` - Column change updates timestamp
 
 ### 2.3 Drag and Drop
@@ -102,7 +100,7 @@ Comprehensive test case catalog for AgentPane, organized by feature area. Each t
 - [ ] **AE-001** `Integration` `P0` - Agent spawns when task moved to 'in_progress'
 - [ ] **AE-002** `Integration` `P0` - Agent receives correct task context
 - [ ] **AE-003** `Integration` `P0` - Agent runs in isolated worktree
-- [ ] **AE-004** `Integration` `P0` - Agent completes and moves task to 'review'
+- [ ] **AE-004** `Integration` `P0` - Agent completes and moves task to 'waiting_approval'
 - [ ] **AE-005** `Integration` `P1` - Agent can be stopped mid-execution
 - [ ] **AE-006** `Integration` `P1` - Agent cleanup on error
 - [ ] **AE-007** `Unit` `P2` - Agent status tracked (idle, running, error)
@@ -235,10 +233,10 @@ Comprehensive test case catalog for AgentPane, organized by feature area. Each t
 
 ### 6.4 Configuration Sync
 
-- [ ] **GH-016** `Integration` `P0` - .agentpane/config.json fetched and parsed
+- [ ] **GH-016** `Integration` `P0` - .claude/config.json fetched and parsed
 - [ ] **GH-017** `Integration` `P0` - Invalid config validation reported
 - [ ] **GH-018** `Integration` `P0` - Config changes on push detected
-- [ ] **GH-019** `Integration` `P1` - Prompt files fetched from .agentpane/prompts/
+- [ ] **GH-019** `Integration` `P1` - Prompt files fetched from .claude/prompts/
 - [ ] **GH-020** `Integration` `P1` - Sync error stored for display
 - [ ] **GH-021** `Unit` `P2` - Config schema validation comprehensive
 
@@ -301,10 +299,10 @@ Comprehensive test case catalog for AgentPane, organized by feature area. Each t
 - [ ] **E2E-001** `E2E` `P0` - Create project from local path
 - [ ] **E2E-002** `E2E` `P0` - Create task in backlog
 - [ ] **E2E-003** `E2E` `P0` - Drag task to in_progress starts agent
-- [ ] **E2E-004** `E2E` `P0` - Agent completes task and moves to review
+- [ ] **E2E-004** `E2E` `P0` - Agent completes task and moves to waiting_approval
 - [ ] **E2E-005** `E2E` `P0` - Open approval dialog shows diff
 - [ ] **E2E-006** `E2E` `P0` - Approve task merges changes
-- [ ] **E2E-007** `E2E` `P0` - Task moves to done after approval
+- [ ] **E2E-007** `E2E` `P0` - Task moves to verified after approval
 
 ### 8.2 Multi-Agent Scenario
 

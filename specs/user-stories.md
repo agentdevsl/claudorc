@@ -68,7 +68,7 @@
 ### Agent Configuration
 
 - As a developer, I want to sync agent configuration from a git repository so git is the source of truth
-- As a developer, I want to specify a subfolder path within the repo for configuration files (e.g., `.agentpane/` or `.claude/`)
+- As a developer, I want to specify a subfolder path within the repo for configuration files (e.g., `.claude/` or `.claude/`)
 - As a developer, I want configuration changes in git to automatically propagate to running agents
 - As a developer, I want to version control agent prompts, tool whitelists, and execution settings alongside my code
 - As a developer, I want to override global defaults with repo-specific configuration when present
@@ -233,7 +233,7 @@ type TerminalEvent =
 
 ```typescript
 interface AgentState {
-  status: 'idle' | 'running' | 'paused' | 'error' | 'waiting_approval' | 'completed';
+  status: 'idle' | 'starting' | 'running' | 'paused' | 'error' | 'completed';
   sessionId?: string;
   taskId?: string;
   turn?: number;

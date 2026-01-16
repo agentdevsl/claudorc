@@ -901,7 +901,7 @@ GitHub webhook handler for push events and config sync.
 | 401 | `GITHUB_WEBHOOK_INVALID` | Invalid signature |
 
 **Handled Events:**
-- `push`: Sync config if `.agentpane/` files changed
+- `push`: Sync config if `.claude/` files changed
 - `installation`: Handle app install/uninstall
 - `pull_request`: Auto-create tasks from PRs (optional)
 

@@ -414,7 +414,7 @@ export type SessionError =
 | `GITHUB_AUTH_FAILED` | GitHub authentication failed | 401 | OAuth/token failure |
 | `GITHUB_INSTALLATION_NOT_FOUND` | GitHub App installation not found | 404 | Invalid installation ID |
 | `GITHUB_REPO_NOT_FOUND` | Repository not found | 404 | Repo doesn't exist or no access |
-| `GITHUB_CONFIG_NOT_FOUND` | Configuration not found in repository | 404 | Missing .agentpane/ |
+| `GITHUB_CONFIG_NOT_FOUND` | Configuration not found in repository | 404 | Missing .claude/ |
 | `GITHUB_CONFIG_INVALID` | Invalid configuration format | 400 | Config parse error |
 | `GITHUB_WEBHOOK_INVALID` | Invalid webhook signature | 401 | Signature mismatch |
 | `GITHUB_RATE_LIMITED` | GitHub API rate limit exceeded | 429 | Rate limit hit |

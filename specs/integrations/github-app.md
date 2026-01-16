@@ -20,7 +20,7 @@ AgentPane integrates with GitHub via a GitHub App to enable repository access, c
 │                           AgentPane Client                              │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────────────┐    │
 │  │ Project Picker │  │  Config Sync   │  │    PR Management       │    │
-│  │  (OAuth Flow)  │  │ (.agentpane/)  │  │ (Create/Merge PRs)     │    │
+│  │  (OAuth Flow)  │  │ (.claude/)  │  │ (Create/Merge PRs)     │    │
 │  └────────┬───────┘  └────────┬───────┘  └───────────┬────────────┘    │
 └───────────┼───────────────────┼──────────────────────┼─────────────────┘
             │                   │                      │
@@ -288,7 +288,7 @@ export async function syncInstallationRepos(installationId: number): Promise<voi
   );
 
   for (const repo of repos) {
-    // Check for .agentpane config
+    // Check for .claude config
     const hasConfig = await checkConfigExists(octokit, repo.owner.login, repo.name);
 
     // Upsert repository config
@@ -317,7 +317,7 @@ export async function syncInstallationRepos(installationId: number): Promise<voi
   }
 }
 
-// Check if .agentpane config exists
+// Check if .claude config exists
 async function checkConfigExists(
   octokit: Octokit,
   owner: string,
@@ -327,7 +327,7 @@ async function checkConfigExists(
     await octokit.rest.repos.getContent({
       owner,
       repo,
-      path: '.agentpane/config.json',
+      path: '.claude/config.json',
     });
     return true;
   } catch {
@@ -378,10 +378,10 @@ export function setupWebhookHandlers() {
 
   // Handle push events for config sync
   app.webhooks.on('push', async ({ payload, octokit }) => {
-    // Check if .agentpane files changed
+    // Check if .claude files changed
     const configChanged = payload.commits?.some((commit) =>
       [...(commit.added ?? []), ...(commit.modified ?? [])]
-        .some((path) => path.startsWith('.agentpane/'))
+        .some((path) => path.startsWith('.claude/'))
     );
 
     if (configChanged) {
@@ -559,7 +559,7 @@ export async function listInstallations(): Promise<Result<Installation[], GitHub
 
       const repositories: Repository[] = await Promise.all(
         repoData.repositories.map(async (repo) => {
-          // Check if .agentpane config exists
+          // Check if .claude config exists
           const hasConfig = await checkConfigExists(installationOctokit, repo.owner.login, repo.name);
 
           return {
@@ -588,7 +588,7 @@ export async function listInstallations(): Promise<Result<Installation[], GitHub
   }
 }
 
-// Check if .agentpane config directory exists
+// Check if .claude config directory exists
 async function checkConfigExists(
   octokit: Octokit,
   owner: string,
@@ -598,7 +598,7 @@ async function checkConfigExists(
     await octokit.rest.repos.getContent({
       owner,
       repo,
-      path: '.agentpane',
+      path: '.claude',
     });
     return true;
   } catch {
@@ -724,7 +724,7 @@ export async function getCloneUrl(
 ### Config File Structure
 
 ```text
-.agentpane/
+.claude/
 ├── config.json          # Main configuration
 ├── prompts/
 │   ├── system.md        # System prompt
@@ -781,7 +781,7 @@ export async function fetchConfig(
   installationId: number,
   owner: string,
   repo: string,
-  configPath = '.agentpane/config.json',
+  configPath = '.claude/config.json',
   ref = 'main'
 ): Promise<Result<AgentConfig, GitHubError>> {
   try {
@@ -886,7 +886,7 @@ export async function syncConfig(
     owner,
     repo,
     fullName: `${owner}/${repo}`,
-    configPath: '.agentpane',
+    configPath: '.claude',
     configSha: ref.object.sha,
     config: configResult.value,
     lastSyncedAt: new Date(),
@@ -1020,7 +1020,7 @@ import { db } from '@/db/client';
 import { repositoryConfigs } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-// Handle push events - sync config if .agentpane files changed
+// Handle push events - sync config if .claude files changed
 export async function handlePushEvent(payload: PushPayload): Promise<void> {
   const { repository, ref, commits, installation } = payload;
 
@@ -1029,10 +1029,10 @@ export async function handlePushEvent(payload: PushPayload): Promise<void> {
     return;
   }
 
-  // Check if any .agentpane files were modified
+  // Check if any .claude files were modified
   const configChanged = commits?.some((commit) =>
     [...(commit.added ?? []), ...(commit.modified ?? []), ...(commit.removed ?? [])]
-      .some((path) => path.startsWith('.agentpane/'))
+      .some((path) => path.startsWith('.claude/'))
   );
 
   if (configChanged && installation) {
@@ -1307,7 +1307,7 @@ export const repositoryConfigs = pgTable('repository_configs', {
   owner: text('owner').notNull(),
   repo: text('repo').notNull(),
   fullName: text('full_name').notNull(),
-  configPath: text('config_path').notNull().default('.agentpane'),
+  configPath: text('config_path').notNull().default('.claude'),
   configSha: text('config_sha'),
   config: jsonb('config').$type<Record<string, unknown>>().default({}),
   lastSyncedAt: timestamp('last_synced_at'),

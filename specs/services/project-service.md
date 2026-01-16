@@ -343,7 +343,7 @@ syncFromGitHub(id: string): Promise<Result<Project, ProjectError>>
 - GitHub App installation must be active
 
 **Business Rules:**
-1. Fetches configuration from `configPath` (default: `.agentpane/`) in the repository
+1. Fetches configuration from `configPath` (default: `.claude/`) in the repository
 2. Reads `config.json` or `config.yaml` from that path
 3. Validates fetched configuration
 4. Merges with existing config (GitHub config takes precedence)
@@ -387,7 +387,7 @@ validatePath(path: string): Promise<Result<PathValidation, ProjectError>>
 1. Checks if path exists and is accessible
 2. Checks if path is already registered to another project
 3. Detects if path is a git repository
-4. Checks for existing `.claude/` or `.agentpane/` config directory
+4. Checks for existing `.claude/` or `.claude/` config directory
 5. Extracts default branch and remote URL if git repo
 
 **Side Effects:**
@@ -513,7 +513,7 @@ export class ProjectService implements IProjectService {
       githubOwner: input.githubOwner,
       githubRepo: input.githubRepo,
       githubInstallationId: input.githubInstallationId,
-      configPath: input.configPath ?? '.agentpane',
+      configPath: input.configPath ?? '.claude',
     }).returning();
 
     // 6. Emit event
@@ -677,16 +677,17 @@ export class ProjectService implements IProjectService {
       // Not a git repo
     }
 
-    // Check for claude/agentpane config
+    // Check for .claude config directory (primary) or .agentpane (legacy/backward compat)
     try {
       await access(`${normalizedPath}/.claude`, constants.R_OK);
       validation.hasClaudeConfig = true;
     } catch {
+      // Legacy: Check for .agentpane (backward compatibility)
       try {
         await access(`${normalizedPath}/.agentpane`, constants.R_OK);
         validation.hasClaudeConfig = true;
       } catch {
-        // No config directory
+        // No config directory found
       }
     }
 
