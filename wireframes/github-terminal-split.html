@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Terminal Split View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* GitHub Dark Theme - Terminal Split View */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+
+      --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
+
+      --radius: 6px;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app { display: flex; height: 100vh; }
+
+    /* Minimal Sidebar */
+    .sidebar {
+      width: 56px;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+    }
+
+    .sidebar-logo {
+      width: 36px;
+      height: 36px;
+      background: var(--fg-default);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .sidebar-logo svg { width: 22px; height: 22px; color: var(--bg-canvas); }
+
+    .sidebar-nav {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.12s;
+      position: relative;
+    }
+
+    .nav-icon:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .nav-icon.active {
+      background: var(--bg-muted);
+      color: var(--accent-fg);
+    }
+
+    .nav-icon svg { width: 20px; height: 20px; }
+
+    .nav-icon .badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 8px;
+      height: 8px;
+      background: var(--success-fg);
+      border-radius: 50%;
+      border: 2px solid var(--bg-default);
+    }
+
+    /* Main Area */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Tab Bar */
+    .tab-bar {
+      height: 40px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: stretch;
+      padding: 0 8px;
+      gap: 2px;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      font-size: 13px;
+      color: var(--fg-muted);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+      margin-bottom: -1px;
+    }
+
+    .tab:hover {
+      color: var(--fg-default);
+      background: var(--bg-subtle);
+    }
+
+    .tab.active {
+      color: var(--fg-default);
+      border-bottom-color: var(--accent-fg);
+      background: var(--bg-subtle);
+    }
+
+    .tab svg { width: 14px; height: 14px; }
+
+    .tab-status {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .tab-status.running {
+      background: var(--success-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .tab-status.idle { background: var(--fg-subtle); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .tab-close {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      opacity: 0;
+      transition: all 0.12s;
+    }
+
+    .tab:hover .tab-close { opacity: 1; }
+    .tab-close:hover { background: var(--bg-emphasis); }
+    .tab-close svg { width: 12px; height: 12px; }
+
+    .tab-add {
+      width: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-subtle);
+      cursor: pointer;
+      border-radius: var(--radius);
+      margin: 4px 0;
+    }
+
+    .tab-add:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .tab-add svg { width: 16px; height: 16px; }
+
+    /* Split Container */
+    .split-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Left Panel - Agent Stream */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-left {
+      flex: 1;
+      border-right: 1px solid var(--border-default);
+    }
+
+    .panel-right {
+      width: 400px;
+    }
+
+    .panel-header {
+      height: 44px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .panel-title svg { width: 16px; height: 16px; color: var(--fg-muted); }
+
+    .panel-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .panel-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .panel-btn svg { width: 14px; height: 14px; }
+
+    /* Agent Info Banner */
+    .agent-banner {
+      padding: 12px 16px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .agent-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+      border: 2px solid var(--border-default);
+    }
+
+    .agent-info { flex: 1; }
+
+    .agent-name {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .agent-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-subtle);
+      background: var(--bg-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .agent-task {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-top: 2px;
+    }
+
+    .agent-task code {
+      font-family: var(--font-mono);
+      color: var(--accent-fg);
+    }
+
+    .agent-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .agent-stat {
+      text-align: center;
+    }
+
+    .agent-stat-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .agent-stat-label {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+    }
+
+    /* Stream Content */
+    .stream-content {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-canvas);
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+
+    .stream-entry {
+      display: flex;
+      padding: 4px 16px;
+      border-bottom: 1px solid var(--border-muted);
+      transition: background 0.12s;
+    }
+
+    .stream-entry:hover { background: var(--bg-default); }
+
+    .stream-time {
+      width: 60px;
+      color: var(--fg-subtle);
+      flex-shrink: 0;
+    }
+
+    .stream-type {
+      width: 70px;
+      flex-shrink: 0;
+      font-weight: 500;
+    }
+
+    .stream-type.bash { color: var(--accent-fg); }
+    .stream-type.read { color: var(--done-fg); }
+    .stream-type.edit { color: var(--attention-fg); }
+    .stream-type.write { color: var(--success-fg); }
+    .stream-type.result { color: var(--success-fg); }
+    .stream-type.stdout { color: var(--fg-subtle); }
+    .stream-type.stderr { color: var(--danger-fg); }
+    .stream-type.think { color: var(--fg-muted); font-style: italic; }
+
+    .stream-msg {
+      flex: 1;
+      color: var(--fg-muted);
+      word-break: break-all;
+    }
+
+    .stream-msg.highlight { color: var(--fg-default); }
+
+    .stream-file {
+      color: var(--accent-fg);
+      text-decoration: underline;
+      text-decoration-color: var(--border-default);
+      cursor: pointer;
+    }
+
+    .stream-file:hover {
+      text-decoration-color: var(--accent-fg);
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--accent-fg);
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Right Panel - File Preview */
+    .file-preview {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .file-header {
+      padding: 8px 16px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .file-header svg { width: 14px; height: 14px; color: var(--fg-muted); }
+
+    .file-path {
+      font-family: var(--font-mono);
+      color: var(--fg-default);
+    }
+
+    .file-badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 10px;
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+      border: 1px solid rgba(187, 128, 9, 0.4);
+    }
+
+    .file-content {
+      flex: 1;
+      overflow: auto;
+      background: var(--bg-canvas);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .code-line {
+      display: flex;
+      padding: 0 16px;
+    }
+
+    .code-line:hover { background: var(--bg-default); }
+
+    .line-number {
+      width: 40px;
+      color: var(--fg-subtle);
+      text-align: right;
+      padding-right: 16px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .line-content {
+      flex: 1;
+      white-space: pre;
+      color: var(--fg-muted);
+    }
+
+    .code-line.added {
+      background: var(--success-muted);
+    }
+
+    .code-line.added .line-content {
+      color: var(--success-fg);
+    }
+
+    .code-line.removed {
+      background: var(--danger-muted);
+    }
+
+    .code-line.removed .line-content {
+      color: var(--danger-fg);
+      text-decoration: line-through;
+    }
+
+    .code-line.highlight {
+      background: var(--accent-muted);
+    }
+
+    /* Syntax Highlighting */
+    .keyword { color: var(--danger-fg); }
+    .string { color: var(--success-fg); }
+    .comment { color: var(--fg-subtle); font-style: italic; }
+    .function { color: var(--done-fg); }
+    .type { color: var(--attention-fg); }
+    .variable { color: var(--accent-fg); }
+
+    /* Task Queue Panel */
+    .task-queue {
+      border-top: 1px solid var(--border-default);
+      background: var(--bg-default);
+    }
+
+    .task-queue-header {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .task-queue-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .task-queue-count {
+      font-size: 12px;
+      color: var(--fg-subtle);
+    }
+
+    .task-queue-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .task-item {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border-muted);
+      font-size: 13px;
+    }
+
+    .task-item:last-child { border-bottom: none; }
+
+    .task-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .task-status.pending { background: var(--fg-subtle); }
+    .task-status.running {
+      background: var(--success-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .task-status.done { background: var(--success-fg); }
+
+    .task-name {
+      flex: 1;
+      color: var(--fg-default);
+    }
+
+    .task-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-subtle);
+    }
+
+    /* Resize Handle */
+    .resize-handle {
+      width: 4px;
+      background: var(--border-default);
+      cursor: col-resize;
+      transition: background 0.12s;
+    }
+
+    .resize-handle:hover {
+      background: var(--accent-fg);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Minimal Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+        </div>
+        <div class="nav-icon active">
+          <span class="badge"></span>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+        </div>
+        <div class="nav-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </div>
+        <div class="nav-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+        </div>
+      </nav>
+
+      <div class="nav-icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div class="tab active">
+          <span class="tab-status running"></span>
+          <span>Task Runner</span>
+          <div class="tab-close">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tab">
+          <span class="tab-status running"></span>
+          <span>Code Reviewer</span>
+          <div class="tab-close">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tab">
+          <span class="tab-status idle"></span>
+          <span>Feature Builder</span>
+          <div class="tab-close">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tab-add">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Split Container -->
+      <div class="split-container">
+        <!-- Left Panel - Agent Stream -->
+        <div class="panel panel-left">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              </svg>
+              Agent Stream
+            </div>
+            <div class="panel-controls">
+              <div class="panel-btn" title="Pause">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                </svg>
+              </div>
+              <div class="panel-btn" title="Clear">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </div>
+              <div class="panel-btn" title="Split">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent Banner -->
+          <div class="agent-banner">
+            <div class="agent-avatar"></div>
+            <div class="agent-info">
+              <div class="agent-name">
+                Task Runner
+                <span class="agent-id">agt_x7k2m9</span>
+              </div>
+              <div class="agent-task">Working on <code>#TSK-148</code> Add real-time agent collaboration mode</div>
+            </div>
+            <div class="agent-stats">
+              <div class="agent-stat">
+                <div class="agent-stat-value">24</div>
+                <div class="agent-stat-label">Turn</div>
+              </div>
+              <div class="agent-stat">
+                <div class="agent-stat-value" style="color: var(--success-fg)">92%</div>
+                <div class="agent-stat-label">Progress</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stream Content -->
+          <div class="stream-content">
+            <div class="stream-entry">
+              <span class="stream-time">14:32:01</span>
+              <span class="stream-type think">[think]</span>
+              <span class="stream-msg">Need to implement WebSocket handler for real-time collaboration...</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:03</span>
+              <span class="stream-type read">[Read]</span>
+              <span class="stream-msg"><span class="stream-file">src/lib/agents/runner.ts</span></span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:05</span>
+              <span class="stream-type bash">[Bash]</span>
+              <span class="stream-msg highlight">npm run test:unit -- --grep "collaboration"</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:08</span>
+              <span class="stream-type stdout">[stdout]</span>
+              <span class="stream-msg">Running 12 tests...</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:12</span>
+              <span class="stream-type result">[result]</span>
+              <span class="stream-msg" style="color: var(--success-fg)">✓ All 12 tests passed (4.2s)</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:14</span>
+              <span class="stream-type edit">[Edit]</span>
+              <span class="stream-msg"><span class="stream-file">src/lib/collaboration/websocket.ts</span> lines 45-78</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:18</span>
+              <span class="stream-type write">[Write]</span>
+              <span class="stream-msg"><span class="stream-file">src/lib/collaboration/types.ts</span></span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:20</span>
+              <span class="stream-type bash">[Bash]</span>
+              <span class="stream-msg highlight">npm run typecheck</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:24</span>
+              <span class="stream-type result">[result]</span>
+              <span class="stream-msg" style="color: var(--success-fg)">✓ No type errors found</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:26</span>
+              <span class="stream-type read">[Read]</span>
+              <span class="stream-msg"><span class="stream-file">src/routes/api/agents.ts</span></span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:28</span>
+              <span class="stream-type think">[think]</span>
+              <span class="stream-msg">Adding broadcast endpoint for agent state sync...</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:30</span>
+              <span class="stream-type edit">[Edit]</span>
+              <span class="stream-msg"><span class="stream-file">src/routes/api/agents.ts</span> lines 112-145</span>
+            </div>
+            <div class="stream-entry">
+              <span class="stream-time">14:32:34</span>
+              <span class="stream-type bash">[Bash]</span>
+              <span class="stream-msg"><span class="cursor-blink"></span></span>
+            </div>
+          </div>
+
+          <!-- Task Queue -->
+          <div class="task-queue">
+            <div class="task-queue-header">
+              <span class="task-queue-title">Task Queue</span>
+              <span class="task-queue-count">3 remaining</span>
+            </div>
+            <div class="task-queue-list">
+              <div class="task-item">
+                <span class="task-status running"></span>
+                <span class="task-name">Add real-time agent collaboration mode</span>
+                <span class="task-id">#TSK-148</span>
+              </div>
+              <div class="task-item">
+                <span class="task-status pending"></span>
+                <span class="task-name">Optimize durable stream memory usage</span>
+                <span class="task-id">#TSK-145</span>
+              </div>
+              <div class="task-item">
+                <span class="task-status pending"></span>
+                <span class="task-name">Fix stream reconnection on network timeout</span>
+                <span class="task-id">#TSK-156</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="resize-handle"></div>
+
+        <!-- Right Panel - File Preview -->
+        <div class="panel panel-right">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              File Preview
+            </div>
+            <div class="panel-controls">
+              <div class="panel-btn" title="Open in Editor">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-preview">
+            <div class="file-header">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span class="file-path">src/lib/collaboration/websocket.ts</span>
+              <span class="file-badge">Modified</span>
+            </div>
+            <div class="file-content">
+              <div class="code-line">
+                <span class="line-number">43</span>
+                <span class="line-content"><span class="keyword">import</span> { <span class="type">AgentState</span> } <span class="keyword">from</span> <span class="string">'./types'</span>;</span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">44</span>
+                <span class="line-content"></span>
+              </div>
+              <div class="code-line highlight">
+                <span class="line-number">45</span>
+                <span class="line-content"><span class="keyword">export class</span> <span class="type">CollaborationSocket</span> {</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">46</span>
+                <span class="line-content">  <span class="keyword">private</span> <span class="variable">connections</span>: <span class="type">Map</span>&lt;<span class="type">string</span>, <span class="type">WebSocket</span>&gt; = <span class="keyword">new</span> <span class="function">Map</span>();</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">47</span>
+                <span class="line-content">  <span class="keyword">private</span> <span class="variable">agentStates</span>: <span class="type">Map</span>&lt;<span class="type">string</span>, <span class="type">AgentState</span>&gt; = <span class="keyword">new</span> <span class="function">Map</span>();</span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">48</span>
+                <span class="line-content"></span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">49</span>
+                <span class="line-content">  <span class="function">broadcast</span>(<span class="variable">agentId</span>: <span class="type">string</span>, <span class="variable">state</span>: <span class="type">AgentState</span>) {</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">50</span>
+                <span class="line-content">    <span class="keyword">this</span>.<span class="variable">agentStates</span>.<span class="function">set</span>(<span class="variable">agentId</span>, <span class="variable">state</span>);</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">51</span>
+                <span class="line-content">    <span class="keyword">const</span> <span class="variable">message</span> = <span class="type">JSON</span>.<span class="function">stringify</span>({</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">52</span>
+                <span class="line-content">      <span class="variable">type</span>: <span class="string">'agent_state_update'</span>,</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">53</span>
+                <span class="line-content">      <span class="variable">agentId</span>,</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">54</span>
+                <span class="line-content">      <span class="variable">state</span>,</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">55</span>
+                <span class="line-content">      <span class="variable">timestamp</span>: <span class="type">Date</span>.<span class="function">now</span>()</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">56</span>
+                <span class="line-content">    });</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">57</span>
+                <span class="line-content"></span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">58</span>
+                <span class="line-content">    <span class="keyword">this</span>.<span class="variable">connections</span>.<span class="function">forEach</span>((<span class="variable">ws</span>) => {</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">59</span>
+                <span class="line-content">      <span class="keyword">if</span> (<span class="variable">ws</span>.<span class="variable">readyState</span> === <span class="type">WebSocket</span>.<span class="variable">OPEN</span>) {</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">60</span>
+                <span class="line-content">        <span class="variable">ws</span>.<span class="function">send</span>(<span class="variable">message</span>);</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">61</span>
+                <span class="line-content">      }</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">62</span>
+                <span class="line-content">    });</span>
+              </div>
+              <div class="code-line added">
+                <span class="line-number">63</span>
+                <span class="line-content">  }</span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">64</span>
+                <span class="line-content"></span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">65</span>
+                <span class="line-content">  <span class="comment">// Handle new connections</span></span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">66</span>
+                <span class="line-content">  <span class="function">handleConnection</span>(<span class="variable">ws</span>: <span class="type">WebSocket</span>, <span class="variable">clientId</span>: <span class="type">string</span>) {</span>
+              </div>
+              <div class="code-line">
+                <span class="line-number">67</span>
+                <span class="line-content">    <span class="keyword">this</span>.<span class="variable">connections</span>.<span class="function">set</span>(<span class="variable">clientId</span>, <span class="variable">ws</span>);</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

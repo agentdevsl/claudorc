@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session History - Wireframe</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body, h1, h2, h3, h4, p, figure, blockquote, dl, dd {
+      margin: 0;
+    }
+
+    ul, ol {
+      list-style: none;
+    }
+
+    img, picture, video, canvas, svg {
+      display: block;
+      max-width: 100%;
+    }
+
+    input, button, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      /* Background colors */
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      /* Border colors */
+      --border-default: #30363d;
+
+      /* Foreground colors */
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+
+      /* Accent colors */
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      /* Status colors */
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+
+      /* Border radius */
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+
+      /* Typography */
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+      /* Letter spacing */
+      --tracking-tight: -0.02em;
+      --tracking-normal: 0;
+      --tracking-wide: 0.02em;
+
+      /* Spacing */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+
+      /* Animation timing */
+      --duration-instant: 100ms;
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+
+      /* Easing */
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ========================================
+       Base Styles
+       ======================================== */
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Sidebar Navigation
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 24px;
+      height: 24px;
+      color: var(--accent-fg);
+    }
+
+    .sidebar-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg-default);
+      letter-spacing: var(--tracking-tight);
+    }
+
+    .project-switcher {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      margin: var(--space-3);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+
+    .project-switcher:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .project-avatar {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .project-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .project-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-path {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-switcher kbd {
+      padding: 2px 6px;
+      background-color: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      color: var(--fg-muted);
+      font-family: var(--font-sans);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--space-3);
+      overflow-y: auto;
+    }
+
+    .nav-section {
+      margin-bottom: var(--space-4);
+    }
+
+    .nav-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .nav-section-title {
+      display: block;
+      padding: 0 var(--space-2);
+      margin-bottom: var(--space-2);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-2);
+      margin-bottom: 2px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border-radius: var(--radius);
+      transition: background-color var(--duration-fast) var(--ease-out),
+                  color var(--duration-fast) var(--ease-out);
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background-color: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .nav-item.active {
+      background-color: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .nav-item .icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      padding: 2px 6px;
+      background-color: var(--bg-emphasis);
+      color: var(--fg-muted);
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 10px;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .nav-badge.active {
+      background-color: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .sidebar-footer {
+      padding: var(--space-3);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background-color var(--duration-fast) var(--ease-out);
+    }
+
+    .user-menu:hover {
+      background-color: var(--bg-subtle);
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .user-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+    }
+
+    /* ========================================
+       Layout
+       ======================================== */
+    .app-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Header
+       ======================================== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-6);
+      background-color: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      gap: var(--space-4);
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .header-title h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .header-title .icon {
+      width: 24px;
+      height: 24px;
+      color: var(--fg-muted);
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    /* ========================================
+       Form Controls
+       ======================================== */
+    .select-control {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+
+    .select-control:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .select-control .icon {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+    }
+
+    .date-range-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .date-range-picker:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .date-range-picker .icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      transition: all 0.15s ease;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-fg);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: #4c9aed;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      color: var(--fg-default);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--bg-muted);
+      border-color: var(--fg-subtle);
+    }
+
+    .btn-danger {
+      color: var(--danger-fg);
+    }
+
+    .btn-danger:hover {
+      background-color: var(--danger-muted);
+    }
+
+    .btn .icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ========================================
+       Left Panel - Session Timeline
+       ======================================== */
+    .timeline-panel {
+      width: 400px;
+      min-width: 400px;
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .timeline-header {
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .timeline-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+      margin-bottom: var(--space-2);
+    }
+
+    .timeline-stats {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .timeline-stats span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .timeline-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-4);
+    }
+
+    .date-group {
+      margin-bottom: var(--space-6);
+    }
+
+    .date-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .date-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-3);
+      padding-left: var(--space-6);
+    }
+
+    .timeline-list {
+      position: relative;
+    }
+
+    .timeline-list::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background-color: var(--border-default);
+      border-radius: 1px;
+    }
+
+    .session-card {
+      position: relative;
+      margin-left: var(--space-6);
+      padding: var(--space-3);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin-bottom: var(--space-3);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .session-card::before {
+      content: '';
+      position: absolute;
+      left: calc(-20px);
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      background-color: var(--bg-muted);
+      border: 2px solid var(--border-default);
+      border-radius: 50%;
+      transition: all 0.15s ease;
+    }
+
+    .session-card:hover {
+      border-color: var(--fg-subtle);
+      background-color: var(--bg-muted);
+    }
+
+    .session-card:hover::before {
+      border-color: var(--fg-subtle);
+    }
+
+    .session-card.selected {
+      border-color: var(--accent-fg);
+      background-color: var(--accent-muted);
+    }
+
+    .session-card.selected::before {
+      background-color: var(--accent-fg);
+      border-color: var(--accent-fg);
+    }
+
+    .session-card.success::before {
+      background-color: var(--success-fg);
+      border-color: var(--success-fg);
+    }
+
+    .session-card.failed::before {
+      background-color: var(--danger-fg);
+      border-color: var(--danger-fg);
+    }
+
+    .session-card.in-progress::before {
+      background-color: var(--attention-fg);
+      border-color: var(--attention-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .session-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+
+    .session-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-fg);
+      font-weight: 500;
+    }
+
+    .session-time {
+      font-size: 11px;
+      color: var(--fg-subtle);
+    }
+
+    .session-agent {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+      margin-bottom: var(--space-1);
+    }
+
+    .agent-icon {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+    }
+
+    .session-task {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-2);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .session-task .task-id {
+      color: var(--done-fg);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .session-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: 11px;
+      color: var(--fg-subtle);
+    }
+
+    .session-meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .session-meta .icon {
+      width: 12px;
+      height: 12px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+    }
+
+    .status-badge.success {
+      background-color: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .status-badge.failed {
+      background-color: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .status-badge.in-progress {
+      background-color: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    /* ========================================
+       Right Panel - Session Detail
+       ======================================== */
+    .detail-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: var(--bg-canvas);
+    }
+
+    .detail-header {
+      padding: var(--space-4) var(--space-6);
+      background-color: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .detail-header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+
+    .detail-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .detail-title h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .detail-title .session-id {
+      font-size: 14px;
+    }
+
+    .detail-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+
+    .detail-meta-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .detail-meta-item .icon {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-subtle);
+    }
+
+    .detail-meta-item .label {
+      color: var(--fg-subtle);
+    }
+
+    .detail-meta-item .value {
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    /* ========================================
+       Replay Controls
+       ======================================== */
+    .replay-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .replay-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background-color: var(--accent-fg);
+      border-radius: 50%;
+      color: #ffffff;
+      transition: all 0.15s ease;
+    }
+
+    .replay-btn:hover {
+      background-color: #4c9aed;
+      transform: scale(1.05);
+    }
+
+    .replay-btn .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .progress-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .progress-time {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-muted);
+      min-width: 50px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background-color: var(--bg-emphasis);
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 35%;
+      background-color: var(--accent-fg);
+      border-radius: 3px;
+    }
+
+    .progress-handle {
+      position: absolute;
+      left: 35%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      background-color: #ffffff;
+      border-radius: 50%;
+      box-shadow: var(--shadow-md);
+      cursor: grab;
+    }
+
+    .progress-markers {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--fg-subtle);
+      font-family: var(--font-mono);
+    }
+
+    .speed-selector {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1);
+      background-color: var(--bg-muted);
+      border-radius: var(--radius);
+    }
+
+    .speed-option {
+      padding: var(--space-1) var(--space-2);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+
+    .speed-option:hover {
+      color: var(--fg-default);
+    }
+
+    .speed-option.active {
+      background-color: var(--bg-emphasis);
+      color: var(--fg-default);
+    }
+
+    .jump-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .jump-btn {
+      padding: var(--space-1) var(--space-2);
+      font-size: 11px;
+      color: var(--fg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+
+    .jump-btn:hover {
+      color: var(--fg-default);
+      border-color: var(--fg-subtle);
+    }
+
+    /* ========================================
+       Stream Viewer
+       ======================================== */
+    .stream-viewer {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-4) var(--space-6);
+    }
+
+    .stream-entry {
+      display: flex;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius);
+      margin-bottom: var(--space-2);
+      transition: background-color 0.15s ease;
+    }
+
+    .stream-entry:hover {
+      background-color: var(--bg-subtle);
+    }
+
+    .stream-entry.current {
+      background-color: var(--accent-muted);
+      border-left: 3px solid var(--accent-fg);
+    }
+
+    .stream-timestamp {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-subtle);
+      min-width: 60px;
+      padding-top: 2px;
+    }
+
+    .stream-content {
+      flex: 1;
+    }
+
+    .stream-type {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-1);
+    }
+
+    .stream-type.user {
+      color: var(--accent-fg);
+    }
+
+    .stream-type.assistant {
+      color: var(--done-fg);
+    }
+
+    .stream-type.tool {
+      color: var(--attention-fg);
+    }
+
+    .stream-type.system {
+      color: var(--fg-muted);
+    }
+
+    .stream-text {
+      font-size: 13px;
+      color: var(--fg-default);
+      line-height: 1.6;
+    }
+
+    .tool-call {
+      margin-top: var(--space-2);
+      padding: var(--space-3);
+      background-color: var(--bg-muted);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+    }
+
+    .tool-call-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+
+    .tool-call-name {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--attention-fg);
+      font-weight: 500;
+    }
+
+    .tool-call-toggle {
+      font-size: 11px;
+      color: var(--fg-muted);
+      cursor: pointer;
+    }
+
+    .tool-call-toggle:hover {
+      color: var(--accent-fg);
+    }
+
+    .tool-call-details {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-muted);
+      background-color: var(--bg-subtle);
+      padding: var(--space-2);
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+    }
+
+    /* ========================================
+       Session Summary
+       ======================================== */
+    .session-summary {
+      padding: var(--space-4) var(--space-6);
+      background-color: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .summary-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-3);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+    }
+
+    .summary-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .summary-item .label {
+      font-size: 11px;
+      color: var(--fg-subtle);
+    }
+
+    .summary-item .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .summary-item .value.success {
+      color: var(--success-fg);
+    }
+
+    .summary-item .value.lines {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .summary-item .value .added {
+      color: var(--success-fg);
+    }
+
+    .summary-item .value .removed {
+      color: var(--danger-fg);
+    }
+
+    /* ========================================
+       Footer Actions
+       ======================================== */
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--bg-subtle);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .footer-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .dropdown {
+      position: relative;
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: var(--space-2);
+      min-width: 140px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: var(--space-1);
+      display: none;
+    }
+
+    .dropdown:hover .dropdown-menu {
+      display: block;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      font-size: 13px;
+      color: var(--fg-default);
+      border-radius: var(--radius-sm);
+      transition: background-color 0.15s ease;
+    }
+
+    .dropdown-item:hover {
+      background-color: var(--bg-subtle);
+    }
+
+    .dropdown-item .icon {
+      width: 14px;
+      height: 14px;
+      color: var(--fg-muted);
+    }
+
+    /* ========================================
+       Design Notes Panel
+       ======================================== */
+    .design-notes {
+      position: fixed;
+      bottom: var(--space-4);
+      right: var(--space-4);
+      width: 320px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--accent-fg);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      z-index: 1000;
+    }
+
+    .design-notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background-color: var(--accent-muted);
+      border-bottom: 1px solid var(--accent-fg);
+    }
+
+    .design-notes-header h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .design-notes-toggle {
+      width: 20px;
+      height: 20px;
+      color: var(--accent-fg);
+      cursor: pointer;
+    }
+
+    .design-notes-content {
+      padding: var(--space-4);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .design-note {
+      margin-bottom: var(--space-4);
+    }
+
+    .design-note:last-child {
+      margin-bottom: 0;
+    }
+
+    .design-note h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      margin-bottom: var(--space-2);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .design-note h4 .icon {
+      width: 14px;
+      height: 14px;
+      color: var(--accent-fg);
+    }
+
+    .design-note p {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .design-note ul {
+      margin-top: var(--space-2);
+      padding-left: var(--space-4);
+    }
+
+    .design-note li {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-1);
+      list-style: disc;
+    }
+
+    /* ========================================
+       Utility Classes
+       ======================================== */
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ========================================
+       Scrollbar Styling
+       ======================================== */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-subtle);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-subtle);
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <line x1="9" y1="3" x2="9" y2="21"/>
+      </svg>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">AgentPane</span>
+        <span class="project-path">~/git/agentpane</span>
+      </div>
+      <kbd>⌘P</kbd>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Workspace</span>
+        <a class="nav-item" href="/projects">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9,22 9,12 15,12 15,22"/>
+          </svg>
+          Projects
+        </a>
+        <a class="nav-item" href="/agents">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          Agents
+          <span class="nav-badge">3</span>
+        </a>
+        <a class="nav-item" href="/tasks">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22,4 12,14.01 9,11.01"/>
+          </svg>
+          Tasks
+          <span class="nav-badge">12</span>
+        </a>
+        <a class="nav-item" href="/queue">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          Queue
+          <span class="nav-badge active">2</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-title">History</span>
+        <a class="nav-item active" href="/sessions">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12,6 12,12 16,14"/>
+          </svg>
+          Sessions
+        </a>
+        <a class="nav-item" href="/worktrees">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="18" r="3"/>
+            <circle cx="6" cy="6" r="3"/>
+            <path d="M6 21V9a9 9 0 0 0 9 9"/>
+          </svg>
+          Worktrees
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-title">Project</span>
+        <a class="nav-item" href="/settings">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/>
+          </svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">Simon Lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-title">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12,6 12,12 16,14"/>
+        </svg>
+        <h1>Session History</h1>
+      </div>
+
+      <div class="header-controls">
+        <div class="select-control">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+          </svg>
+          <span>All Sessions</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6,9 12,15 18,9"/>
+          </svg>
+        </div>
+
+        <div class="date-range-picker">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>Jan 10 - Jan 16, 2026</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6,9 12,15 18,9"/>
+          </svg>
+        </div>
+
+        <button class="btn btn-primary">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7,10 12,15 17,10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export All
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Left Panel - Session Timeline -->
+      <aside class="timeline-panel">
+        <div class="timeline-header">
+          <h2>Recent Sessions</h2>
+          <div class="timeline-stats">
+            <span>
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22,4 12,14.01 9,11.01"/>
+              </svg>
+              47 sessions
+            </span>
+            <span>
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              12h 34m total
+            </span>
+          </div>
+        </div>
+
+        <div class="timeline-content">
+          <!-- Today -->
+          <div class="date-group">
+            <div class="date-label">Today</div>
+            <div class="timeline-list">
+              <!-- Selected Session -->
+              <div class="session-card selected success">
+                <div class="session-header">
+                  <span class="session-id">#abc123</span>
+                  <span class="session-time">2:32 PM</span>
+                </div>
+                <div class="session-agent">
+                  <svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                  </svg>
+                  Task Runner
+                </div>
+                <div class="session-task">
+                  <span class="task-id">#TSK-148</span> "Add real-time collaboration"
+                </div>
+                <div class="session-meta">
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    4m 32s
+                  </span>
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    24/50
+                  </span>
+                  <span class="status-badge success">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Success
+                  </span>
+                </div>
+              </div>
+
+              <!-- Session 2 -->
+              <div class="session-card success">
+                <div class="session-header">
+                  <span class="session-id">#def456</span>
+                  <span class="session-time">11:45 AM</span>
+                </div>
+                <div class="session-agent">
+                  <svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                  Code Reviewer
+                </div>
+                <div class="session-task">
+                  <span class="task-id">#TSK-145</span> "Optimize memory usage"
+                </div>
+                <div class="session-meta">
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    8m 15s
+                  </span>
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    47/50
+                  </span>
+                  <span class="status-badge success">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Success
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Yesterday -->
+          <div class="date-group">
+            <div class="date-label">Yesterday</div>
+            <div class="timeline-list">
+              <!-- Failed Session -->
+              <div class="session-card failed">
+                <div class="session-header">
+                  <span class="session-id">#ghi789</span>
+                  <span class="session-time">4:18 PM</span>
+                </div>
+                <div class="session-agent">
+                  <svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                  </svg>
+                  Task Runner
+                </div>
+                <div class="session-task">
+                  <span class="task-id">#TSK-142</span> "Fix reconnection bug"
+                </div>
+                <div class="session-meta">
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    2m 08s
+                  </span>
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    23/50
+                  </span>
+                  <span class="status-badge failed">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Failed
+                  </span>
+                </div>
+              </div>
+
+              <!-- Session 4 -->
+              <div class="session-card success">
+                <div class="session-header">
+                  <span class="session-id">#jkl012</span>
+                  <span class="session-time">10:30 AM</span>
+                </div>
+                <div class="session-agent">
+                  <svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12,2 2,7 12,12 22,7 12,2"/>
+                    <polyline points="2,17 12,22 22,17"/>
+                    <polyline points="2,12 12,17 22,12"/>
+                  </svg>
+                  Feature Builder
+                </div>
+                <div class="session-task">
+                  <span class="task-id">#TSK-140</span> "Implement dashboard widgets"
+                </div>
+                <div class="session-meta">
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    12m 45s
+                  </span>
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    38/50
+                  </span>
+                  <span class="status-badge success">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Success
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Jan 14, 2026 -->
+          <div class="date-group">
+            <div class="date-label">Jan 14, 2026</div>
+            <div class="timeline-list">
+              <div class="session-card success">
+                <div class="session-header">
+                  <span class="session-id">#mno345</span>
+                  <span class="session-time">3:22 PM</span>
+                </div>
+                <div class="session-agent">
+                  <svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                  Code Reviewer
+                </div>
+                <div class="session-task">
+                  <span class="task-id">#TSK-138</span> "Refactor auth module"
+                </div>
+                <div class="session-meta">
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    6m 12s
+                  </span>
+                  <span>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    31/50
+                  </span>
+                  <span class="status-badge success">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Success
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel - Session Detail -->
+      <section class="detail-panel">
+        <div class="detail-header">
+          <div class="detail-header-top">
+            <div class="detail-title">
+              <h2>Session Replay</h2>
+              <span class="session-id">#abc123</span>
+              <span class="status-badge success">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px">
+                  <polyline points="20,6 9,17 4,12"/>
+                </svg>
+                Success
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-meta">
+            <div class="detail-meta-item">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <span class="label">Agent:</span>
+              <span class="value">Task Runner</span>
+            </div>
+            <div class="detail-meta-item">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22,4 12,14.01 9,11.01"/>
+              </svg>
+              <span class="label">Task:</span>
+              <span class="value" style="color: var(--done-fg)">#TSK-148</span>
+            </div>
+            <div class="detail-meta-item">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              <span class="label">Duration:</span>
+              <span class="value">4m 32s</span>
+            </div>
+            <div class="detail-meta-item">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span class="label">Turns:</span>
+              <span class="value">24/50</span>
+            </div>
+            <div class="detail-meta-item">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span class="label">Started:</span>
+              <span class="value">Jan 16, 2026 at 2:32 PM</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Replay Controls -->
+        <div class="replay-controls">
+          <button class="replay-btn" title="Play/Pause">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5,3 19,12 5,21 5,3"/>
+            </svg>
+          </button>
+
+          <div class="progress-container">
+            <span class="progress-time">1:35</span>
+            <div class="progress-bar">
+              <div class="progress-markers">
+                <span>0:00</span>
+                <span>1:08</span>
+                <span>2:16</span>
+                <span>3:24</span>
+                <span>4:32</span>
+              </div>
+              <div class="progress-fill"></div>
+              <div class="progress-handle"></div>
+            </div>
+            <span class="progress-time">4:32</span>
+          </div>
+
+          <div class="speed-selector">
+            <button class="speed-option active">1x</button>
+            <button class="speed-option">2x</button>
+            <button class="speed-option">4x</button>
+          </div>
+
+          <div class="jump-controls">
+            <button class="jump-btn">Start</button>
+            <button class="jump-btn">End</button>
+          </div>
+        </div>
+
+        <!-- Stream Viewer -->
+        <div class="stream-viewer">
+          <div class="stream-entry">
+            <span class="stream-timestamp">0:00</span>
+            <div class="stream-content">
+              <div class="stream-type system">System</div>
+              <div class="stream-text">Session started. Agent: Task Runner. Task: #TSK-148 "Add real-time collaboration"</div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">0:02</span>
+            <div class="stream-content">
+              <div class="stream-type user">User</div>
+              <div class="stream-text">Implement real-time collaboration features for the document editor. Include presence indicators and cursor tracking.</div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">0:15</span>
+            <div class="stream-content">
+              <div class="stream-type assistant">Assistant</div>
+              <div class="stream-text">I'll implement real-time collaboration for the document editor. Let me start by analyzing the current architecture and identifying the necessary components.</div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">0:28</span>
+            <div class="stream-content">
+              <div class="stream-type tool">Tool Call</div>
+              <div class="tool-call">
+                <div class="tool-call-header">
+                  <span class="tool-call-name">Read</span>
+                  <span class="tool-call-toggle">Show details</span>
+                </div>
+                <div class="tool-call-details">
+                  <code>file_path: "/src/editor/DocumentEditor.tsx"</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">0:45</span>
+            <div class="stream-content">
+              <div class="stream-type assistant">Assistant</div>
+              <div class="stream-text">I can see the document editor uses a custom state management approach. I'll need to integrate WebSocket connections for real-time sync.</div>
+            </div>
+          </div>
+
+          <div class="stream-entry current">
+            <span class="stream-timestamp">1:35</span>
+            <div class="stream-content">
+              <div class="stream-type tool">Tool Call</div>
+              <div class="tool-call">
+                <div class="tool-call-header">
+                  <span class="tool-call-name">Edit</span>
+                  <span class="tool-call-toggle">Show details</span>
+                </div>
+                <div class="tool-call-details">
+                  <code>file_path: "/src/lib/collaboration/PresenceManager.ts"<br>old_string: "// TODO: implement presence"<br>new_string: "export class PresenceManager { ... }"</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">2:12</span>
+            <div class="stream-content">
+              <div class="stream-type assistant">Assistant</div>
+              <div class="stream-text">Created the PresenceManager class to track user cursors and selections. Now implementing the WebSocket handler for broadcasting presence updates.</div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">2:45</span>
+            <div class="stream-content">
+              <div class="stream-type tool">Tool Call</div>
+              <div class="tool-call">
+                <div class="tool-call-header">
+                  <span class="tool-call-name">Write</span>
+                  <span class="tool-call-toggle">Show details</span>
+                </div>
+                <div class="tool-call-details">
+                  <code>file_path: "/src/lib/collaboration/CursorOverlay.tsx"</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">3:30</span>
+            <div class="stream-content">
+              <div class="stream-type tool">Tool Call</div>
+              <div class="tool-call">
+                <div class="tool-call-header">
+                  <span class="tool-call-name">Bash</span>
+                  <span class="tool-call-toggle">Show details</span>
+                </div>
+                <div class="tool-call-details">
+                  <code>command: "npm test -- --coverage"</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">4:25</span>
+            <div class="stream-content">
+              <div class="stream-type assistant">Assistant</div>
+              <div class="stream-text">All tests passing. The real-time collaboration feature is now complete with presence indicators and cursor tracking.</div>
+            </div>
+          </div>
+
+          <div class="stream-entry">
+            <span class="stream-timestamp">4:32</span>
+            <div class="stream-content">
+              <div class="stream-type system">System</div>
+              <div class="stream-text">Session completed successfully. Task #TSK-148 marked as done.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Summary -->
+        <div class="session-summary">
+          <div class="summary-title">Session Summary</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <span class="label">Files Modified</span>
+              <span class="value">3</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Lines Changed</span>
+              <span class="value lines">
+                <span class="added">+145</span>
+                <span class="removed">-23</span>
+              </span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Tests Run</span>
+              <span class="value success">12 passed</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Tokens Used</span>
+              <span class="value">45,230</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="footer-actions">
+          <div class="footer-left">
+            <div class="dropdown">
+              <button class="btn btn-secondary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7,10 12,15 17,10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export Session
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6,9 12,15 18,9"/>
+                </svg>
+              </button>
+              <div class="dropdown-menu">
+                <a href="#" class="dropdown-item">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                  </svg>
+                  JSON
+                </a>
+                <a href="#" class="dropdown-item">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                  Markdown
+                </a>
+                <a href="#" class="dropdown-item">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                  </svg>
+                  CSV
+                </a>
+              </div>
+            </div>
+
+            <button class="btn btn-secondary">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4,17 10,11 4,5"/>
+                <line x1="12" y1="19" x2="20" y2="19"/>
+              </svg>
+              Replay in Terminal
+            </button>
+          </div>
+
+          <div class="footer-right">
+            <button class="btn btn-danger">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+              Delete Session
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Design Notes Panel -->
+  <aside class="design-notes">
+    <div class="design-notes-header">
+      <h3>Design Notes</h3>
+      <svg class="design-notes-toggle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </div>
+    <div class="design-notes-content">
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12,6 12,12 16,14"/>
+          </svg>
+          Session Timeline Grouping
+        </h4>
+        <p>Sessions are grouped by date for easy scanning. The vertical timeline provides visual continuity, with colored dots indicating session status at a glance.</p>
+        <ul>
+          <li>Green dots: Successful sessions</li>
+          <li>Red dots: Failed sessions</li>
+          <li>Pulsing yellow: In-progress</li>
+          <li>Selected session has accent highlight</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5,3 19,12 5,21 5,3"/>
+          </svg>
+          Replay Scrubbing Functionality
+        </h4>
+        <p>The replay controls enable reviewing session history like a video player:</p>
+        <ul>
+          <li>Draggable progress handle for seeking</li>
+          <li>Time markers show key moments</li>
+          <li>Speed controls (1x, 2x, 4x) for quick review</li>
+          <li>Jump buttons for start/end navigation</li>
+          <li>Current position highlighted in stream</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Audit Compliance Features
+        </h4>
+        <p>Built-in audit trail capabilities for compliance requirements:</p>
+        <ul>
+          <li>Complete session logs with timestamps</li>
+          <li>Export to JSON, Markdown, or CSV</li>
+          <li>Tool call details fully expandable</li>
+          <li>Session metadata preserved</li>
+          <li>Immutable history (delete with warning)</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Session - Collaborative View | Wireframe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       CSS Reset
+    ======================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body, h1, h2, h3, h4, h5, h6, p, ul, ol, li, figure, figcaption, blockquote, dl, dd {
+      margin: 0;
+    }
+
+    ul, ol {
+      list-style: none;
+    }
+
+    img, picture, video, canvas, svg {
+      display: block;
+      max-width: 100%;
+    }
+
+    input, button, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* ========================================
+       Design Tokens
+    ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --attention-fg: #d29922;
+      --done-fg: #a371f7;
+      --radius: 6px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    /* ========================================
+       Base Styles
+    ======================================== */
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-canvas);
+      color: var(--fg-default);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ========================================
+       Layout
+    ======================================== */
+    .app-layout {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      grid-template-columns: 1fr 320px;
+      min-height: 100vh;
+      gap: 0;
+    }
+
+    /* ========================================
+       Header Bar
+    ======================================== */
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background-color: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .session-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background-color: var(--success-muted);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--success-fg);
+    }
+
+    .status-badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background-color: var(--success-fg);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .viewer-count {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+
+    .viewer-count svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ========================================
+       Presence Bar
+    ======================================== */
+    .presence-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .presence-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .avatar-stack {
+      display: flex;
+      align-items: center;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      border: 2px solid var(--bg-subtle);
+      margin-left: -8px;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .avatar:first-child {
+      margin-left: 0;
+    }
+
+    .avatar:hover {
+      transform: translateY(-2px);
+      z-index: 10;
+    }
+
+    .avatar-you {
+      background: linear-gradient(135deg, #58a6ff, #1f6feb);
+    }
+
+    .avatar-sarah {
+      background: linear-gradient(135deg, #a371f7, #8957e5);
+    }
+
+    .avatar-mike {
+      background: linear-gradient(135deg, #3fb950, #238636);
+    }
+
+    .avatar-online::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 10px;
+      height: 10px;
+      background-color: var(--success-fg);
+      border: 2px solid var(--bg-subtle);
+      border-radius: 50%;
+    }
+
+    .presence-label {
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+
+    .presence-label strong {
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    /* Share Session Panel */
+    .share-panel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .share-label {
+      font-size: 12px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .share-url-container {
+      display: flex;
+      align-items: center;
+      background-color: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .share-url {
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent-fg);
+      background: transparent;
+      border: none;
+      outline: none;
+      width: 220px;
+    }
+
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      background-color: var(--bg-emphasis);
+      color: var(--fg-muted);
+      border-left: 1px solid var(--border-default);
+      transition: all 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      background-color: var(--accent-fg);
+      color: white;
+    }
+
+    .copy-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ========================================
+       Main Content Area
+    ======================================== */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-canvas);
+      overflow: hidden;
+    }
+
+    /* Agent Stream Panel */
+    .agent-stream {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      margin: 16px;
+      margin-right: 8px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .stream-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .stream-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+    }
+
+    .stream-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent-fg);
+    }
+
+    .viewer-indicators {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .viewer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      opacity: 0.8;
+    }
+
+    .viewer-dot:nth-child(1) { background-color: #58a6ff; }
+    .viewer-dot:nth-child(2) { background-color: #a371f7; }
+    .viewer-dot:nth-child(3) { background-color: #3fb950; }
+
+    .stream-content {
+      flex: 1;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-y: auto;
+      background-color: var(--bg-canvas);
+    }
+
+    .stream-line {
+      margin-bottom: 4px;
+    }
+
+    .stream-prompt {
+      color: var(--success-fg);
+    }
+
+    .stream-command {
+      color: var(--fg-default);
+    }
+
+    .stream-output {
+      color: var(--fg-muted);
+      padding-left: 20px;
+    }
+
+    .stream-thinking {
+      color: var(--attention-fg);
+      font-style: italic;
+    }
+
+    .stream-action {
+      color: var(--accent-fg);
+    }
+
+    .stream-success {
+      color: var(--success-fg);
+    }
+
+    .stream-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background-color: var(--fg-default);
+      margin-left: 4px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ========================================
+       Activity Sidebar
+    ======================================== */
+    .activity-sidebar {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .activity-feed {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .activity-icon-join {
+      background-color: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .activity-icon-watch {
+      background-color: rgba(163, 113, 247, 0.15);
+      color: var(--done-fg);
+    }
+
+    .activity-icon-start {
+      background-color: rgba(88, 166, 255, 0.15);
+      color: var(--accent-fg);
+    }
+
+    .activity-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .activity-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-text {
+      font-size: 13px;
+      color: var(--fg-default);
+      margin-bottom: 2px;
+    }
+
+    .activity-text strong {
+      font-weight: 500;
+      color: var(--fg-default);
+    }
+
+    .activity-time {
+      font-size: 12px;
+      color: var(--fg-subtle);
+    }
+
+    /* Session Actions */
+    .session-actions {
+      padding: 16px;
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      transition: all 0.15s ease;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-danger {
+      background-color: rgba(248, 81, 73, 0.1);
+      color: var(--danger-fg);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+
+    .btn-danger:hover {
+      background-color: var(--danger-fg);
+      color: white;
+      border-color: var(--danger-fg);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-muted);
+      color: var(--fg-muted);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--bg-emphasis);
+      color: var(--fg-default);
+    }
+
+    /* ========================================
+       Input Area
+    ======================================== */
+    .input-area {
+      grid-column: 1 / 2;
+      padding: 16px;
+      padding-right: 8px;
+      background-color: var(--bg-canvas);
+    }
+
+    .input-container {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+    }
+
+    .input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      color: var(--fg-default);
+      font-family: var(--font-mono);
+    }
+
+    .input-field::placeholder {
+      color: var(--fg-subtle);
+    }
+
+    .input-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .shortcut-hint {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      padding: 4px 8px;
+      background-color: var(--bg-muted);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .send-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 16px;
+      background-color: var(--accent-fg);
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      transition: all 0.15s ease;
+    }
+
+    .send-btn:hover {
+      background-color: #1f6feb;
+    }
+
+    .send-btn svg {
+      width: 16px;
+      height: 16px;
+      margin-left: 6px;
+    }
+
+    /* ========================================
+       Design Notes Panel
+    ======================================== */
+    .design-notes {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      z-index: 100;
+    }
+
+    .design-notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .design-notes-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .design-notes-toggle {
+      color: var(--fg-subtle);
+      transition: color 0.15s ease;
+    }
+
+    .design-notes-toggle:hover {
+      color: var(--fg-default);
+    }
+
+    .design-notes-content {
+      padding: 16px;
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .design-note {
+      margin-bottom: 12px;
+      padding-left: 12px;
+      border-left: 2px solid var(--border-default);
+    }
+
+    .design-note:last-child {
+      margin-bottom: 0;
+    }
+
+    .design-note-label {
+      font-weight: 600;
+      color: var(--accent-fg);
+      display: block;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header Bar -->
+    <header class="header">
+      <div class="header-left">
+        <h1 class="session-title">Agent Session: Project Setup</h1>
+        <span class="status-badge">Live</span>
+      </div>
+      <div class="header-right">
+        <div class="viewer-count">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.831.88 9.577.43 8.899a1.62 1.62 0 0 1 0-1.798c.45-.678 1.367-1.932 2.637-3.023C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.825.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z"/>
+          </svg>
+          <span>3 watching</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Presence Bar -->
+    <div class="presence-bar">
+      <div class="presence-left">
+        <div class="avatar-stack">
+          <div class="avatar avatar-you avatar-online" title="You">Y</div>
+          <div class="avatar avatar-sarah avatar-online" title="Sarah">S</div>
+          <div class="avatar avatar-mike avatar-online" title="Mike">M</div>
+        </div>
+        <span class="presence-label"><strong>3 participants</strong> in this session</span>
+      </div>
+      <div class="share-panel">
+        <span class="share-label">Share</span>
+        <div class="share-url-container">
+          <input type="text" class="share-url" value="agentpane.dev/session/abc123" readonly>
+          <button class="copy-btn" title="Copy URL">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+              <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content: Agent Stream -->
+    <main class="main-content">
+      <div class="agent-stream">
+        <div class="stream-header">
+          <div class="stream-title">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25ZM3.5 6.25a.75.75 0 0 1 .75-.75h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5Z"/>
+            </svg>
+            Agent Stream
+          </div>
+          <div class="viewer-indicators" title="3 viewers watching">
+            <div class="viewer-dot"></div>
+            <div class="viewer-dot"></div>
+            <div class="viewer-dot"></div>
+          </div>
+        </div>
+        <div class="stream-content">
+          <div class="stream-line">
+            <span class="stream-prompt">agent $</span>
+            <span class="stream-command"> Initializing project environment...</span>
+          </div>
+          <div class="stream-line stream-output">Creating directory structure</div>
+          <div class="stream-line stream-output">Installing dependencies</div>
+          <div class="stream-line stream-success">✓ Project initialized successfully</div>
+          <div class="stream-line">&nbsp;</div>
+          <div class="stream-line">
+            <span class="stream-prompt">agent $</span>
+            <span class="stream-command"> Analyzing codebase structure...</span>
+          </div>
+          <div class="stream-line stream-thinking">Thinking: Scanning for configuration files...</div>
+          <div class="stream-line stream-output">Found: package.json, tsconfig.json, .eslintrc</div>
+          <div class="stream-line stream-action">→ Reading package.json</div>
+          <div class="stream-line stream-output">Dependencies: react@18.2.0, typescript@5.0.0</div>
+          <div class="stream-line">&nbsp;</div>
+          <div class="stream-line">
+            <span class="stream-prompt">agent $</span>
+            <span class="stream-command"> Setting up development server...</span>
+          </div>
+          <div class="stream-line stream-thinking">Thinking: Configuring Vite for React + TypeScript...</div>
+          <div class="stream-line stream-action">→ Updating vite.config.ts</div>
+          <div class="stream-line stream-output">Server running on http://localhost:5173</div>
+          <div class="stream-line stream-success">✓ Development environment ready</div>
+          <div class="stream-line">&nbsp;</div>
+          <div class="stream-line">
+            <span class="stream-prompt">agent $</span>
+            <span class="stream-cursor"></span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Activity Sidebar -->
+    <aside class="activity-sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Activity</h2>
+      </div>
+      <div class="activity-feed">
+        <div class="activity-item">
+          <div class="activity-icon activity-icon-join">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5ZM11 4a3.001 3.001 0 0 1 2.22 5.018 5.01 5.01 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.752.752 0 0 1-.549-.514 3.507 3.507 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4Zm-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5Z"/>
+            </svg>
+          </div>
+          <div class="activity-content">
+            <p class="activity-text"><strong>Sarah</strong> joined the session</p>
+            <span class="activity-time">2m ago</span>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon activity-icon-watch">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.831.88 9.577.43 8.899a1.62 1.62 0 0 1 0-1.798c.45-.678 1.367-1.932 2.637-3.023C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.825.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z"/>
+            </svg>
+          </div>
+          <div class="activity-content">
+            <p class="activity-text"><strong>Mike</strong> is watching</p>
+            <span class="activity-time">5m ago</span>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon activity-icon-start">
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/>
+            </svg>
+          </div>
+          <div class="activity-content">
+            <p class="activity-text"><strong>Session started</strong></p>
+            <span class="activity-time">12m ago</span>
+          </div>
+        </div>
+      </div>
+      <div class="session-actions">
+        <button class="btn btn-danger">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+          </svg>
+          End Session
+        </button>
+        <button class="btn btn-secondary">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 2.75C2 1.784 2.784 1 3.75 1h2.5a.75.75 0 0 1 0 1.5h-2.5a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 0 1.5h-2.5A1.75 1.75 0 0 1 2 13.25Zm10.44 4.5-1.97-1.97a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l1.97-1.97H6.75a.75.75 0 0 1 0-1.5Z"/>
+          </svg>
+          Leave Session
+        </button>
+      </div>
+    </aside>
+
+    <!-- Input Area -->
+    <div class="input-area">
+      <div class="input-container">
+        <input type="text" class="input-field" placeholder="Send a message or command to the agent...">
+        <div class="input-actions">
+          <span class="shortcut-hint">Enter</span>
+          <button class="send-btn">
+            Send
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M.989 8 .064 2.68a1.342 1.342 0 0 1 1.85-1.462l13.402 5.744a1.13 1.13 0 0 1 0 2.076L1.913 14.782a1.343 1.343 0 0 1-1.85-1.463L.99 8Zm.603-5.288L2.38 7.25h4.87a.75.75 0 0 1 0 1.5H2.38l-.788 4.538L13.929 8Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Notes Panel -->
+  <div class="design-notes">
+    <div class="design-notes-header">
+      <span class="design-notes-title">Design Notes</span>
+      <button class="design-notes-toggle">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+        </svg>
+      </button>
+    </div>
+    <div class="design-notes-content">
+      <div class="design-note">
+        <span class="design-note-label">Presence</span>
+        Overlapping avatar stack shows all session participants. Online indicators (green dots) show active status.
+      </div>
+      <div class="design-note">
+        <span class="design-note-label">Share URL</span>
+        Copyable session link enables quick sharing. Monospace font for URL clarity.
+      </div>
+      <div class="design-note">
+        <span class="design-note-label">Real-time Stream</span>
+        Terminal-style output with syntax highlighting. Colored dots indicate multiple viewers.
+      </div>
+      <div class="design-note">
+        <span class="design-note-label">Activity Feed</span>
+        Chronological join/leave notifications keep participants aware of session changes.
+      </div>
+      <div class="design-note">
+        <span class="design-note-label">Input Area</span>
+        Command input with keyboard shortcut hint. Persistent across scroll for easy access.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

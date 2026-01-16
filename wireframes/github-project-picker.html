@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Project Picker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* GitHub Dark Theme - Project Picker */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+
+      --done-fg: #a371f7;
+
+      --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
+      --shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.4);
+      --shadow-xl: 0 12px 48px rgba(1, 4, 9, 0.5);
+
+      --radius: 6px;
+      --radius-lg: 12px;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(1, 4, 9, 0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 680px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .modal-close svg { width: 20px; height: 20px; }
+
+    /* Search */
+    .search-container {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .search-input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px 0 40px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.12s;
+    }
+
+    .search-input::placeholder { color: var(--fg-subtle); }
+
+    .search-input:focus {
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    .search-wrapper {
+      position: relative;
+    }
+
+    .search-wrapper svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--fg-subtle);
+    }
+
+    .search-kbd {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      gap: 4px;
+    }
+
+    .kbd {
+      padding: 2px 6px;
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    /* Project List */
+    .project-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .project-section {
+      padding: 8px 0;
+    }
+
+    .project-section-title {
+      padding: 8px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .project-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .project-item:hover {
+      background: var(--bg-subtle);
+    }
+
+    .project-item.selected {
+      background: var(--accent-muted);
+    }
+
+    .project-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .project-icon.blue {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .project-icon.green {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .project-icon.purple {
+      background: rgba(163, 113, 247, 0.15);
+      color: var(--done-fg);
+    }
+
+    .project-icon.orange {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .project-icon.red {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .project-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .project-name {
+      font-weight: 500;
+      color: var(--fg-default);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-path {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .project-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .project-stat svg { width: 14px; height: 14px; }
+
+    .project-stat.active {
+      color: var(--success-fg);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 10px;
+      border: 1px solid transparent;
+    }
+
+    .label-success {
+      background: var(--success-muted);
+      color: var(--success-fg);
+      border-color: rgba(46, 160, 67, 0.4);
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+    }
+
+    .footer-hint {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .footer-hint-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn {
+      height: 32px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-primary {
+      background: var(--success-emphasis);
+      color: white;
+      border-color: rgba(240, 246, 252, 0.1);
+    }
+
+    .btn-primary:hover {
+      background: #2ea043;
+    }
+
+    .btn svg { width: 14px; height: 14px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+  </style>
+</head>
+<body>
+  <div class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Open Project</span>
+        <div class="modal-close">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="search-container">
+        <div class="search-wrapper">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="text" class="search-input" placeholder="Search projects..." autofocus>
+          <div class="search-kbd">
+            <span class="kbd">⌘</span>
+            <span class="kbd">P</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="project-list">
+        <div class="project-section">
+          <div class="project-section-title">Recent Projects</div>
+
+          <div class="project-item selected">
+            <div class="project-icon green">AP</div>
+            <div class="project-info">
+              <div class="project-name">
+                AgentPane
+                <span class="label label-success">Active</span>
+              </div>
+              <div class="project-path">~/git/claudorc</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat active">
+                <span class="status-dot"></span>
+                <span>3 agents</span>
+              </div>
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>12 tasks</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="project-item">
+            <div class="project-icon blue">WA</div>
+            <div class="project-info">
+              <div class="project-name">Web App Dashboard</div>
+              <div class="project-path">~/projects/webapp-dashboard</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>8 tasks</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="project-item">
+            <div class="project-icon purple">AS</div>
+            <div class="project-info">
+              <div class="project-name">Agent SDK Examples</div>
+              <div class="project-path">~/git/agent-sdk-examples</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>5 tasks</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="project-section">
+          <div class="project-section-title">All Projects</div>
+
+          <div class="project-item">
+            <div class="project-icon orange">DC</div>
+            <div class="project-info">
+              <div class="project-name">Data Collector</div>
+              <div class="project-path">~/work/data-collector</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>3 tasks</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="project-item">
+            <div class="project-icon red">BF</div>
+            <div class="project-info">
+              <div class="project-name">Bug Fixer Bot</div>
+              <div class="project-path">~/experiments/bug-fixer</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>0 tasks</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="project-item">
+            <div class="project-icon blue">ML</div>
+            <div class="project-info">
+              <div class="project-name">ML Pipeline</div>
+              <div class="project-path">~/ml/training-pipeline</div>
+            </div>
+            <div class="project-meta">
+              <div class="project-stat">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>7 tasks</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="footer-hint">
+          <div class="footer-hint-item">
+            <span class="kbd">↑↓</span>
+            <span>Navigate</span>
+          </div>
+          <div class="footer-hint-item">
+            <span class="kbd">↵</span>
+            <span>Open</span>
+          </div>
+          <div class="footer-hint-item">
+            <span class="kbd">esc</span>
+            <span>Cancel</span>
+          </div>
+        </div>
+        <button class="btn btn-primary">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          New Project
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

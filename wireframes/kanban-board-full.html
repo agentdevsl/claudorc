@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Board - Kanban View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    /* Design Tokens */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --radius: 6px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--fg-default);
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* Layout */
+    .app-layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .nav-item.active {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      opacity: 0.8;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border-default);
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-emphasis);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .user-info {
+      flex: 1;
+    }
+
+    .user-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-default);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .btn-secondary {
+      background: var(--bg-subtle);
+      border-color: var(--border-default);
+      color: var(--fg-default);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-muted);
+    }
+
+    .btn-primary {
+      background: var(--success-fg);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      padding: 12px 24px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 24px;
+      background: var(--border-default);
+      margin: 0 4px;
+    }
+
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border-default);
+      background: var(--bg-default);
+      color: var(--fg-muted);
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .toolbar-btn.danger:hover {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+      border-color: var(--danger-fg);
+    }
+
+    .selection-count {
+      font-size: 12px;
+      color: var(--fg-muted);
+      padding: 0 8px;
+    }
+
+    /* Kanban Board */
+    .kanban-board {
+      flex: 1;
+      display: flex;
+      gap: 16px;
+      padding: 20px 24px;
+      overflow-x: auto;
+    }
+
+    /* Column */
+    .column {
+      width: 300px;
+      min-width: 300px;
+      background: var(--bg-default);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 180px);
+    }
+
+    .column.collapsed {
+      width: 48px;
+      min-width: 48px;
+    }
+
+    .column.collapsed .column-content,
+    .column.collapsed .column-actions,
+    .column.collapsed .column-title-text,
+    .column.collapsed .column-count {
+      display: none;
+    }
+
+    .column.collapsed .column-header {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      padding: 12px 8px;
+      justify-content: flex-start;
+      gap: 12px;
+    }
+
+    .column.drop-target {
+      background: var(--accent-muted);
+      border-color: var(--accent-fg);
+    }
+
+    .column-header {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .column-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .column-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .column-indicator {
+      width: 3px;
+      height: 14px;
+      border-radius: 2px;
+    }
+
+    .column-indicator.backlog {
+      background: var(--fg-muted);
+    }
+
+    .column-indicator.in-progress {
+      background: var(--attention-fg);
+    }
+
+    .column-indicator.waiting {
+      background: var(--accent-fg);
+    }
+
+    .column-indicator.verified {
+      background: var(--success-fg);
+    }
+
+    .column-title-text {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .column-count {
+      background: var(--bg-muted);
+      color: var(--fg-muted);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    .column-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .column-action-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--fg-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .column-action-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .collapse-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--fg-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .collapse-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .column-content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: grab;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .card:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .card.selected {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .card.dragging {
+      opacity: 0.4;
+    }
+
+    .card-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .card-label {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .label-bug {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .label-feature {
+      background: var(--done-muted);
+      color: var(--done-fg);
+    }
+
+    .label-enhancement {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .label-docs {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .card-priority {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+
+    .priority-high {
+      background: var(--danger-fg);
+    }
+
+    .priority-medium {
+      background: var(--attention-fg);
+    }
+
+    .priority-low {
+      background: var(--success-fg);
+    }
+
+    .card-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .card-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+
+    .card-assignee {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-emphasis);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--fg-muted);
+    }
+
+    .card-agent-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 6px 8px;
+      background: var(--attention-muted);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--attention-fg);
+    }
+
+    .agent-pulse {
+      width: 6px;
+      height: 6px;
+      background: var(--attention-fg);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Drag Overlay */
+    .drag-overlay {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      transform: rotate(3deg);
+      opacity: 0.9;
+    }
+
+    .drag-overlay .card {
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+      border-color: var(--accent-fg);
+      cursor: grabbing;
+    }
+
+    /* Design Notes Panel */
+    .design-notes {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-size: 12px;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .design-notes-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .design-notes-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--accent-fg);
+    }
+
+    .design-notes-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .design-notes-content {
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .design-notes-content ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .design-notes-content li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 8px;
+    }
+
+    .design-notes-content li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--accent-fg);
+    }
+
+    .design-notes-content code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--bg-muted);
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: var(--fg-default);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-subtle);
+    }
+
+    /* Icons (inline SVG placeholders) */
+    .icon {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-icon">C</div>
+          <span>Claude Tasks</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          Agents
+        </div>
+        <div class="nav-item active">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+            <rect x="9" y="3" width="6" height="4" rx="1"/>
+            <path d="M9 12h6M9 16h6"/>
+          </svg>
+          Tasks
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12,6 12,12 16,14"/>
+          </svg>
+          History
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">SL</div>
+          <div class="user-info">
+            <div class="user-name">Simon Lynch</div>
+            <div class="user-role">Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <h1 class="page-title">Task Board</h1>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+            </svg>
+            Filter
+          </button>
+          <button class="btn btn-primary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Task
+          </button>
+        </div>
+      </header>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <button class="toolbar-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+            Select All
+          </button>
+          <span class="selection-count">2 selected</span>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="toolbar-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 9l7 7 7-7"/>
+            </svg>
+            Move to...
+          </button>
+          <button class="toolbar-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+            </svg>
+            Assign to...
+          </button>
+          <button class="toolbar-btn danger">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3,6 5,6 21,6"/>
+              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+              <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- Kanban Board -->
+      <div class="kanban-board">
+        <!-- Backlog Column -->
+        <div class="column">
+          <div class="column-header">
+            <div class="column-header-left">
+              <button class="collapse-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="column-title">
+                <div class="column-indicator backlog"></div>
+                <span class="column-title-text">Backlog</span>
+                <span class="column-count">4</span>
+              </div>
+            </div>
+            <div class="column-actions">
+              <button class="column-action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="column-content">
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-feature">Feature</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-high"></div>
+                <div class="card-title">Implement user authentication with OAuth 2.0</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-127</span>
+                <div class="card-assignee">JD</div>
+              </div>
+            </div>
+
+            <div class="card selected">
+              <div class="card-labels">
+                <span class="card-label label-bug">Bug</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-high"></div>
+                <div class="card-title">Fix memory leak in dashboard component</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-126</span>
+                <div class="card-assignee">MK</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-enhancement">Enhancement</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-medium"></div>
+                <div class="card-title">Add dark mode toggle to settings page</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-125</span>
+                <div class="card-assignee">AL</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-docs">Docs</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-low"></div>
+                <div class="card-title">Update API documentation for v2 endpoints</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-124</span>
+                <div class="card-assignee">SL</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- In Progress Column -->
+        <div class="column">
+          <div class="column-header">
+            <div class="column-header-left">
+              <button class="collapse-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="column-title">
+                <div class="column-indicator in-progress"></div>
+                <span class="column-title-text">In Progress</span>
+                <span class="column-count">2</span>
+              </div>
+            </div>
+            <div class="column-actions">
+              <button class="column-action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="column-content">
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-feature">Feature</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-high"></div>
+                <div class="card-title">Build real-time notification system</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-123</span>
+                <div class="card-assignee">JD</div>
+              </div>
+              <div class="card-agent-status">
+                <div class="agent-pulse"></div>
+                <span>Agent: claude-opus-4-5 running...</span>
+              </div>
+            </div>
+
+            <div class="card selected">
+              <div class="card-labels">
+                <span class="card-label label-bug">Bug</span>
+                <span class="card-label label-enhancement">Enhancement</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-medium"></div>
+                <div class="card-title">Optimize database queries for search</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-122</span>
+                <div class="card-assignee">MK</div>
+              </div>
+              <div class="card-agent-status">
+                <div class="agent-pulse"></div>
+                <span>Agent: claude-sonnet running...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Waiting Approval Column -->
+        <div class="column drop-target">
+          <div class="column-header">
+            <div class="column-header-left">
+              <button class="collapse-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="column-title">
+                <div class="column-indicator waiting"></div>
+                <span class="column-title-text">Waiting Approval</span>
+                <span class="column-count">2</span>
+              </div>
+            </div>
+            <div class="column-actions">
+              <button class="column-action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="column-content">
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-feature">Feature</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-medium"></div>
+                <div class="card-title">Add export to CSV functionality</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-121</span>
+                <div class="card-assignee">AL</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-enhancement">Enhancement</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-low"></div>
+                <div class="card-title">Improve loading states with skeletons</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-120</span>
+                <div class="card-assignee">SL</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verified Column -->
+        <div class="column">
+          <div class="column-header">
+            <div class="column-header-left">
+              <button class="collapse-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="column-title">
+                <div class="column-indicator verified"></div>
+                <span class="column-title-text">Verified</span>
+                <span class="column-count">3</span>
+              </div>
+            </div>
+            <div class="column-actions">
+              <button class="column-action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="column-content">
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-bug">Bug</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-high"></div>
+                <div class="card-title">Fix authentication token refresh issue</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-119</span>
+                <div class="card-assignee">JD</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-feature">Feature</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-medium"></div>
+                <div class="card-title">Implement webhook integration</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-118</span>
+                <div class="card-assignee">MK</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-labels">
+                <span class="card-label label-docs">Docs</span>
+              </div>
+              <div class="card-header">
+                <div class="card-priority priority-low"></div>
+                <div class="card-title">Create onboarding tutorial flow</div>
+              </div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-117</span>
+                <div class="card-assignee">AL</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Drag Overlay (simulated) -->
+  <div class="drag-overlay" style="top: 280px; left: 420px;">
+    <div class="card" style="width: 280px;">
+      <div class="card-labels">
+        <span class="card-label label-bug">Bug</span>
+      </div>
+      <div class="card-header">
+        <div class="card-priority priority-high"></div>
+        <div class="card-title">Fix memory leak in dashboard component</div>
+      </div>
+      <div class="card-footer">
+        <span class="card-id">#TSK-126</span>
+        <div class="card-assignee">MK</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Notes Panel -->
+  <div class="design-notes">
+    <div class="design-notes-header">
+      <svg class="design-notes-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      <span class="design-notes-title">Design Notes</span>
+    </div>
+    <div class="design-notes-content">
+      <ul>
+        <li><strong>4-column flow</strong> matches User Stories workflow: Backlog &rarr; In Progress &rarr; Waiting Approval &rarr; Verified</li>
+        <li><strong>Drag overlay</strong> shows card being dragged with rotation, shadow, and elevated z-index</li>
+        <li><strong>Drop zone</strong> highlights column with accent border when dragging over</li>
+        <li><strong>Multi-select</strong> via <code>Ctrl+click</code> for bulk actions</li>
+        <li><strong>Collapse columns</strong> to vertical mode for space efficiency</li>
+        <li><strong>Agent status</strong> shows running AI agents on in-progress tasks</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

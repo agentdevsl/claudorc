@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Project Dialog - Wireframe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body, h1, h2, h3, h4, h5, h6, p, ul, ol, li, figure, figcaption, blockquote, dl, dd {
+      margin: 0;
+    }
+
+    ul, ol {
+      list-style: none;
+    }
+
+    img, picture, video, canvas, svg {
+      display: block;
+      max-width: 100%;
+    }
+
+    input, button, textarea, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* Design Tokens */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --attention-fg: #d29922;
+      --done-fg: #a371f7;
+      --radius: 6px;
+      --radius-lg: 12px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    /* Base Styles */
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--fg-default);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* Backdrop */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+    }
+
+    /* Modal Dialog */
+    .modal {
+      position: relative;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 680px;
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Modal Header */
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .close-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      transition: all 0.15s ease;
+    }
+
+    .close-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    /* Steps Indicator */
+    .steps-indicator {
+      padding: 16px 24px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-muted);
+      color: var(--fg-subtle);
+      border: 1px solid var(--border-default);
+    }
+
+    .step.active .step-number {
+      background: var(--accent-fg);
+      color: var(--bg-canvas);
+      border-color: var(--accent-fg);
+    }
+
+    .step.completed .step-number {
+      background: var(--success-emphasis);
+      color: white;
+      border-color: var(--success-emphasis);
+    }
+
+    .step-label {
+      font-size: 13px;
+      color: var(--fg-subtle);
+      font-weight: 500;
+    }
+
+    .step.active .step-label {
+      color: var(--fg-default);
+    }
+
+    .step-connector {
+      width: 40px;
+      height: 1px;
+      background: var(--border-default);
+      margin: 0 4px;
+    }
+
+    /* Modal Body */
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    /* Source Cards */
+    .source-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .source-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .source-card:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .source-card.selected {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .source-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .source-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius);
+      background: var(--bg-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-muted);
+    }
+
+    .source-card.selected .source-icon {
+      background: var(--accent-fg);
+      color: white;
+    }
+
+    .source-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .source-card-description {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-bottom: 12px;
+    }
+
+    /* Input Group */
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-field {
+      flex: 1;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--fg-default);
+      font-family: var(--font-mono);
+      transition: border-color 0.15s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent-fg);
+    }
+
+    .input-field::placeholder {
+      color: var(--fg-subtle);
+    }
+
+    .input-field:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-browse {
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .btn-browse:hover {
+      background: var(--bg-emphasis);
+    }
+
+    /* File Tree Preview */
+    .file-tree-preview {
+      margin-top: 12px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .file-tree-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .file-tree {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .file-tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+      color: var(--fg-muted);
+    }
+
+    .file-tree-item.folder {
+      color: var(--accent-fg);
+    }
+
+    .file-tree-icon {
+      font-size: 14px;
+    }
+
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+      margin-bottom: 6px;
+    }
+
+    .form-label .optional {
+      font-weight: 400;
+      color: var(--fg-subtle);
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--fg-default);
+      transition: border-color 0.15s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-fg);
+    }
+
+    .form-input::placeholder {
+      color: var(--fg-subtle);
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 72px;
+    }
+
+    /* Color Selector */
+    .color-selector {
+      display: flex;
+      gap: 8px;
+    }
+
+    .color-option {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .color-option:hover {
+      transform: scale(1.1);
+    }
+
+    .color-option.selected {
+      border-color: var(--fg-default);
+    }
+
+    .color-option.selected::after {
+      content: '✓';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .color-green { background: var(--success-fg); }
+    .color-blue { background: var(--accent-fg); }
+    .color-purple { background: var(--done-fg); }
+    .color-orange { background: var(--attention-fg); }
+    .color-red { background: var(--danger-fg); }
+
+    /* Checkbox Group */
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: transparent;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .checkbox.checked {
+      background: var(--success-emphasis);
+      border-color: var(--success-emphasis);
+      color: white;
+    }
+
+    .checkbox-label {
+      font-size: 13px;
+      color: var(--fg-default);
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+    }
+
+    .footer-left {
+      display: flex;
+      gap: 8px;
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary {
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      color: var(--fg-default);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-emphasis);
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary:disabled:hover {
+      background: var(--bg-muted);
+    }
+
+    .btn-primary {
+      background: var(--success-emphasis);
+      border: 1px solid var(--success-emphasis);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2ea043;
+      border-color: #2ea043;
+    }
+
+    /* Design Notes Panel */
+    .design-notes {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 280px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-size: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .design-notes-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--attention-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .design-notes ul {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .design-notes li {
+      color: var(--fg-muted);
+      line-height: 1.5;
+      padding-left: 12px;
+      position: relative;
+    }
+
+    .design-notes li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--fg-subtle);
+    }
+
+    /* SVG Icons */
+    .icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .icon-lg {
+      width: 20px;
+      height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="backdrop"></div>
+
+  <div class="modal">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <h2 class="modal-title">Create New Project</h2>
+      <button class="close-btn">
+        <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Steps Indicator -->
+    <div class="steps-indicator">
+      <div class="step active">
+        <span class="step-number">1</span>
+        <span class="step-label">Source</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step">
+        <span class="step-number">2</span>
+        <span class="step-label">Configuration</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step">
+        <span class="step-number">3</span>
+        <span class="step-label">Confirm</span>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Choose Source Section -->
+      <div class="section">
+        <h3 class="section-title">Choose Source</h3>
+        <div class="source-cards">
+          <!-- Local Directory Card (Selected) -->
+          <div class="source-card selected">
+            <div class="source-card-header">
+              <div class="source-icon">
+                <svg class="icon-lg" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
+                </svg>
+              </div>
+              <span class="source-card-title">Local Directory</span>
+            </div>
+            <p class="source-card-description">Import an existing local git repository</p>
+            <div class="input-group">
+              <input type="text" class="input-field" value="~/git/my-new-project" readonly>
+              <button class="btn-browse">Browse...</button>
+            </div>
+
+            <!-- File Tree Preview -->
+            <div class="file-tree-preview">
+              <div class="file-tree-header">
+                <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M.5 3.25a.5.5 0 01.5-.5h6a.5.5 0 010 1H1a.5.5 0 01-.5-.5zM.5 8a.5.5 0 01.5-.5h6a.5.5 0 010 1H1a.5.5 0 01-.5-.5zm0 4.75a.5.5 0 01.5-.5h6a.5.5 0 010 1H1a.5.5 0 01-.5-.5zM9 3.25a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zM9 8a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 4.75a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5z"/>
+                </svg>
+                Repository Contents
+              </div>
+              <div class="file-tree">
+                <div class="file-tree-item folder">
+                  <span class="file-tree-icon">📁</span>
+                  <span>src/</span>
+                </div>
+                <div class="file-tree-item folder">
+                  <span class="file-tree-icon">📁</span>
+                  <span>tests/</span>
+                </div>
+                <div class="file-tree-item">
+                  <span class="file-tree-icon">📄</span>
+                  <span>package.json</span>
+                </div>
+                <div class="file-tree-item">
+                  <span class="file-tree-icon">📄</span>
+                  <span>README.md</span>
+                </div>
+                <div class="file-tree-item">
+                  <span class="file-tree-icon">📄</span>
+                  <span>.gitignore</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Clone Repository Card -->
+          <div class="source-card">
+            <div class="source-card-header">
+              <div class="source-icon">
+                <svg class="icon-lg" viewBox="0 0 16 16" fill="currentColor">
+                  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+              </div>
+              <span class="source-card-title">Clone Repository</span>
+            </div>
+            <p class="source-card-description">Clone from a remote git URL</p>
+            <div class="input-group">
+              <input type="text" class="input-field" placeholder="https://github.com/..." disabled>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Details Section -->
+      <div class="section">
+        <h3 class="section-title">Project Details</h3>
+
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input type="text" class="form-input" value="my-new-project">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description <span class="optional">(optional)</span></label>
+          <textarea class="form-input" placeholder="A brief description of your project..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Project Icon Color</label>
+          <div class="color-selector">
+            <button class="color-option color-green selected"></button>
+            <button class="color-option color-blue"></button>
+            <button class="color-option color-purple"></button>
+            <button class="color-option color-orange"></button>
+            <button class="color-option color-red"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Initial Configuration Section -->
+      <div class="section">
+        <h3 class="section-title">Initial Configuration</h3>
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <span class="checkbox checked">
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+              </svg>
+            </span>
+            <span class="checkbox-label">Run npm install after import</span>
+          </label>
+          <label class="checkbox-item">
+            <span class="checkbox checked">
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+              </svg>
+            </span>
+            <span class="checkbox-label">Create initial agent configuration</span>
+          </label>
+          <label class="checkbox-item">
+            <span class="checkbox">
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+              </svg>
+            </span>
+            <span class="checkbox-label">Import existing .env file</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <div class="footer-left">
+        <button class="btn btn-secondary" disabled>
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+            <path fill-rule="evenodd" d="M7.78 12.53a.75.75 0 01-1.06 0L2.47 8.28a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L4.81 7h7.44a.75.75 0 010 1.5H4.81l2.97 2.97a.75.75 0 010 1.06z"/>
+          </svg>
+          Back
+        </button>
+      </div>
+      <div class="footer-right">
+        <button class="btn btn-secondary">Cancel</button>
+        <button class="btn btn-primary">
+          Next: Configuration
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.22 3.47a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06l2.97-2.97H3.75a.75.75 0 010-1.5h7.44L8.22 4.53a.75.75 0 010-1.06z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Notes Panel -->
+  <div class="design-notes">
+    <div class="design-notes-header">
+      <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-.25A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 100-2 1 1 0 000 2z"/>
+      </svg>
+      Design Notes
+    </div>
+    <ul>
+      <li>Wizard flow provides guided setup with clear step progression</li>
+      <li>File tree preview validates repository contents before import</li>
+      <li>Auto-detection of project type from package.json and file structure</li>
+      <li>Color selector allows quick project identification in sidebar</li>
+    </ul>
+  </div>
+</body>
+</html>

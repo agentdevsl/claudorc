@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Approval Dialog</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* GitHub Dark Theme - Approval Dialog with Diff Preview */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+
+      --danger-fg: #f85149;
+      --danger-emphasis: #da3633;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+
+      --done-fg: #a371f7;
+
+      --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
+      --shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.4);
+      --shadow-xl: 0 12px 48px rgba(1, 4, 9, 0.5);
+
+      --radius: 6px;
+      --radius-lg: 12px;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(1, 4, 9, 0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 900px;
+      max-height: calc(100vh - 48px);
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Modal Header */
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+    }
+
+    .task-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .task-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .task-id {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      background: var(--accent-muted);
+      padding: 2px 8px;
+      border-radius: var(--radius);
+    }
+
+    .task-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+
+    .task-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .task-meta-item svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .agent-avatar {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+      border: 1px solid var(--border-default);
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.12s;
+      flex-shrink: 0;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .modal-close svg { width: 20px; height: 20px; }
+
+    /* File Changes Summary */
+    .changes-summary {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-default);
+    }
+
+    .changes-stats {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .changes-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .changes-stat svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .changes-stat.files { color: var(--fg-muted); }
+    .changes-stat.additions { color: var(--success-fg); }
+    .changes-stat.deletions { color: var(--danger-fg); }
+
+    .file-badges {
+      display: flex;
+      gap: 8px;
+    }
+
+    .file-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 10px;
+    }
+
+    .file-badge.added {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .file-badge.modified {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .file-badge.deleted {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    /* Diff Viewer */
+    .diff-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .diff-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-subtle);
+      overflow-x: auto;
+    }
+
+    .diff-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      color: var(--fg-muted);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+
+    .diff-tab:hover {
+      color: var(--fg-default);
+      background: var(--bg-muted);
+    }
+
+    .diff-tab.active {
+      color: var(--fg-default);
+      border-bottom-color: var(--accent-fg);
+    }
+
+    .diff-tab-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .diff-tab-icon.added { color: var(--success-fg); }
+    .diff-tab-icon.modified { color: var(--attention-fg); }
+    .diff-tab-icon.deleted { color: var(--danger-fg); }
+
+    .diff-viewer {
+      flex: 1;
+      overflow: auto;
+      background: var(--bg-canvas);
+    }
+
+    .diff-file-header {
+      padding: 8px 20px;
+      background: var(--bg-muted);
+      border-bottom: 1px solid var(--border-default);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .diff-file-header svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .diff-content {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .diff-line {
+      display: flex;
+      min-height: 24px;
+    }
+
+    .diff-line:hover {
+      background: var(--bg-subtle);
+    }
+
+    .diff-line-number {
+      width: 50px;
+      padding: 0 8px;
+      text-align: right;
+      color: var(--fg-subtle);
+      user-select: none;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border-muted);
+    }
+
+    .diff-line-number-old {
+      border-right: none;
+    }
+
+    .diff-line-number-new {
+      border-right: 1px solid var(--border-muted);
+    }
+
+    .diff-line-content {
+      flex: 1;
+      padding: 0 16px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .diff-line.addition {
+      background: var(--success-muted);
+    }
+
+    .diff-line.addition .diff-line-content {
+      color: var(--success-fg);
+    }
+
+    .diff-line.addition .diff-line-number {
+      background: rgba(46, 160, 67, 0.25);
+      color: var(--success-fg);
+    }
+
+    .diff-line.deletion {
+      background: var(--danger-muted);
+    }
+
+    .diff-line.deletion .diff-line-content {
+      color: var(--danger-fg);
+    }
+
+    .diff-line.deletion .diff-line-number {
+      background: rgba(248, 81, 73, 0.25);
+      color: var(--danger-fg);
+    }
+
+    .diff-line.context .diff-line-content {
+      color: var(--fg-muted);
+    }
+
+    .diff-hunk-header {
+      padding: 8px 16px;
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+      font-size: 12px;
+      border-top: 1px solid var(--border-muted);
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    /* Syntax highlighting */
+    .syntax-keyword { color: #ff7b72; }
+    .syntax-string { color: #a5d6ff; }
+    .syntax-function { color: #d2a8ff; }
+    .syntax-comment { color: var(--fg-subtle); font-style: italic; }
+    .syntax-type { color: #79c0ff; }
+    .syntax-number { color: #79c0ff; }
+
+    /* Feedback Section */
+    .feedback-section {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-default);
+      background: var(--bg-default);
+    }
+
+    .feedback-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      margin-bottom: 8px;
+    }
+
+    .feedback-textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 12px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      resize: vertical;
+      outline: none;
+      transition: all 0.12s;
+    }
+
+    .feedback-textarea::placeholder {
+      color: var(--fg-subtle);
+    }
+
+    .feedback-textarea:focus {
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+    }
+
+    .merge-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .checkbox-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .checkbox-input {
+      width: 18px;
+      height: 18px;
+      appearance: none;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .checkbox-input:checked {
+      background: var(--success-emphasis);
+      border-color: var(--success-emphasis);
+    }
+
+    .checkbox-input:checked::after {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 3px;
+      width: 5px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .checkbox-input:focus {
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    .checkbox-label {
+      font-size: 14px;
+      color: var(--fg-default);
+      cursor: pointer;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      height: 36px;
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-danger {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+      border-color: rgba(248, 81, 73, 0.4);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 81, 73, 0.25);
+      border-color: var(--danger-fg);
+    }
+
+    .btn-success {
+      background: var(--success-emphasis);
+      color: white;
+      border-color: rgba(240, 246, 252, 0.1);
+    }
+
+    .btn-success:hover {
+      background: #2ea043;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    /* Design Notes */
+    .design-notes {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      padding: 16px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      font-size: 12px;
+      max-width: 280px;
+      box-shadow: var(--shadow-lg);
+      z-index: 1000;
+    }
+
+    .design-notes h4 {
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--fg-default);
+    }
+
+    .design-notes ul { list-style: none; }
+    .design-notes li { color: var(--fg-muted); margin-bottom: 4px; }
+    .design-notes span { color: var(--fg-subtle); }
+  </style>
+</head>
+<body>
+  <div class="modal-overlay">
+    <div class="modal">
+      <!-- Modal Header with Task Info -->
+      <div class="modal-header">
+        <div class="task-info">
+          <div class="task-title-row">
+            <span class="task-id">#TSK-148</span>
+            <span class="task-title">Add real-time agent collaboration mode</span>
+          </div>
+          <div class="task-meta">
+            <div class="task-meta-item">
+              <div class="agent-avatar"></div>
+              <span>Task Runner</span>
+            </div>
+            <div class="task-meta-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>Completed in 4m 32s</span>
+            </div>
+            <div class="task-meta-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>All tests passed</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-close">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- File Changes Summary -->
+      <div class="changes-summary">
+        <div class="changes-stats">
+          <div class="changes-stat files">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span>3 files changed</span>
+          </div>
+          <div class="changes-stat additions">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>+145</span>
+          </div>
+          <div class="changes-stat deletions">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+            <span>-23</span>
+          </div>
+        </div>
+        <div class="file-badges">
+          <span class="file-badge added">1 added</span>
+          <span class="file-badge modified">2 modified</span>
+          <span class="file-badge deleted">0 deleted</span>
+        </div>
+      </div>
+
+      <!-- Diff Viewer -->
+      <div class="diff-container">
+        <div class="diff-tabs">
+          <div class="diff-tab active">
+            <svg class="diff-tab-icon added" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            src/lib/collaboration.ts
+          </div>
+          <div class="diff-tab">
+            <svg class="diff-tab-icon modified" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            src/lib/agents/runner.ts
+          </div>
+          <div class="diff-tab">
+            <svg class="diff-tab-icon modified" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            src/types/index.ts
+          </div>
+        </div>
+
+        <div class="diff-viewer">
+          <div class="diff-file-header">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span>src/lib/collaboration.ts</span>
+            <span style="margin-left: auto; color: var(--success-fg);">new file</span>
+          </div>
+
+          <div class="diff-hunk-header">@@ -0,0 +1,87 @@</div>
+
+          <div class="diff-content">
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">1</span>
+              <span class="diff-line-content"><span class="syntax-keyword">import</span> { EventEmitter } <span class="syntax-keyword">from</span> <span class="syntax-string">'events'</span>;</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">2</span>
+              <span class="diff-line-content"><span class="syntax-keyword">import</span> { Agent, CollabSession } <span class="syntax-keyword">from</span> <span class="syntax-string">'../types'</span>;</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">3</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">4</span>
+              <span class="diff-line-content"><span class="syntax-comment">/**</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">5</span>
+              <span class="diff-line-content"><span class="syntax-comment"> * CollaborationManager handles real-time agent collaboration</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">6</span>
+              <span class="diff-line-content"><span class="syntax-comment"> * allowing multiple agents to work on related tasks</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">7</span>
+              <span class="diff-line-content"><span class="syntax-comment"> */</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">8</span>
+              <span class="diff-line-content"><span class="syntax-keyword">export class</span> <span class="syntax-type">CollaborationManager</span> <span class="syntax-keyword">extends</span> <span class="syntax-type">EventEmitter</span> {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">9</span>
+              <span class="diff-line-content">  <span class="syntax-keyword">private</span> sessions: <span class="syntax-type">Map</span>&lt;<span class="syntax-type">string</span>, <span class="syntax-type">CollabSession</span>&gt; = <span class="syntax-keyword">new</span> <span class="syntax-type">Map</span>();</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">10</span>
+              <span class="diff-line-content">  <span class="syntax-keyword">private</span> agents: <span class="syntax-type">Map</span>&lt;<span class="syntax-type">string</span>, <span class="syntax-type">Agent</span>&gt; = <span class="syntax-keyword">new</span> <span class="syntax-type">Map</span>();</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">11</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">12</span>
+              <span class="diff-line-content">  <span class="syntax-keyword">constructor</span>() {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">13</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">super</span>();</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">14</span>
+              <span class="diff-line-content">  }</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">15</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">16</span>
+              <span class="diff-line-content">  <span class="syntax-comment">/**</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">17</span>
+              <span class="diff-line-content"><span class="syntax-comment">   * Creates a new collaboration session</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">18</span>
+              <span class="diff-line-content"><span class="syntax-comment">   */</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">19</span>
+              <span class="diff-line-content">  <span class="syntax-function">createSession</span>(name: <span class="syntax-type">string</span>): <span class="syntax-type">CollabSession</span> {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">20</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">const</span> session: <span class="syntax-type">CollabSession</span> = {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">21</span>
+              <span class="diff-line-content">      id: <span class="syntax-keyword">crypto</span>.<span class="syntax-function">randomUUID</span>(),</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">22</span>
+              <span class="diff-line-content">      name,</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">23</span>
+              <span class="diff-line-content">      agents: [],</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">24</span>
+              <span class="diff-line-content">      createdAt: <span class="syntax-keyword">new</span> <span class="syntax-type">Date</span>(),</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">25</span>
+              <span class="diff-line-content">      status: <span class="syntax-string">'active'</span>,</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">26</span>
+              <span class="diff-line-content">    };</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">27</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">28</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">this</span>.sessions.<span class="syntax-function">set</span>(session.id, session);</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">29</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">this</span>.<span class="syntax-function">emit</span>(<span class="syntax-string">'session:created'</span>, session);</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">30</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">31</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">return</span> session;</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">32</span>
+              <span class="diff-line-content">  }</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">33</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">34</span>
+              <span class="diff-line-content">  <span class="syntax-comment">/**</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">35</span>
+              <span class="diff-line-content"><span class="syntax-comment">   * Adds an agent to a collaboration session</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">36</span>
+              <span class="diff-line-content"><span class="syntax-comment">   */</span></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">37</span>
+              <span class="diff-line-content">  <span class="syntax-function">joinSession</span>(sessionId: <span class="syntax-type">string</span>, agent: <span class="syntax-type">Agent</span>): <span class="syntax-type">void</span> {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">38</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">const</span> session = <span class="syntax-keyword">this</span>.sessions.<span class="syntax-function">get</span>(sessionId);</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">39</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">if</span> (!session) {</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">40</span>
+              <span class="diff-line-content">      <span class="syntax-keyword">throw new</span> <span class="syntax-type">Error</span>(<span class="syntax-string">`Session ${sessionId} not found`</span>);</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">41</span>
+              <span class="diff-line-content">    }</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">42</span>
+              <span class="diff-line-content"></span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">43</span>
+              <span class="diff-line-content">    session.agents.<span class="syntax-function">push</span>(agent.id);</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">44</span>
+              <span class="diff-line-content">    <span class="syntax-keyword">this</span>.<span class="syntax-function">emit</span>(<span class="syntax-string">'agent:joined'</span>, { session, agent });</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">45</span>
+              <span class="diff-line-content">  }</span>
+            </div>
+            <div class="diff-line addition">
+              <span class="diff-line-number diff-line-number-old"></span>
+              <span class="diff-line-number diff-line-number-new">46</span>
+              <span class="diff-line-content">}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback Section -->
+      <div class="feedback-section">
+        <div class="feedback-label">Feedback (optional)</div>
+        <textarea class="feedback-textarea" placeholder="Add any comments or feedback about this change..."></textarea>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <div class="merge-option">
+          <div class="checkbox-wrapper">
+            <input type="checkbox" class="checkbox-input" id="merge-commit" checked>
+          </div>
+          <label class="checkbox-label" for="merge-commit">Create merge commit</label>
+        </div>
+        <div class="action-buttons">
+          <button class="btn btn-danger">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Reject with Feedback
+          </button>
+          <button class="btn btn-success">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Approve & Merge
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Notes -->
+  <div class="design-notes">
+    <h4>Approval Dialog Wireframe</h4>
+    <ul>
+      <li><span>Theme:</span> GitHub Dark (#0d1117)</li>
+      <li><span>Diff:</span> Green additions, red deletions</li>
+      <li><span>Tabs:</span> Click to switch between files</li>
+      <li><span>Feedback:</span> Optional textarea for comments</li>
+      <li><span>Actions:</span> Reject (danger) / Approve (success)</li>
+      <li><span>Checkbox:</span> Create merge commit option</li>
+      <li><span>Fonts:</span> Mona Sans + Fira Code (mono)</li>
+    </ul>
+  </div>
+</body>
+</html>

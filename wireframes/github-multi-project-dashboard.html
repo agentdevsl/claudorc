@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Multi-Project Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* GitHub Dark Theme - Multi-Project Dashboard */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+
+      --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
+      --shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.4);
+
+      --radius: 6px;
+      --radius-lg: 12px;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app { display: flex; height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      height: 60px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: var(--fg-default);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo svg { width: 20px; height: 20px; color: var(--bg-canvas); }
+
+    .sidebar-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    /* Project Switcher */
+    .project-switcher {
+      margin: 12px;
+      padding: 10px 12px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .project-switcher:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .project-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius);
+      background: var(--success-muted);
+      color: var(--success-fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .project-switcher-info { flex: 1; }
+    .project-switcher-name { font-weight: 500; font-size: 13px; }
+    .project-switcher-path { font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono); }
+
+    .project-switcher-icon {
+      color: var(--fg-subtle);
+    }
+
+    .project-switcher-icon svg { width: 16px; height: 16px; }
+
+    .sidebar-nav { flex: 1; padding: 8px 12px; overflow-y: auto; }
+
+    .nav-section { margin-bottom: 16px; }
+
+    .nav-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      padding: 8px 8px 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.12s;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .nav-item.active {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-item.active svg { color: var(--accent-fg); }
+
+    .nav-badge {
+      margin-left: auto;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-emphasis);
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg-muted);
+    }
+
+    .nav-badge.active {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .main-header {
+      height: 60px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      height: 36px;
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-secondary {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+      border-color: var(--border-default);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-emphasis);
+    }
+
+    .btn-primary {
+      background: var(--success-emphasis);
+      color: white;
+      border-color: rgba(240, 246, 252, 0.1);
+    }
+
+    .btn-primary:hover { background: #2ea043; }
+
+    .btn svg { width: 16px; height: 16px; }
+
+    /* Content */
+    .content {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+    }
+
+    /* Project Cards Grid */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+    }
+
+    .project-card {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: all 0.12s;
+    }
+
+    .project-card:hover {
+      border-color: var(--border-subtle);
+      box-shadow: var(--shadow-md);
+    }
+
+    .project-card-header {
+      padding: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .project-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .project-card-icon.green {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .project-card-icon.blue {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .project-card-icon.purple {
+      background: var(--done-muted);
+      color: var(--done-fg);
+    }
+
+    .project-card-icon.orange {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .project-card-info { flex: 1; min-width: 0; }
+
+    .project-card-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-card-path {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 10px;
+      border: 1px solid transparent;
+    }
+
+    .status-badge.running {
+      background: var(--success-muted);
+      color: var(--success-fg);
+      border-color: rgba(46, 160, 67, 0.4);
+    }
+
+    .status-badge.idle {
+      background: var(--bg-muted);
+      color: var(--fg-muted);
+      border-color: var(--border-default);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-badge.running .status-dot {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .project-card-body {
+      padding: 16px;
+    }
+
+    /* Mini Kanban */
+    .mini-kanban {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .mini-column {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .mini-column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .mini-column-title { color: var(--fg-subtle); }
+    .mini-column-count {
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .mini-column.backlog .mini-column-count { color: var(--fg-muted); }
+    .mini-column.todo .mini-column-count { color: var(--accent-fg); }
+    .mini-column.progress .mini-column-count { color: var(--attention-fg); }
+    .mini-column.done .mini-column-count { color: var(--success-fg); }
+
+    .mini-bar {
+      height: 4px;
+      background: var(--bg-muted);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .mini-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+    }
+
+    .mini-column.backlog .mini-bar-fill { background: var(--fg-subtle); }
+    .mini-column.todo .mini-bar-fill { background: var(--accent-fg); }
+    .mini-column.progress .mini-bar-fill { background: var(--attention-fg); }
+    .mini-column.done .mini-bar-fill { background: var(--success-fg); }
+
+    /* Agent Activity */
+    .agent-activity {
+      background: var(--bg-canvas);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .agent-activity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+
+    .agent-activity-title {
+      color: var(--fg-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .agent-activity-title svg { width: 14px; height: 14px; }
+
+    .agent-count {
+      font-weight: 500;
+      color: var(--success-fg);
+    }
+
+    .agent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .agent-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid var(--border-default);
+    }
+
+    .agent-avatar.runner {
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+    }
+
+    .agent-avatar.reviewer {
+      background: linear-gradient(135deg, var(--done-fg), var(--danger-fg));
+    }
+
+    .agent-name {
+      flex: 1;
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    .agent-task {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-subtle);
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-card-footer {
+      padding: 12px 16px;
+      background: var(--bg-subtle);
+      border-top: 1px solid var(--border-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .project-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .project-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .project-stat svg { width: 14px; height: 14px; }
+
+    .btn-sm {
+      height: 28px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+      background: var(--bg-default);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-sm:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    /* Empty Project Card */
+    .project-card.empty {
+      border-style: dashed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      cursor: pointer;
+    }
+
+    .project-card.empty:hover {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .empty-content {
+      text-align: center;
+      color: var(--fg-muted);
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+      background: var(--bg-muted);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .empty-icon svg { width: 24px; height: 24px; color: var(--fg-subtle); }
+
+    .empty-title {
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: var(--fg-default);
+    }
+
+    .empty-desc { font-size: 13px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <span class="sidebar-title">AgentPane</span>
+      </div>
+
+      <div class="project-switcher">
+        <div class="project-avatar">AP</div>
+        <div class="project-switcher-info">
+          <div class="project-switcher-name">All Projects</div>
+          <div class="project-switcher-path">4 projects</div>
+        </div>
+        <div class="project-switcher-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+          </svg>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-item active">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+            <span>Projects</span>
+            <span class="nav-badge">4</span>
+          </div>
+          <div class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            <span>All Agents</span>
+            <span class="nav-badge active">5</span>
+          </div>
+          <div class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <span>All Tasks</span>
+            <span class="nav-badge">28</span>
+          </div>
+          <div class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>Approvals</span>
+            <span class="nav-badge">3</span>
+          </div>
+          <div class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>Activity</span>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Settings</div>
+          <div class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>Preferences</span>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="main-header">
+        <h1 class="header-title">Projects</h1>
+        <div class="header-actions">
+          <button class="btn btn-secondary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+            </svg>
+            Filter
+          </button>
+          <button class="btn btn-primary">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Project
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="projects-grid">
+          <!-- Project 1: AgentPane (Active) -->
+          <div class="project-card">
+            <div class="project-card-header">
+              <div class="project-card-icon green">AP</div>
+              <div class="project-card-info">
+                <div class="project-card-name">
+                  AgentPane
+                  <span class="status-badge running">
+                    <span class="status-dot"></span>
+                    Running
+                  </span>
+                </div>
+                <div class="project-card-path">~/git/claudorc</div>
+              </div>
+            </div>
+            <div class="project-card-body">
+              <div class="mini-kanban">
+                <div class="mini-column backlog">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Backlog</span>
+                    <span class="mini-column-count">3</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 30%"></div></div>
+                </div>
+                <div class="mini-column todo">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Todo</span>
+                    <span class="mini-column-count">2</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 20%"></div></div>
+                </div>
+                <div class="mini-column progress">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">In Progress</span>
+                    <span class="mini-column-count">2</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 20%"></div></div>
+                </div>
+                <div class="mini-column done">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Done</span>
+                    <span class="mini-column-count">5</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 50%"></div></div>
+                </div>
+              </div>
+              <div class="agent-activity">
+                <div class="agent-activity-header">
+                  <span class="agent-activity-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Active Agents
+                  </span>
+                  <span class="agent-count">2 running</span>
+                </div>
+                <div class="agent-list">
+                  <div class="agent-item">
+                    <div class="agent-avatar runner"></div>
+                    <span class="agent-name">Task Runner</span>
+                    <span class="agent-task">#TSK-148</span>
+                  </div>
+                  <div class="agent-item">
+                    <div class="agent-avatar reviewer"></div>
+                    <span class="agent-name">Code Reviewer</span>
+                    <span class="agent-task">#TSK-145</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="project-card-footer">
+              <div class="project-stats">
+                <div class="project-stat">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span>98.2% success</span>
+                </div>
+              </div>
+              <button class="btn-sm">Open</button>
+            </div>
+          </div>
+
+          <!-- Project 2: Web App Dashboard -->
+          <div class="project-card">
+            <div class="project-card-header">
+              <div class="project-card-icon blue">WA</div>
+              <div class="project-card-info">
+                <div class="project-card-name">
+                  Web App Dashboard
+                  <span class="status-badge running">
+                    <span class="status-dot"></span>
+                    Running
+                  </span>
+                </div>
+                <div class="project-card-path">~/projects/webapp-dashboard</div>
+              </div>
+            </div>
+            <div class="project-card-body">
+              <div class="mini-kanban">
+                <div class="mini-column backlog">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Backlog</span>
+                    <span class="mini-column-count">5</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 50%"></div></div>
+                </div>
+                <div class="mini-column todo">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Todo</span>
+                    <span class="mini-column-count">1</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 10%"></div></div>
+                </div>
+                <div class="mini-column progress">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">In Progress</span>
+                    <span class="mini-column-count">1</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 10%"></div></div>
+                </div>
+                <div class="mini-column done">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Done</span>
+                    <span class="mini-column-count">1</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 10%"></div></div>
+                </div>
+              </div>
+              <div class="agent-activity">
+                <div class="agent-activity-header">
+                  <span class="agent-activity-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Active Agents
+                  </span>
+                  <span class="agent-count">1 running</span>
+                </div>
+                <div class="agent-list">
+                  <div class="agent-item">
+                    <div class="agent-avatar runner"></div>
+                    <span class="agent-name">Feature Builder</span>
+                    <span class="agent-task">#WA-023</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="project-card-footer">
+              <div class="project-stats">
+                <div class="project-stat">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span>94.5% success</span>
+                </div>
+              </div>
+              <button class="btn-sm">Open</button>
+            </div>
+          </div>
+
+          <!-- Project 3: Agent SDK Examples (Idle) -->
+          <div class="project-card">
+            <div class="project-card-header">
+              <div class="project-card-icon purple">AS</div>
+              <div class="project-card-info">
+                <div class="project-card-name">
+                  Agent SDK Examples
+                  <span class="status-badge idle">
+                    <span class="status-dot"></span>
+                    Idle
+                  </span>
+                </div>
+                <div class="project-card-path">~/git/agent-sdk-examples</div>
+              </div>
+            </div>
+            <div class="project-card-body">
+              <div class="mini-kanban">
+                <div class="mini-column backlog">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Backlog</span>
+                    <span class="mini-column-count">2</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 40%"></div></div>
+                </div>
+                <div class="mini-column todo">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Todo</span>
+                    <span class="mini-column-count">1</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 20%"></div></div>
+                </div>
+                <div class="mini-column progress">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">In Progress</span>
+                    <span class="mini-column-count">0</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 0%"></div></div>
+                </div>
+                <div class="mini-column done">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Done</span>
+                    <span class="mini-column-count">2</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 40%"></div></div>
+                </div>
+              </div>
+              <div class="agent-activity">
+                <div class="agent-activity-header">
+                  <span class="agent-activity-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Active Agents
+                  </span>
+                  <span style="color: var(--fg-muted);">None</span>
+                </div>
+                <div class="agent-list" style="color: var(--fg-subtle); font-size: 12px;">
+                  No agents currently running
+                </div>
+              </div>
+            </div>
+            <div class="project-card-footer">
+              <div class="project-stats">
+                <div class="project-stat">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span>Last run 2h ago</span>
+                </div>
+              </div>
+              <button class="btn-sm">Open</button>
+            </div>
+          </div>
+
+          <!-- Project 4: Data Collector (Needs Approval) -->
+          <div class="project-card">
+            <div class="project-card-header">
+              <div class="project-card-icon orange">DC</div>
+              <div class="project-card-info">
+                <div class="project-card-name">
+                  Data Collector
+                  <span class="status-badge" style="background: var(--attention-muted); color: var(--attention-fg); border-color: rgba(187, 128, 9, 0.4);">
+                    <span class="status-dot"></span>
+                    Needs Approval
+                  </span>
+                </div>
+                <div class="project-card-path">~/work/data-collector</div>
+              </div>
+            </div>
+            <div class="project-card-body">
+              <div class="mini-kanban">
+                <div class="mini-column backlog">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Backlog</span>
+                    <span class="mini-column-count">1</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 33%"></div></div>
+                </div>
+                <div class="mini-column todo">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Todo</span>
+                    <span class="mini-column-count">0</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 0%"></div></div>
+                </div>
+                <div class="mini-column progress">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">In Progress</span>
+                    <span class="mini-column-count">0</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 0%"></div></div>
+                </div>
+                <div class="mini-column done">
+                  <div class="mini-column-header">
+                    <span class="mini-column-title">Done</span>
+                    <span class="mini-column-count">2</span>
+                  </div>
+                  <div class="mini-bar"><div class="mini-bar-fill" style="width: 66%"></div></div>
+                </div>
+              </div>
+              <div class="agent-activity" style="background: var(--attention-muted); border: 1px solid rgba(187, 128, 9, 0.3);">
+                <div class="agent-activity-header">
+                  <span class="agent-activity-title" style="color: var(--attention-fg);">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Pending Review
+                  </span>
+                </div>
+                <div class="agent-list" style="font-size: 12px; color: var(--fg-default);">
+                  <strong>#DC-015</strong> Add retry logic for API calls
+                </div>
+              </div>
+            </div>
+            <div class="project-card-footer">
+              <div class="project-stats">
+                <div class="project-stat">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span>1 awaiting</span>
+                </div>
+              </div>
+              <button class="btn-sm" style="background: var(--attention-muted); border-color: rgba(187, 128, 9, 0.4); color: var(--attention-fg);">Review</button>
+            </div>
+          </div>
+
+          <!-- Add New Project Card -->
+          <div class="project-card empty">
+            <div class="empty-content">
+              <div class="empty-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/>
+                </svg>
+              </div>
+              <div class="empty-title">Add New Project</div>
+              <div class="empty-desc">Import or create a project</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

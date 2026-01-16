@@ -4,6 +4,13 @@
 
 > **Read this section first.** These are hard constraints for code generation.
 
+### Frontend design
+
+use these skills
+
+- claude-design-skill - Design engineering for Claude Code
+- frontend-design - Create production-grade frontend interfaces
+
 ### MUST
 
 - Use TypeScript with strict mode for all new code
@@ -102,40 +109,48 @@ This project follows local-first architecture, simplified for single-developer u
 │                         Client                                │
 │  ┌──────────┐    ┌────────────┐    ┌──────────────────┐      │
 │  │    UI    │◄───│  TanStack  │◄───│     PGlite       │      │
-│  │  (React) │    │     DB     │    │  (IndexedDB) │      │
-│  └────┬─────┘    └────────────┘    └──────────────────┘      │
-│       │                                                       │
-│       │ subscribe to agent events                             │
-│       ▼                                                       │
+│  │  (React) │    │     DB     │    │   (IndexedDB)    │      │
+│  └────┬─────┘    └─────┬──────┘    └──────────────────┘      │
+│       │                │                                      │
+│       │ live queries   │ collections                          │
+│       ▼                ▼                                      │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │              Durable Streams Client                     │  │
+│  │           Durable Sessions Client                       │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐   │  │
+│  │  │   Durable   │  │   Durable   │  │  Application  │   │  │
+│  │  │   Streams   │  │    State    │  │   Protocol    │   │  │
+│  │  └─────────────┘  └─────────────┘  └───────────────┘   │  │
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
                               │
-                              │ WebSocket
+                              │ HTTP sync via CDN (Electric)
                               ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    Local Server (Bun)                         │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │              Durable Streams Server                     │  │
+│  │              Durable Sessions Server                    │  │
+│  │  (persistent, addressable, multi-user sessions)         │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                              ▲                                │
 │                              │ publishes events               │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │              Claude Agent SDK                           │  │
-│  │         (runs agents, streams progress)                 │  │
+│  │    (agents subscribe to sessions, write results)        │  │
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### How It Works
 
-| Operation      | Where           | How                                    |
-| -------------- | --------------- | -------------------------------------- |
-| Read data      | Client          | PGlite → TanStack DB → UI (instant)    |
-| Write data     | Client          | UI → TanStack DB → PGlite (instant)    |
-| Run agent      | Server          | API call triggers Claude Agent SDK     |
-| Agent progress | Server → Client | Durable Streams (real-time)            |
+| Operation        | Where           | How                                           |
+| ---------------- | --------------- | --------------------------------------------- |
+| Read data        | Client          | PGlite → TanStack DB → UI (instant)           |
+| Write data       | Client          | UI → TanStack DB → PGlite (instant)           |
+| Join session     | Client          | Subscribe to addressable session via URL      |
+| Send input       | Client → Server | Optimistic write → Durable Session sync       |
+| Agent progress   | Server → Client | Durable Session events (real-time)            |
+| Agent runs       | Server          | Agent subscribes to session, writes results   |
+| Session replay   | Client          | Join existing session, receive full history   |
 
 ---
 
@@ -165,6 +180,7 @@ agentpane/
 │   └── client.ts            # PGlite client setup
 ├── lib/
 │   ├── agents/              # Claude Agent SDK definitions
+│   ├── sessions/            # Durable Sessions (schema, adapters)
 │   ├── streams/             # Durable Streams setup
 │   ├── state/               # TanStack DB collections
 │   └── utils/               # Shared utilities
@@ -284,10 +300,84 @@ export const db = drizzle(pglite, { schema });
 
 ---
 
-## Durable Streams (Agent Events)
+## Durable Sessions (Collaborative Agent Events)
 
-Real-time streaming for agent progress and tool outputs.
-Pattern from [claude-code-ui](https://github.com/KyleAMathews/claude-code-ui).
+Real-time collaborative sessions for agent progress, tool outputs, and interactive features.
+Pattern from [Electric SQL Durable Sessions](https://electric-sql.com/blog/2026/01/12/durable-sessions-for-collaborative-ai).
+
+### Layered Protocol Stack
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Application Protocol                                        │
+│  (agent tokens, tool calls, terminal I/O, presence)         │
+├─────────────────────────────────────────────────────────────┤
+│  Durable State (@durable-streams/state)                     │
+│  Schema-aware structured state with Standard Schema         │
+├─────────────────────────────────────────────────────────────┤
+│  Durable Streams (@durable-streams/client)                  │
+│  Persistent, addressable binary streams                     │
+├─────────────────────────────────────────────────────────────┤
+│  Electric Sync Engine                                        │
+│  Postgres → HTTP sync via CDN → Client                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Capabilities
+
+| Feature      | Description                                      |
+| ------------ | ------------------------------------------------ |
+| Multi-user   | Real-time collaboration with presence indicators |
+| Multi-agent  | Concurrent agent execution in same session       |
+| Multi-device | Synchronization across tabs/devices              |
+| Persistent   | Sessions addressable via URL, join anytime       |
+| Replay       | Historical session access, audit trails          |
+
+### Session Schema (Standard Schema)
+
+```typescript
+// lib/sessions/schema.ts
+import { createStateSchema } from '@durable-streams/state';
+import { z } from 'zod';
+
+// Define multiplexed message types for sessions
+const chunkSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  text: z.string(),
+  timestamp: z.number(),
+});
+
+const toolSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  tool: z.string(),
+  input: z.unknown(),
+  output: z.unknown().optional(),
+  status: z.enum(['pending', 'running', 'complete', 'error']),
+  timestamp: z.number(),
+});
+
+const presenceSchema = z.object({
+  userId: z.string(),
+  cursor: z.object({ x: z.number(), y: z.number() }).optional(),
+  lastSeen: z.number(),
+});
+
+const terminalSchema = z.object({
+  id: z.string(),
+  type: z.enum(['input', 'output']),
+  data: z.string(),
+  timestamp: z.number(),
+});
+
+export const sessionSchema = createStateSchema({
+  chunks: { schema: chunkSchema, type: 'chunk' },
+  toolCalls: { schema: toolSchema, type: 'tool' },
+  presence: { schema: presenceSchema, type: 'presence' },
+  terminal: { schema: terminalSchema, type: 'terminal' },
+});
+```
 
 ### Server (Publisher)
 
@@ -295,6 +385,7 @@ Pattern from [claude-code-ui](https://github.com/KyleAMathews/claude-code-ui).
 // lib/streams/server.ts
 import { DurableStreamsServer } from '@durable-streams/server';
 import { StateProtocol } from '@durable-streams/state';
+import { sessionSchema } from '../sessions/schema';
 
 const streams = new DurableStreamsServer();
 
@@ -455,6 +546,131 @@ export function useAgentToolStream(agentId: string) {
 
   return { tools, streaming };
 }
+```
+
+### TanStack DB Integration (Live Queries)
+
+Sessions integrate with TanStack DB for reactive data materialization. Collections derive views from raw session data using live query pipelines.
+
+```typescript
+// lib/sessions/collections.ts
+import { createCollection } from '@tanstack/db';
+import { sessionSchema } from './schema';
+
+// Raw session chunks aggregate into messages automatically
+export const messagesCollection = createCollection({
+  id: 'messages',
+  primaryKey: 'id',
+  // Live query pipeline materializes chunks → messages
+  derive: (chunks) => {
+    return chunks.reduce((messages, chunk) => {
+      const existing = messages.find(m => m.agentId === chunk.agentId);
+      if (existing) {
+        existing.text += chunk.text;
+      } else {
+        messages.push({ id: chunk.id, agentId: chunk.agentId, text: chunk.text });
+      }
+      return messages;
+    }, []);
+  },
+});
+
+// Reactive hook - UI updates automatically when new data arrives
+export function useSessionMessages(sessionId: string) {
+  return useQuery(messagesCollection, (q) =>
+    q.where('sessionId', '==', sessionId).orderBy('timestamp', 'asc')
+  );
+}
+```
+
+### Bidirectional Session Communication
+
+Sessions support bidirectional communication for interactive features (terminal I/O, user commands):
+
+```typescript
+// lib/sessions/interactive.ts
+import { DurableSessionClient } from '@durable-streams/client';
+
+const session = new DurableSessionClient({ url: '/api/sessions' });
+
+// Write path: optimistic mutations with instant UI feedback
+export function sendTerminalInput(sessionId: string, input: string) {
+  // Optimistic update - UI shows immediately
+  session.optimisticWrite({
+    type: 'terminal',
+    payload: { type: 'input', data: input, timestamp: Date.now() },
+  });
+
+  // Syncs to backend via durable transport
+  session.send(sessionId, {
+    type: 'terminal:input',
+    data: input,
+  });
+}
+
+// Read path: live queries reactively bind to components
+export function useTerminalOutput(sessionId: string) {
+  return useQuery(terminalCollection, (q) =>
+    q.where('sessionId', '==', sessionId)
+      .where('type', '==', 'output')
+      .orderBy('timestamp', 'asc')
+  );
+}
+```
+
+### Agent Registration Pattern
+
+Agents register as backend endpoints that subscribe to session changes:
+
+```typescript
+// lib/agents/session-agent.ts
+import { createSessionAgent } from '@durable-streams/agent';
+import { query } from '@anthropic-ai/claude-agent-sdk';
+
+// Agent subscribes to session, processes messages like request-response
+export const sessionAgent = createSessionAgent({
+  sessionSchema,
+
+  // Called when new user message arrives in session
+  async onMessage(session, message) {
+    // Process with Claude Agent SDK
+    for await (const response of query({
+      prompt: message.text,
+      options: { allowedTools: ['Read', 'Edit', 'Bash'] },
+    })) {
+      // Write results back to durable session
+      session.write({
+        type: 'chunk',
+        payload: {
+          agentId: this.id,
+          text: response.result,
+          timestamp: Date.now(),
+        },
+      });
+    }
+  },
+});
+```
+
+### AI SDK Transport Adapters
+
+Durable Sessions integrate with existing AI SDKs via transport adapters:
+
+```typescript
+// lib/sessions/adapters.ts
+import { createTransport } from '@durable-streams/ai-adapter';
+
+// Vercel AI SDK transport
+export const vercelTransport = createTransport({
+  type: 'vercel-ai',
+  session: sessionSchema,
+});
+
+// TanStack AI connection adapter
+export const tanstackConnection = createTransport({
+  type: 'tanstack-ai',
+  session: sessionSchema,
+});
 ```
 
 ---
