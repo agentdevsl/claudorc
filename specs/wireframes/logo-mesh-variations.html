@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane Logo - Mesh/Network Variations</title>
+  <style>
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --accent-fg: #58a6ff;
+      --success-fg: #3fb950;
+      --done-fg: #a371f7;
+      --pink-fg: #f778ba;
+      --attention-fg: #d29922;
+      --danger-fg: #f85149;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-canvas);
+      color: var(--fg-default);
+      min-height: 100vh;
+      padding: 48px;
+    }
+
+    h1 { text-align: center; margin-bottom: 16px; }
+    .subtitle { text-align: center; color: var(--fg-muted); margin-bottom: 48px; font-size: 14px; }
+
+    .options {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .option {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      width: 180px;
+    }
+
+    .option h2 { font-size: 13px; margin-bottom: 4px; }
+    .option p { font-size: 10px; color: var(--fg-muted); margin-bottom: 12px; line-height: 1.4; }
+
+    .logo-container { display: flex; justify-content: center; margin-bottom: 12px; }
+
+    .logo-base {
+      width: 56px;
+      height: 56px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                  linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset,
+                  0 -1px 0 0 rgba(0,0,0,0.3) inset,
+                  0 4px 16px -2px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+
+    .logo-base::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.1) 0%, transparent 60%);
+      animation: glow 4s ease-in-out infinite;
+    }
+
+    @keyframes glow {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .logo-icon { width: 36px; height: 36px; position: relative; z-index: 1; }
+
+    @keyframes nodePulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes corePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .node { animation: nodePulse 2s ease-in-out infinite; }
+    .node-1 { animation-delay: 0s; }
+    .node-2 { animation-delay: 0.4s; }
+    .node-3 { animation-delay: 0.8s; }
+    .node-4 { animation-delay: 1.2s; }
+    .node-5 { animation-delay: 1.6s; }
+    .node-6 { animation-delay: 2s; }
+
+    .core { animation: corePulse 3s ease-in-out infinite; }
+
+    .choose-btn {
+      background: var(--accent-fg);
+      color: var(--bg-canvas);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .note { text-align: center; margin-top: 48px; color: var(--fg-muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Mesh/Network Logo Variations</h1>
+  <p class="subtitle">All variations on the connected agent network theme</p>
+
+  <div class="options">
+    <!-- F1: Original 4-node diamond -->
+    <div class="option">
+      <h2>F1: Diamond Network</h2>
+      <p>4 nodes in diamond arrangement. Balanced, symmetrical.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core1" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle class="node node-2" cx="26" cy="8" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="node node-3" cx="6" cy="24" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950);"/>
+            <circle class="node node-4" cx="26" cy="24" r="2.5" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core1)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F1 selected!')">Choose F1</button>
+    </div>
+
+    <!-- F2: 6-node hexagon -->
+    <div class="option">
+      <h2>F2: Hex Network</h2>
+      <p>6 nodes in hexagonal pattern. More complex.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core2" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#58a6ff"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="16" y2="4" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="10" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="22" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="16" y2="28" stroke="#f778ba" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="10" stroke="#f85149" stroke-opacity="0.3" stroke-width="1"/>
+            <circle class="node node-1" cx="16" cy="4" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+            <circle class="node node-2" cx="26" cy="10" r="2" fill="#a371f7" style="filter: drop-shadow(0 0 2px #a371f7);"/>
+            <circle class="node node-3" cx="26" cy="22" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+            <circle class="node node-4" cx="16" cy="28" r="2" fill="#f778ba" style="filter: drop-shadow(0 0 2px #f778ba);"/>
+            <circle class="node node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+            <circle class="node node-6" cx="6" cy="10" r="2" fill="#f85149" style="filter: drop-shadow(0 0 2px #f85149);"/>
+            <circle class="core" cx="16" cy="16" r="4" fill="url(#core2)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F2 selected!')">Choose F2</button>
+    </div>
+
+    <!-- F3: 3-node triangle -->
+    <div class="option">
+      <h2>F3: Triangle Network</h2>
+      <p>3 nodes in triangle. Minimal, clean.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core3" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="16" y2="5" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1.5"/>
+            <line x1="16" y1="16" x2="6" y2="25" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1.5"/>
+            <line x1="16" y1="16" x2="26" y2="25" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1.5"/>
+            <!-- Outer triangle connections -->
+            <line x1="16" y1="5" x2="6" y2="25" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+            <line x1="6" y1="25" x2="26" y2="25" stroke="#a371f7" stroke-opacity="0.15" stroke-width="1"/>
+            <line x1="26" y1="25" x2="16" y2="5" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+            <circle class="node node-1" cx="16" cy="5" r="3" fill="#58a6ff" style="filter: drop-shadow(0 0 4px #58a6ff);"/>
+            <circle class="node node-2" cx="6" cy="25" r="3" fill="#a371f7" style="filter: drop-shadow(0 0 4px #a371f7);"/>
+            <circle class="node node-3" cx="26" cy="25" r="3" fill="#3fb950" style="filter: drop-shadow(0 0 4px #3fb950);"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core3)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F3 selected!')">Choose F3</button>
+    </div>
+
+    <!-- F4: Star burst -->
+    <div class="option">
+      <h2>F4: Star Burst</h2>
+      <p>5 nodes radiating out. Dynamic, energetic.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core4" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#f778ba"/>
+                <stop offset="100%" stop-color="#f778ba" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="16" y2="3" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="28" y2="10" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="24" y2="27" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="8" y2="27" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="4" y2="10" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+            <circle class="node node-1" cx="16" cy="3" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle class="node node-2" cx="28" cy="10" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="node node-3" cx="24" cy="27" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950);"/>
+            <circle class="node node-4" cx="8" cy="27" r="2.5" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+            <circle class="node node-5" cx="4" cy="10" r="2.5" fill="#d29922" style="filter: drop-shadow(0 0 3px #d29922);"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core4)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F4 selected!')">Choose F4</button>
+    </div>
+
+    <!-- F5: Fully connected mesh -->
+    <div class="option">
+      <h2>F5: Full Mesh</h2>
+      <p>4 nodes all interconnected. Dense network.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core5" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- Center connections -->
+            <line x1="16" y1="16" x2="8" y2="6" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="24" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="8" y2="26" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="24" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <!-- Cross connections -->
+            <line x1="8" y1="6" x2="24" y2="6" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1"/>
+            <line x1="24" y1="6" x2="24" y2="26" stroke="#a371f7" stroke-opacity="0.2" stroke-width="1"/>
+            <line x1="24" y1="26" x2="8" y2="26" stroke="#3fb950" stroke-opacity="0.2" stroke-width="1"/>
+            <line x1="8" y1="26" x2="8" y2="6" stroke="#f778ba" stroke-opacity="0.2" stroke-width="1"/>
+            <!-- Diagonal connections -->
+            <line x1="8" y1="6" x2="24" y2="26" stroke="#d29922" stroke-opacity="0.15" stroke-width="1"/>
+            <line x1="24" y1="6" x2="8" y2="26" stroke="#d29922" stroke-opacity="0.15" stroke-width="1"/>
+            <circle class="node node-1" cx="8" cy="6" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle class="node node-2" cx="24" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="node node-3" cx="8" cy="26" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950);"/>
+            <circle class="node node-4" cx="24" cy="26" r="2.5" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+            <circle class="core" cx="16" cy="16" r="4.5" fill="url(#core5)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F5 selected!')">Choose F5</button>
+    </div>
+
+    <!-- F6: Asymmetric cluster -->
+    <div class="option">
+      <h2>F6: Cluster</h2>
+      <p>Asymmetric node cluster. Organic, natural.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core6" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#3fb950"/>
+                <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+            <!-- Some node-to-node connections -->
+            <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+            <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+            <circle class="node node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="node node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+            <circle class="node node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+            <circle class="node node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+            <circle class="core" cx="14" cy="14" r="5" fill="url(#core6)"/>
+            <circle cx="14" cy="14" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F6 selected!')">Choose F6</button>
+    </div>
+
+    <!-- F7: Blue monochrome -->
+    <div class="option">
+      <h2>F7: Blue Mono</h2>
+      <p>All blue nodes. Clean, professional, unified.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core7" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#58a6ff"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle class="node node-2" cx="26" cy="8" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff); opacity: 0.8;"/>
+            <circle class="node node-3" cx="6" cy="24" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff); opacity: 0.6;"/>
+            <circle class="node node-4" cx="26" cy="24" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff); opacity: 0.9;"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core7)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F7 selected!')">Choose F7</button>
+    </div>
+
+    <!-- F8: Purple monochrome -->
+    <div class="option">
+      <h2>F8: Purple Mono</h2>
+      <p>All purple nodes. Matches "done" status color.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core8" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="6" y2="8" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="node node-2" cx="26" cy="8" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7); opacity: 0.8;"/>
+            <circle class="node node-3" cx="6" cy="24" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7); opacity: 0.6;"/>
+            <circle class="node node-4" cx="26" cy="24" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7); opacity: 0.9;"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core8)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F8 selected!')">Choose F8</button>
+    </div>
+
+    <!-- F9: Green monochrome -->
+    <div class="option">
+      <h2>F9: Green Mono</h2>
+      <p>All green nodes. Active/success theme.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core9" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#3fb950"/>
+                <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="6" y2="8" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950);"/>
+            <circle class="node node-2" cx="26" cy="8" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950); opacity: 0.8;"/>
+            <circle class="node node-3" cx="6" cy="24" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950); opacity: 0.6;"/>
+            <circle class="node node-4" cx="26" cy="24" r="2.5" fill="#3fb950" style="filter: drop-shadow(0 0 3px #3fb950); opacity: 0.9;"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core9)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F9 selected!')">Choose F9</button>
+    </div>
+
+    <!-- F10: Gradient nodes -->
+    <div class="option">
+      <h2>F10: Gradient Flow</h2>
+      <p>Blue to purple gradient. Smooth transition.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="lineGrad10" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#58a6ff"/>
+                <stop offset="100%" stop-color="#a371f7"/>
+              </linearGradient>
+              <radialGradient id="core10" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="30%" stop-color="#58a6ff"/>
+                <stop offset="70%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="6" y2="8" stroke="url(#lineGrad10)" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="url(#lineGrad10)" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="url(#lineGrad10)" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="url(#lineGrad10)" stroke-opacity="0.4" stroke-width="1"/>
+            <circle class="node node-1" cx="6" cy="8" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle class="node node-2" cx="26" cy="8" r="2.5" fill="#7b8ef7" style="filter: drop-shadow(0 0 3px #7b8ef7);"/>
+            <circle class="node node-3" cx="6" cy="24" r="2.5" fill="#8f7af7" style="filter: drop-shadow(0 0 3px #8f7af7);"/>
+            <circle class="node node-4" cx="26" cy="24" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="core" cx="16" cy="16" r="5" fill="url(#core10)"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F10 selected!')">Choose F10</button>
+    </div>
+
+    <!-- F11: Larger nodes -->
+    <div class="option">
+      <h2>F11: Bold Nodes</h2>
+      <p>Larger nodes, bolder presence. Eye-catching.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core11" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="7" y2="7" stroke="#58a6ff" stroke-opacity="0.5" stroke-width="1.5"/>
+            <line x1="16" y1="16" x2="25" y2="7" stroke="#a371f7" stroke-opacity="0.5" stroke-width="1.5"/>
+            <line x1="16" y1="16" x2="7" y2="25" stroke="#3fb950" stroke-opacity="0.5" stroke-width="1.5"/>
+            <line x1="16" y1="16" x2="25" y2="25" stroke="#f778ba" stroke-opacity="0.5" stroke-width="1.5"/>
+            <circle class="node node-1" cx="7" cy="7" r="4" fill="#58a6ff" style="filter: drop-shadow(0 0 4px #58a6ff);"/>
+            <circle class="node node-2" cx="25" cy="7" r="4" fill="#a371f7" style="filter: drop-shadow(0 0 4px #a371f7);"/>
+            <circle class="node node-3" cx="7" cy="25" r="4" fill="#3fb950" style="filter: drop-shadow(0 0 4px #3fb950);"/>
+            <circle class="node node-4" cx="25" cy="25" r="4" fill="#f778ba" style="filter: drop-shadow(0 0 4px #f778ba);"/>
+            <circle class="core" cx="16" cy="16" r="4" fill="url(#core11)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F11 selected!')">Choose F11</button>
+    </div>
+
+    <!-- F12: Smaller, tighter -->
+    <div class="option">
+      <h2>F12: Compact</h2>
+      <p>Tighter arrangement. Subtle, refined.</p>
+      <div class="logo-container">
+        <div class="logo-base">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="core12" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <line x1="16" y1="16" x2="10" y2="10" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="22" y2="10" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="10" y2="22" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="22" y2="22" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <circle class="node node-1" cx="10" cy="10" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+            <circle class="node node-2" cx="22" cy="10" r="2" fill="#a371f7" style="filter: drop-shadow(0 0 2px #a371f7);"/>
+            <circle class="node node-3" cx="10" cy="22" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+            <circle class="node node-4" cx="22" cy="22" r="2" fill="#f778ba" style="filter: drop-shadow(0 0 2px #f778ba);"/>
+            <circle class="core" cx="16" cy="16" r="6" fill="url(#core12)"/>
+            <circle cx="16" cy="16" r="2.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('F12 selected!')">Choose F12</button>
+    </div>
+  </div>
+
+  <p class="note">Let me know which variation you prefer (F1-F12) and I'll apply it to all wireframes.</p>
+</body>
+</html>

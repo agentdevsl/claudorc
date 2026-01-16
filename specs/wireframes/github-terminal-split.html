@@ -81,17 +81,62 @@
     }
 
     .sidebar-logo {
-      width: 28px;
-      height: 28px;
-      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
-      border-radius: var(--radius);
+      width: 56px;
+      height: 56px;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      font-weight: 600;
-      color: white;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
     }
+
+    .sidebar-logo::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% { opacity: 0.5; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    .logo-icon {
+      position: relative;
+      z-index: 1;
+      width: 28px;
+      height: 28px;
+      filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4));
+    }
+
+    /* Network node animations */
+    .logo-node {
+      animation: nodePulse 2s ease-in-out infinite;
+    }
+    .logo-node-1 { animation-delay: 0s; }
+    .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; }
+    .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+    .sidebar-logo:hover {
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(163, 113, 247, 0.2), 0 0 20px -4px rgba(163, 113, 247, 0.3);
+    }
+    .sidebar-logo:hover .logo-icon { filter: drop-shadow(0 0 12px rgba(163, 113, 247, 0.6)); }
+    .sidebar-logo:hover .logo-path { animation-duration: 1.5s; }
+    .sidebar-logo:hover .logo-core { animation-duration: 1.5s; }
 
     .sidebar-title {
       font-weight: 600;
@@ -729,7 +774,35 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-logo">AP</div>
+        <div class="sidebar-logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#3fb950"/>
+                <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- Connection lines to center -->
+            <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+            <!-- Node-to-node connections -->
+            <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+            <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+            <!-- Outer nodes (asymmetric cluster) -->
+            <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+            <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+            <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+            <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+            <!-- Center hub -->
+            <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/>
+            <circle cx="14" cy="14" r="2" fill="#fff"/>
+          </svg>
+        </div>
         <span class="sidebar-title">AgentPane</span>
       </div>
 
