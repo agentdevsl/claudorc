@@ -63,7 +63,12 @@
       "Bash(git push:*)",
       "WebSearch",
       "Bash(gh run view:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(open:*)",
+      "Bash(git -C /Users/simon.lynch/git/claudorc diff --stat)",
+      "Bash(git -C /Users/simon.lynch/git/claudorc status)",
+      "Bash(git -C /Users/simon.lynch/git/claudorc diff --stat specs/wireframes/)",
+      "Bash(git -C /Users/simon.lynch/git/claudorc log --oneline -3)"
     ],
     "deny": [
       "Write(.gitignore)",
@@ -82,5 +87,8 @@
     ]
   },
   "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "XcodeBuildMCP"
+  ],
   "disableAllHooks": true
 }

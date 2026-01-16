@@ -81,6 +81,7 @@ use these skills
 | zod                      | 4.3.5   | Schema validation               |
 | @radix-ui/react-slot     | 1.2.4   | asChild prop support            |
 | @tailwindcss/vite        | 4.1.18  | Tailwind v4 Vite plugin         |
+| octokit                  | 4.1.0   | GitHub API client (REST + GraphQL) |
 
 ### Future Additions (When Needed)
 
@@ -1219,6 +1220,227 @@ export async function removeWorktree(branch: string) {
 ```
 
 When spawning an agent, set `cwd` to the worktree path so all file operations are isolated.
+
+---
+
+## GitHub Integration (Octokit)
+
+Use Octokit for all GitHub API interactions. Git repository is the source of truth for agent configuration.
+
+### Client Setup
+
+```typescript
+// lib/github/client.ts
+import { Octokit } from 'octokit';
+
+// Personal access token or GitHub App installation token
+export const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN,
+});
+
+// For GitHub App installations
+export function createAppOctokit(installationId: number) {
+  return new Octokit({
+    authStrategy: createAppAuth,
+    auth: {
+      appId: process.env.GITHUB_APP_ID,
+      privateKey: process.env.GITHUB_PRIVATE_KEY,
+      installationId,
+    },
+  });
+}
+```
+
+### Agent Configuration Sync
+
+Sync agent configuration from repository subfolder (git as source of truth):
+
+```typescript
+// lib/github/config-sync.ts
+import { octokit } from './client';
+import { z } from 'zod';
+
+const agentConfigSchema = z.object({
+  allowedTools: z.array(z.string()).default(['Read', 'Edit', 'Bash']),
+  maxTurns: z.number().default(50),
+  model: z.string().default('claude-sonnet-4-20250514'),
+  prompts: z.record(z.string()).optional(),
+  envVars: z.record(z.string()).optional(),
+});
+
+export type AgentConfig = z.infer<typeof agentConfigSchema>;
+
+// Fetch config from repo subfolder
+export async function fetchAgentConfig(
+  owner: string,
+  repo: string,
+  configPath = '.agentpane/config.json',
+  ref = 'main'
+): Promise<AgentConfig> {
+  const { data } = await octokit.rest.repos.getContent({
+    owner,
+    repo,
+    path: configPath,
+    ref,
+  });
+
+  if ('content' in data) {
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return agentConfigSchema.parse(JSON.parse(content));
+  }
+
+  throw new Error(`Config not found at ${configPath}`);
+}
+
+// Watch for config changes via webhooks
+export async function syncConfigOnPush(
+  owner: string,
+  repo: string,
+  projectId: string
+) {
+  const config = await fetchAgentConfig(owner, repo);
+  await updateProjectConfig(projectId, config);
+}
+```
+
+### Repository Operations
+
+```typescript
+// lib/github/repos.ts
+import { octokit } from './client';
+
+// List user's repositories
+export async function listRepos() {
+  const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+    sort: 'updated',
+    per_page: 100,
+  });
+  return data;
+}
+
+// Get repository details
+export async function getRepo(owner: string, repo: string) {
+  const { data } = await octokit.rest.repos.get({ owner, repo });
+  return data;
+}
+
+// List files in config directory
+export async function listConfigFiles(
+  owner: string,
+  repo: string,
+  path = '.agentpane'
+) {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+    });
+    return Array.isArray(data) ? data : [data];
+  } catch (error) {
+    if (error.status === 404) return [];
+    throw error;
+  }
+}
+```
+
+### Branch & PR Operations
+
+```typescript
+// lib/github/branches.ts
+import { octokit } from './client';
+
+// Create branch for agent work
+export async function createBranch(
+  owner: string,
+  repo: string,
+  branch: string,
+  baseBranch = 'main'
+) {
+  // Get base branch SHA
+  const { data: ref } = await octokit.rest.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${baseBranch}`,
+  });
+
+  // Create new branch
+  await octokit.rest.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${branch}`,
+    sha: ref.object.sha,
+  });
+}
+
+// Create pull request for agent changes
+export async function createPullRequest(
+  owner: string,
+  repo: string,
+  branch: string,
+  title: string,
+  body: string,
+  baseBranch = 'main'
+) {
+  const { data } = await octokit.rest.pulls.create({
+    owner,
+    repo,
+    title,
+    body,
+    head: branch,
+    base: baseBranch,
+  });
+  return data;
+}
+
+// Merge pull request
+export async function mergePullRequest(
+  owner: string,
+  repo: string,
+  pullNumber: number
+) {
+  await octokit.rest.pulls.merge({
+    owner,
+    repo,
+    pull_number: pullNumber,
+    merge_method: 'squash',
+  });
+}
+```
+
+### Webhook Handler
+
+```typescript
+// app/routes/api/webhooks/github.ts
+import { createServerFileRoute } from '@tanstack/react-start/server';
+import { syncConfigOnPush } from '@/lib/github/config-sync';
+
+export const ServerRoute = createServerFileRoute().methods({
+  POST: async ({ request }) => {
+    const event = request.headers.get('x-github-event');
+    const payload = await request.json();
+
+    if (event === 'push') {
+      const { repository, ref } = payload;
+
+      // Check if config files changed
+      const configChanged = payload.commits?.some((commit: any) =>
+        commit.modified?.some((path: string) => path.startsWith('.agentpane/'))
+      );
+
+      if (configChanged && ref === 'refs/heads/main') {
+        await syncConfigOnPush(
+          repository.owner.login,
+          repository.name,
+          repository.id.toString()
+        );
+      }
+    }
+
+    return Response.json({ received: true });
+  },
+});
+```
 
 ---
 

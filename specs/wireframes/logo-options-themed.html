@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane Logo Options - Theme Aligned</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* Using exact wireframe design tokens */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --pink-fg: #f778ba;
+      --radius: 6px;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--fg-default);
+      min-height: 100vh;
+      padding: 48px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--fg-muted);
+      margin-bottom: 48px;
+      font-size: 14px;
+    }
+
+    .color-legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 48px;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+
+    .options {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .option {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      width: 200px;
+    }
+
+    .option h2 {
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--fg-default);
+    }
+
+    .option p {
+      font-size: 11px;
+      color: var(--fg-muted);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .logo-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    /* Base logo container - matches wireframe sidebar */
+    .logo-base {
+      width: 56px;
+      height: 56px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                  linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset,
+                  0 -1px 0 0 rgba(0,0,0,0.3) inset,
+                  0 4px 16px -2px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+
+    .logo-icon {
+      position: relative;
+      z-index: 1;
+      width: 36px;
+      height: 36px;
+    }
+
+    /* ========================================
+       A: Convergence - Blue/Purple/Pink
+       Primary brand colors flowing to center
+       ======================================== */
+    .logo-a::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: glowPulse 4s ease-in-out infinite;
+    }
+
+    .logo-a .logo-icon { filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+
+    /* ========================================
+       B: Convergence - Green Success Theme
+       ======================================== */
+    .logo-b::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(63, 185, 80, 0.15) 0%, transparent 60%);
+      animation: glowPulse 4s ease-in-out infinite;
+    }
+
+    .logo-b .logo-icon { filter: drop-shadow(0 0 8px rgba(63, 185, 80, 0.4)); }
+
+    /* ========================================
+       C: Orbital - Blue Accent Theme
+       ======================================== */
+    .logo-c::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(88, 166, 255, 0.12) 0%, transparent 60%);
+      animation: glowPulse 4s ease-in-out infinite;
+    }
+
+    .logo-c .logo-icon { filter: drop-shadow(0 0 8px rgba(88, 166, 255, 0.4)); }
+
+    /* ========================================
+       D: Agent Network - Multi-color nodes
+       ======================================== */
+    .logo-d::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.1) 0%, transparent 60%);
+      animation: glowPulse 4s ease-in-out infinite;
+    }
+
+    /* ========================================
+       E: Hexagon Tech - Purple/Blue
+       ======================================== */
+    .logo-e::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(88, 166, 255, 0.1) 0%, transparent 60%);
+      animation: glowPulse 4s ease-in-out infinite;
+    }
+
+    /* ========================================
+       F: Pixel Agent - Retro theme
+       ======================================== */
+    .logo-f {
+      background: linear-gradient(165deg, #0d1117 0%, #0a0d11 100%);
+    }
+
+    .logo-f::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(63, 185, 80, 0.02) 2px,
+        rgba(63, 185, 80, 0.02) 4px
+      );
+    }
+
+    /* Shared animations */
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    @keyframes pathPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes corePulse {
+      0%, 100% { opacity: 0.9; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+
+    @keyframes orbitSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes nodePulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; filter: drop-shadow(0 0 4px currentColor); }
+    }
+
+    @keyframes invaderBob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
+    .path-blue { stroke: var(--accent-fg); }
+    .path-purple { stroke: var(--done-fg); }
+    .path-pink { stroke: var(--pink-fg); }
+    .path-green { stroke: var(--success-fg); }
+    .path-orange { stroke: var(--attention-fg); }
+
+    .fill-blue { fill: var(--accent-fg); }
+    .fill-purple { fill: var(--done-fg); }
+    .fill-pink { fill: var(--pink-fg); }
+    .fill-green { fill: var(--success-fg); }
+    .fill-orange { fill: var(--attention-fg); }
+    .fill-red { fill: var(--danger-fg); }
+
+    .choose-btn {
+      background: var(--accent-fg);
+      color: var(--bg-canvas);
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .choose-btn:hover { opacity: 0.9; }
+
+    .section-title {
+      width: 100%;
+      text-align: center;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--fg-subtle);
+      margin: 32px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .note {
+      text-align: center;
+      margin-top: 48px;
+      color: var(--fg-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>AgentPane Logo Options</h1>
+  <p class="subtitle">All options use the exact wireframe theme colors for perfect alignment</p>
+
+  <div class="color-legend">
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--accent-fg);"></div>
+      <span>Blue (Accent)</span>
+    </div>
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--done-fg);"></div>
+      <span>Purple (Done)</span>
+    </div>
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--pink-fg);"></div>
+      <span>Pink</span>
+    </div>
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--success-fg);"></div>
+      <span>Green (Success)</span>
+    </div>
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--attention-fg);"></div>
+      <span>Orange (Attention)</span>
+    </div>
+    <div class="color-swatch">
+      <div class="swatch" style="background: var(--danger-fg);"></div>
+      <span>Red (Danger)</span>
+    </div>
+  </div>
+
+  <div class="options">
+    <div class="section-title">Convergence Style - Paths to Center</div>
+
+    <!-- A: Convergence Blue/Purple/Pink -->
+    <div class="option">
+      <h2>A: Tri-Color Flow</h2>
+      <p>Blue, Purple, Pink paths converging. Primary brand palette.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-a">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pathA1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#58a6ff"/>
+              </linearGradient>
+              <linearGradient id="pathA2" x1="100%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#a371f7" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#a371f7"/>
+              </linearGradient>
+              <linearGradient id="pathA3" x1="50%" y1="100%" x2="50%" y2="0%">
+                <stop offset="0%" stop-color="#f778ba" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#f778ba"/>
+              </linearGradient>
+              <radialGradient id="coreA" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="40%" stop-color="#a371f7" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <path d="M4 6 Q10 11, 16 16" stroke="url(#pathA1)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite;"/>
+            <path d="M28 6 Q22 11, 16 16" stroke="url(#pathA2)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 0.5s;"/>
+            <path d="M16 28 Q16 21, 16 16" stroke="url(#pathA3)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 1s;"/>
+            <circle cx="16" cy="16" r="6" fill="url(#coreA)" opacity="0.4" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="3.5" fill="url(#coreA)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff" opacity="0.95"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option A selected!')">Choose A</button>
+    </div>
+
+    <!-- B: Convergence Green Theme -->
+    <div class="option">
+      <h2>B: Success Flow</h2>
+      <p>Green-focused. Success/active status theme.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-b">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pathB1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#3fb950" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#3fb950"/>
+              </linearGradient>
+              <linearGradient id="pathB2" x1="100%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#58a6ff"/>
+              </linearGradient>
+              <linearGradient id="pathB3" x1="50%" y1="100%" x2="50%" y2="0%">
+                <stop offset="0%" stop-color="#a371f7" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#a371f7"/>
+              </linearGradient>
+              <radialGradient id="coreB" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="40%" stop-color="#3fb950" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <path d="M4 6 Q10 11, 16 16" stroke="url(#pathB1)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite;"/>
+            <path d="M28 6 Q22 11, 16 16" stroke="url(#pathB2)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 0.5s;"/>
+            <path d="M16 28 Q16 21, 16 16" stroke="url(#pathB3)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 1s;"/>
+            <circle cx="16" cy="16" r="6" fill="url(#coreB)" opacity="0.4" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="3.5" fill="url(#coreB)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff" opacity="0.95"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option B selected!')">Choose B</button>
+    </div>
+
+    <!-- C: Convergence Blue Only -->
+    <div class="option">
+      <h2>C: Blue Accent</h2>
+      <p>Monochrome blue. Clean, professional.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-c">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pathC" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#58a6ff"/>
+              </linearGradient>
+              <radialGradient id="coreC" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="40%" stop-color="#58a6ff" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <path d="M4 6 Q10 11, 16 16" stroke="url(#pathC)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite;"/>
+            <path d="M28 6 Q22 11, 16 16" stroke="url(#pathC)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 0.5s;"/>
+            <path d="M16 28 Q16 21, 16 16" stroke="url(#pathC)" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation: pathPulse 3s ease-in-out infinite 1s;"/>
+            <circle cx="16" cy="16" r="6" fill="url(#coreC)" opacity="0.4" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="3.5" fill="url(#coreC)"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff" opacity="0.95"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option C selected!')">Choose C</button>
+    </div>
+
+    <div class="section-title">Orbital Style - Spinning Elements</div>
+
+    <!-- D: Orbital Multi-color -->
+    <div class="option">
+      <h2>D: Agent Orbit</h2>
+      <p>Orbiting agents around central hub. Multi-color nodes.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-d">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="coreD" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <g style="animation: orbitSpin 8s linear infinite; transform-origin: 16px 16px;">
+              <ellipse cx="16" cy="16" rx="12" ry="5" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1" fill="none"/>
+              <circle cx="28" cy="16" r="2.5" fill="#58a6ff" style="filter: drop-shadow(0 0 4px #58a6ff);"/>
+            </g>
+            <g style="animation: orbitSpin 6s linear infinite reverse; transform-origin: 16px 16px;">
+              <ellipse cx="16" cy="16" rx="12" ry="5" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1" fill="none" transform="rotate(60 16 16)"/>
+              <circle cx="28" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 4px #3fb950);" transform="rotate(60 16 16)"/>
+            </g>
+            <g style="animation: orbitSpin 7s linear infinite; transform-origin: 16px 16px;">
+              <ellipse cx="16" cy="16" rx="12" ry="5" stroke="#f778ba" stroke-opacity="0.3" stroke-width="1" fill="none" transform="rotate(-60 16 16)"/>
+              <circle cx="28" cy="16" r="2" fill="#f778ba" style="filter: drop-shadow(0 0 4px #f778ba);" transform="rotate(-60 16 16)"/>
+            </g>
+            <circle cx="16" cy="16" r="4" fill="url(#coreD)" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option D selected!')">Choose D</button>
+    </div>
+
+    <!-- E: Orbital Blue/Purple -->
+    <div class="option">
+      <h2>E: Dual Orbit</h2>
+      <p>Two orbits, blue and purple. Balanced, elegant.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-e">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="coreE" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#58a6ff"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <g style="animation: orbitSpin 6s linear infinite; transform-origin: 16px 16px;">
+              <ellipse cx="16" cy="16" rx="13" ry="6" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1.5" fill="none"/>
+              <circle cx="29" cy="16" r="3" fill="#58a6ff" style="filter: drop-shadow(0 0 6px #58a6ff);"/>
+            </g>
+            <g style="animation: orbitSpin 8s linear infinite reverse; transform-origin: 16px 16px;">
+              <ellipse cx="16" cy="16" rx="13" ry="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1.5" fill="none" transform="rotate(90 16 16)"/>
+              <circle cx="29" cy="16" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 6px #a371f7);" transform="rotate(90 16 16)"/>
+            </g>
+            <circle cx="16" cy="16" r="4.5" fill="url(#coreE)" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option E selected!')">Choose E</button>
+    </div>
+
+    <div class="section-title">Network Style - Connected Nodes</div>
+
+    <!-- F: Network Nodes -->
+    <div class="option">
+      <h2>F: Agent Network</h2>
+      <p>Connected nodes showing agent collaboration.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-d">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="coreF" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#a371f7"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- Connection lines -->
+            <line x1="16" y1="16" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="8" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="6" y2="24" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+            <line x1="16" y1="16" x2="26" y2="24" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+            <!-- Outer nodes -->
+            <circle cx="6" cy="8" r="2.5" fill="#58a6ff" style="animation: nodePulse 2s ease-in-out infinite; filter: drop-shadow(0 0 3px #58a6ff);"/>
+            <circle cx="26" cy="8" r="2.5" fill="#a371f7" style="animation: nodePulse 2s ease-in-out infinite 0.5s; filter: drop-shadow(0 0 3px #a371f7);"/>
+            <circle cx="6" cy="24" r="2.5" fill="#3fb950" style="animation: nodePulse 2s ease-in-out infinite 1s; filter: drop-shadow(0 0 3px #3fb950);"/>
+            <circle cx="26" cy="24" r="2.5" fill="#f778ba" style="animation: nodePulse 2s ease-in-out infinite 1.5s; filter: drop-shadow(0 0 3px #f778ba);"/>
+            <!-- Center -->
+            <circle cx="16" cy="16" r="5" fill="url(#coreF)" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option F selected!')">Choose F</button>
+    </div>
+
+    <!-- G: Hexagonal Network -->
+    <div class="option">
+      <h2>G: Hex Network</h2>
+      <p>Hexagonal arrangement with status colors.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-e">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <radialGradient id="coreG" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="50%" stop-color="#58a6ff"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- Hexagon outline -->
+            <polygon points="16,4 27,10 27,22 16,28 5,22 5,10" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1" fill="none"/>
+            <!-- Lines to center -->
+            <line x1="16" y1="16" x2="16" y2="4" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="27" y2="10" stroke="#a371f7" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="27" y2="22" stroke="#3fb950" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="16" y2="28" stroke="#f778ba" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="5" y2="22" stroke="#d29922" stroke-opacity="0.3" stroke-width="1"/>
+            <line x1="16" y1="16" x2="5" y2="10" stroke="#f85149" stroke-opacity="0.3" stroke-width="1"/>
+            <!-- Nodes at vertices -->
+            <circle cx="16" cy="4" r="2" fill="#58a6ff" style="animation: nodePulse 3s ease-in-out infinite;"/>
+            <circle cx="27" cy="10" r="2" fill="#a371f7" style="animation: nodePulse 3s ease-in-out infinite 0.5s;"/>
+            <circle cx="27" cy="22" r="2" fill="#3fb950" style="animation: nodePulse 3s ease-in-out infinite 1s;"/>
+            <circle cx="16" cy="28" r="2" fill="#f778ba" style="animation: nodePulse 3s ease-in-out infinite 1.5s;"/>
+            <circle cx="5" cy="22" r="2" fill="#d29922" style="animation: nodePulse 3s ease-in-out infinite 2s;"/>
+            <circle cx="5" cy="10" r="2" fill="#f85149" style="animation: nodePulse 3s ease-in-out infinite 2.5s;"/>
+            <!-- Center -->
+            <circle cx="16" cy="16" r="4" fill="url(#coreG)" style="animation: corePulse 3s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option G selected!')">Choose G</button>
+    </div>
+
+    <div class="section-title">Geometric Style - Shapes & Patterns</div>
+
+    <!-- H: Layered Squares -->
+    <div class="option">
+      <h2>H: Stacked Layers</h2>
+      <p>Layered squares with depth. Modern, architectural.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-a">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="layerH1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#58a6ff" stop-opacity="0.1"/>
+              </linearGradient>
+              <linearGradient id="layerH2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#a371f7" stop-opacity="0.5"/>
+                <stop offset="100%" stop-color="#a371f7" stop-opacity="0.2"/>
+              </linearGradient>
+              <linearGradient id="layerH3" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f778ba" stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#f778ba" stop-opacity="0.4"/>
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="20" height="20" rx="3" fill="url(#layerH1)" transform="translate(2, 2)" style="animation: pathPulse 4s ease-in-out infinite;"/>
+            <rect x="4" y="4" width="20" height="20" rx="3" fill="url(#layerH2)" transform="translate(1, 1)" style="animation: pathPulse 4s ease-in-out infinite 0.3s;"/>
+            <rect x="4" y="4" width="20" height="20" rx="3" fill="url(#layerH3)" style="animation: pathPulse 4s ease-in-out infinite 0.6s;"/>
+            <circle cx="14" cy="14" r="3" fill="#fff" opacity="0.9" style="animation: corePulse 3s ease-in-out infinite;"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option H selected!')">Choose H</button>
+    </div>
+
+    <!-- I: Concentric Rings -->
+    <div class="option">
+      <h2>I: Status Rings</h2>
+      <p>Concentric rings using status colors.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-c">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="#58a6ff" stroke-opacity="0.3" stroke-width="1.5" fill="none" style="animation: pathPulse 4s ease-in-out infinite;"/>
+            <circle cx="16" cy="16" r="10" stroke="#a371f7" stroke-opacity="0.5" stroke-width="1.5" fill="none" style="animation: pathPulse 4s ease-in-out infinite 0.5s;"/>
+            <circle cx="16" cy="16" r="6" stroke="#3fb950" stroke-opacity="0.7" stroke-width="1.5" fill="none" style="animation: pathPulse 4s ease-in-out infinite 1s;"/>
+            <circle cx="16" cy="16" r="3" fill="#fff" opacity="0.9" style="animation: corePulse 3s ease-in-out infinite;"/>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option I selected!')">Choose I</button>
+    </div>
+
+    <div class="section-title">Retro Style - Pixel Art</div>
+
+    <!-- J: Space Invader -->
+    <div class="option">
+      <h2>J: Pixel Agent</h2>
+      <p>Space Invaders inspired. Retro arcade gaming.</p>
+      <div class="logo-container">
+        <div class="logo-base logo-f">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" style="image-rendering: pixelated;">
+            <g style="animation: invaderBob 1s ease-in-out infinite;">
+              <!-- Classic invader shape using theme green -->
+              <rect x="6" y="6" width="2" height="2" fill="#3fb950"/>
+              <rect x="24" y="6" width="2" height="2" fill="#3fb950"/>
+              <rect x="8" y="8" width="2" height="2" fill="#3fb950"/>
+              <rect x="22" y="8" width="2" height="2" fill="#3fb950"/>
+              <rect x="8" y="10" width="16" height="2" fill="#3fb950"/>
+              <rect x="6" y="12" width="20" height="2" fill="#3fb950"/>
+              <rect x="4" y="14" width="24" height="2" fill="#3fb950"/>
+              <rect x="4" y="16" width="24" height="2" fill="#3fb950"/>
+              <!-- Eyes -->
+              <rect x="8" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="20" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="6" y="18" width="4" height="2" fill="#3fb950"/>
+              <rect x="12" y="18" width="8" height="2" fill="#3fb950"/>
+              <rect x="22" y="18" width="4" height="2" fill="#3fb950"/>
+              <rect x="8" y="20" width="4" height="2" fill="#3fb950"/>
+              <rect x="20" y="20" width="4" height="2" fill="#3fb950"/>
+              <rect x="4" y="22" width="4" height="2" fill="#3fb950"/>
+              <rect x="24" y="22" width="4" height="2" fill="#3fb950"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option J selected!')">Choose J</button>
+    </div>
+
+    <!-- K: Pixel Agent Blue -->
+    <div class="option">
+      <h2>K: Blue Pixel Agent</h2>
+      <p>Same pixel style, accent blue color.</p>
+      <div class="logo-container">
+        <div class="logo-base" style="background: linear-gradient(165deg, #0d1117 0%, #0a0d11 100%);">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" style="image-rendering: pixelated;">
+            <g style="animation: invaderBob 1s ease-in-out infinite;">
+              <rect x="6" y="6" width="2" height="2" fill="#58a6ff"/>
+              <rect x="24" y="6" width="2" height="2" fill="#58a6ff"/>
+              <rect x="8" y="8" width="2" height="2" fill="#58a6ff"/>
+              <rect x="22" y="8" width="2" height="2" fill="#58a6ff"/>
+              <rect x="8" y="10" width="16" height="2" fill="#58a6ff"/>
+              <rect x="6" y="12" width="20" height="2" fill="#58a6ff"/>
+              <rect x="4" y="14" width="24" height="2" fill="#58a6ff"/>
+              <rect x="4" y="16" width="24" height="2" fill="#58a6ff"/>
+              <rect x="8" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="20" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="6" y="18" width="4" height="2" fill="#58a6ff"/>
+              <rect x="12" y="18" width="8" height="2" fill="#58a6ff"/>
+              <rect x="22" y="18" width="4" height="2" fill="#58a6ff"/>
+              <rect x="8" y="20" width="4" height="2" fill="#58a6ff"/>
+              <rect x="20" y="20" width="4" height="2" fill="#58a6ff"/>
+              <rect x="4" y="22" width="4" height="2" fill="#58a6ff"/>
+              <rect x="24" y="22" width="4" height="2" fill="#58a6ff"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option K selected!')">Choose K</button>
+    </div>
+
+    <!-- L: Pixel Agent Purple -->
+    <div class="option">
+      <h2>L: Purple Pixel Agent</h2>
+      <p>Done/complete purple theme variant.</p>
+      <div class="logo-container">
+        <div class="logo-base" style="background: linear-gradient(165deg, #0d1117 0%, #0a0d11 100%);">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" style="image-rendering: pixelated;">
+            <g style="animation: invaderBob 1s ease-in-out infinite;">
+              <rect x="6" y="6" width="2" height="2" fill="#a371f7"/>
+              <rect x="24" y="6" width="2" height="2" fill="#a371f7"/>
+              <rect x="8" y="8" width="2" height="2" fill="#a371f7"/>
+              <rect x="22" y="8" width="2" height="2" fill="#a371f7"/>
+              <rect x="8" y="10" width="16" height="2" fill="#a371f7"/>
+              <rect x="6" y="12" width="20" height="2" fill="#a371f7"/>
+              <rect x="4" y="14" width="24" height="2" fill="#a371f7"/>
+              <rect x="4" y="16" width="24" height="2" fill="#a371f7"/>
+              <rect x="8" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="20" y="14" width="4" height="4" fill="#0d1117"/>
+              <rect x="6" y="18" width="4" height="2" fill="#a371f7"/>
+              <rect x="12" y="18" width="8" height="2" fill="#a371f7"/>
+              <rect x="22" y="18" width="4" height="2" fill="#a371f7"/>
+              <rect x="8" y="20" width="4" height="2" fill="#a371f7"/>
+              <rect x="20" y="20" width="4" height="2" fill="#a371f7"/>
+              <rect x="4" y="22" width="4" height="2" fill="#a371f7"/>
+              <rect x="24" y="22" width="4" height="2" fill="#a371f7"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <button class="choose-btn" onclick="alert('Option L selected!')">Choose L</button>
+    </div>
+  </div>
+
+  <p class="note">All logos use exact theme colors: Blue (#58a6ff), Purple (#a371f7), Pink (#f778ba), Green (#3fb950), Orange (#d29922), Red (#f85149)</p>
+</body>
+</html>

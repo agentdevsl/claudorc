@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Responsive - AgentPane Wireframe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    /* Design Tokens */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(187, 128, 9, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --radius: 6px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--fg-default);
+      line-height: 1.5;
+      padding: 20px;
+    }
+
+    /* Typography Responsive Scale */
+    .text-xs { font-size: clamp(11px, 2vw, 12px); }
+    .text-sm { font-size: clamp(12px, 2.5vw, 13px); }
+    .text-base { font-size: clamp(13px, 3vw, 14px); }
+    .text-lg { font-size: clamp(15px, 3.5vw, 16px); }
+    .text-xl { font-size: clamp(18px, 4vw, 20px); }
+    .text-2xl { font-size: clamp(20px, 5vw, 24px); }
+    .text-3xl { font-size: clamp(24px, 6vw, 32px); }
+
+    /* Container for side-by-side comparison */
+    .responsive-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 60px;
+    }
+
+    @media (max-width: 1920px) {
+      .responsive-container {
+        gap: 30px;
+      }
+    }
+
+    @media (max-width: 1600px) {
+      .responsive-container {
+        grid-template-columns: 1fr;
+        gap: 60px;
+      }
+    }
+
+    /* Viewport Label */
+    .viewport-label {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+
+    /* Device Frame */
+    .device-frame {
+      background: #000;
+      border-radius: 24px;
+      padding: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .device-frame.desktop {
+      border-radius: 8px;
+      padding: 0;
+    }
+
+    /* Phone notch effect for mobile */
+    .device-frame.mobile::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 26px;
+      background: #000;
+      border-radius: 0 0 20px 20px;
+      z-index: 10;
+    }
+
+    .device-inner {
+      background: var(--bg-canvas);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Device sizes */
+    .device-frame.mobile {
+      width: 360px;
+      height: 800px;
+    }
+
+    .device-frame.tablet {
+      width: 600px;
+      height: 800px;
+    }
+
+    .device-frame.desktop {
+      width: 100%;
+      height: 600px;
+    }
+
+    /* Section Container */
+    .section {
+      margin-bottom: 80px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--fg-default);
+    }
+
+    .section-subtitle {
+      font-size: 14px;
+      color: var(--fg-muted);
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    /* Breakpoint Documentation */
+    .breakpoint-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .breakpoint-card {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .breakpoint-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .breakpoint-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg-default);
+      font-family: var(--font-mono);
+      margin-bottom: 12px;
+    }
+
+    .breakpoint-features {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .breakpoint-features li {
+      margin-bottom: 6px;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .breakpoint-features li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--success-fg);
+    }
+
+    /* Mock Mobile UI Components */
+
+    /* Mobile Header */
+    .mobile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      height: 56px;
+      flex-shrink: 0;
+    }
+
+    .mobile-header.with-status {
+      padding-top: 20px;
+      height: 76px;
+    }
+
+    .header-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+      margin-left: 12px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      color: var(--fg-muted);
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:active {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    /* Mobile Sidebar / Navigation */
+    .mobile-sidebar {
+      position: absolute;
+      left: 0;
+      top: 56px;
+      width: 280px;
+      height: calc(100% - 112px);
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      padding: 16px 12px;
+      overflow-y: auto;
+      z-index: 100;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+    }
+
+    .mobile-sidebar.open {
+      transform: translateX(0);
+    }
+
+    .mobile-sidebar-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .mobile-sidebar.open ~ .mobile-sidebar-overlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .nav-item-mobile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex: 1;
+      height: 100%;
+      color: var(--fg-muted);
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .nav-item-mobile:active {
+      color: var(--accent-fg);
+    }
+
+    .nav-icon {
+      font-size: 20px;
+    }
+
+    /* Mobile Content Area */
+    .mobile-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    /* Stacked Cards (Mobile Kanban) */
+    .mobile-kanban {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mobile-column-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .mobile-column-indicator {
+      width: 3px;
+      height: 16px;
+      border-radius: 2px;
+      background: var(--accent-fg);
+    }
+
+    .mobile-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 88px;
+    }
+
+    .mobile-card:active {
+      background: var(--accent-muted);
+      border-color: var(--accent-fg);
+    }
+
+    .mobile-card-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-muted);
+      border-radius: 6px;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .mobile-card-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .mobile-card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-default);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .mobile-card-meta {
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+
+    .mobile-card-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      background: var(--bg-muted);
+      border-radius: 3px;
+    }
+
+    /* Full-screen Task Detail Sheet */
+    .task-sheet {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-canvas);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .task-sheet.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      height: 56px;
+      flex-shrink: 0;
+    }
+
+    .task-sheet-close {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--fg-muted);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .task-sheet-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .task-field {
+      margin-bottom: 20px;
+    }
+
+    .task-field-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .task-field-value {
+      font-size: 14px;
+      color: var(--fg-default);
+    }
+
+    /* Action Buttons (Touch-friendly, 44px minimum) */
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px 0;
+    }
+
+    .btn-touch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 16px;
+      height: 44px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-touch-primary {
+      background: var(--success-fg);
+      color: #fff;
+    }
+
+    .btn-touch-primary:active {
+      filter: brightness(0.9);
+    }
+
+    .btn-touch-secondary {
+      background: var(--bg-muted);
+      border-color: var(--border-default);
+      color: var(--fg-default);
+    }
+
+    .btn-touch-secondary:active {
+      background: var(--bg-emphasis);
+    }
+
+    /* Hamburger Menu */
+    .hamburger {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      cursor: pointer;
+    }
+
+    .hamburger span {
+      height: 2px;
+      background: var(--fg-muted);
+      border-radius: 1px;
+      transition: all 0.3s ease;
+    }
+
+    /* Responsive Layout Toggles */
+    .toggle-section {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-btn {
+      padding: 8px 12px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: var(--accent-muted);
+      border-color: var(--accent-fg);
+      color: var(--accent-fg);
+    }
+
+    /* Desktop Layout */
+    .app-layout-desktop {
+      display: flex;
+      width: 100%;
+      height: 100%;;
+    }
+
+    .desktop-sidebar {
+      width: 240px;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      padding: 16px 12px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .desktop-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .desktop-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .desktop-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    .desktop-kanban {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      height: fit-content;
+    }
+
+    .desktop-column {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .desktop-card {
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .desktop-card:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    /* Design Notes */
+    .design-notes-section {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .design-notes-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    .design-notes-content {
+      font-size: 13px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .design-notes-content ul {
+      margin-left: 20px;
+      margin-top: 8px;
+    }
+
+    .design-notes-content li {
+      margin-bottom: 8px;
+    }
+
+    .design-notes-content strong {
+      color: var(--fg-default);
+    }
+
+    .design-notes-content code {
+      background: var(--bg-subtle);
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-fg);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-subtle);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SECTION 1: BREAKPOINT DOCUMENTATION -->
+  <div class="section">
+    <h1 class="section-title">Responsive Breakpoints</h1>
+    <p class="section-subtitle">AgentPane uses a mobile-first responsive design system with four primary breakpoints. All dimensions use relative units (rem/clamp) for scalability across devices.</p>
+
+    <div class="breakpoint-grid">
+      <div class="breakpoint-card">
+        <div class="breakpoint-name">Mobile (Small)</div>
+        <div class="breakpoint-value">0 - 640px</div>
+        <ul class="breakpoint-features">
+          <li>Single column layout</li>
+          <li>Bottom tab navigation</li>
+          <li>Hamburger menu for sidebar</li>
+          <li>Full-screen modals</li>
+          <li>Stacked kanban cards</li>
+        </ul>
+      </div>
+
+      <div class="breakpoint-card">
+        <div class="breakpoint-name">Tablet (Medium)</div>
+        <div class="breakpoint-value">641 - 768px</div>
+        <ul class="breakpoint-features">
+          <li>Sidebar drawer on demand</li>
+          <li>Two-column kanban</li>
+          <li>Collapsible sections</li>
+          <li>Bottom nav + sidebar hybrid</li>
+          <li>Touch-optimized spacing</li>
+        </ul>
+      </div>
+
+      <div class="breakpoint-card">
+        <div class="breakpoint-name">Laptop (Large)</div>
+        <div class="breakpoint-value">769 - 1024px</div>
+        <ul class="breakpoint-features">
+          <li>Persistent left sidebar</li>
+          <li>Three-column kanban</li>
+          <li>Horizontal scrolling for columns</li>
+          <li>Sidebar never hidden</li>
+          <li>Full detail panels</li>
+        </ul>
+      </div>
+
+      <div class="breakpoint-card">
+        <div class="breakpoint-name">Desktop (Extra Large)</div>
+        <div class="breakpoint-value">1025px+</div>
+        <ul class="breakpoint-features">
+          <li>Fixed sidebar always visible</li>
+          <li>Four+ column kanban</li>
+          <li>Multi-panel layouts</li>
+          <li>Split-view details</li>
+          <li>Maximum content density</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: MOBILE NAVIGATION PATTERNS -->
+  <div class="section">
+    <h1 class="section-title">Navigation Patterns</h1>
+    <p class="section-subtitle">Mobile navigation adapts from hamburger menu to persistent sidebar as viewport expands. All navigation items remain 44px+ for touch targets.</p>
+
+    <div class="responsive-container">
+      <!-- Mobile with Hamburger -->
+      <div>
+        <div class="viewport-label">Mobile - 360px (Hamburger)</div>
+        <div class="device-frame mobile">
+          <div class="device-inner">
+            <div class="mobile-header">
+              <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="header-title">AgentPane</div>
+              <div class="icon-btn">⚙</div>
+            </div>
+
+            <div class="mobile-content">
+              <div style="text-align: center; padding: 40px 20px; color: var(--fg-muted);">
+                <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+                <div style="font-size: 14px; line-height: 1.6;">Menu closed. Tap ☰ to open sidebar navigation.</div>
+              </div>
+            </div>
+
+            <div class="bottom-nav">
+              <div class="nav-item-mobile">
+                <div class="nav-icon">📁</div>
+                Projects
+              </div>
+              <div class="nav-item-mobile">
+                <div class="nav-icon">⚡</div>
+                Agents
+              </div>
+              <div class="nav-item-mobile">
+                <div class="nav-icon">✓</div>
+                Tasks
+              </div>
+              <div class="nav-item-mobile">
+                <div class="nav-icon">⏳</div>
+                Queue
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Mobile Hamburger</div>
+          <div class="design-notes-content">
+            <ul>
+              <li>Hamburger icon (40×40px tap target) toggles sliding sidebar drawer</li>
+              <li>Bottom tab bar always visible - primary navigation on mobile</li>
+              <li>Each tab item is 56px tall minimum for comfortable touch</li>
+              <li>Sidebar overlays content when open, with 50% opacity backdrop</li>
+              <li>Swipe gesture support (shows left-to-right slide)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tablet with Sidebar -->
+      <div>
+        <div class="viewport-label">Tablet - 768px (Persistent Sidebar)</div>
+        <div class="device-frame tablet">
+          <div class="device-inner" style="display: flex;">
+            <div style="width: 180px; background: var(--bg-default); border-right: 1px solid var(--border-default); padding: 12px 8px; overflow-y: auto;">
+              <div style="font-size: 11px; font-weight: 600; color: var(--fg-subtle); text-transform: uppercase; padding: 8px 12px; margin-bottom: 12px;">Workspace</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px; background: var(--bg-subtle);">Projects</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px;">Agents</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px;">Tasks</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); cursor: pointer; border-radius: 4px;">Queue</div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column;">
+              <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-default); background: var(--bg-default); font-size: 16px; font-weight: 600;">Tasks</div>
+              <div style="flex: 1; padding: 16px; overflow-y: auto;">
+                <div style="text-align: center; color: var(--fg-muted); padding: 20px 10px; font-size: 12px;">Content area adapts to reduced width with optimized spacing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Tablet Layout</div>
+          <div class="design-notes-content">
+            <ul>
+              <li>Sidebar becomes persistent (~180px) at 768px breakpoint</li>
+              <li>Hamburger hidden - no space constraints on tablet</li>
+              <li>Bottom nav can be hidden to gain vertical space</li>
+              <li>Navigation items retain 44px tap target heights</li>
+              <li>Main content adapts to narrower width with responsive grid</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: KANBAN BOARD ADAPTATIONS -->
+  <div class="section">
+    <h1 class="section-title">Kanban Board Responsive Behavior</h1>
+    <p class="section-subtitle">The kanban board transforms from stacked cards on mobile to multi-column layouts on larger screens while maintaining drag-and-drop functionality.</p>
+
+    <div class="responsive-container">
+      <!-- Mobile Kanban -->
+      <div>
+        <div class="viewport-label">Mobile - 360px (Stacked Cards)</div>
+        <div class="device-frame mobile">
+          <div class="device-inner">
+            <div class="mobile-header">
+              <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="header-title">Tasks</div>
+              <div class="icon-btn">⊕</div>
+            </div>
+
+            <div class="mobile-content">
+              <div class="mobile-kanban">
+                <div class="mobile-column-header">
+                  <div class="mobile-column-indicator"></div>
+                  <span>Backlog (4)</span>
+                </div>
+                <div class="mobile-card">
+                  <div class="mobile-card-icon">⚠</div>
+                  <div class="mobile-card-content">
+                    <div class="mobile-card-title">OAuth 2.0 Authentication</div>
+                    <div class="mobile-card-meta">
+                      <span>#TSK-127</span>
+                      <span class="mobile-card-status">Feature</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="mobile-card">
+                  <div class="mobile-card-icon">🐛</div>
+                  <div class="mobile-card-content">
+                    <div class="mobile-card-title">Fix memory leak</div>
+                    <div class="mobile-card-meta">
+                      <span>#TSK-126</span>
+                      <span class="mobile-card-status">Bug</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mobile-column-header" style="margin-top: 16px;">
+                  <div class="mobile-column-indicator" style="background: var(--attention-fg);"></div>
+                  <span>In Progress (2)</span>
+                </div>
+                <div class="mobile-card">
+                  <div class="mobile-card-icon">🔄</div>
+                  <div class="mobile-card-content">
+                    <div class="mobile-card-title">Real-time notifications</div>
+                    <div class="mobile-card-meta">
+                      <span>#TSK-123</span>
+                      <span class="mobile-card-status">Running...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bottom-nav">
+              <div class="nav-item-mobile">
+                <div class="nav-icon">📁</div>
+              </div>
+              <div class="nav-item-mobile">
+                <div class="nav-icon">⚡</div>
+              </div>
+              <div class="nav-item-mobile" style="color: var(--accent-fg);">
+                <div class="nav-icon">✓</div>
+              </div>
+              <div class="nav-item-mobile">
+                <div class="nav-icon">⏳</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Mobile Kanban</div>
+          <div class="design-notes-content">
+            <ul>
+              <li><strong>Single column layout</strong> - all cards stacked vertically</li>
+              <li><strong>Column headers</strong> act as section dividers (Backlog, In Progress, etc.)</li>
+              <li><strong>Card height auto</strong> - wrapping text doesn't constrain height</li>
+              <li><strong>Horizontal scroll hidden</strong> - all content visible without scrolling right</li>
+              <li><strong>Touch drag</strong> - long press to initiate drag, visual feedback on start</li>
+              <li><strong>Tall tap targets</strong> - cards expand to accommodate content naturally</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Kanban -->
+      <div>
+        <div class="viewport-label">Desktop - 1200px (Multi-column)</div>
+        <div class="device-frame desktop">
+          <div class="device-inner" style="display: flex;">
+            <div style="width: 240px; background: var(--bg-default); border-right: 1px solid var(--border-default); padding: 12px 8px; overflow-y: auto;">
+              <div style="font-size: 11px; font-weight: 600; color: var(--fg-subtle); text-transform: uppercase; padding: 8px 12px; margin-bottom: 12px;">Workspace</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px; background: var(--accent-muted); color: var(--accent-fg);">Projects</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px;">Agents</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); margin-bottom: 8px; cursor: pointer; border-radius: 4px;">Tasks</div>
+              <div style="padding: 8px 12px; font-size: 12px; color: var(--fg-default); cursor: pointer; border-radius: 4px;">Queue</div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column;">
+              <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-default); background: var(--bg-default); font-size: 18px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                <span>Task Board</span>
+                <button style="background: var(--success-fg); color: white; padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">+ New Task</button>
+              </div>
+              <div style="flex: 1; padding: 20px 24px; overflow-x: auto;">
+                <div style="display: grid; grid-template-columns: repeat(4, 280px); gap: 16px;">
+                  <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--fg-default);">Backlog (4)</div>
+                    <div style="background: var(--bg-muted); border: 1px solid var(--border-default); border-radius: 4px; padding: 10px; font-size: 11px; color: var(--fg-muted); cursor: pointer;">OAuth 2.0 Auth...</div>
+                    <div style="background: var(--bg-muted); border: 1px solid var(--border-default); border-radius: 4px; padding: 10px; font-size: 11px; color: var(--fg-muted); cursor: pointer;">Fix memory leak...</div>
+                  </div>
+                  <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--fg-default);">In Progress (2)</div>
+                    <div style="background: var(--bg-muted); border: 1px solid var(--border-default); border-radius: 4px; padding: 10px; font-size: 11px; color: var(--fg-muted); cursor: pointer;">Real-time notif...</div>
+                  </div>
+                  <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--fg-default);">Waiting (2)</div>
+                    <div style="background: var(--bg-muted); border: 1px solid var(--border-default); border-radius: 4px; padding: 10px; font-size: 11px; color: var(--fg-muted); cursor: pointer;">CSV export...</div>
+                  </div>
+                  <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--fg-default);">Verified (3)</div>
+                    <div style="background: var(--bg-muted); border: 1px solid var(--border-default); border-radius: 4px; padding: 10px; font-size: 11px; color: var(--fg-muted); cursor: pointer;">Auth token fix...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Desktop Kanban</div>
+          <div class="design-notes-content">
+            <ul>
+              <li><strong>Four-column grid</strong> - shows all workflow states simultaneously</li>
+              <li><strong>Fixed width columns</strong> (280px) with horizontal scroll for mobile views</li>
+              <li><strong>Sidebar always visible</strong> - no hamburger menu needed</li>
+              <li><strong>Drag and drop</strong> - full mouse support with visual feedback</li>
+              <li><strong>Maximum density</strong> - all information visible at once</li>
+              <li><strong>Column collapse</strong> - optional vertical mode for space efficiency</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: TASK DETAIL SHEET -->
+  <div class="section">
+    <h1 class="section-title">Task Detail Modals</h1>
+    <p class="section-subtitle">Task details transform from full-screen sheets on mobile to side panels on desktop. All action buttons maintain 44px tap targets.</p>
+
+    <div class="responsive-container">
+      <!-- Mobile Full-screen Sheet -->
+      <div>
+        <div class="viewport-label">Mobile - 360px (Full-screen Sheet)</div>
+        <div class="device-frame mobile">
+          <div class="device-inner">
+            <div class="task-sheet active">
+              <div class="task-sheet-header">
+                <div class="task-sheet-close">✕</div>
+                <div style="font-weight: 600; font-size: 14px;">Task Details</div>
+                <div style="width: 40px;"></div>
+              </div>
+              <div class="task-sheet-content">
+                <div class="task-field">
+                  <div class="task-field-label">Title</div>
+                  <div class="task-field-value">Fix memory leak in dashboard component</div>
+                </div>
+                <div class="task-field">
+                  <div class="task-field-label">Task ID</div>
+                  <div class="task-field-value">#TSK-126</div>
+                </div>
+                <div class="task-field">
+                  <div class="task-field-label">Priority</div>
+                  <div class="task-field-value" style="display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 8px; height: 8px; background: var(--danger-fg); border-radius: 50%;"></span>
+                    <span>High</span>
+                  </div>
+                </div>
+                <div class="task-field">
+                  <div class="task-field-label">Status</div>
+                  <div class="task-field-value">In Progress</div>
+                </div>
+                <div class="task-field">
+                  <div class="task-field-label">Assigned to</div>
+                  <div class="task-field-value">Maria Kim</div>
+                </div>
+                <div class="task-field">
+                  <div class="task-field-label">Description</div>
+                  <div class="task-field-value">Memory usage grows unbounded when component re-renders. Need to investigate lifecycle hooks and optimize memoization.</div>
+                </div>
+
+                <div class="action-buttons">
+                  <button class="btn-touch btn-touch-primary">Move to In Progress</button>
+                  <button class="btn-touch btn-touch-secondary">Assign to me</button>
+                  <button class="btn-touch btn-touch-secondary">Add comment</button>
+                  <button class="btn-touch btn-touch-secondary" style="color: var(--danger-fg); border-color: var(--danger-fg);">Delete task</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Mobile Task Sheet</div>
+          <div class="design-notes-content">
+            <ul>
+              <li><strong>Full-screen overlay</strong> - takes entire viewport, dismissible with X button</li>
+              <li><strong>Scroll within sheet</strong> - header fixed, content scrolls independently</li>
+              <li><strong>44px action buttons</strong> - full width buttons with 12px padding</li>
+              <li><strong>Touch-friendly spacing</strong> - 20px gaps between sections</li>
+              <li><strong>Easy dismissal</strong> - X button top-left in 40×40px touch target</li>
+              <li><strong>Form fields</strong> - labels above values with 8px gap</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Side Panel -->
+      <div>
+        <div class="viewport-label">Desktop - 1200px (Side Panel)</div>
+        <div class="device-frame desktop">
+          <div class="device-inner" style="display: flex;">
+            <div style="flex: 1; display: flex; flex-direction: column; background: var(--bg-subtle);">
+              <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-default); background: var(--bg-default); font-size: 14px; font-weight: 600;">Main Content Area</div>
+              <div style="flex: 1; padding: 20px; text-align: center; color: var(--fg-muted); display: flex; align-items: center; justify-content: center;">Kanban board and task list here</div>
+            </div>
+            <div style="width: 320px; background: var(--bg-default); border-left: 1px solid var(--border-default); display: flex; flex-direction: column; overflow: hidden;">
+              <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-default); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <span style="font-size: 12px; font-weight: 600; color: var(--fg-muted);">Details</span>
+                <button style="background: transparent; border: none; color: var(--fg-muted); cursor: pointer; font-size: 16px;">✕</button>
+              </div>
+              <div style="flex: 1; overflow-y: auto; padding: 12px 16px;">
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Title</div>
+                  <div style="font-size: 13px; color: var(--fg-default);">Fix memory leak in dashboard</div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Task ID</div>
+                  <div style="font-size: 13px; color: var(--fg-default);">TSK-126</div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Status</div>
+                  <div style="font-size: 13px; color: var(--fg-default);">In Progress</div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Assigned</div>
+                  <div style="font-size: 13px; color: var(--fg-default);">Maria Kim</div>
+                </div>
+
+                <div style="height: 1px; background: var(--border-default); margin: 16px 0;"></div>
+
+                <div style="display: flex; gap: 8px;">
+                  <button style="flex: 1; padding: 6px 8px; background: var(--success-fg); color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;">Update</button>
+                  <button style="flex: 1; padding: 6px 8px; background: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); border-radius: 4px; font-size: 11px; cursor: pointer;">Comment</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Desktop Task Panel</div>
+          <div class="design-notes-content">
+            <ul>
+              <li><strong>Side panel</strong> - 320px fixed width, overlaps or splits main content</li>
+              <li><strong>Non-intrusive</strong> - doesn't block kanban board, users can continue working</li>
+              <li><strong>Compact design</strong> - vertical field layout with 16px spacing</li>
+              <li><strong>Quick actions</strong> - buttons remain touch-friendly but compact (32px height)</li>
+              <li><strong>Persistent</strong> - stays open while viewing/editing, easy to close</li>
+              <li><strong>Responsive padding</strong> - 12px on tablet, 16px on desktop</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: TOUCH TARGETS & SPACING -->
+  <div class="section">
+    <h1 class="section-title">Touch Targets & Spacing</h1>
+    <p class="section-subtitle">AgentPane maintains accessibility best practices with minimum 44px tap targets on touch devices and responsive spacing scales.</p>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Touch Target Specifications</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>Minimum tap target: 44×44px</strong> - WCAG AAA compliant for touch interfaces</li>
+          <li><strong>Icon buttons:</strong> 40×40px hit area with visual feedback on :active</li>
+          <li><strong>List items:</strong> 44px minimum height with 8px padding gutters</li>
+          <li><strong>Form controls:</strong> 44px buttons with 12px horizontal, 10px vertical padding</li>
+          <li><strong>Spacing scale:</strong> Uses 4px base unit (4, 8, 12, 16, 20, 24px)</li>
+          <li><strong>Hover states:</strong> Desktop only; mobile uses :active (visual press feedback)</li>
+          <li><strong>Gesture support:</strong> Long-press drag, swipe navigation, pull-to-refresh</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="responsive-container" style="margin-top: 40px;">
+      <div>
+        <div class="viewport-label">Mobile Button Layout</div>
+        <div class="device-frame mobile">
+          <div class="device-inner">
+            <div class="mobile-header">
+              <div class="hamburger"><span></span><span></span><span></span></div>
+              <div class="header-title">Actions</div>
+              <div class="icon-btn">⚙</div>
+            </div>
+
+            <div class="mobile-content">
+              <div style="padding: 16px 0;">
+                <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 16px; margin-bottom: 12px; font-weight: 600;">Primary Actions (Full Width)</div>
+                <div class="action-buttons" style="padding: 0 16px;">
+                  <button class="btn-touch btn-touch-primary">Confirm Task</button>
+                  <button class="btn-touch btn-touch-primary">Approve Changes</button>
+                </div>
+
+                <div style="height: 1px; background: var(--border-default); margin: 20px 16px;"></div>
+
+                <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 16px; margin-bottom: 12px; font-weight: 600;">Secondary Actions</div>
+                <div class="action-buttons" style="padding: 0 16px;">
+                  <button class="btn-touch btn-touch-secondary">Edit Details</button>
+                  <button class="btn-touch btn-touch-secondary">Add Comment</button>
+                  <button class="btn-touch btn-touch-secondary">Assign Task</button>
+                </div>
+
+                <div style="height: 1px; background: var(--border-default); margin: 20px 16px;"></div>
+
+                <div style="font-size: 11px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 16px; margin-bottom: 12px; font-weight: 600;">Icon Buttons (40×40px)</div>
+                <div style="display: flex; gap: 12px; padding: 0 16px;">
+                  <button class="icon-btn" style="flex: 1;">👁</button>
+                  <button class="icon-btn" style="flex: 1;">📌</button>
+                  <button class="icon-btn" style="flex: 1;">⋮</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bottom-nav">
+              <div class="nav-item-mobile"><div class="nav-icon">📁</div></div>
+              <div class="nav-item-mobile"><div class="nav-icon">⚡</div></div>
+              <div class="nav-item-mobile"><div class="nav-icon">✓</div></div>
+              <div class="nav-item-mobile"><div class="nav-icon">⏳</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Mobile Touch Targets</div>
+          <div class="design-notes-content">
+            <ul>
+              <li>Primary buttons full-width with 12px horizontal padding</li>
+              <li>All action buttons 44px tall with 10px vertical padding</li>
+              <li>Gap between buttons 12px for finger separation</li>
+              <li>Icon buttons 40×40px minimum with 8px tap margin</li>
+              <li>Bottom nav items 56px tall for comfortable thumb reach</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="viewport-label">Desktop Button Layout</div>
+        <div class="device-frame desktop">
+          <div class="device-inner" style="padding: 20px 24px;">
+            <div style="margin-bottom: 30px;">
+              <div style="font-size: 12px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-weight: 600;">Compact Buttons (32px)</div>
+              <div style="display: flex; gap: 8px;">
+                <button style="padding: 8px 14px; background: var(--success-fg); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; height: 32px;">Save</button>
+                <button style="padding: 8px 14px; background: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); border-radius: 6px; cursor: pointer; font-size: 12px; height: 32px;">Cancel</button>
+                <button style="padding: 8px 14px; background: transparent; border: 1px solid var(--border-default); color: var(--fg-muted); border-radius: 6px; cursor: pointer; font-size: 12px; height: 32px;">More</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 30px;">
+              <div style="font-size: 12px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-weight: 600;">Standard Buttons (40px)</div>
+              <div style="display: flex; gap: 8px;">
+                <button style="padding: 10px 16px; background: var(--success-fg); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; height: 40px;">Create Task</button>
+                <button style="padding: 10px 16px; background: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); border-radius: 6px; cursor: pointer; font-size: 13px; height: 40px;">Bulk Actions</button>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size: 12px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; font-weight: 600;">Spacing Scale (base 4px)</div>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); padding: 12px; border-radius: 6px;">
+                  <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 6px;">xs: 4px</div>
+                  <div style="background: var(--accent-fg); height: 4px; border-radius: 2px;"></div>
+                </div>
+                <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); padding: 12px; border-radius: 6px;">
+                  <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 6px;">sm: 8px</div>
+                  <div style="background: var(--accent-fg); height: 8px; border-radius: 2px;"></div>
+                </div>
+                <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); padding: 12px; border-radius: 6px;">
+                  <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 6px;">md: 16px</div>
+                  <div style="background: var(--accent-fg); height: 16px; border-radius: 2px;"></div>
+                </div>
+                <div style="background: var(--bg-subtle); border: 1px solid var(--border-default); padding: 12px; border-radius: 6px;">
+                  <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 6px;">lg: 24px</div>
+                  <div style="background: var(--accent-fg); height: 24px; border-radius: 2px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="design-notes-section">
+          <div class="design-notes-title">Desktop Spacing</div>
+          <div class="design-notes-content">
+            <ul>
+              <li>Compact buttons (32px) for toolbar and dense layouts</li>
+              <li>Standard buttons (40px) for primary actions</li>
+              <li>Horizontal gaps 8px between buttons (increases on mobile)</li>
+              <li>Spacing scale: 4, 8, 12, 16, 20, 24, 32px</li>
+              <li>Proportional padding maintains visual hierarchy</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 6: TYPOGRAPHY SCALE -->
+  <div class="section">
+    <h1 class="section-title">Responsive Typography</h1>
+    <p class="section-subtitle">Font sizes scale smoothly across breakpoints using CSS clamp() function. Text remains readable on all devices without jarring jumps.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+      <div>
+        <div style="font-size: 14px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;">Mobile (360px)</div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Extra Small</div>
+            <div class="text-xs">11px - Labels, badges, hints</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Small</div>
+            <div class="text-sm">12px - Secondary text, metadata</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Base</div>
+            <div class="text-base">13px - Body text, card titles</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Large</div>
+            <div class="text-lg">15px - Prominent labels</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Extra Large</div>
+            <div class="text-xl">18px - Page titles</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">2XL</div>
+            <div class="text-2xl">20px - Section headers</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">3XL</div>
+            <div class="text-3xl">24px - Main titles</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size: 14px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;">Desktop (1200px)</div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Extra Small</div>
+            <div class="text-xs" style="font-size: 12px;">12px - Labels, badges, hints</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Small</div>
+            <div class="text-sm" style="font-size: 13px;">13px - Secondary text, metadata</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Base</div>
+            <div class="text-base" style="font-size: 14px;">14px - Body text, card titles</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Large</div>
+            <div class="text-lg" style="font-size: 16px;">16px - Prominent labels</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">Extra Large</div>
+            <div class="text-xl" style="font-size: 20px;">20px - Page titles</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">2XL</div>
+            <div class="text-2xl" style="font-size: 24px;">24px - Section headers</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--fg-muted); margin-bottom: 4px;">3XL</div>
+            <div class="text-3xl" style="font-size: 32px;">32px - Main titles</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="design-notes-section" style="margin-top: 40px;">
+      <div class="design-notes-title">Typography Implementation</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>CSS clamp() function:</strong> <code>font-size: clamp(11px, 2vw, 12px)</code></li>
+          <li><strong>Mobile-first approach:</strong> Base sizes optimized for 360px, scale up smoothly</li>
+          <li><strong>Line height:</strong> 1.4 for headings (tight), 1.5 for body (comfortable), 1.6 for long-form</li>
+          <li><strong>Font weights:</strong> 400 regular, 500 medium, 600 semibold, 700 bold</li>
+          <li><strong>Font family:</strong> Mona Sans for UI, Fira Code for monospace (IDs, code)</li>
+          <li><strong>No hard breakpoints:</strong> Typography scales smoothly between min and max values</li>
+          <li><strong>Readability:</strong> Minimum 16px for base text on mobile (no zoom required for input)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 7: RESPONSIVE PATTERNS SUMMARY -->
+  <div class="section">
+    <h1 class="section-title">Responsive Design Patterns</h1>
+    <p class="section-subtitle">Complete summary of responsive behavior and implementation considerations for AgentPane mobile-responsive design.</p>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Mobile-First Strategy</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>Start simple on mobile:</strong> Single column, bottom nav, stacked cards</li>
+          <li><strong>Progressive enhancement:</strong> Add complexity as viewport grows (sidebar, columns, panels)</li>
+          <li><strong>Viewport meta tag:</strong> <code>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</code></li>
+          <li><strong>Flexible containers:</strong> Use max-width constraints, not fixed widths (except for grid columns)</li>
+          <li><strong>Relative units:</strong> Prefer rem/em over px for scalability</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Touch Interaction Enhancements</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>Active state feedback:</strong> Visual response to touch with <code>:active</code> pseudo-class (background color change)</li>
+          <li><strong>No hover on touch:</strong> Hover states only on desktop via <code>@media (hover: hover)</code></li>
+          <li><strong>Gesture support:</strong> Swipe left/right for navigation, long-press for context menu, pull-to-refresh</li>
+          <li><strong>Reduced motion:</strong> Respect <code>prefers-reduced-motion</code> media query for animations</li>
+          <li><strong>Haptic feedback:</strong> Brief vibration on action confirmation (native mobile feature)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Responsive Layout Breakpoints</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>sm (640px):</strong> Hamburger → Sidebar, Bottom nav primary, Stacked cards</li>
+          <li><strong>md (768px):</strong> Sidebar drawer on demand, 2-column kanban, Touch-optimized</li>
+          <li><strong>lg (1024px):</strong> Persistent sidebar, 3-column kanban, Detail panels appear</li>
+          <li><strong>xl (1280px):</strong> 4+ columns, split-view details, Maximum density</li>
+          <li><strong>Fluid between:</strong> Use clamp() to scale values smoothly without hard jumps</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Performance Considerations</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>Mobile optimization:</strong> Lazy load columns on kanban board, reduce card animations on low-end devices</li>
+          <li><strong>Touch scrolling:</strong> <code>-webkit-overflow-scrolling: touch</code> for momentum scrolling on iOS</li>
+          <li><strong>Viewport optimization:</strong> Avoid layout thrashing with CSS-only responsive changes</li>
+          <li><strong>Image scaling:</strong> Use srcset for responsive images, avoid oversized assets on mobile</li>
+          <li><strong>CSS containment:</strong> Use <code>contain: layout</code> on scrollable sections for performance</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="design-notes-section">
+      <div class="design-notes-title">Accessibility Requirements</div>
+      <div class="design-notes-content">
+        <ul>
+          <li><strong>Minimum touch target:</strong> 44×44px for all interactive elements (WCAG AAA)</li>
+          <li><strong>Focus indicators:</strong> Visible keyboard focus on all buttons and inputs</li>
+          <li><strong>Color contrast:</strong> 4.5:1 minimum for text, 3:1 for icons (WCAG AA)</li>
+          <li><strong>Motion preferences:</strong> Disable animations if user prefers reduced motion</li>
+          <li><strong>Semantic HTML:</strong> Use proper heading hierarchy, nav, main, footer landmarks</li>
+          <li><strong>Screen reader support:</strong> ARIA labels for icon buttons, alt text for images</li>
+          <li><strong>Keyboard navigation:</strong> All features accessible via Tab and Enter keys</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

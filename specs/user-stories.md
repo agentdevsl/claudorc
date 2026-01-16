@@ -65,6 +65,14 @@
 - As a developer, I want full diff visibility before approving any agent work
 - As a developer, I want agent events tagged with agentId for traceability
 
+### Agent Configuration
+
+- As a developer, I want to sync agent configuration from a git repository so git is the source of truth
+- As a developer, I want to specify a subfolder path within the repo for configuration files (e.g., `.agentpane/` or `.claude/`)
+- As a developer, I want configuration changes in git to automatically propagate to running agents
+- As a developer, I want to version control agent prompts, tool whitelists, and execution settings alongside my code
+- As a developer, I want to override global defaults with repo-specific configuration when present
+
 ---
 
 ## Kanban Workflow
