@@ -1,6 +1,69 @@
-# Design Principles
+---
+name: design-engineer
+description: Design engineering for Claude Code. Build interfaces with craft, memory, and enforcement. Maintains consistent design decisions across sessions - make choices once, enforce them automatically.
+---
 
-This skill enforces precise, crafted design for enterprise software, SaaS dashboards, admin interfaces, and web applications. The philosophy is Jony Ive-level precision with intentional personality — every interface is polished, and each is designed for its specific context.
+# Design Engineer
+
+Build interfaces with intention, consistency, and memory. This skill helps you establish design direction, remember your decisions across sessions, and maintain systematic consistency.
+
+## Smart Dispatcher (Auto-runs)
+
+**Before building any UI, detect the mode:**
+
+### Step 1: Determine Mode
+
+**Check for `.design-engineer/system.md`:**
+- **Exists?** → **APPLY MODE** (use existing system)
+- **Doesn't exist?** → Check project type:
+  - Has `package.json` or `.git`? → **ESTABLISH MODE** (create system)
+  - Neither? → **PRINCIPLES ONLY** (just apply principles)
+
+### Step 2: Execute Mode
+
+**APPLY MODE** (system exists):
+1. Read `.design-engineer/system.md`
+2. Load direction, tokens, patterns
+3. Build using established patterns
+4. Validate before finishing
+5. If new patterns emerge → add to system.md
+
+**ESTABLISH MODE** (real project, no system):
+1. Scan project structure (package.json, files, framework)
+2. Infer product type:
+   - `tRPC`, `Prisma`, data tables → Dashboard/Admin
+   - Landing page, hero sections → Marketing
+   - Docs structure, MDX → Documentation
+   - Creative tool, canvas → Creative App
+3. Suggest direction based on context:
+   - Dashboard → Precision & Density
+   - Marketing → Boldness & Clarity
+   - SaaS collab → Warmth & Approachability
+   - Finance → Sophistication & Trust
+4. Ask ONE smart question with default:
+   ```
+   Detected: [Dashboard] → Suggests [Precision & Density, Cool slate, Borders-only]
+
+   Does this direction fit? (y/n/customize)
+   ```
+5. Build first components
+6. After finishing, offer to save system:
+   ```
+   Created foundations:
+   - Direction: Precision & Density
+   - Foundation: Cool (slate)
+   - Depth: Borders-only
+   - Patterns: Button (36px h), Card (border, 16px pad)
+
+   Save to .design-engineer/system.md? (y/n)
+   ```
+
+**PRINCIPLES ONLY** (no system needed):
+- Apply craft principles below
+- No questions, no system.md
+- For quick prototypes/experiments
+
+---
 
 ## Design Direction (REQUIRED)
 
@@ -198,6 +261,65 @@ Dark interfaces have different needs:
 **Adjust semantic colors** — Status colors (success, warning, error) often need to be slightly desaturated or adjusted for dark backgrounds to avoid feeling harsh.
 
 **Same structure, different values** — The hierarchy system (foreground → secondary → muted → faint) still applies, just with inverted values.
+
+---
+
+## Self-Validation (Before Finishing)
+
+**Run this check before showing work to user:**
+
+1. **Spacing check** (if system defines grid):
+   - All spacing multiples of base? (4px, 8px, 12px, not 14px, 17px)
+   - Padding symmetrical unless intentional?
+
+2. **Depth check** (if system defines strategy):
+   - Borders-only → no shadows except rings (0 0 0 1px)
+   - Subtle shadows → single layer only
+   - Layered → multiple layers consistent
+
+3. **Pattern check** (if system has patterns):
+   - Reusing button pattern instead of creating new?
+   - Card treatment matches existing cards?
+
+4. **Color check** (if system defines palette):
+   - Using colors from palette or semantic grays?
+   - No random hex codes?
+
+**Fix violations yourself before user sees them.** Don't wait for the validation hook to catch them.
+
+---
+
+## Memory Management
+
+### When to Update system.md
+
+**Add new patterns when:**
+- You create a component used 2+ times (buttons, cards, inputs)
+- Pattern is reusable across the project
+- Has specific measurements worth remembering
+
+**Pattern format:**
+```markdown
+### Button Primary
+- Height: 36px
+- Padding: 12px 16px
+- Radius: 6px
+- Font: 14px, 500 weight
+- Usage: Header, Dashboard CTA, Forms
+```
+
+**Don't document:**
+- One-off components
+- Temporary experiments
+- Variations that are better handled with props
+
+### Pattern Reuse
+
+**Before creating a button, check system.md:**
+- Does "Button Primary" pattern exist? Use it.
+- Need variation? Extend pattern, don't create new.
+
+**Memory compounds:** Each pattern saved makes future work faster and more consistent.
 
 ---
 
