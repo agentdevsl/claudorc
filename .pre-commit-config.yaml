@@ -1,0 +1,95 @@
+repos:
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: Biome Check
+        description: Lints and formats TypeScript/JavaScript files
+        entry: bunx biome check --write --no-errors-on-unmatched
+        language: system
+        types_or:
+          - javascript
+          - jsx
+          - ts
+          - tsx
+          - json
+        pass_filenames: true
+        stages:
+          - pre-commit
+      - id: prettier-svelte
+        name: Prettier (Svelte only)
+        description: Formats Svelte files with Prettier
+        entry: bunx prettier --write
+        language: system
+        files: \.svelte$
+        pass_filenames: true
+        stages:
+          - pre-commit
+  - repo: local
+    hooks:
+      - id: typecheck
+        name: TypeScript Type Check
+        description: Runs TypeScript compiler for type checking across all workspaces
+        entry: bun run typecheck
+        language: system
+        pass_filenames: false
+        stages:
+          - pre-commit
+        always_run: true
+  - repo: local
+    hooks:
+      - id: test
+        name: Tests
+        description: Runs test suite
+        entry: bun run test
+        language: system
+        types:
+          - ts
+          - tsx
+        pass_filenames: false
+        stages:
+          - pre-commit
+  - repo: local
+    hooks:
+      - id: biome-fix
+        name: Biome Fix (pre-push)
+        description: Runs Biome with auto-fix on all files
+        entry: bun run check:fix
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages:
+          - pre-push
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint-fix
+        name: Lint Markdown
+        exclude: ^.claude/
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.22.1
+    hooks:
+      - id: gitleaks
+        name: Detect secrets
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        name: Fix end of files
+        exclude: ^.claude/
+      - id: check-yaml
+        name: Check YAML syntax
+        args:
+          - --allow-multiple-documents
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-added-large-files
+        name: Check for large files
+        args:
+          - --maxkb=500
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: detect-private-key
+        name: Detect private keys
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        exclude: ^.claude/

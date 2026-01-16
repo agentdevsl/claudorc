@@ -1,0 +1,44 @@
+{
+  "name": "agent-dev-template",
+  "version": "1.0.0",
+  "description": "Framework-agnostic TypeScript/Node.js web development template with AI-assisted workflows",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "echo 'No framework configured - implement your own dev server'",
+    "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run lint && npm run format:check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "prepare": "echo 'Run: pre-commit install --hook-type pre-commit --hook-type pre-push'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^4.0.16",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^4.0.16"
+  },
+  "keywords": [
+    "template",
+    "typescript",
+    "nodejs",
+    "vitest",
+    "eslint",
+    "ai-assisted"
+  ],
+  "license": "MIT"
+}

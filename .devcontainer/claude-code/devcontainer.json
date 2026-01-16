@@ -1,0 +1,70 @@
+{
+  "name": "Claude Code Sandbox",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:Australia/Sydney}"
+    }
+  },
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "--privileged"],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2.13.0": {}
+  },
+
+  "initializeCommand": "docker volume inspect claude-code-config >/dev/null 2>&1 && docker run --rm -v claude-code-config:/data alpine chown -R 1001:1001 /data || true",
+  "postCreateCommand": "bash /workspace/.devcontainer/claude-code/scripts/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "hashicorp.terraform",
+        "Anthropic.claude-code",
+        "redhat.vscode-yaml",
+        "HashiCorp.HCL"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        }
+      }
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    "source=claude-code-bashhistory,target=/commandhistory,type=volume",
+    "source=claude-code-config,target=/home/node/.claude,type=volume"
+  ],
+  "remoteEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
+    "CLAUDE_GITHUB_MCP_ENABLED": "true",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "TFE_TOKEN": "${localEnv:TEAM_TFE_TOKEN}",
+    "TF_TOKEN_app_terraform_io": "${localEnv:TEAM_TFE_TOKEN}",
+    "AWS_ACCESS_KEY_ID": "${localEnv:AWS_ACCESS_KEY_ID}",
+    "AWS_SECRET_ACCESS_KEY": "${localEnv:AWS_SECRET_ACCESS_KEY}",
+    "AWS_SESSION_TOKEN": "${localEnv:AWS_SESSION_TOKEN}",
+    "AWS_SESSION_EXPIRATION": "${localEnv:AWS_SESSION_EXPIRATION}",
+    "VAULT_RADAR_LICENSE": "${localEnv:VAULT_RADAR_LICENSE:}",
+    "LANGFUSE_HOST": "${localEnv:LANGFUSE_HOST}",
+    "LANGFUSE_PUBLIC_KEY": "${localEnv:LANGFUSE_PUBLIC_KEY}",
+    "LANGFUSE_SECRET_KEY": "${localEnv:LANGFUSE_SECRET_KEY}"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace"
+}

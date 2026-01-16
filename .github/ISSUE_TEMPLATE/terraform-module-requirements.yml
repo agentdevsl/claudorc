@@ -1,0 +1,199 @@
+name: '📋 Terraform Module Requirements'
+description: 'Template for capturing technical and security requirements for new Terraform modules'
+title: '[MODULE REQ] New Terraform Module Requirements'
+labels: ['module-requirements', 'planning', 'needs-review']
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Terraform Module Requirements
+
+        Use this template to capture comprehensive technical and security requirements for new Terraform modules.
+        This can be used as a starting point to feed into /specify with Spec-Kit
+
+  - type: input
+    id: module_name
+    attributes:
+      label: '📦 Module Name'
+      description: 'Module name following terraform-<PROVIDER>-<NAME> convention'
+      placeholder: 'e.g., terraform-aws-vpc, terraform-azure-storage'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: '☁️ Cloud Provider'
+      description: 'Primary cloud provider for this module'
+      options:
+        - AWS
+        - Azure
+        - GCP
+        - Multi-cloud
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: module_description
+    attributes:
+      label: '📝 Module Description'
+      description: 'Brief description of what this module will accomplish'
+      placeholder: 'Describe the infrastructure this module will manage...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: business_requirements
+    attributes:
+      label: '🎯 Business Requirements'
+      description: 'Business use case and requirements driving this module'
+      placeholder: |
+        - Business problem this module solves
+        - Expected outcomes
+        - Success criteria
+    validations:
+      required: true
+
+  - type: textarea
+    id: specific_resources
+    attributes:
+      label: '📋 Specific Resources List'
+      description: 'List the exact resources this module will create'
+      placeholder: |
+        Example:
+        - aws_vpc
+        - aws_subnet (public/private)
+        - aws_internet_gateway
+        - aws_nat_gateway
+        - aws_route_table
+        - aws_security_group
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: security_requirements
+    attributes:
+      label: '🔒 Security Requirements'
+      description: 'Security controls and requirements'
+      options:
+        - label: 'Encryption at rest (KMS, customer-managed keys)'
+        - label: 'Encryption in transit (TLS/SSL, HTTPS)'
+        - label: 'Network isolation (Private subnets, Security Groups, NACLs)'
+        - label: 'IAM least privilege access'
+        - label: 'Secrets management integration'
+        - label: 'Audit logging and monitoring'
+        - label: 'Backup and disaster recovery'
+        - label: 'Data residency requirements'
+        - label: 'Multi-factor authentication'
+        - label: 'Certificate management'
+
+  - type: textarea
+    id: compliance_standards
+    attributes:
+      label: '📋 Compliance Standards'
+      description: 'Compliance frameworks this module must adhere to'
+      placeholder: |
+        Example:
+        - SOC 2 Type II
+        - PCI DSS
+        - HIPAA
+        - GDPR
+        - FedRAMP
+        - CIS Benchmarks
+        - Company security policies
+
+  - type: textarea
+    id: security_controls
+    attributes:
+      label: '🛡️ Specific Security Controls'
+      description: 'Detailed security controls and configurations required'
+      placeholder: |
+        Example:
+        - All S3 buckets must block public access
+        - RDS instances must use encryption at rest
+        - Security groups must follow least privilege
+        - All resources must be tagged for compliance
+        - VPC Flow Logs must be enabled
+
+  - type: textarea
+    id: terraform_constraints
+    attributes:
+      label: '⚙️ Terraform Technical Constraints'
+      description: 'Terraform version and provider constraints'
+      placeholder: |
+        Example:
+        - Latest is major release, if no dependencies exist, example ~> 6.0
+        - Terraform >= 1.5.0
+        - AWS Provider >= 5.0.0
+        - Must use remote state backend
+        - Module should be registry-compatible
+    validations:
+      required: true
+
+  - type: textarea
+    id: input_variables
+    attributes:
+      label: '📥 Required Input Variables'
+      description: 'Essential input variables the module must accept'
+      placeholder: |
+        Example:
+        - vpc_cidr: CIDR block for VPC (string, required)
+        - availability_zones: List of AZs (list(string), required)
+        - environment: Environment name (string, required)
+        - tags: Resource tags (map(string), optional)
+    validations:
+      required: true
+
+  - type: textarea
+    id: output_variables
+    attributes:
+      label: '📤 Required Output Variables'
+      description: 'Essential outputs the module must provide'
+      placeholder: |
+        Example:
+        - vpc_id: ID of the created VPC
+        - private_subnet_ids: List of private subnet IDs
+        - public_subnet_ids: List of public subnet IDs
+        - security_group_id: Default security group ID
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: '🔗 Module Dependencies'
+      description: 'Other modules or resources this module depends on'
+      placeholder: |
+        Example:
+        - Existing Route53 hosted zone
+        - Shared KMS key for encryption
+        - Corporate DNS resolver
+        - Existing IAM roles
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: '📄 Additional Context'
+      description: 'Any additional information, constraints, or requirements'
+      placeholder: |
+        Example:
+        - Integration with existing systems
+        - Migration considerations
+        - Special architectural requirements
+        - Team or organizational constraints
+
+  - type: checkboxes
+    id: acceptance_criteria
+    attributes:
+      label: '✅ Acceptance Criteria'
+      description: 'Criteria that must be met for this module to be considered complete'
+      options:
+        - label: 'Module follows terraform-<PROVIDER>-<NAME> naming convention'
+        - label: 'All security requirements implemented and verified'
+        - label: 'Module passes all quality gates'
+        - label: 'Documentation is complete and accurate'
+        - label: 'Examples demonstrate common use cases'
+        - label: 'Module is published to internal/public registry'
+        - label: 'Team training completed if required'

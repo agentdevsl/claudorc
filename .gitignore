@@ -1,0 +1,120 @@
+# =============================================================================
+# Node.js / TypeScript
+# =============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# =============================================================================
+# Environment / Secrets
+# =============================================================================
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Secrets
+.secret
+secrets.yml
+config.yaml
+config.json
+credentials.json
+
+# =============================================================================
+# IDE / Editor
+# =============================================================================
+
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# Logs / Debug
+# =============================================================================
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =============================================================================
+# Terraform / IaC (preserved from original)
+# =============================================================================
+
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+
+# Exclude override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform variable files
+*.tfvars
+*.tfvars.json
+
+# Terraform plan files
+*.tfplan
+
+# Sensitive files
+.terraformrc
+terraform.rc
+
+# Sandbox files
+sandbox.auto.tfvars
+sandbox.backend.tf
+
+# =============================================================================
+# Cache / Temp
+# =============================================================================
+
+.cache/
+.parcel-cache/
+.turbo/
+*.tmp
+*.temp
+.copilot/logs
+configstore/
+
+# =============================================================================
+# OS Files
+# =============================================================================
+
+.DS_Store
+Thumbs.db

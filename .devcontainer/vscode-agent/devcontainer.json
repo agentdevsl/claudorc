@@ -1,0 +1,62 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+  "name": "Vscode Sandbox",
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // "runArgs": ["--env-file", ".devcontainer/devcontainer.env"],
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2.13.0": {}
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": "bash -c 'mkdir -p ~/.terraform.d && cat > ~/.terraform.d/credentials.tfrc.json << EOF\n{\n  \"credentials\": {\n    \"app.terraform.io\": {\n      \"token\": \"${TFE_TOKEN}\"\n    }\n  }\n}\nEOF'",
+
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "hashicorp.terraform",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "hashicorp.terraform",
+        "redhat.vscode-yaml",
+        "HashiCorp.HCL"
+      ],
+      "mcp": {
+        "servers": {
+          "terraform-mcp": {
+            "command": "docker",
+            "args": ["run", "-i", "--rm", "-e", "TFE_TOKEN", "hashicorp/terraform-mcp-server"]
+          },
+          "aws-knowledge-mcp": {
+            "url": "https://knowledge-mcp.global.api.aws",
+            "type": "http"
+          }
+        }
+      }
+    }
+  },
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
+  "remoteEnv": {
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "TFE_TOKEN": "${localEnv:TEAM_TFE_TOKEN}",
+    "TF_TOKEN_app_terraform_io": "${localEnv:TEAM_TFE_TOKEN}",
+    "AWS_ACCESS_KEY_ID": "${localEnv:AWS_ACCESS_KEY_ID}",
+    "AWS_SECRET_ACCESS_KEY": "${localEnv:AWS_SECRET_ACCESS_KEY}",
+    "AWS_SESSION_TOKEN": "${localEnv:AWS_SESSION_TOKEN}",
+    "AWS_SESSION_EXPIRATION": "${localEnv:AWS_SESSION_EXPIRATION}",
+    "VAULT_RADAR_LICENSE": "${localEnv:VAULT_RADAR_LICENSE:}"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace"
+}

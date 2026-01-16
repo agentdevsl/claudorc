@@ -1,0 +1,259 @@
+name: '🚀 Terraform Deployment Requirements'
+description: 'Template for capturing infrastructure deployment requirements for consumers using HCP Terraform'
+title: 'New Terraform Infrastructure Deployment'
+labels: ['terraform', 'infrastructure', 'needs-review']
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Terraform Configuration Requirements
+
+        Use this template to capture requirements for deploying infrastructure using Terraform.
+        This can be used as input for /specify with Spec-Kit for implementation planning.
+
+  - type: input
+    id: project_name
+    attributes:
+      label: '📦 Project/Application Name'
+      description: 'Name of the project or application this infrastructure supports'
+      placeholder: 'e.g., customer-portal, payment-gateway, analytics-platform'
+    validations:
+      required: true
+
+  - type: textarea
+    id: business_requirements
+    attributes:
+      label: '🎯 Business Requirements'
+      description: 'Business use case and requirements driving this deployment'
+      placeholder: |
+        - Business problem this infrastructure solves
+        - Expected outcomes
+        - Success criteria
+        - Stakeholders
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: '☁️ Cloud Provider'
+      description: 'Primary cloud provider for this deployment'
+      options:
+        - AWS
+        - Azure
+        - GCP
+        - Multi-cloud
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: hcp_org
+    attributes:
+      label: '🏢 HCP Terraform Organization'
+      description: 'HCP Terraform organization name'
+      placeholder: 'e.g., hashi-demos-apj'
+    validations:
+      required: true
+
+  - type: input
+    id: hcp_project
+    attributes:
+      label: '📁 HCP Terraform Project'
+      description: 'HCP Terraform project name (defaults to project name if not specified)'
+      placeholder: 'e.g., sandbox'
+    validations:
+      required: true
+
+  - type: textarea
+    id: cloud_accounts_regions
+    attributes:
+      label: '🗺️ Cloud Accounts & Regions'
+      description: 'Target cloud accounts/subscriptions and regions/locations'
+      placeholder: |
+        Example (AWS):
+        - Dev Account: 123456789012 (us-east-1, eu-west-1)
+        - Prod Account: 987654321098 (us-east-1, us-west-2, eu-west-1)
+
+        Example (Azure):
+        - Dev Subscription: sub-dev-12345 (eastus, westeurope)
+        - Prod Subscription: sub-prod-67890 (eastus, westus2, westeurope)
+
+        Example (GCP):
+        - Dev Project: my-project-dev (us-east1, europe-west1)
+        - Prod Project: my-project-prod (us-east1, us-west1, europe-west1)
+
+  - type: textarea
+    id: infrastructure_components
+    attributes:
+      label: '🏗️ Infrastructure Components'
+      description: 'What infrastructure needs to be deployed?'
+      placeholder: |
+        Example:
+        - VPC with public/private subnets
+        - ECS Fargate cluster for container workloads
+        - RDS PostgreSQL database (Multi-AZ)
+        - Application Load Balancer
+        - S3 buckets for storage
+        - CloudFront distribution
+        - Route53 DNS records
+    validations:
+      required: true
+
+  - type: dropdown
+    id: modules_to_consume
+    attributes:
+      label: '📚 Terraform Modules to Use'
+      description: 'Which Terraform modules will be consumed from the private registry?'
+      multiple: true
+      options:
+        - app.terraform.io/<hcp_org_name>/acm/aws
+        - app.terraform.io/<hcp_org_name>/alb/aws
+        - app.terraform.io/<hcp_org_name>/autoscaling/aws
+        - app.terraform.io/<hcp_org_name>/ec2-instance/aws
+        - app.terraform.io/<hcp_org_name>/iam/aws
+        - app.terraform.io/<hcp_org_name>/kms/aws
+        - app.terraform.io/<hcp_org_name>/route53/aws
+        - app.terraform.io/<hcp_org_name>/s3-bucket/aws
+        - app.terraform.io/<hcp_org_name>/security-group/aws
+        - app.terraform.io/<hcp_org_name>/vpc/aws
+        - Other (specify in Additional Context)
+
+  - type: textarea
+    id: existing_infrastructure
+    attributes:
+      label: '🔗 Existing Infrastructure Dependencies'
+      description: 'Existing infrastructure that this deployment depends on or integrates with'
+      placeholder: |
+        Example:
+        - Existing VPC: vpc-12345678 (use data source)
+        - Shared KMS key: alias/shared-app-key
+        - Corporate DNS zone: company.internal
+        - Existing IAM roles for ECS tasks
+        - Shared Transit Gateway attachment
+
+  - type: checkboxes
+    id: security_requirements
+    attributes:
+      label: '🔒 Security Requirements'
+      description: 'Security controls and requirements'
+      options:
+        - label: 'Encryption at rest (KMS, customer-managed keys)'
+        - label: 'Encryption in transit (TLS/SSL, HTTPS)'
+        - label: 'Network isolation (Private subnets, Security Groups, NACLs)'
+        - label: 'IAM least privilege access'
+        - label: 'Secrets management (AWS Secrets Manager, HashiCorp Vault)'
+        - label: 'Audit logging and monitoring (CloudTrail, CloudWatch)'
+        - label: 'Backup and disaster recovery'
+        - label: 'Data residency requirements'
+        - label: 'WAF/DDoS protection'
+        - label: 'Certificate management (ACM)'
+
+  - type: textarea
+    id: compliance_standards
+    attributes:
+      label: '📋 Compliance Standards'
+      description: 'Compliance frameworks this deployment must adhere to'
+      placeholder: |
+        Example:
+        - SOC 2 Type II
+        - PCI DSS
+        - HIPAA
+        - GDPR
+        - ISO 27001
+        - CIS AWS Foundations Benchmark
+        - Company security policies
+
+  - type: textarea
+    id: configuration_parameters
+    attributes:
+      label: '⚙️ Key Configuration Parameters'
+      description: 'Important configuration values for the deployment'
+      placeholder: |
+        Example:
+        - VPC CIDR: 10.0.0.0/16
+        - RDS instance type: db.t3.medium
+        - ECS task CPU/Memory: 512/1024
+        - S3 lifecycle policies: 90 days to Glacier
+        - ALB idle timeout: 60 seconds
+        - Auto-scaling: min=2, max=10
+
+  - type: textarea
+    id: tagging_strategy
+    attributes:
+      label: '🏷️ Tagging Strategy'
+      description: 'Required tags for all resources'
+      placeholder: |
+        Example:
+        - Environment: dev/staging/prod
+        - Application: my-aap
+        - Project: customer-portal
+        - Owner: platform-team@company.com
+        - CostCenter: 12345
+        - ManagedBy: terraform
+        - Compliance: pci-dss
+
+  - type: textarea
+    id: cost_budget
+    attributes:
+      label: '💰 Cost Budget & Constraints'
+      description: 'Budget limits and cost optimization requirements'
+      placeholder: |
+        Example:
+        - Monthly budget: $5,000 (dev), $25,000 (prod)
+        - Use Reserved Instances where possible
+        - Enable S3 Intelligent-Tiering
+        - Use Spot instances for non-critical workloads
+        - Cost anomaly alerts at 20% variance
+
+  - type: textarea
+    id: monitoring_alerting
+    attributes:
+      label: '📊 Monitoring & Alerting'
+      description: 'Monitoring and alerting requirements'
+      placeholder: |
+        Example:
+        - CloudWatch dashboards for key metrics
+        - PagerDuty integration for critical alerts
+        - Slack notifications for deployment status
+        - Application performance monitoring (APM)
+        - Log aggregation to CloudWatch Logs
+
+  - type: textarea
+    id: backup_dr
+    attributes:
+      label: '🔄 Backup & Disaster Recovery'
+      description: 'Backup and DR requirements'
+      placeholder: |
+        Example:
+        - RDS automated backups: 7 days retention
+        - S3 bucket versioning enabled
+        - Cross-region replication for critical data
+        - RTO: 4 hours, RPO: 1 hour
+        - Regular DR testing schedule
+
+  - type: textarea
+    id: networking_requirements
+    attributes:
+      label: '🌐 Networking Requirements'
+      description: 'Network architecture and connectivity requirements'
+      placeholder: |
+        Example:
+        - VPN connectivity to on-premises
+        - VPC peering with shared services VPC
+        - PrivateLink endpoints for AWS services
+        - Direct Connect for high-throughput workloads
+        - DNS resolution between VPCs
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: '📄 Additional Context'
+      description: 'Any additional information, constraints, or requirements'
+      placeholder: |
+        Example:
+        - Special architectural requirements
+        - Team or organizational constraints
+        - Timeline and milestones
+        - Dependencies on other projects
