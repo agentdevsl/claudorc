@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub App Setup - AgentPane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+      color: inherit;
+      background: none;
+      border: none;
+      outline: none;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    /* Design Tokens - GitHub Dark */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --radius: 6px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, monospace;
+      --shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.4);
+      --shadow-xl: 0 12px 48px rgba(1, 4, 9, 0.5);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+    }
+
+    /* Layout */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar - Global Settings */
+    .settings-sidebar {
+      width: 260px;
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      padding: 20px 0;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand {
+      padding: 0 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border-default);
+      margin-bottom: 12px;
+    }
+
+    .sidebar-brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-brand-logo svg {
+      width: 20px;
+      height: 20px;
+      color: white;
+    }
+
+    .sidebar-brand-text {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .sidebar-section {
+      padding: 8px 0;
+    }
+
+    .sidebar-section-title {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-nav {
+      list-style: none;
+    }
+
+    .sidebar-nav li a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      color: var(--fg-muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.15s ease;
+    }
+
+    .sidebar-nav li a:hover {
+      color: var(--fg-default);
+      background-color: var(--bg-subtle);
+    }
+
+    .sidebar-nav li a.active {
+      color: var(--fg-default);
+      background-color: var(--accent-muted);
+      border-left: 2px solid var(--accent-fg);
+    }
+
+    .sidebar-nav li a svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      background-color: var(--success-muted);
+      color: var(--success-fg);
+      border-radius: 10px;
+    }
+
+    .nav-badge.warning {
+      background-color: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 32px 48px;
+      max-width: 900px;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .page-header h1 svg {
+      color: var(--fg-muted);
+    }
+
+    .page-header p {
+      color: var(--fg-muted);
+    }
+
+    /* View Toggle - shows different states */
+    .view-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 4px;
+      background: var(--bg-default);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+      width: fit-content;
+    }
+
+    .view-toggle-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+
+    .view-toggle-btn:hover {
+      color: var(--fg-default);
+    }
+
+    .view-toggle-btn.active {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    /* Card Section */
+    .card {
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .card-header svg {
+      color: var(--fg-muted);
+      width: 18px;
+      height: 18px;
+    }
+
+    .card-content {
+      padding: 20px;
+    }
+
+    /* ==========================================
+       STATE 1: Not Connected (Initial Setup)
+       ========================================== */
+
+    .setup-welcome {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .setup-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 24px;
+      background: var(--bg-subtle);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed var(--border-default);
+    }
+
+    .setup-icon svg {
+      width: 40px;
+      height: 40px;
+      color: var(--fg-subtle);
+    }
+
+    .setup-welcome h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .setup-welcome p {
+      color: var(--fg-muted);
+      max-width: 440px;
+      margin: 0 auto 24px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      transition: all 0.15s ease;
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn-primary {
+      background-color: var(--success-fg);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background-color: #2ea043;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      color: var(--fg-default);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--bg-emphasis);
+    }
+
+    .btn-github {
+      background-color: #24292e;
+      color: #fff;
+      border: 1px solid #444c56;
+    }
+
+    .btn-github:hover {
+      background-color: #30363d;
+    }
+
+    .btn-danger {
+      background-color: var(--danger-muted);
+      color: var(--danger-fg);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+
+    .btn-danger:hover {
+      background-color: rgba(248, 81, 73, 0.25);
+    }
+
+    .setup-features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+      text-align: left;
+    }
+
+    .setup-feature {
+      padding: 16px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-muted);
+    }
+
+    .setup-feature-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent-muted);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .setup-feature-icon svg {
+      width: 18px;
+      height: 18px;
+      color: var(--accent-fg);
+    }
+
+    .setup-feature h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .setup-feature p {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin: 0;
+    }
+
+    /* ==========================================
+       STATE 2: OAuth Flow / Authorizing
+       ========================================== */
+
+    .oauth-flow {
+      padding: 32px 24px;
+    }
+
+    .oauth-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .oauth-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .oauth-step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .oauth-step.completed .oauth-step-number {
+      background: var(--success-fg);
+      color: white;
+    }
+
+    .oauth-step.active .oauth-step-number {
+      background: var(--accent-fg);
+      color: white;
+      box-shadow: 0 0 0 4px var(--accent-muted);
+    }
+
+    .oauth-step.pending .oauth-step-number {
+      background: var(--bg-muted);
+      color: var(--fg-subtle);
+      border: 2px solid var(--border-default);
+    }
+
+    .oauth-step-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .oauth-step.active .oauth-step-label {
+      color: var(--accent-fg);
+      font-weight: 500;
+    }
+
+    .oauth-step.completed .oauth-step-label {
+      color: var(--success-fg);
+    }
+
+    .oauth-connector {
+      width: 60px;
+      height: 2px;
+      background: var(--border-default);
+      margin-top: -24px;
+    }
+
+    .oauth-connector.active {
+      background: var(--success-fg);
+    }
+
+    .oauth-content {
+      text-align: center;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .oauth-content h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .oauth-content p {
+      color: var(--fg-muted);
+      margin-bottom: 24px;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--bg-muted);
+      border-top-color: var(--accent-fg);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 24px auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ==========================================
+       STATE 3: Installation Selection
+       ========================================== */
+
+    .installation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .installation-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .installation-item:hover {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .installation-item.selected {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .installation-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--bg-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .installation-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .installation-avatar svg {
+      width: 24px;
+      height: 24px;
+      color: var(--fg-muted);
+    }
+
+    .installation-info {
+      flex: 1;
+    }
+
+    .installation-name {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .installation-type {
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--done-muted);
+      color: var(--done-fg);
+      border-radius: 4px;
+    }
+
+    .installation-type.user {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .installation-meta {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-top: 4px;
+    }
+
+    .installation-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .installation-item.selected .installation-check {
+      background: var(--accent-fg);
+      border-color: var(--accent-fg);
+    }
+
+    .installation-check svg {
+      width: 14px;
+      height: 14px;
+      color: white;
+      opacity: 0;
+    }
+
+    .installation-item.selected .installation-check svg {
+      opacity: 1;
+    }
+
+    .add-installation-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      border: 2px dashed var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .add-installation-btn:hover {
+      border-color: var(--accent-fg);
+      color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    /* ==========================================
+       STATE 4: Connected / Management View
+       ========================================== */
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--success-muted);
+      border: 1px solid rgba(46, 160, 67, 0.4);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+    }
+
+    .connection-status-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--success-fg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .connection-status-icon svg {
+      width: 20px;
+      height: 20px;
+      color: white;
+    }
+
+    .connection-status-text {
+      flex: 1;
+    }
+
+    .connection-status-text strong {
+      display: block;
+      color: var(--success-fg);
+    }
+
+    .connection-status-text span {
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    /* Repository List */
+    .repo-section {
+      margin-bottom: 24px;
+    }
+
+    .repo-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .repo-section-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .repo-section-header h3 svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+    }
+
+    .repo-count {
+      font-size: 12px;
+      color: var(--fg-muted);
+      padding: 2px 8px;
+      background: var(--bg-muted);
+      border-radius: 10px;
+    }
+
+    .repo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .repo-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+
+    .repo-item:hover {
+      border-color: var(--border-default);
+    }
+
+    .repo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--bg-muted);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .repo-icon svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+    }
+
+    .repo-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .repo-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .repo-path {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .repo-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .repo-sync-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .repo-sync-badge.synced {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .repo-sync-badge.pending {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .repo-sync-badge svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .repo-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .repo-action-btn {
+      padding: 6px;
+      color: var(--fg-muted);
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+
+    .repo-action-btn:hover {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+    }
+
+    .repo-action-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Permissions Card */
+    .permissions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .permission-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+    }
+
+    .permission-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--bg-muted);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .permission-icon svg {
+      width: 14px;
+      height: 14px;
+      color: var(--fg-muted);
+    }
+
+    .permission-icon.read {
+      background: var(--accent-muted);
+    }
+
+    .permission-icon.read svg {
+      color: var(--accent-fg);
+    }
+
+    .permission-icon.write {
+      background: var(--success-muted);
+    }
+
+    .permission-icon.write svg {
+      color: var(--success-fg);
+    }
+
+    .permission-info {
+      flex: 1;
+    }
+
+    .permission-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .permission-level {
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+
+    /* Footer Actions */
+    .card-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-subtle);
+    }
+
+    .card-footer-left {
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .card-footer-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Design Notes Panel */
+    .design-notes {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 280px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      z-index: 1000;
+    }
+
+    .design-notes-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--done-fg);
+    }
+
+    .design-notes-content {
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .design-notes-content ul {
+      list-style: none;
+      margin-top: 8px;
+    }
+
+    .design-notes-content li {
+      padding: 4px 0;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .design-notes-content li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      width: 6px;
+      height: 6px;
+      background-color: var(--done-fg);
+      border-radius: 50%;
+    }
+
+    /* Hide/show different states */
+    .state-panel {
+      display: none;
+    }
+
+    .state-panel.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Global Settings Sidebar -->
+    <aside class="settings-sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+            <line x1="12" y1="22" x2="12" y2="15.5"></line>
+            <polyline points="22 8.5 12 15.5 2 8.5"></polyline>
+          </svg>
+        </div>
+        <span class="sidebar-brand-text">AgentPane</span>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Application</div>
+        <ul class="sidebar-nav">
+          <li>
+            <a href="#">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              Projects
+            </a>
+          </li>
+          <li>
+            <a href="#">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              Agents
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Integrations</div>
+        <ul class="sidebar-nav">
+          <li>
+            <a href="#" class="active">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+              GitHub
+              <span class="nav-badge">Connected</span>
+            </a>
+          </li>
+          <li>
+            <a href="#">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+              </svg>
+              API Keys
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Settings</div>
+        <ul class="sidebar-nav">
+          <li>
+            <a href="#">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              Preferences
+            </a>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <h1>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          GitHub Integration
+        </h1>
+        <p>Connect your GitHub account to sync configuration and create pull requests</p>
+      </header>
+
+      <!-- View Toggle (for demo purposes) -->
+      <div class="view-toggle">
+        <button class="view-toggle-btn" onclick="showState('disconnected')">Disconnected</button>
+        <button class="view-toggle-btn" onclick="showState('oauth')">OAuth Flow</button>
+        <button class="view-toggle-btn" onclick="showState('install')">Select Install</button>
+        <button class="view-toggle-btn active" onclick="showState('connected')">Connected</button>
+      </div>
+
+      <!-- ==========================================
+           STATE 1: Not Connected
+           ========================================== -->
+      <div id="state-disconnected" class="state-panel">
+        <div class="card">
+          <div class="card-content">
+            <div class="setup-welcome">
+              <div class="setup-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+              </div>
+              <h3>Connect to GitHub</h3>
+              <p>Install the AgentPane GitHub App to enable configuration sync, automatic pull requests, and repository management.</p>
+              <button class="btn btn-github" onclick="showState('oauth')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                Connect with GitHub
+              </button>
+
+              <div class="setup-features">
+                <div class="setup-feature">
+                  <div class="setup-feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                  </div>
+                  <h4>Config Sync</h4>
+                  <p>Automatically sync agent configuration from your repository</p>
+                </div>
+                <div class="setup-feature">
+                  <div class="setup-feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="18" cy="18" r="3"></circle>
+                      <circle cx="6" cy="6" r="3"></circle>
+                      <path d="M6 21V9a9 9 0 0 0 9 9"></path>
+                    </svg>
+                  </div>
+                  <h4>Pull Requests</h4>
+                  <p>Create PRs automatically when agents complete tasks</p>
+                </div>
+                <div class="setup-feature">
+                  <div class="setup-feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                      <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                  </div>
+                  <h4>Webhooks</h4>
+                  <p>Receive push events to auto-update configurations</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           STATE 2: Installing (Webhook Pending)
+           ========================================== -->
+      <div id="state-oauth" class="state-panel">
+        <div class="card">
+          <div class="card-content">
+            <div class="oauth-flow">
+              <div class="oauth-steps">
+                <div class="oauth-step completed">
+                  <div class="oauth-step-number">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <span class="oauth-step-label">Clicked Install</span>
+                </div>
+                <div class="oauth-connector active"></div>
+                <div class="oauth-step active">
+                  <div class="oauth-step-number">
+                    <div class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0;"></div>
+                  </div>
+                  <span class="oauth-step-label">GitHub Setup</span>
+                </div>
+                <div class="oauth-connector"></div>
+                <div class="oauth-step pending">
+                  <div class="oauth-step-number">3</div>
+                  <span class="oauth-step-label">Auto-Sync</span>
+                </div>
+              </div>
+
+              <div class="oauth-content">
+                <h3>Complete Installation on GitHub</h3>
+                <p style="margin-bottom: 16px;">Select the account/organization and repositories in the GitHub window. We'll automatically sync via webhook when done.</p>
+
+                <div style="background: var(--bg-subtle); padding: 16px; border-radius: var(--radius); text-align: left; margin-bottom: 24px;">
+                  <div style="font-size: 12px; color: var(--fg-muted); margin-bottom: 8px;">
+                    <strong style="color: var(--accent-fg);">Automated via Octokit:</strong>
+                  </div>
+                  <ul style="font-size: 12px; color: var(--fg-muted); margin: 0; padding-left: 16px;">
+                    <li>Webhook receives <code style="background: var(--bg-muted); padding: 2px 4px; border-radius: 3px;">installation.created</code> event</li>
+                    <li>Octokit auto-generates installation tokens</li>
+                    <li>Repositories synced via <code style="background: var(--bg-muted); padding: 2px 4px; border-radius: 3px;">app.eachRepository</code></li>
+                    <li>Config files detected and imported</li>
+                  </ul>
+                </div>
+
+                <button class="btn btn-secondary" onclick="showState('disconnected')">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           STATE 3: Installation Selection
+           ========================================== -->
+      <div id="state-install" class="state-panel">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <h2>Select Installation</h2>
+            </div>
+          </div>
+          <div class="card-content">
+            <p style="color: var(--fg-muted); margin-bottom: 16px;">
+              Choose which GitHub account or organization to connect:
+            </p>
+            <div class="installation-list">
+              <div class="installation-item selected">
+                <div class="installation-avatar">
+                  <img src="https://github.com/identicons/jasonlong.png" alt="">
+                </div>
+                <div class="installation-info">
+                  <div class="installation-name">
+                    simon-lynch
+                    <span class="installation-type user">Personal</span>
+                  </div>
+                  <div class="installation-meta">12 repositories accessible</div>
+                </div>
+                <div class="installation-check">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="installation-item">
+                <div class="installation-avatar">
+                  <img src="https://github.com/identicons/github.png" alt="">
+                </div>
+                <div class="installation-info">
+                  <div class="installation-name">
+                    acme-corp
+                    <span class="installation-type">Organization</span>
+                  </div>
+                  <div class="installation-meta">47 repositories accessible</div>
+                </div>
+                <div class="installation-check">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+              </div>
+
+              <button class="add-installation-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add Another Installation
+              </button>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-footer-left">
+              You can add more installations later
+            </div>
+            <div class="card-footer-right">
+              <button class="btn btn-secondary" onclick="showState('disconnected')">Cancel</button>
+              <button class="btn btn-primary" onclick="showState('connected')">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           STATE 4: Connected / Management View
+           ========================================== -->
+      <div id="state-connected" class="state-panel active">
+        <!-- Connection Status Banner -->
+        <div class="connection-status">
+          <div class="connection-status-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div class="connection-status-text">
+            <strong>GitHub Connected</strong>
+            <span>Authenticated as simon-lynch · Last synced 2 minutes ago</span>
+          </div>
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Sync Now
+          </button>
+        </div>
+
+        <!-- Installations Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <h2>Installations</h2>
+            </div>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Installation
+            </button>
+          </div>
+          <div class="card-content">
+            <div class="installation-list">
+              <div class="installation-item" style="cursor: default;">
+                <div class="installation-avatar">
+                  <img src="https://github.com/identicons/jasonlong.png" alt="">
+                </div>
+                <div class="installation-info">
+                  <div class="installation-name">
+                    simon-lynch
+                    <span class="installation-type user">Personal</span>
+                  </div>
+                  <div class="installation-meta">12 repositories · Installed Jan 15, 2026</div>
+                </div>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
+                  Manage
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Synced Repositories Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <h2>Synced Repositories</h2>
+            </div>
+            <span class="repo-count">3 repos</span>
+          </div>
+          <div class="card-content">
+            <div class="repo-list">
+              <div class="repo-item">
+                <div class="repo-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="repo-info">
+                  <div class="repo-name">simon-lynch/claudorc</div>
+                  <div class="repo-path">.agentpane/config.json</div>
+                </div>
+                <div class="repo-status">
+                  <span class="repo-sync-badge synced">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Synced
+                  </span>
+                </div>
+                <div class="repo-actions">
+                  <button class="repo-action-btn" title="View config">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                  <button class="repo-action-btn" title="Sync now">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="repo-item">
+                <div class="repo-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="repo-info">
+                  <div class="repo-name">simon-lynch/webapp-dashboard</div>
+                  <div class="repo-path">.agentpane/config.json</div>
+                </div>
+                <div class="repo-status">
+                  <span class="repo-sync-badge synced">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Synced
+                  </span>
+                </div>
+                <div class="repo-actions">
+                  <button class="repo-action-btn" title="View config">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                  <button class="repo-action-btn" title="Sync now">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="repo-item">
+                <div class="repo-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="repo-info">
+                  <div class="repo-name">simon-lynch/agent-sdk-examples</div>
+                  <div class="repo-path">No config found</div>
+                </div>
+                <div class="repo-status">
+                  <span class="repo-sync-badge pending">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    No Config
+                  </span>
+                </div>
+                <div class="repo-actions">
+                  <button class="repo-action-btn" title="Create config">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <h2>App Permissions</h2>
+            </div>
+          </div>
+          <div class="card-content">
+            <div class="permissions-grid">
+              <div class="permission-item">
+                <div class="permission-icon read">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </div>
+                <div class="permission-info">
+                  <div class="permission-name">Contents</div>
+                  <div class="permission-level">Read & Write</div>
+                </div>
+              </div>
+              <div class="permission-item">
+                <div class="permission-icon write">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="18" cy="18" r="3"></circle>
+                    <circle cx="6" cy="6" r="3"></circle>
+                    <path d="M6 21V9a9 9 0 0 0 9 9"></path>
+                  </svg>
+                </div>
+                <div class="permission-info">
+                  <div class="permission-name">Pull Requests</div>
+                  <div class="permission-level">Read & Write</div>
+                </div>
+              </div>
+              <div class="permission-item">
+                <div class="permission-icon read">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="permission-info">
+                  <div class="permission-name">Metadata</div>
+                  <div class="permission-level">Read-only</div>
+                </div>
+              </div>
+              <div class="permission-item">
+                <div class="permission-icon read">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="permission-info">
+                  <div class="permission-name">Webhooks</div>
+                  <div class="permission-level">push, pull_request</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card" style="border-color: var(--danger-fg);">
+          <div class="card-header" style="border-color: var(--danger-muted);">
+            <div class="card-header-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--danger-fg)" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <h2 style="color: var(--danger-fg);">Danger Zone</h2>
+            </div>
+          </div>
+          <div class="card-content">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <div style="font-weight: 500; margin-bottom: 4px;">Disconnect GitHub</div>
+                <div style="font-size: 12px; color: var(--fg-muted);">
+                  Remove the GitHub integration and revoke all access tokens
+                </div>
+              </div>
+              <button class="btn btn-danger" onclick="showState('disconnected')">
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Design Notes Panel -->
+  <div class="design-notes">
+    <div class="design-notes-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+      Design Notes
+    </div>
+    <div class="design-notes-content">
+      <strong>GitHub App Setup Wireframe</strong>
+      <ul>
+        <li>Global settings (not per-project)</li>
+        <li>4 states: disconnected, OAuth flow, installation select, connected</li>
+        <li>Multi-step OAuth wizard</li>
+        <li>Installation management</li>
+        <li>Repository sync status</li>
+        <li>Permissions overview</li>
+        <li>Danger zone for disconnect</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function showState(state) {
+      // Hide all panels
+      document.querySelectorAll('.state-panel').forEach(panel => {
+        panel.classList.remove('active');
+      });
+
+      // Show selected panel
+      document.getElementById('state-' + state).classList.add('active');
+
+      // Update toggle buttons
+      document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+    }
+
+    // Installation selection
+    document.querySelectorAll('.installation-item').forEach(item => {
+      item.addEventListener('click', function() {
+        if (this.classList.contains('selected')) return;
+        document.querySelectorAll('.installation-item').forEach(i => i.classList.remove('selected'));
+        this.classList.add('selected');
+      });
+    });
+  </script>
+</body>
+</html>
