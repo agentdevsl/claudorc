@@ -2,12 +2,12 @@ import { createFileRoute } from '@tanstack/react-router';
 import { getApiRuntimeOrThrow, getApiStreamsOrThrow } from '@/app/routes/api/runtime';
 import { SessionService } from '@/services/session.service';
 
-function getSessionService(): SessionService {
+const getSessionService = (): SessionService => {
   const runtime = getApiRuntimeOrThrow();
   return new SessionService(runtime.db, getApiStreamsOrThrow(), {
     baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
   });
-}
+};
 
 export const Route = createFileRoute('/api/sessions/$id/stream')({
   server: {
