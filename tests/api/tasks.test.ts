@@ -30,10 +30,7 @@ vi.mock('@/services/task.service', () => ({
     reject = taskServiceMocks.reject;
   },
 }));
-vi.mock('@/db/client', () => ({ db: {} }));
-vi.mock('@/app/routes/api/runtime', () => ({
-  getApiRuntime: () => ({ ok: true, value: { db: {}, runner: {} } }),
-}));
+vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
 
 import { Route as TasksRoute } from '@/app/routes/api/tasks';
 import { Route as TaskRoute } from '@/app/routes/api/tasks/$id';

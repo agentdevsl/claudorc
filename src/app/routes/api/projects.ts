@@ -1,21 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { getApiRuntime } from '@/app/routes/api/runtime';
+import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
 import { encodeCursor } from '@/lib/api/cursor';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { createProjectSchema, listProjectsSchema } from '@/lib/api/schemas';
 import { parseBody, parseQuery } from '@/lib/api/validation';
-import { ProjectService } from '@/services/project.service';
-import { WorktreeService } from '@/services/worktree.service';
 
-const runtime = getApiRuntime();
-if (!runtime.ok) {
-  throw new Error(runtime.error.message);
-}
-
-const worktreeService = new WorktreeService(runtime.value.db, runtime.value.runner);
-
-const service = new ProjectService(runtime.value.db, worktreeService, runtime.value.runner);
+const { projectService } = getApiServicesOrThrow();
 
 export const Route = createFileRoute('/api/projects')({
   server: {
@@ -26,7 +17,7 @@ export const Route = createFileRoute('/api/projects')({
           return Response.json(failure(parsed.error), { status: 400 });
         }
 
-        const result = await service.list({
+        const result = await projectService.list({
           limit: parsed.value.limit,
           orderBy: 'updatedAt',
           orderDirection: 'desc',
@@ -64,7 +55,7 @@ export const Route = createFileRoute('/api/projects')({
           return Response.json(failure(parsed.error), { status: 400 });
         }
 
-        const result = await service.create({
+        const result = await projectService.create({
           path: parsed.value.path,
           name: parsed.value.name,
           description: parsed.value.description,
