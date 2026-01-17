@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sandbox Plugin Settings - ROADMAP WIREFRAME</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    button, input, select, textarea {
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    /* Design Tokens */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --radius: 6px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      min-height: 100vh;
+    }
+
+    /* Roadmap Banner */
+    .roadmap-banner {
+      background: linear-gradient(90deg, var(--attention-muted), var(--done-muted));
+      border-bottom: 1px solid var(--attention-fg);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .roadmap-banner svg {
+      width: 20px;
+      height: 20px;
+      color: var(--attention-fg);
+    }
+
+    .roadmap-banner-text {
+      font-weight: 600;
+      color: var(--attention-fg);
+    }
+
+    .roadmap-banner-subtext {
+      color: var(--fg-muted);
+      font-size: 12px;
+    }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: calc(100vh - 48px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      padding: 24px 16px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 24px;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-subtle);
+      padding: 0 8px;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 150ms ease;
+    }
+
+    .sidebar-item:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .sidebar-item.active {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .sidebar-item svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Main Content */
+    .main {
+      padding: 32px 48px;
+      max-width: 900px;
+    }
+
+    .page-header {
+      margin-bottom: 32px;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .phase-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--done-muted);
+      color: var(--done-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .page-description {
+      color: var(--fg-muted);
+      font-size: 14px;
+    }
+
+    /* Settings Sections */
+    .settings-section {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .section-subtitle {
+      font-size: 13px;
+      color: var(--fg-muted);
+      margin-top: 4px;
+    }
+
+    .section-content {
+      padding: 24px;
+    }
+
+    /* Provider Cards */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .provider-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: 20px;
+      cursor: pointer;
+      transition: all 150ms ease;
+      position: relative;
+    }
+
+    .provider-card:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .provider-card.selected {
+      border-color: var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .provider-card.selected::before {
+      content: '';
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 20px;
+      height: 20px;
+      background: var(--accent-fg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .provider-card.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 20px;
+      height: 20px;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .provider-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius);
+      background: var(--bg-emphasis);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      font-size: 20px;
+    }
+
+    .provider-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .provider-desc {
+      font-size: 13px;
+      color: var(--fg-muted);
+      margin-bottom: 12px;
+    }
+
+    .provider-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .capability-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+    }
+
+    .capability-badge.highlight {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--fg-default);
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--fg-subtle);
+      margin-top: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    .form-select {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-default);
+      font-size: 13px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* Connectivity Section */
+    .connectivity-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--success-fg);
+    }
+
+    .status-indicator.disconnected {
+      background: var(--fg-subtle);
+    }
+
+    .status-text {
+      flex: 1;
+    }
+
+    .status-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .status-value {
+      font-weight: 500;
+    }
+
+    /* Resource Limits */
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .resource-item {
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .resource-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-bottom: 8px;
+    }
+
+    .resource-value {
+      font-size: 24px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .resource-unit {
+      font-size: 14px;
+      color: var(--fg-muted);
+      font-weight: 400;
+    }
+
+    .resource-slider {
+      width: 100%;
+      margin-top: 12px;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--bg-emphasis);
+    }
+
+    .resource-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-fg);
+      cursor: pointer;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 16px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      transition: all 150ms ease;
+    }
+
+    .btn-primary {
+      background: var(--accent-emphasis);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-fg);
+    }
+
+    .btn-secondary {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-emphasis);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg-muted);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    /* Section Actions */
+    .section-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-muted);
+      margin-top: 20px;
+    }
+
+    /* Plugin Status Table */
+    .plugin-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .plugin-table th,
+    .plugin-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .plugin-table th {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-subtle);
+      background: var(--bg-subtle);
+    }
+
+    .plugin-table td {
+      font-size: 13px;
+    }
+
+    .plugin-name-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .plugin-icon-small {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius);
+      background: var(--bg-emphasis);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .plugin-version {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .status-badge.active {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .status-badge.inactive {
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+    }
+
+    .status-badge.error {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* External Plugin Install */
+    .external-plugin-input {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .external-plugin-input .form-input {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- Roadmap Banner -->
+  <div class="roadmap-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+    <div>
+      <span class="roadmap-banner-text">ROADMAP WIREFRAME - Phase 2</span>
+      <span class="roadmap-banner-subtext"> &mdash; This UI is for planning purposes only. Not yet implemented.</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Project Settings</div>
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            General
+          </a>
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            Team
+          </a>
+          <a href="#" class="sidebar-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Sandbox
+          </a>
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Security
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Plugins</div>
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>
+            Sandbox Providers
+          </a>
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            Connectivity
+          </a>
+          <a href="#" class="sidebar-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            Registry
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <header class="page-header">
+        <h1 class="page-title">
+          Sandbox Configuration
+          <span class="phase-badge">Phase 2</span>
+        </h1>
+        <p class="page-description">
+          Configure sandbox providers and connectivity for agent execution environments.
+        </p>
+      </header>
+
+      <!-- Sandbox Provider Selection -->
+      <section class="settings-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Sandbox Provider</h2>
+            <p class="section-subtitle">Choose where agent code executes</p>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="provider-grid">
+            <!-- Docker -->
+            <div class="provider-card selected">
+              <div class="provider-icon">🐳</div>
+              <div class="provider-name">Docker</div>
+              <div class="provider-desc">Local container isolation. Best for development.</div>
+              <div class="provider-badges">
+                <span class="capability-badge">Network Isolation</span>
+                <span class="capability-badge">Resource Limits</span>
+              </div>
+            </div>
+
+            <!-- Kubernetes -->
+            <div class="provider-card">
+              <div class="provider-icon">☸️</div>
+              <div class="provider-name">Kubernetes</div>
+              <div class="provider-desc">Local K8s via minikube/kind. Production-like isolation.</div>
+              <div class="provider-badges">
+                <span class="capability-badge highlight">GPU Support</span>
+                <span class="capability-badge">Network Policies</span>
+                <span class="capability-badge">Warm Pool</span>
+              </div>
+            </div>
+
+            <!-- E2B -->
+            <div class="provider-card">
+              <div class="provider-icon">☁️</div>
+              <div class="provider-name">E2B Cloud</div>
+              <div class="provider-desc">Managed Firecracker VMs. Fast startup, long sessions.</div>
+              <div class="provider-badges">
+                <span class="capability-badge highlight">Snapshots</span>
+                <span class="capability-badge">24h Sessions</span>
+                <span class="capability-badge">Desktop GUI</span>
+              </div>
+            </div>
+
+            <!-- Modal -->
+            <div class="provider-card">
+              <div class="provider-icon">⚡</div>
+              <div class="provider-name">Modal</div>
+              <div class="provider-desc">Serverless containers with GPU. Great for ML workloads.</div>
+              <div class="provider-badges">
+                <span class="capability-badge highlight">GPU (A100/H100)</span>
+                <span class="capability-badge">Fast Cold Start</span>
+              </div>
+            </div>
+
+            <!-- Fly.io -->
+            <div class="provider-card">
+              <div class="provider-icon">🚀</div>
+              <div class="provider-name">Fly.io Sprites</div>
+              <div class="provider-desc">Persistent microVMs for AI agents. Edge deployment.</div>
+              <div class="provider-badges">
+                <span class="capability-badge highlight">Persistent Storage</span>
+                <span class="capability-badge">REST API</span>
+              </div>
+            </div>
+
+            <!-- Custom -->
+            <div class="provider-card">
+              <div class="provider-icon">🔌</div>
+              <div class="provider-name">Custom Plugin</div>
+              <div class="provider-desc">Install from npm or local path.</div>
+              <div class="provider-badges">
+                <span class="capability-badge">Extensible</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Provider Configuration -->
+      <section class="settings-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Docker Configuration</h2>
+            <p class="section-subtitle">Settings for the selected sandbox provider</p>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Base Image</label>
+              <input type="text" class="form-input" value="node:22-slim" />
+              <p class="form-hint">Docker image for sandbox containers</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Network Mode</label>
+              <select class="form-select">
+                <option>Restricted (allowlist only)</option>
+                <option>None (no network)</option>
+                <option>Full (unrestricted)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Allowed Hosts</label>
+            <input type="text" class="form-input" value="github.com, api.github.com, registry.npmjs.org" />
+            <p class="form-hint">Comma-separated list of allowed network destinations</p>
+          </div>
+
+          <!-- Resource Limits -->
+          <div style="margin-top: 24px;">
+            <label class="form-label" style="margin-bottom: 16px;">Resource Limits</label>
+            <div class="resource-grid">
+              <div class="resource-item">
+                <div class="resource-label">Memory</div>
+                <div class="resource-value">4096 <span class="resource-unit">MB</span></div>
+                <input type="range" class="resource-slider" min="512" max="16384" value="4096" />
+              </div>
+              <div class="resource-item">
+                <div class="resource-label">CPU Cores</div>
+                <div class="resource-value">2.0 <span class="resource-unit">cores</span></div>
+                <input type="range" class="resource-slider" min="0.5" max="8" step="0.5" value="2" />
+              </div>
+              <div class="resource-item">
+                <div class="resource-label">Max Processes</div>
+                <div class="resource-value">256 <span class="resource-unit">PIDs</span></div>
+                <input type="range" class="resource-slider" min="32" max="1024" value="256" />
+              </div>
+              <div class="resource-item">
+                <div class="resource-label">Timeout</div>
+                <div class="resource-value">60 <span class="resource-unit">min</span></div>
+                <input type="range" class="resource-slider" min="5" max="1440" value="60" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-actions">
+            <button class="btn btn-ghost">Reset to Defaults</button>
+            <button class="btn btn-primary">Save Configuration</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Connectivity -->
+      <section class="settings-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Connectivity</h2>
+            <p class="section-subtitle">Secure access to sandbox environments</p>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="connectivity-status">
+            <div class="status-indicator disconnected"></div>
+            <div class="status-text">
+              <div class="status-label">Connection Method</div>
+              <div class="status-value">Direct (no proxy)</div>
+            </div>
+            <button class="btn btn-secondary">Configure</button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Connectivity Provider</label>
+            <select class="form-select">
+              <option selected>Direct Connection</option>
+              <option>HashiCorp Boundary</option>
+              <option>Tailscale</option>
+              <option>Cloudflare Tunnel</option>
+            </select>
+          </div>
+
+          <div style="background: var(--bg-subtle); border-radius: var(--radius); padding: 20px; margin-top: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <div style="width: 40px; height: 40px; background: var(--bg-emphasis); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-weight: 500;">HashiCorp Boundary</div>
+                <div style="font-size: 12px; color: var(--fg-muted);">Identity-based access to sandboxes</div>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Boundary Address</label>
+                <input type="text" class="form-input" placeholder="https://boundary.example.com" />
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Auth Method ID</label>
+                <input type="text" class="form-input" placeholder="ampw_1234567890" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Installed Plugins -->
+      <section class="settings-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Installed Plugins</h2>
+            <p class="section-subtitle">Manage sandbox and connectivity plugins</p>
+          </div>
+        </div>
+        <div class="section-content" style="padding: 0;">
+          <table class="plugin-table">
+            <thead>
+              <tr>
+                <th>Plugin</th>
+                <th>Version</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="plugin-name-cell">
+                    <div class="plugin-icon-small">🐳</div>
+                    <div>
+                      <div style="font-weight: 500;">docker</div>
+                      <div class="plugin-version">Built-in</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="plugin-version">1.0.0</span></td>
+                <td>Sandbox</td>
+                <td><span class="status-badge active"><span class="status-dot"></span> Active</span></td>
+                <td><button class="btn btn-ghost">Configure</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="plugin-name-cell">
+                    <div class="plugin-icon-small">☸️</div>
+                    <div>
+                      <div style="font-weight: 500;">k8s</div>
+                      <div class="plugin-version">Built-in</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="plugin-version">1.0.0</span></td>
+                <td>Sandbox</td>
+                <td><span class="status-badge inactive"><span class="status-dot"></span> Inactive</span></td>
+                <td><button class="btn btn-ghost">Configure</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="plugin-name-cell">
+                    <div class="plugin-icon-small">🔗</div>
+                    <div>
+                      <div style="font-weight: 500;">direct</div>
+                      <div class="plugin-version">Built-in</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="plugin-version">1.0.0</span></td>
+                <td>Connectivity</td>
+                <td><span class="status-badge active"><span class="status-dot"></span> Active</span></td>
+                <td><button class="btn btn-ghost">Configure</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="plugin-name-cell">
+                    <div class="plugin-icon-small">🛡️</div>
+                    <div>
+                      <div style="font-weight: 500;">boundary</div>
+                      <div class="plugin-version">Built-in</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="plugin-version">1.0.0</span></td>
+                <td>Connectivity</td>
+                <td><span class="status-badge inactive"><span class="status-dot"></span> Inactive</span></td>
+                <td><button class="btn btn-ghost">Configure</button></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="padding: 20px 24px; border-top: 1px solid var(--border-muted);">
+            <label class="form-label">Install External Plugin</label>
+            <div class="external-plugin-input">
+              <input type="text" class="form-input" placeholder="@e2b/agentpane-plugin or ./plugins/custom" />
+              <button class="btn btn-secondary">Install</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</body>
+</html>
