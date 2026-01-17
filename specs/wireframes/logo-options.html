@@ -31,8 +31,8 @@
     .option {
       background: #161b22;
       border: 1px solid #30363d;
-      border-radius: 16px;
-      padding: 32px;
+      border-radius: 12px;
+      padding: 24px;
       text-align: center;
       width: 280px;
     }
@@ -44,7 +44,7 @@
     }
 
     .option p {
-      font-size: 13px;
+      font-size: 14px;
       color: #8b949e;
       margin-bottom: 24px;
       line-height: 1.5;
@@ -266,16 +266,25 @@
       background: #238636;
       color: white;
       border: none;
-      padding: 10px 24px;
+      padding: 8px 16px;
       border-radius: 6px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
     }
 
     .choose-btn:hover {
       background: #2ea043;
+    }
+
+    .choose-btn:active {
+      background: #196c2e;
+    }
+
+    .choose-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px #0d1117, 0 0 0 4px #238636;
     }
 
     /* ========================================
@@ -1211,7 +1220,7 @@
       text-align: center;
       margin-top: 48px;
       color: #8b949e;
-      font-size: 13px;
+      font-size: 14px;
     }
   </style>
 </head>

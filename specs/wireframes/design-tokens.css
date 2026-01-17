@@ -1,0 +1,465 @@
+/**
+ * AgentPane Design System Tokens
+ *
+ * Design Direction: Precision & Density + Utility/Function
+ * Color Foundation: Cool Neutral (Dark Mode)
+ * Border Radius System: Sharp (6px primary, 12px secondary)
+ * Depth Strategy: Borders-only with minimal shadows
+ *
+ * Usage: Include this file in all wireframe HTML files
+ * <link rel="stylesheet" href="design-tokens.css">
+ */
+
+:root {
+  /* ==========================================
+     COLOR SYSTEM
+     ========================================== */
+
+  /* Background Colors (Cool Neutral) */
+  --bg-canvas: #0d1117;      /* Darkest - main page background */
+  --bg-default: #161b22;     /* Cards, containers */
+  --bg-subtle: #1c2128;      /* Hover states, subtle containers */
+  --bg-muted: #21262d;       /* Inactive elements */
+  --bg-emphasis: #30363d;    /* Emphasis, badges, active states */
+
+  /* Foreground Colors */
+  --fg-default: #e6edf3;     /* Primary text */
+  --fg-muted: #8b949e;       /* Secondary text */
+  --fg-subtle: #6e7681;      /* Tertiary text, placeholders */
+  --fg-on-emphasis: #ffffff; /* Text on emphasis backgrounds */
+
+  /* Border Colors */
+  --border-default: #30363d; /* Primary borders */
+  --border-muted: #21262d;   /* Subtle borders */
+  --border-subtle: rgba(240, 246, 252, 0.1); /* Transparent borders */
+
+  /* Accent Colors */
+  --accent-fg: #58a6ff;      /* Primary accent (blue) */
+  --accent-emphasis: #1f6feb;/* Accent backgrounds */
+  --accent-muted: rgba(56, 139, 253, 0.15); /* Accent subtle bg */
+
+  /* Semantic Colors - Status */
+  --success-fg: #3fb950;
+  --success-emphasis: #238636;
+  --success-muted: rgba(46, 160, 67, 0.15);
+
+  --danger-fg: #f85149;
+  --danger-emphasis: #da3633;
+  --danger-muted: rgba(248, 81, 73, 0.15);
+
+  --attention-fg: #d29922;
+  --attention-emphasis: #9e6a03;
+  --attention-muted: rgba(187, 128, 9, 0.15);
+
+  --done-fg: #a371f7;
+  --done-emphasis: #8957e5;
+  --done-muted: rgba(163, 113, 247, 0.15);
+
+  --secondary-fg: #f778ba;
+  --secondary-muted: rgba(247, 120, 186, 0.15);
+
+  /* ==========================================
+     TYPOGRAPHY
+     ========================================== */
+
+  /* Font Family */
+  --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+
+  /* Font Sizes (4px grid aligned) */
+  --font-xs: 12px;    /* Small labels, badges, metadata */
+  --font-sm: 12px;    /* Secondary text, descriptions */
+  --font-base: 14px;  /* Body text, inputs, buttons */
+  --font-lg: 16px;    /* Section titles, emphasized text */
+  --font-xl: 18px;    /* Card titles, subheadings */
+  --font-2xl: 24px;   /* Page titles, major headings */
+  --font-3xl: 32px;   /* Hero text, large displays */
+
+  /* Font Weights (only 400, 500, 600) */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+
+  /* Line Heights */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.02em;  /* Headlines */
+  --tracking-normal: 0;       /* Body */
+  --tracking-wide: 0.02em;    /* Uppercase labels */
+
+  /* ==========================================
+     SPACING (4px Grid)
+     ========================================== */
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;   /* DEPRECATED: Use --space-4 or --space-6 */
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Semantic Spacing */
+  --spacing-xs: var(--space-1);   /* 4px - micro gaps */
+  --spacing-sm: var(--space-2);   /* 8px - tight spacing */
+  --spacing-md: var(--space-4);   /* 16px - standard */
+  --spacing-lg: var(--space-6);   /* 24px - generous */
+  --spacing-xl: var(--space-8);   /* 32px - major separation */
+
+  /* ==========================================
+     BORDER RADIUS
+     ========================================== */
+
+  --radius-sm: 4px;   /* Micro elements, tags */
+  --radius: 6px;      /* Primary - buttons, inputs, cards */
+  --radius-lg: 12px;  /* Large cards, modals */
+  --radius-xl: 16px;  /* Full-width panels (use sparingly) */
+  --radius-full: 9999px; /* Pills, avatars */
+
+  /* ==========================================
+     SHADOWS
+     ========================================== */
+
+  /* Primary strategy: borders-only. Use shadows sparingly. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.3);
+
+  /* Focus ring */
+  --ring-offset: 2px;
+  --ring-color: var(--accent-fg);
+  --ring: 0 0 0 var(--ring-offset) var(--ring-color);
+
+  /* ==========================================
+     LAYOUT
+     ========================================== */
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+
+  /* Container Max Widths */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1400px;
+
+  /* Content Padding */
+  --content-padding: var(--space-6); /* 24px */
+
+  /* ==========================================
+     COMPONENTS
+     ========================================== */
+
+  /* Buttons */
+  --btn-height-sm: 32px;
+  --btn-height: 36px;
+  --btn-height-lg: 40px;
+  --btn-height-touch: 44px;  /* Mobile touch target */
+  --btn-padding-x: var(--space-4);
+  --btn-padding-y: var(--space-2);
+  --btn-radius: var(--radius);
+  --btn-font-size: var(--font-base);
+  --btn-font-weight: var(--font-medium);
+
+  /* Inputs */
+  --input-height: 36px;
+  --input-height-touch: 44px;
+  --input-padding-x: var(--space-3); /* 12px */
+  --input-padding-y: var(--space-2); /* 8px */
+  --input-radius: var(--radius);
+  --input-border: 1px solid var(--border-default);
+  --input-bg: var(--bg-default);
+
+  /* Cards */
+  --card-padding: var(--space-4);  /* 16px */
+  --card-radius: var(--radius);    /* 6px */
+  --card-border: 1px solid var(--border-default);
+  --card-bg: var(--bg-default);
+
+  /* Modals */
+  --modal-padding: var(--space-6); /* 24px */
+  --modal-radius: var(--radius-lg); /* 12px */
+  --modal-shadow: var(--shadow-xl);
+  --modal-backdrop: rgba(0, 0, 0, 0.6);
+
+  /* Icons */
+  --icon-size-sm: 16px;
+  --icon-size: 20px;
+  --icon-size-lg: 24px;
+  --icon-btn-size: 32px;
+  --icon-btn-size-touch: 40px;
+
+  /* ==========================================
+     ANIMATION
+     ========================================== */
+
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --easing: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* Transitions */
+  --transition-colors: color var(--duration-fast) var(--easing),
+                       background-color var(--duration-fast) var(--easing),
+                       border-color var(--duration-fast) var(--easing);
+  --transition-transform: transform var(--duration-normal) var(--easing);
+  --transition-opacity: opacity var(--duration-fast) var(--easing);
+
+  /* ==========================================
+     BREAKPOINTS (for reference in media queries)
+     ========================================== */
+
+  /*
+   * --breakpoint-sm: 640px;
+   * --breakpoint-md: 768px;
+   * --breakpoint-lg: 1024px;
+   * --breakpoint-xl: 1280px;
+   * --breakpoint-2xl: 1536px;
+   */
+}
+
+/* ==========================================
+   RESPONSIVE UTILITIES
+   ========================================== */
+
+/* Hide sidebar on tablet and below */
+@media (max-width: 1024px) {
+  .sidebar {
+    display: none;
+  }
+
+  .main-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Touch-friendly targets on mobile */
+@media (max-width: 768px) {
+  .btn {
+    min-height: var(--btn-height-touch);
+  }
+
+  .input-field,
+  .form-input {
+    min-height: var(--input-height-touch);
+  }
+
+  .icon-btn {
+    width: var(--icon-btn-size-touch);
+    height: var(--icon-btn-size-touch);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================
+   BASE COMPONENT STYLES
+   ========================================== */
+
+/* Standard Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--btn-height);
+  padding: var(--btn-padding-y) var(--btn-padding-x);
+  font-size: var(--btn-font-size);
+  font-weight: var(--btn-font-weight);
+  border-radius: var(--btn-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition-colors);
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.btn-primary {
+  background: var(--accent-emphasis);
+  color: var(--fg-on-emphasis);
+  border-color: var(--accent-emphasis);
+}
+
+.btn-primary:hover {
+  background: var(--accent-fg);
+  border-color: var(--accent-fg);
+}
+
+.btn-secondary {
+  background: var(--bg-muted);
+  color: var(--fg-default);
+  border-color: var(--border-default);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-emphasis);
+  border-color: var(--border-default);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg-muted);
+  border-color: transparent;
+}
+
+.btn-ghost:hover {
+  background: var(--bg-subtle);
+  color: var(--fg-default);
+}
+
+/* Standard Input */
+.input-field,
+.form-input {
+  height: var(--input-height);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  font-size: var(--font-base);
+  color: var(--fg-default);
+  background: var(--input-bg);
+  border: var(--input-border);
+  border-radius: var(--input-radius);
+  transition: var(--transition-colors);
+}
+
+.input-field:hover,
+.form-input:hover {
+  border-color: var(--fg-subtle);
+}
+
+.input-field:focus,
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-fg);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+/* Standard Card */
+.card {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+}
+
+.card:hover {
+  border-color: var(--fg-subtle);
+}
+
+/* Icon Button */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-btn-size);
+  height: var(--icon-btn-size);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.icon-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--fg-default);
+}
+
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.icon-btn:active {
+  background: var(--bg-emphasis);
+}
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-default);
+  border-right: 1px solid var(--border-default);
+  padding: var(--space-4);
+}
+
+/* Modal/Dialog */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--bg-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--modal-radius);
+  box-shadow: var(--modal-shadow);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.modal-body {
+  padding: var(--space-6);
+}
+
+.modal-footer {
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-default);
+}
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-xs);
+  font-weight: var(--font-medium);
+  border-radius: var(--radius-full);
+  background: var(--bg-emphasis);
+  color: var(--fg-muted);
+}
+
+.badge-success {
+  background: var(--success-muted);
+  color: var(--success-fg);
+}
+
+.badge-danger {
+  background: var(--danger-muted);
+  color: var(--danger-fg);
+}
+
+.badge-attention {
+  background: var(--attention-muted);
+  color: var(--attention-fg);
+}
