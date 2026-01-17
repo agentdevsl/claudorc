@@ -1613,11 +1613,400 @@ export type SandboxConfigOutput = z.output<typeof sandboxConfigSchema>;
 
 ---
 
+## Durable Sessions Integration
+
+The sandbox integrates with Durable Sessions for real-time terminal I/O streaming. Instead of maintaining persistent PTY processes (like tmux/node-pty), command execution emits events to durable streams that are:
+
+- **Persisted** to Postgres for history replay
+- **Synced** to all connected clients in real-time
+- **Resumable** after disconnection or server restart
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Sandbox Container                                          │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  sandbox.execStream("npm test")                      │   │
+│  │       ↓                                              │   │
+│  │  stdout/stderr chunks (AsyncGenerator)               │   │
+│  └─────────────────────────────────────────────────────┘   │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│  SandboxStreamBridge                                        │
+│  - Transforms exec events to terminal events                │
+│  - Publishes to durable streams                             │
+│  - Handles backpressure                                     │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Durable Streams (@durable-streams/server)                  │
+│  - Persists to Postgres                                     │
+│  - Broadcasts via Electric sync                             │
+│  - Supports replay from any point                           │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Clients (useTerminal hook)                                 │
+│  - Real-time event subscription                             │
+│  - Terminal UI rendering                                    │
+│  - Input sent back through streams                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Stream Bridge Implementation
+
+```typescript
+// lib/sandbox/stream-bridge.ts
+import { publishTerminalEvent, publishAgentStep } from '@/lib/streams/server';
+import type { ISandboxService, ExecStreamEvent } from './types';
+
+export interface StreamBridgeOptions {
+  sessionId: string;
+  agentId: string;
+  sandboxId: string;
+}
+
+/**
+ * Bridges sandbox execution to durable sessions
+ *
+ * Transforms sandbox exec events into terminal events that are
+ * persisted and broadcast through durable streams.
+ */
+export class SandboxStreamBridge {
+  private sessionId: string;
+  private agentId: string;
+  private sandboxId: string;
+  private sandbox: ISandboxService;
+
+  constructor(sandbox: ISandboxService, options: StreamBridgeOptions) {
+    this.sandbox = sandbox;
+    this.sessionId = options.sessionId;
+    this.agentId = options.agentId;
+    this.sandboxId = options.sandboxId;
+  }
+
+  /**
+   * Execute command with output streamed to durable sessions
+   */
+  async execWithStream(
+    command: string,
+    options?: { cwd?: string; env?: Record<string, string> }
+  ): Promise<{ exitCode: number; durationMs: number }> {
+    const startTime = Date.now();
+
+    // Publish command start
+    publishTerminalEvent(
+      this.sessionId,
+      'input',
+      `$ ${command}`,
+      'agent'
+    );
+
+    // Stream execution output
+    let exitCode = 0;
+    for await (const event of this.sandbox.execStream(this.sandboxId, command, options)) {
+      switch (event.type) {
+        case 'stdout':
+          publishTerminalEvent(this.sessionId, 'output', event.data, 'agent');
+          break;
+
+        case 'stderr':
+          publishTerminalEvent(this.sessionId, 'error', event.data, 'agent');
+          break;
+
+        case 'exit':
+          exitCode = event.code;
+          break;
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    // Publish completion
+    publishTerminalEvent(
+      this.sessionId,
+      'output',
+      `\n[Process exited with code ${exitCode} in ${durationMs}ms]\n`,
+      'system'
+    );
+
+    return { exitCode, durationMs };
+  }
+
+  /**
+   * Execute tool call with streaming and publish to tool channel
+   */
+  async execToolWithStream(
+    toolName: string,
+    toolId: string,
+    command: string,
+    options?: { cwd?: string; env?: Record<string, string> }
+  ): Promise<{ exitCode: number; stdout: string; stderr: string; durationMs: number }> {
+    const startTime = Date.now();
+    let stdout = '';
+    let stderr = '';
+
+    // Publish tool start
+    publishAgentStep(this.agentId, {
+      type: 'tool:invoke',
+      sessionId: this.sessionId,
+      toolId,
+      tool: toolName,
+      input: { command, ...options },
+      timestamp: Date.now(),
+    });
+
+    // Stream execution
+    let exitCode = 0;
+    for await (const event of this.sandbox.execStream(this.sandboxId, command, options)) {
+      switch (event.type) {
+        case 'stdout':
+          stdout += event.data;
+          publishTerminalEvent(this.sessionId, 'output', event.data, 'agent');
+          break;
+
+        case 'stderr':
+          stderr += event.data;
+          publishTerminalEvent(this.sessionId, 'error', event.data, 'agent');
+          break;
+
+        case 'exit':
+          exitCode = event.code;
+          break;
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    // Publish tool result
+    publishAgentStep(this.agentId, {
+      type: 'tool:result',
+      sessionId: this.sessionId,
+      tool: toolName,
+      input: { command, ...options },
+      output: { exitCode, stdout, stderr },
+      duration: durationMs,
+      timestamp: Date.now(),
+    });
+
+    return { exitCode, stdout, stderr, durationMs };
+  }
+
+  /**
+   * Handle user input from terminal UI
+   */
+  async handleUserInput(input: string): Promise<void> {
+    // Log user input
+    publishTerminalEvent(this.sessionId, 'input', input, 'user');
+
+    // Execute in sandbox (for interactive sessions)
+    await this.execWithStream(input);
+  }
+}
+
+/**
+ * Factory to create stream bridge for a sandbox
+ */
+export function createStreamBridge(
+  sandbox: ISandboxService,
+  options: StreamBridgeOptions
+): SandboxStreamBridge {
+  return new SandboxStreamBridge(sandbox, options);
+}
+```
+
+### Agent Service Integration
+
+```typescript
+// lib/services/agent-service.ts (extended excerpt)
+import { getSandboxProvider, resolveSandboxConfig } from '@/lib/sandbox';
+import { createStreamBridge } from '@/lib/sandbox/stream-bridge';
+import { sessionService } from '@/lib/services/session-service';
+
+export class AgentService {
+  /**
+   * Start agent with sandbox and durable session streaming
+   */
+  async start(
+    agentId: string,
+    taskId: string,
+    sandboxConfig?: Partial<SandboxConfig>
+  ): Promise<Result<AgentRunResult, AgentError>> {
+    // ... sandbox creation (existing code) ...
+
+    // Create session for this agent run
+    const sessionResult = await sessionService.createSession({
+      projectId: agent.value.projectId,
+      taskId,
+      agentId,
+      title: `Agent run: ${taskId}`,
+    });
+
+    if (!sessionResult.ok) {
+      await sandbox.remove(sandboxResult.value.id);
+      return err(AgentErrors.EXECUTION_ERROR('Failed to create session'));
+    }
+
+    // Create stream bridge to connect sandbox to durable sessions
+    const streamBridge = createStreamBridge(sandbox, {
+      sessionId: sessionResult.value.id,
+      agentId,
+      sandboxId: sandboxResult.value.id,
+    });
+
+    // Execute agent with streaming
+    const result = await this.executeAgentWithBridge(
+      agent.value,
+      taskId,
+      sandbox,
+      sandboxResult.value.id,
+      streamBridge
+    );
+
+    return result;
+  }
+
+  /**
+   * Execute agent loop with stream bridge for all tool calls
+   */
+  private async executeAgentWithBridge(
+    agent: Agent,
+    taskId: string,
+    sandbox: ISandboxService,
+    sandboxId: string,
+    streamBridge: SandboxStreamBridge
+  ): Promise<Result<AgentRunResult, AgentError>> {
+    // Define tools that use the stream bridge
+    const tools = {
+      Bash: async (input: { command: string }) => {
+        const result = await streamBridge.execToolWithStream(
+          'Bash',
+          `bash-${Date.now()}`,
+          input.command
+        );
+        return result.stdout || result.stderr;
+      },
+
+      Read: async (input: { file_path: string }) => {
+        const result = await sandbox.readFile(sandboxId, input.file_path);
+        if (!result.ok) throw new Error(result.error.message);
+        return result.value;
+      },
+
+      Write: async (input: { file_path: string; content: string }) => {
+        const result = await sandbox.writeFile(sandboxId, input.file_path, input.content);
+        if (!result.ok) throw new Error(result.error.message);
+        return 'File written successfully';
+      },
+
+      // ... other tools
+    };
+
+    // Run agent query with these tools
+    // (integrates with Claude Agent SDK)
+    // ...
+  }
+}
+```
+
+### React Hook for Sandbox Terminal
+
+```typescript
+// lib/sandbox/hooks/use-sandbox-terminal.ts
+import { useCallback } from 'react';
+import { useTerminal } from '@/lib/sessions/hooks/use-terminal';
+import { useSession } from '@/lib/sessions/hooks/use-session';
+
+export interface UseSandboxTerminalResult {
+  // Terminal data (from durable sessions)
+  lines: TerminalEvent[];
+  inputHistory: string[];
+
+  // Agent state
+  agentStatus: AgentStateEvent['status'] | null;
+  isExecuting: boolean;
+
+  // Actions
+  sendCommand: (command: string) => void;
+
+  // Connection status
+  isConnected: boolean;
+  error: Error | null;
+}
+
+/**
+ * Hook for sandbox terminal with durable session backing
+ *
+ * Provides real-time terminal output from sandbox execution
+ * with full history replay on reconnect.
+ */
+export function useSandboxTerminal(sessionId: string, userId: string): UseSandboxTerminalResult {
+  const { terminal, agentState, isConnected, error, sendInput } = useSession(sessionId, userId);
+  const { lines, inputHistory } = useTerminal(sessionId);
+
+  const isExecuting = agentState?.status === 'running';
+
+  const sendCommand = useCallback((command: string) => {
+    if (!isExecuting) {
+      sendInput(command);
+    }
+  }, [isExecuting, sendInput]);
+
+  return {
+    lines,
+    inputHistory,
+    agentStatus: agentState?.status ?? null,
+    isExecuting,
+    sendCommand,
+    isConnected,
+    error,
+  };
+}
+```
+
+### Benefits Over tmux/node-pty
+
+| Feature | tmux/node-pty | Durable Sessions |
+|---------|---------------|------------------|
+| **Persistence** | Lost on restart | Survives restarts |
+| **History** | Limited scrollback | Full replay from DB |
+| **Multi-viewer** | Complex (tmux attach) | Native subscription |
+| **Reconnection** | Lost context | Seamless resume |
+| **Audit trail** | Requires logging | Built-in (Postgres) |
+| **Sandbox integration** | Needs PTY forwarding | Event emission only |
+| **Scalability** | Per-server sessions | Distributed via Electric |
+
+### Event Flow Example
+
+```typescript
+// 1. User requests agent to run tests
+// → Agent starts in sandbox
+
+// 2. Sandbox executes: npm test
+streamBridge.execWithStream('npm test');
+
+// 3. Events published to durable stream:
+// { channel: 'terminal', type: 'input', data: '$ npm test', source: 'agent' }
+// { channel: 'terminal', type: 'output', data: '> project@1.0.0 test\n', source: 'agent' }
+// { channel: 'terminal', type: 'output', data: '> vitest run\n', source: 'agent' }
+// { channel: 'terminal', type: 'output', data: '\n ✓ src/test.ts (3 tests) 45ms\n', source: 'agent' }
+// { channel: 'terminal', type: 'output', data: '\n[Process exited with code 0 in 1234ms]\n', source: 'system' }
+
+// 4. All events persisted to Postgres
+// 5. All connected clients receive events in real-time
+// 6. New clients joining get full history replay
+```
+
+---
+
 ## Cross-References
 
 | Spec | Relationship |
 |------|--------------|
 | [Security Model](./security-model.md) | Path validation, tool whitelist enforcement |
+| [Durable Sessions](../integrations/durable-sessions.md) | Terminal I/O streaming, event persistence |
 | [Agent Service](../services/agent-service.md) | Agent execution within sandbox |
 | [Worktree Service](../services/worktree-service.md) | Worktree creation copied into sandbox |
 | [Error Catalog](../errors/error-catalog.md) | Sandbox error codes |
@@ -1644,7 +2033,13 @@ export type SandboxConfigOutput = z.output<typeof sandboxConfigSchema>;
 - [ ] Implement resource limit enforcement
 - [ ] Add UI for resource visualization
 
-### Phase 4: Network Policies
+### Phase 4: Durable Sessions Integration
+- [ ] Implement `SandboxStreamBridge`
+- [ ] Connect `execStream` to terminal event publishing
+- [ ] Add `useSandboxTerminal` React hook
+- [ ] Test session persistence and replay
+
+### Phase 5: Network Policies
 - [ ] Implement egress proxy for restricted mode
 - [ ] Add allowlist configuration UI
 - [ ] Log network access attempts
