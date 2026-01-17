@@ -4,9 +4,16 @@
 
 The ProjectService manages CRUD operations for projects, configuration management, and GitHub synchronization. It provides a type-safe interface for managing project entities within AgentPane.
 
+**Key Concept: Project = Working Context for a Repository**
+- A project is a user's working context for a git repository
+- Every project **must** be linked to a git repository (required, not optional)
+- Project name is derived from the repository directory name
+- Multiple users can have projects referencing the same repository
+- The project holds user-specific: agent config, worktrees, session history, preferences
+
 **Related Wireframes:**
-- [New Project Dialog](../wireframes/new-project-dialog.html) - Project creation wizard
-- [Project Settings](../wireframes/project-settings.html) - Configuration management
+- [Add Repository Dialog](../wireframes/new-project-dialog.html) - Repository selection
+- [Project Settings](../wireframes/project-settings.html) - Working context configuration
 
 ---
 
@@ -43,24 +50,18 @@ export interface IProjectService {
 ```typescript
 // Input Types
 export interface CreateProjectInput {
-  name: string;
+  /** Absolute path to the git repository (required) */
   path: string;
-  description?: string;
+  /** Optional config overrides */
   config?: Partial<ProjectConfig>;
+  /** Max concurrent agents (default: 3) */
   maxConcurrentAgents?: number;
-  githubOwner?: string;
-  githubRepo?: string;
-  githubInstallationId?: string;
-  configPath?: string;
 }
 
 export interface UpdateProjectInput {
-  name?: string;
-  description?: string;
+  /** Max concurrent agents (1-10) */
   maxConcurrentAgents?: number;
-  githubOwner?: string;
-  githubRepo?: string;
-  githubInstallationId?: string;
+  /** Config path within repo (default: .claude/) */
   configPath?: string;
 }
 
@@ -86,7 +87,7 @@ export interface PathValidation {
 
 ### create
 
-Creates a new project with the specified configuration.
+Creates a new project as a working context for a git repository.
 
 **Signature:**
 ```typescript
@@ -94,17 +95,18 @@ create(input: CreateProjectInput): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
-- `name` must be 1-100 characters
 - `path` must be an absolute path to an existing directory
-- `path` must not already exist in another project
+- `path` must contain a `.git` directory (must be a git repository)
 - If `config` provided, must pass `validateConfig`
 - `maxConcurrentAgents` must be 1-10 (default: 3)
 
 **Business Rules:**
 1. Path is normalized using `path.resolve()` before storage
-2. Default config values are merged with provided config
-3. Project ID is generated using CUID2
-4. `createdAt` and `updatedAt` are set to current timestamp
+2. **Project name is derived from directory name** (e.g., `/Users/me/git/my-app` → `my-app`)
+3. Default config values are merged with provided config
+4. Project ID is generated using CUID2
+5. `createdAt` and `updatedAt` are set to current timestamp
+6. Git remote info is detected and stored if available
 
 **Side Effects:**
 - **Database:** Inserts new row into `projects` table
@@ -113,16 +115,14 @@ create(input: CreateProjectInput): Promise<Result<Project, ProjectError>>
 **Error Conditions:**
 | Condition | Error |
 |-----------|-------|
-| Path already registered | `ProjectErrors.PATH_EXISTS` |
 | Path doesn't exist or not accessible | `ProjectErrors.PATH_INVALID(path)` |
+| Path is not a git repository | `ProjectErrors.NOT_A_GIT_REPO(path)` |
 | Config validation failed | `ProjectErrors.CONFIG_INVALID(errors)` |
 
 **Example:**
 ```typescript
 const result = await projectService.create({
-  name: 'AgentPane',
   path: '/Users/user/git/agentpane',
-  description: 'Multi-agent task management',
   config: {
     worktreeRoot: '.worktrees',
     defaultBranch: 'main',
