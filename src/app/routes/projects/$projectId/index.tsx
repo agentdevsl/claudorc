@@ -6,7 +6,7 @@ import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { Button } from '@/app/components/ui/button';
 import { db } from '@/db/client';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { NewTask, Task, TaskColumn } from '@/db/schema/tasks';
 import { AgentService } from '@/services/agent.service';
 import { ProjectService } from '@/services/project.service';
 import { SessionService } from '@/services/session.service';
@@ -109,13 +109,13 @@ function ProjectKanban(): React.JSX.Element {
       <TaskDetailDialog
         task={selectedTask}
         open={Boolean(selectedTask) || showNewTask}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) {
             setSelectedTask(null);
             setShowNewTask(false);
           }
         }}
-        onSave={async (data) => {
+        onSave={async (data: Partial<NewTask>) => {
           if (selectedTask) {
             await taskService.update(selectedTask.id, data);
           } else {
@@ -125,7 +125,7 @@ function ProjectKanban(): React.JSX.Element {
             } as never);
           }
         }}
-        onDelete={async (id) => {
+        onDelete={async (id: string) => {
           await taskService.delete(id);
         }}
       />
@@ -135,7 +135,7 @@ function ProjectKanban(): React.JSX.Element {
           task={approvalTask}
           diff={approvalTask.diffSummary ?? null}
           open={Boolean(approvalTask)}
-          onOpenChange={(open) => {
+          onOpenChange={(open: boolean) => {
             if (!open) {
               setApprovalTask(null);
             }

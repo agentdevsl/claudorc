@@ -10,7 +10,7 @@ const COLUMNS: { id: TaskColumn; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'in_progress', label: 'In Progress' },
   { id: 'waiting_approval', label: 'Waiting Approval' },
-  { id: 'done', label: 'Done' },
+  { id: 'verified', label: 'Verified' },
 ];
 
 export function KanbanBoard({

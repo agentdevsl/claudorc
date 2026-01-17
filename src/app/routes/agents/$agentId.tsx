@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Gear } from "@phosphor-icons/react";
 import { db } from "@/db/client";
+import type { AgentConfig } from "@/db/schema/agents";
 import { AgentConfigDialog } from "@/app/components/features/agent-config-dialog";
 import { Button } from "@/app/components/ui/button";
 import { AgentService } from "@/services/agent.service";
@@ -86,7 +87,7 @@ function AgentDetailPage(): React.JSX.Element {
           agent={agent}
           open={showConfig}
           onOpenChange={setShowConfig}
-          onSave={async (config) => {
+          onSave={async (config: AgentConfig) => {
             await agentService.update(agent.id, config);
           }}
         />
