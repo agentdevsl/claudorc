@@ -1343,40 +1343,54 @@ describe('Full Workflow Integration', () => {
 ### E2E Setup (`tests/e2e/setup.ts`)
 
 ```typescript
-import { chromium, type Browser, type Page } from 'playwright';
+import { AgentBrowser, type BrowserContext } from 'agent-browser';
 import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
-let browser: Browser;
-let page: Page;
+let agentBrowser: AgentBrowser;
+let context: BrowserContext;
 
 beforeAll(async () => {
-  browser = await chromium.launch({
+  agentBrowser = new AgentBrowser({
     headless: process.env.CI === 'true',
+    baseUrl: 'http://localhost:3000',
   });
+  await agentBrowser.launch();
 });
 
 afterAll(async () => {
-  await browser.close();
+  await agentBrowser.close();
 });
 
 beforeEach(async () => {
-  page = await browser.newPage();
+  context = await agentBrowser.newContext();
 });
 
 afterEach(async () => {
-  await page.close();
+  await context.close();
 });
 
-export function getPage() {
-  return page;
+export function getContext() {
+  return context;
 }
 
 export async function goto(path: string) {
-  await page.goto(`http://localhost:3000${path}`);
+  await context.goto(path);
 }
 
 export async function waitForText(text: string) {
-  await page.waitForSelector(`text=${text}`);
+  await context.waitForText(text);
+}
+
+export async function click(selector: string) {
+  await context.click(selector);
+}
+
+export async function fill(selector: string, value: string) {
+  await context.fill(selector, value);
+}
+
+export async function screenshot(name: string) {
+  return context.screenshot({ path: `tests/e2e/screenshots/${name}.png` });
 }
 ```
 
@@ -1384,99 +1398,98 @@ export async function waitForText(text: string) {
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { getPage, goto, waitForText } from './setup';
+import { getContext, goto, waitForText, click, fill, screenshot } from './setup';
 
 describe('E2E: Task Workflow', () => {
   it('E2E-001: Create project from local path', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/');
 
     // Click new project
-    await page.click('text=New Project');
+    await click('text=New Project');
 
     // Fill form
-    await page.fill('input[placeholder="/path/to/project"]', '/tmp/test-project');
-    await page.waitForSelector('svg.text-green-500'); // Valid path indicator
+    await fill('input[placeholder="/path/to/project"]', '/tmp/test-project');
+    await ctx.waitForSelector('svg.text-green-500'); // Valid path indicator
 
-    await page.fill('input[placeholder="My Project"]', 'E2E Test Project');
-    await page.click('text=Create Project');
+    await fill('input[placeholder="My Project"]', 'E2E Test Project');
+    await click('text=Create Project');
 
     // Verify redirect
     await waitForText('E2E Test Project');
-    expect(page.url()).toMatch(/\/projects\/\w+/);
+    const url = await ctx.url();
+    expect(url).toMatch(/\/projects\/\w+/);
   });
 
   it('E2E-002: Create task in backlog', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/projects/test-project-id');
 
-    await page.click('text=New Task');
-    await page.fill('input[placeholder="Task title..."]', 'New E2E Task');
-    await page.fill('textarea', 'Task description');
-    await page.click('text=Save');
+    await click('text=New Task');
+    await fill('input[placeholder="Task title..."]', 'New E2E Task');
+    await fill('textarea', 'Task description');
+    await click('text=Save');
 
     // Verify task appears in backlog
-    const backlogColumn = page.locator('.kanban-column', { hasText: 'Backlog' });
-    await expect(backlogColumn.locator('text=New E2E Task')).toBeVisible();
+    const visible = await ctx.isVisible('.kanban-column:has-text("Backlog") >> text=New E2E Task');
+    expect(visible).toBe(true);
   });
 
   it('E2E-003: Drag task to in_progress starts agent', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/projects/test-project-id');
 
-    // Drag task
-    const task = page.locator('.kanban-card', { hasText: 'Test Task' });
-    const inProgressColumn = page.locator('.kanban-column', { hasText: 'In Progress' });
-
-    await task.dragTo(inProgressColumn);
+    // Drag task using Agent Browser drag API
+    await ctx.drag({
+      source: '.kanban-card:has-text("Test Task")',
+      target: '.kanban-column:has-text("In Progress")',
+    });
 
     // Verify agent started indicator
-    await expect(page.locator('.kanban-card .border-l-status-running')).toBeVisible();
+    const hasRunning = await ctx.isVisible('.kanban-card .border-l-status-running');
+    expect(hasRunning).toBe(true);
   });
 
   it('E2E-005: Open approval dialog shows diff', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/projects/test-project-id');
 
     // Click on task in waiting_approval
-    const task = page.locator('.kanban-column', { hasText: 'Waiting Approval' }).locator('.kanban-card').first();
-    await task.click();
+    await click('.kanban-column:has-text("Waiting Approval") .kanban-card >> nth=0');
 
     // Verify approval dialog
     await waitForText('Review Changes');
-    await expect(page.locator('text=Change Summary')).toBeVisible();
-    await expect(page.locator('text=Insertions')).toBeVisible();
-    await expect(page.locator('text=Deletions')).toBeVisible();
+    expect(await ctx.isVisible('text=Change Summary')).toBe(true);
+    expect(await ctx.isVisible('text=Insertions')).toBe(true);
+    expect(await ctx.isVisible('text=Deletions')).toBe(true);
   });
 
   it('E2E-006: Approve task merges changes', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/projects/test-project-id');
 
     // Open approval dialog
-    const task = page.locator('.kanban-column', { hasText: 'Waiting Approval' }).locator('.kanban-card').first();
-    await task.click();
+    await click('.kanban-column:has-text("Waiting Approval") .kanban-card >> nth=0');
 
     // Click approve
-    await page.click('text=Approve & Merge');
+    await click('text=Approve & Merge');
 
     // Verify task moved to verified
-    await expect(page.locator('.kanban-column', { hasText: 'Verified' }).locator('.kanban-card')).toBeVisible();
+    const visible = await ctx.isVisible('.kanban-column:has-text("Verified") .kanban-card');
+    expect(visible).toBe(true);
   });
 
   it('E2E-007: Task moves to verified after approval', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/projects/test-project-id');
 
     // Approve task
-    const task = page.locator('.kanban-column', { hasText: 'Waiting Approval' }).locator('.kanban-card').first();
-    await task.click();
-    await page.click('text=Approve & Merge');
+    await click('.kanban-column:has-text("Waiting Approval") .kanban-card >> nth=0');
+    await click('text=Approve & Merge');
 
     // Verify column counts updated
-    const verifiedColumn = page.locator('.kanban-column', { hasText: 'Verified' });
-    const count = await verifiedColumn.locator('.rounded-full').textContent();
-    expect(parseInt(count ?? '0')).toBeGreaterThan(0);
+    const countText = await ctx.textContent('.kanban-column:has-text("Verified") .rounded-full');
+    expect(parseInt(countText ?? '0')).toBeGreaterThan(0);
   });
 });
 ```
@@ -1485,51 +1498,51 @@ describe('E2E: Task Workflow', () => {
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { getPage, goto, waitForText } from './setup';
+import { getContext, goto, waitForText, click } from './setup';
 
 describe('E2E: Agent Session', () => {
   it('displays real-time agent output', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/sessions/test-session-id');
 
     // Verify stream tab shows content
     await waitForText('Stream');
-    await expect(page.locator('.font-mono').first()).toBeVisible();
+    expect(await ctx.isVisible('.font-mono')).toBe(true);
   });
 
   it('shows tool calls in tools tab', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/sessions/test-session-id');
 
-    await page.click('text=Tools');
-    await expect(page.locator('text=Read')).toBeVisible();
+    await click('text=Tools');
+    expect(await ctx.isVisible('text=Read')).toBe(true);
   });
 
   it('pause and resume controls work', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/sessions/test-session-id');
 
     // Click pause
-    await page.click('button:has(svg.lucide-pause)');
-    await expect(page.locator('text=Paused')).toBeVisible();
+    await click('button:has(svg.lucide-pause)');
+    await waitForText('Paused');
 
     // Click resume
-    await page.click('button:has(svg.lucide-play)');
-    await expect(page.locator('text=Running')).toBeVisible();
+    await click('button:has(svg.lucide-play)');
+    await waitForText('Running');
   });
 
   it('stop terminates agent', async () => {
-    const page = getPage();
+    const ctx = getContext();
     await goto('/sessions/test-session-id');
 
-    await page.click('button:has(svg.lucide-square)');
+    await click('button:has(svg.lucide-square)');
 
     // Confirm if dialog appears
-    if (await page.locator('text=Are you sure').isVisible()) {
-      await page.click('text=Confirm');
+    if (await ctx.isVisible('text=Are you sure')) {
+      await click('text=Confirm');
     }
 
-    await expect(page.locator('text=Completed')).toBeVisible();
+    await waitForText('Completed');
   });
 });
 ```
