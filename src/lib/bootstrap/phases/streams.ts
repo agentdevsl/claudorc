@@ -1,6 +1,5 @@
 import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
-import { err, ok } from '../../utils/result.js';
 
 const resolveStreamsClient = async () => {
   if (globalThis.DurableStreamsClient) {

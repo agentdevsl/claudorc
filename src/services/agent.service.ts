@@ -226,8 +226,7 @@ export class AgentService {
       return err(AgentErrors.NO_AVAILABLE_TASK);
     }
 
-    await this.taskService.moveColumn(task.id, 'in_progress');
-
+    // Check concurrency BEFORE modifying task state to avoid race condition
     const availability = await this.checkAvailability(agent.projectId);
     if (!availability.ok || !availability.value) {
       const running = await this.getRunningCount(agent.projectId);
@@ -238,6 +237,8 @@ export class AgentService {
         ConcurrencyErrors.LIMIT_EXCEEDED(running.value, project?.maxConcurrentAgents ?? 1)
       );
     }
+
+    await this.taskService.moveColumn(task.id, 'in_progress');
 
     const worktree = await this.worktreeService.create({
       projectId: agent.projectId,
@@ -315,7 +316,7 @@ export class AgentService {
     });
 
     const updatedTask = await this.db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
+      where: eq(tasks.id, task.id),
     });
 
     const updatedSession = await this.db.query.sessions.findFirst({
