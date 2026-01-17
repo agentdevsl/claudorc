@@ -2,7 +2,6 @@ import { FolderSimple, Plus } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
 import { db } from '@/db/client';
-import type { Project } from '@/db/schema/projects';
 import { ProjectService } from '@/services/project.service';
 import { WorktreeService } from '@/services/worktree.service';
 
@@ -42,7 +41,7 @@ function ProjectsPage(): React.JSX.Element {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {projects.map((project: Project) => (
+        {projects.map((project) => (
           <Link
             key={project.id}
             to="/projects/$projectId"

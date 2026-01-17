@@ -948,8 +948,7 @@ describe('WorktreeService', () => {
     const exec = vi.fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // branch check
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // worktree add
-      .mockResolvedValueOnce({ stdout: '', stderr: '' }) // copyEnv
-      .mockRejectedValueOnce(new Error('bun install failed')); // installDeps
+      .mockRejectedValueOnce(new Error('bun install failed')); // installDeps (skipEnvCopy=true)
 
     const service = new WorktreeService(db as never, { exec });
     const result = await service.create({ projectId: 'p1', taskId: 't1' }, { skipEnvCopy: true });

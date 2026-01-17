@@ -4,7 +4,7 @@ import type { AppError } from '../../errors/base.js';
 import type { BootstrapContext, BootstrapState } from '../types.js';
 
 // Track captured callbacks and state
-let capturedEffectCallback: (() => (() => void) | void) | null = null;
+let capturedEffectCallback: (() => (() => void) | undefined) | null = null;
 let capturedCallbackFn: (() => Promise<void>) | null = null;
 const serviceRefHolder = { current: null as { subscribe: ReturnType<typeof vi.fn>; run: ReturnType<typeof vi.fn> } | null };
 
@@ -34,14 +34,14 @@ vi.mock('react', () => {
       currentContext = initial as BootstrapContext | null;
       return [currentContext, mockSetContext];
     }),
-    useEffect: vi.fn((callback: () => (() => void) | void, _deps: unknown[]) => {
+    useEffect: vi.fn((callback: () => (() => void) | undefined, _deps: unknown[]) => {
       capturedEffectCallback = callback;
     }),
     useCallback: vi.fn((callback: () => Promise<void>, _deps: unknown[]) => {
       capturedCallbackFn = callback;
       return callback;
     }),
-    useRef: vi.fn((initial: unknown) => {
+    useRef: vi.fn((_initial: unknown) => {
       return serviceRefHolder;
     }),
   };
