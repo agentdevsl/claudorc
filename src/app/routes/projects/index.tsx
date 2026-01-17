@@ -1,65 +1,105 @@
-import { FolderSimple, Plus } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { Plus } from '@phosphor-icons/react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
+import { EmptyState } from '@/app/components/features/empty-state';
+import { LayoutShell } from '@/app/components/features/layout-shell';
+import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
 import { Button } from '@/app/components/ui/button';
 import { useServices } from '@/app/services/service-context';
 import type { Project } from '@/db/schema/projects';
+import type { Result } from '@/lib/utils/result';
+import type { PathValidation } from '@/services/project.service';
 
 export const Route = createFileRoute('/projects/')({
-  loader: async () => ({ projects: [] }),
+  loader: async ({ context }) => {
+    if (!context.services) {
+      return { projects: [] };
+    }
+
+    const projectsResult = await context.services.projectService.list({
+      limit: 24,
+    });
+    return { projects: projectsResult.ok ? projectsResult.value : [] };
+  },
   component: ProjectsPage,
 });
 
 function ProjectsPage(): React.JSX.Element {
-  const loaderData = Route.useLoaderData();
   const { projectService } = useServices();
+  const navigate = useNavigate();
+  const loaderData = Route.useLoaderData();
   const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
+  const [showNewProject, setShowNewProject] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      const result = await projectService.list({ limit: 24 });
-      if (result.ok) {
-        setProjects(result.value);
-      }
-    };
+  const handleCreateProject = async (data: {
+    name: string;
+    path: string;
+    description?: string;
+  }): Promise<void> => {
+    const result = await projectService.create({
+      name: data.name,
+      path: data.path,
+      description: data.description,
+    });
 
-    void load();
-  }, [projectService]);
+    if (result.ok) {
+      setProjects((prev) => [result.value, ...prev]);
+    }
+  };
+
+  const handleValidatePath = async (path: string): Promise<Result<PathValidation, unknown>> => {
+    return projectService.validatePath(path);
+  };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-fg-muted">Workspace</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Projects</h1>
-        </div>
-        <Button>
+    <LayoutShell
+      breadcrumbs={[{ label: 'Projects' }]}
+      actions={
+        <Button onClick={() => setShowNewProject(true)}>
           <Plus className="h-4 w-4" />
           New Project
         </Button>
-      </header>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {projects.map((project) => (
-          <Link
-            key={project.id}
-            to="/projects/$projectId"
-            params={{ projectId: project.id }}
-            className="rounded-lg border border-border bg-surface p-4 transition hover:border-fg-subtle"
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-subtle">
-                <FolderSimple className="h-5 w-5 text-fg-muted" />
-              </span>
-              <div className="flex-1">
+      }
+    >
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+        <div className="grid gap-4 md:grid-cols-2">
+          {projects.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                preset="no-projects"
+                action={{
+                  label: 'Create project',
+                  onClick: () => setShowNewProject(true),
+                }}
+              />
+            </div>
+          ) : (
+            projects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                className="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-fg-subtle"
+                onClick={() =>
+                  navigate({
+                    to: '/projects/$projectId',
+                    params: { projectId: project.id },
+                  })
+                }
+              >
                 <p className="text-sm font-semibold text-fg">{project.name}</p>
                 <p className="text-xs text-fg-muted truncate">{project.path}</p>
-              </div>
-              <span className="text-xs text-fg-muted">Open</span>
-            </div>
-          </Link>
-        ))}
+              </button>
+            ))
+          )}
+        </div>
       </div>
-    </div>
+
+      <NewProjectDialog
+        open={showNewProject}
+        onOpenChange={setShowNewProject}
+        onSubmit={handleCreateProject}
+        onValidatePath={handleValidatePath}
+      />
+    </LayoutShell>
   );
 }

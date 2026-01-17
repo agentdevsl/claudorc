@@ -1,9 +1,9 @@
 import { Pause, Play, Square, TerminalWindow } from '@phosphor-icons/react';
-import { Button } from '@/app/components/ui/button';
 import { EmptyState } from '@/app/components/features/empty-state';
+import { Button } from '@/app/components/ui/button';
 import { useAgentStream } from '@/app/hooks/use-agent-stream';
-import { useSession } from '@/app/hooks/use-session';
 import { usePresence } from '@/app/hooks/use-presence';
+import { useSession } from '@/app/hooks/use-session';
 
 interface AgentSessionViewProps {
   sessionId: string;

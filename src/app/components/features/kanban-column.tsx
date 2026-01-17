@@ -1,8 +1,8 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { Skeleton } from '@/app/components/ui/skeleton';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
-import { Skeleton } from '@/app/components/ui/skeleton';
 import { KanbanCard } from './kanban-card';
 
 interface KanbanColumnProps {

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { Trash } from '@phosphor-icons/react';
-import type { Task } from '@/db/schema/tasks';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import {
   Dialog,
@@ -12,6 +11,7 @@ import {
 } from '@/app/components/ui/dialog';
 import { TextInput } from '@/app/components/ui/text-input';
 import { Textarea } from '@/app/components/ui/textarea';
+import type { Task } from '@/db/schema/tasks';
 
 interface TaskDetailDialogProps {
   task: Task | null;

@@ -1,6 +1,6 @@
-import { DotsSixVertical, UserCircle } from '@phosphor-icons/react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DotsSixVertical, UserCircle } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';

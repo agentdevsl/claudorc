@@ -1,11 +1,16 @@
-import { FolderSimple, Gauge, Lightning } from "@phosphor-icons/react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { ProjectPicker } from "@/app/components/features/project-picker";
-import { Button } from "@/app/components/ui/button";
-import type { Project } from "@/db/schema/projects";
+import { FolderSimple, Gauge, Lightning, Plus } from '@phosphor-icons/react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
+import { EmptyState } from '@/app/components/features/empty-state';
+import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
+import { ProjectPicker } from '@/app/components/features/project-picker';
+import { Button } from '@/app/components/ui/button';
+import { useServices } from '@/app/services/service-context';
+import type { Project } from '@/db/schema/projects';
+import type { Result } from '@/lib/utils/result';
+import type { PathValidation } from '@/services/project.service';
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { projects: [], runningAgents: 0 };
@@ -14,8 +19,7 @@ export const Route = createFileRoute("/")({
     const projectsResult = await context.services.projectService.list({
       limit: 6,
     });
-    const runningAgentsResult =
-      await context.services.agentService.getRunningCountAll();
+    const runningAgentsResult = await context.services.agentService.getRunningCountAll();
 
     return {
       projects: projectsResult.ok ? projectsResult.value : [],
@@ -26,26 +30,47 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard(): React.JSX.Element {
+  const { projectService } = useServices();
+  const navigate = useNavigate();
   const loaderData = Route.useLoaderData();
-  const [projects] = useState<Project[]>(loaderData.projects ?? []);
+  const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
   const [runningAgents] = useState(loaderData.runningAgents ?? 0);
+  const [showNewProject, setShowNewProject] = useState(false);
+
+  const handleCreateProject = async (data: {
+    name: string;
+    path: string;
+    description?: string;
+  }): Promise<void> => {
+    const result = await projectService.create({
+      name: data.name,
+      path: data.path,
+      description: data.description,
+    });
+
+    if (result.ok) {
+      setProjects((prev) => [result.value, ...prev]);
+    }
+  };
+
+  const handleValidatePath = async (path: string): Promise<Result<PathValidation, unknown>> => {
+    return projectService.validatePath(path);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-fg-muted">
-            AgentPane
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">
-            Dashboard
-          </h1>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">AgentPane</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Dashboard</h1>
           <p className="text-sm text-fg-muted">
-            Keep projects, agents, and sessions flowing with local-first
-            control.
+            Keep projects, agents, and sessions flowing with local-first control.
           </p>
         </div>
-        <Button>New Project</Button>
+        <Button onClick={() => setShowNewProject(true)}>
+          <Plus className="h-4 w-4" />
+          New Project
+        </Button>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -54,27 +79,21 @@ function Dashboard(): React.JSX.Element {
             <FolderSimple className="h-4 w-4" />
             <span className="text-sm">Projects</span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">
-            {projects.length}
-          </p>
+          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">{projects.length}</p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-fg-muted">
             <Gauge className="h-4 w-4" />
             <span className="text-sm">Running agents</span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">
-            {runningAgents}
-          </p>
+          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">{runningAgents}</p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-fg-muted">
             <Lightning className="h-4 w-4" />
             <span className="text-sm">Recent activity</span>
           </div>
-          <p className="mt-3 text-sm text-fg-muted">
-            Review the latest sessions and approvals.
-          </p>
+          <p className="mt-3 text-sm text-fg-muted">Review the latest sessions and approvals.</p>
         </div>
       </div>
 
@@ -82,40 +101,59 @@ function Dashboard(): React.JSX.Element {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-fg">Recent projects</h2>
-            <p className="text-sm text-fg-muted">
-              Jump back into active workspaces.
-            </p>
+            <p className="text-sm text-fg-muted">Jump back into active workspaces.</p>
           </div>
           <ProjectPicker
             projects={projects}
             selectedProject={projects[0] ?? null}
-            onSelect={() => {}}
-            onNewProject={() => {}}
+            onSelect={(project) =>
+              navigate({
+                to: '/projects/$projectId',
+                params: { projectId: project.id },
+              })
+            }
+            onNewProject={() => setShowNewProject(true)}
           />
         </div>
         <div className="mt-6 grid gap-3 md:grid-cols-2">
-          {projects.map((project) => (
-            <Link
-              key={project.id}
-              to="/projects/$projectId"
-              params={{ projectId: project.id }}
-              className="rounded-lg border border-border bg-surface-subtle p-4 transition hover:border-fg-subtle"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-fg">
-                    {project.name}
-                  </h3>
-                  <p className="text-xs text-fg-muted truncate">
-                    {project.path}
-                  </p>
+          {projects.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                preset="no-projects"
+                size="sm"
+                action={{
+                  label: 'Create project',
+                  onClick: () => setShowNewProject(true),
+                }}
+              />
+            </div>
+          ) : (
+            projects.map((project) => (
+              <Link
+                key={project.id}
+                to="/projects/$projectId"
+                params={{ projectId: project.id }}
+                className="rounded-lg border border-border bg-surface-subtle p-4 transition hover:border-fg-subtle"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-fg">{project.name}</h3>
+                    <p className="text-xs text-fg-muted truncate">{project.path}</p>
+                  </div>
+                  <span className="text-xs text-fg-muted">View</span>
                 </div>
-                <span className="text-xs text-fg-muted">View</span>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))
+          )}
         </div>
       </section>
+
+      <NewProjectDialog
+        open={showNewProject}
+        onOpenChange={setShowNewProject}
+        onSubmit={handleCreateProject}
+        onValidatePath={handleValidatePath}
+      />
     </div>
   );
 }

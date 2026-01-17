@@ -18,7 +18,11 @@ export const BootstrapProvider = ({ children }: { children: React.ReactNode }) =
     return <BootstrapLoadingUI phase={state.phase} progress={state.progress} />;
   }
 
-  return <BootstrapProviderInner context={context} retry={retry}>{children}</BootstrapProviderInner>;
+  return (
+    <BootstrapProviderInner context={context} retry={retry}>
+      {children}
+    </BootstrapProviderInner>
+  );
 };
 
 const BootstrapProviderInner = ({

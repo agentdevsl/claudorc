@@ -1,17 +1,15 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 import { Toaster } from '@/app/components/ui/toast';
 import { TooltipProvider } from '@/app/components/ui/tooltip';
-import { BootstrapProvider } from '@/app/providers/bootstrap-provider';
+import type { RouterContext } from '@/app/router';
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   component: () => (
-    <BootstrapProvider>
-      <TooltipProvider delayDuration={300}>
-        <div className="min-h-screen bg-canvas text-fg">
-          <Outlet />
-          <Toaster />
-        </div>
-      </TooltipProvider>
-    </BootstrapProvider>
+    <TooltipProvider delayDuration={300}>
+      <div className="min-h-screen bg-canvas text-fg">
+        <Outlet />
+        <Toaster />
+      </div>
+    </TooltipProvider>
   ),
 });

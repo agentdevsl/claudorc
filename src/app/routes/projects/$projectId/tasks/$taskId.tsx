@@ -1,24 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
-import { db } from '@/db/client';
-import { TaskService } from '@/services/task.service';
-import { WorktreeService } from '@/services/worktree.service';
-
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
-
-const taskService = new TaskService(db, worktreeService);
+import { useServices } from '@/app/services/service-context';
+import type { Task } from '@/db/schema/tasks';
 
 export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
-  loader: async ({ params }) => {
-    const taskResult = await taskService.getById(params.taskId);
-    if (!taskResult.ok) {
-      throw new Error('Task not found');
+  loader: async ({ context, params }): Promise<{ task: Task | null }> => {
+    if (!context.services) {
+      return { task: null };
     }
 
-    if (taskResult.value.projectId !== params.projectId) {
-      throw new Error('Task does not belong to project');
+    const taskResult = await context.services.taskService.getById(params.taskId);
+    if (!taskResult.ok || taskResult.value.projectId !== params.projectId) {
+      return { task: null };
     }
 
     return { task: taskResult.value };
@@ -27,15 +21,27 @@ export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
 });
 
 function TaskDetailRoute(): React.JSX.Element {
-  const { task } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData() as { task: Task | null };
+  const { taskService } = useServices();
+  const task = loaderData.task;
+
+  if (!task) {
+    return <div className="p-6 text-sm text-fg-muted">Task not found.</div>;
+  }
 
   return (
-    <TaskDetailDialog
-      task={task}
-      open
-      onOpenChange={() => {}}
-      onSave={async () => {}}
-      onDelete={async () => {}}
-    />
+    <LayoutShell breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: task.title }]}>
+      <TaskDetailDialog
+        task={task}
+        open
+        onOpenChange={() => {}}
+        onSave={async (data) => {
+          await taskService.update(task.id, data);
+        }}
+        onDelete={async (id) => {
+          await taskService.delete(id);
+        }}
+      />
+    </LayoutShell>
   );
 }

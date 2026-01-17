@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { CheckCircle, GitBranch, WarningCircle, XCircle } from '@phosphor-icons/react';
-import type { Task } from '@/db/schema/tasks';
-import type { DiffSummary } from '@/lib/types/diff';
-import { Button } from '@/app/components/ui/button';
+import {
+  CheckCircle,
+  GitBranch,
+  WarningCircle,
+  XCircle,
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { Button } from "@/app/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +13,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/app/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
-import { Textarea } from '@/app/components/ui/textarea';
+} from "@/app/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/app/components/ui/tabs";
+import { Textarea } from "@/app/components/ui/textarea";
+import type { Task } from "@/db/schema/tasks";
+import type { DiffSummary } from "@/lib/types/diff";
 
 interface ApprovalDialogProps {
   task: Task;
@@ -31,9 +41,9 @@ export function ApprovalDialog({
   onApprove,
   onReject,
 }: ApprovalDialogProps): React.JSX.Element {
-  const [tab, setTab] = useState<'summary' | 'files' | 'diff'>('summary');
-  const [rejectReason, setRejectReason] = useState('');
-  const [commitMessage, setCommitMessage] = useState('');
+  const [tab, setTab] = useState<"summary" | "files" | "diff">("summary");
+  const [rejectReason, setRejectReason] = useState("");
+  const [commitMessage, setCommitMessage] = useState("");
 
   const handleApprove = async () => {
     await onApprove(commitMessage.trim() || undefined);
@@ -41,7 +51,7 @@ export function ApprovalDialog({
   };
 
   const handleReject = async () => {
-    await onReject(rejectReason.trim() || 'Needs updates');
+    await onReject(rejectReason.trim() || "Needs updates");
     onOpenChange(false);
   };
 
@@ -53,7 +63,10 @@ export function ApprovalDialog({
           <DialogDescription>{task.title}</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as typeof tab)}
+        >
           <TabsList className="w-full justify-start">
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="files">Files</TabsTrigger>
@@ -63,12 +76,12 @@ export function ApprovalDialog({
             <div className="rounded-lg border border-border bg-surface-subtle p-4">
               <div className="flex items-center gap-2 text-sm text-fg">
                 <GitBranch className="h-4 w-4" />
-                {task.branch ?? 'No branch'}
+                {task.branch ?? "No branch"}
               </div>
               <p className="mt-2 text-xs text-fg-muted">
                 {diff
                   ? `${diff.filesChanged} files changed, ${diff.additions} additions, ${diff.deletions} deletions.`
-                  : 'No diff summary available yet.'}
+                  : "No diff summary available yet."}
               </p>
             </div>
             <div className="rounded-lg border border-border p-4 text-xs text-fg-muted">
@@ -121,7 +134,7 @@ export function ApprovalDialog({
           </Button>
           <Button onClick={handleApprove}>
             <CheckCircle className="h-4 w-4" />
-            Approve
+            Approve & merge
           </Button>
         </DialogFooter>
       </DialogContent>

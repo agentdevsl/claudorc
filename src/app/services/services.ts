@@ -32,10 +32,7 @@ const createRunner = (): CommandRunner => {
   };
 };
 
-export function createServices(context: {
-  db?: PGlite;
-  streams?: unknown;
-}): ServicesResult {
+export function createServices(context: { db?: PGlite; streams?: unknown }): ServicesResult {
   if (!context.db) {
     console.error('[Services] Database not available during service initialization');
     return err(createError('SERVICES_DB_MISSING', 'Database not available', 500));

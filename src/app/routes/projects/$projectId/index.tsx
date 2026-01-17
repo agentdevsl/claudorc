@@ -3,46 +3,59 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
 import { KanbanBoard } from '@/app/components/features/kanban-board';
+import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { Button } from '@/app/components/ui/button';
 import { useServices } from '@/app/services/service-context';
+import type { Project } from '@/db/schema/projects';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 
 export const Route = createFileRoute('/projects/$projectId/')({
-  loader: async () => ({ project: null, tasks: [], agents: [] }),
+  loader: async ({ context, params }) => {
+    if (!context.services) {
+      return { project: null, tasks: [] };
+    }
+
+    const [projectResult, tasksResult] = await Promise.all([
+      context.services.projectService.getById(params.projectId),
+      context.services.taskService.list(params.projectId),
+    ]);
+
+    return {
+      project: projectResult.ok ? projectResult.value : null,
+      tasks: tasksResult.ok ? tasksResult.value : [],
+    };
+  },
   component: ProjectKanban,
 });
 
 function ProjectKanban(): React.JSX.Element {
-  const loaderData = Route.useLoaderData();
   const { projectService, taskService } = useServices();
-  const [project, setProject] = useState(loaderData.project as { id: string; name: string } | null);
+  const { projectId } = Route.useParams();
+  const loaderData = Route.useLoaderData();
+  const [project, setProject] = useState<Project | null>(loaderData.project ?? null);
   const [tasks, setTasks] = useState<Task[]>(loaderData.tasks ?? []);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<Task | null>(null);
 
-  const { projectId } = Route.useParams();
-
   useEffect(() => {
-    const load = async () => {
-      const projectResult = await projectService.getById(projectId);
-      const tasksResult = await taskService.list(projectId);
-
-      if (projectResult.ok) {
-        setProject(projectResult.value);
-      }
-
-      if (tasksResult.ok) {
-        setTasks(tasksResult.value);
-      }
-    };
-
-    void load();
-  }, [projectId, projectService, taskService]);
+    if (!project) {
+      const refresh = async () => {
+        const projectResult = await projectService.getById(projectId);
+        if (projectResult.ok) {
+          setProject(projectResult.value);
+        }
+      };
+      void refresh();
+    }
+  }, [project, projectId, projectService]);
 
   const handleTaskMove = async (taskId: string, column: TaskColumn, position: number) => {
-    await taskService.moveColumn(taskId, column, position);
+    const result = await taskService.moveColumn(taskId, column, position);
+    if (result.ok) {
+      setTasks((prev) => prev.map((task) => (task.id === taskId ? result.value : task)));
+    }
   };
 
   const handleTaskClick = (task: Task) => {
@@ -57,7 +70,7 @@ function ProjectKanban(): React.JSX.Element {
     if (!approvalTask) return;
     await taskService.approve(approvalTask.id, {
       approvedBy: 'current-user',
-      createMergeCommit: commitMessage ? true : undefined,
+      createMergeCommit: Boolean(commitMessage),
     });
   };
 
@@ -71,18 +84,17 @@ function ProjectKanban(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-fg-muted">Project</p>
-          <h1 className="text-lg font-semibold text-fg">{project.name}</h1>
-        </div>
+    <LayoutShell
+      projectName={project.name}
+      projectPath={project.path}
+      breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: project.name }]}
+      actions={
         <Button onClick={() => setShowNewTask(true)}>
           <Plus className="h-4 w-4" />
           New Task
         </Button>
-      </header>
-
+      }
+    >
       <main className="flex-1 overflow-hidden bg-canvas">
         <KanbanBoard tasks={tasks} onTaskMove={handleTaskMove} onTaskClick={handleTaskClick} />
       </main>
@@ -98,16 +110,27 @@ function ProjectKanban(): React.JSX.Element {
         }}
         onSave={async (data) => {
           if (selectedTask) {
-            await taskService.update(selectedTask.id, data);
-          } else {
-            await taskService.create({
+            const result = await taskService.update(selectedTask.id, data);
+            if (result.ok) {
+              setTasks((prev) =>
+                prev.map((task) => (task.id === result.value.id ? result.value : task))
+              );
+            }
+          } else if (project) {
+            const result = await taskService.create({
               projectId: project.id,
               ...data,
             } as never);
+            if (result.ok) {
+              setTasks((prev) => [result.value, ...prev]);
+            }
           }
         }}
         onDelete={async (id) => {
-          await taskService.delete(id);
+          const result = await taskService.delete(id);
+          if (result.ok) {
+            setTasks((prev) => prev.filter((task) => task.id !== id));
+          }
         }}
       />
 
@@ -125,6 +148,6 @@ function ProjectKanban(): React.JSX.Element {
           onReject={handleReject}
         />
       )}
-    </div>
+    </LayoutShell>
   );
 }
