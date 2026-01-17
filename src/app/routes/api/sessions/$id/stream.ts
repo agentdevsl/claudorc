@@ -1,13 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { db } from '@/db/client';
-import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
+import { getApiRuntimeOrThrow, getApiStreamsOrThrow } from '@/app/routes/api/runtime';
 import { SessionService } from '@/services/session.service';
 
 function getSessionService(): SessionService {
-  if (!hasStreamProvider()) {
-    throw new Error('Stream provider not configured');
-  }
-  return new SessionService(db, getStreamProvider(), {
+  const runtime = getApiRuntimeOrThrow();
+  return new SessionService(runtime.db, getApiStreamsOrThrow(), {
     baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
   });
 }
@@ -23,7 +20,7 @@ export const Route = createFileRoute('/api/sessions/$id/stream')({
         try {
           sessionService = getSessionService();
         } catch (error) {
-          console.error(`[SSE] Stream provider not configured:`, error);
+          console.error('[SSE] Stream provider not configured:', error);
           return new Response(
             JSON.stringify({
               error: 'Streaming is not available',
@@ -55,7 +52,9 @@ export const Route = createFileRoute('/api/sessions/$id/stream')({
               // Send generic error to client - never expose internal error messages
               const errorEvent = {
                 type: 'error',
-                data: { message: 'An error occurred while streaming session data' },
+                data: {
+                  message: 'An error occurred while streaming session data',
+                },
                 timestamp: Date.now(),
               };
               controller.enqueue(

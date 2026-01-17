@@ -15,6 +15,13 @@ const fallbackStreams: DurableStreamsServer = {
 const getApiStreams = (): DurableStreamsServer =>
   hasStreamProvider() ? getStreamProvider() : fallbackStreams;
 
+export function getApiStreamsOrThrow(): DurableStreamsServer {
+  if (!hasStreamProvider()) {
+    throw new Error('Stream provider not configured');
+  }
+  return getStreamProvider();
+}
+
 export function getApiRuntime() {
   return createRuntimeContext({
     db: pglite,

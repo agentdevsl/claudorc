@@ -27,7 +27,7 @@ vi.mock('@/services/session.service', () => ({
     subscribe = sessionServiceMocks.subscribe;
   },
 }));
-vi.mock('@/db/client', () => ({ db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
 
 import { Route as SessionsRoute } from '@/app/routes/api/sessions';
 import { Route as SessionRoute } from '@/app/routes/api/sessions/$id';
