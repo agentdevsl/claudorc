@@ -38,6 +38,7 @@ export type PathValidation = {
   name: string;
   path: string;
   hasClaudeConfig: boolean;
+  hasClaudeConfigError?: string;
   defaultBranch: string;
   remoteUrl?: string;
 };
@@ -50,7 +51,9 @@ export class ProjectService {
   constructor(
     private db: Database,
     private worktreeService: {
-      prune: (projectId: string) => Promise<Result<number, ProjectError>>;
+      prune: (projectId: string) => Promise<
+        Result<{ pruned: number; failed: Array<{ worktreeId: string; branch: string; error: string }> }, ProjectError>
+      >;
     },
     private runner: CommandRunner
   ) {}
@@ -238,18 +241,19 @@ export class ProjectService {
       defaultBranch = 'main';
     }
 
-    const hasClaudeConfig = await this.runner
+    const claudeConfigResult = await this.runner
       .exec('test -d .claude && echo yes || echo no', normalized)
-      .then((res) => res.stdout.trim() === 'yes')
+      .then((res) => ({ detected: res.stdout.trim() === 'yes', error: undefined as string | undefined }))
       .catch((error) => {
         console.warn(`[ProjectService] Could not detect .claude directory for ${normalized}:`, error);
-        return false;
+        return { detected: false, error: String(error) };
       });
 
     return ok({
       name,
       path: normalized,
-      hasClaudeConfig,
+      hasClaudeConfig: claudeConfigResult.detected,
+      hasClaudeConfigError: claudeConfigResult.error,
       defaultBranch,
       remoteUrl,
     });

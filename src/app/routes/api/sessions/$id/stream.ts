@@ -32,15 +32,13 @@ export const Route = createFileRoute('/api/sessions/$id/stream')({
               }
               controller.close();
             } catch (error) {
-              // Log error on server for visibility
+              // Log full error on server for debugging
               console.error(`[SSE] Stream error for session ${sessionId}:`, error);
 
-              // Send sanitized error to client (avoid exposing internal details)
-              const errorMessage =
-                error instanceof Error ? error.message : 'Stream error occurred';
+              // Send generic error to client - never expose internal error messages
               const errorEvent = {
                 type: 'error',
-                data: { message: errorMessage },
+                data: { message: 'An error occurred while streaming session data' },
                 timestamp: Date.now(),
               };
               controller.enqueue(

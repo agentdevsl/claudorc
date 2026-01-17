@@ -55,6 +55,11 @@ export type WorktreeStatusInfo = {
   updatedAt: Date | null;
 };
 
+export type PruneResult = {
+  pruned: number;
+  failed: Array<{ worktreeId: string; branch: string; error: string }>;
+};
+
 export type WorktreeServiceResult<T> = Promise<Result<T, WorktreeError>>;
 
 /**
@@ -208,7 +213,7 @@ export class WorktreeService {
     }
   }
 
-  async prune(projectId: string): WorktreeServiceResult<number> {
+  async prune(projectId: string): WorktreeServiceResult<PruneResult> {
     const stale = await this.db.query.worktrees.findMany({
       where: and(
         eq(worktrees.projectId, projectId),
@@ -218,6 +223,8 @@ export class WorktreeService {
     });
 
     let pruned = 0;
+    const failed: PruneResult['failed'] = [];
+
     for (const worktree of stale) {
       const result = await this.remove(worktree.id, true);
       if (result.ok) {
@@ -227,10 +234,15 @@ export class WorktreeService {
           `[WorktreeService] Failed to prune worktree ${worktree.id} (${worktree.branch}):`,
           result.error
         );
+        failed.push({
+          worktreeId: worktree.id,
+          branch: worktree.branch,
+          error: String(result.error),
+        });
       }
     }
 
-    return ok(pruned);
+    return ok({ pruned, failed });
   }
 
   async copyEnv(worktreeId: string): WorktreeServiceResult<void> {
@@ -359,8 +371,9 @@ export class WorktreeService {
 
       await this.runner.exec(`git checkout "${escapedTarget}"`, worktree.project.path);
       await this.runner.exec('git pull --rebase', worktree.project.path);
+      const mergeMessage = escapeShellString(`Merge branch '${worktree.branch}'`);
       const merge = await this.runner.exec(
-        `git merge "${escapedBranch}" --no-ff -m "Merge branch '${escapedBranch}'"`,
+        `git merge "${escapedBranch}" --no-ff -m "${mergeMessage}"`,
         worktree.project.path
       );
 
