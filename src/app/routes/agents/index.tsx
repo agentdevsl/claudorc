@@ -43,7 +43,7 @@ function AgentsPage(): React.JSX.Element {
           >
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-subtle">
-                <Bot className="h-5 w-5 text-fg-muted" />
+                <Robot className="h-5 w-5 text-fg-muted" />
               </span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-fg">{agent.name}</p>
