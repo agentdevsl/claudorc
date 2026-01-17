@@ -70,6 +70,7 @@ specs/
 │
 ├── security/                          # Security Specifications
 │   ├── authentication.md              # OAuth, sessions, API tokens
+│   ├── sandbox.md                     # Container isolation, DevContainers
 │   └── security-model.md              # Tool sandboxing, audit logging
 │
 ├── services/                          # Business Logic Services
@@ -177,6 +178,7 @@ specs/
 | Spec | Purpose | Key Contents |
 |------|---------|--------------|
 | [authentication.md](./security/authentication.md) | Auth | GitHub OAuth, sessions, tokens |
+| [sandbox.md](./security/sandbox.md) | Isolation | Docker containers, DevContainers, resource limits |
 | [security-model.md](./security/security-model.md) | Security | Tool sandbox, audit logging |
 
 ### Integrations

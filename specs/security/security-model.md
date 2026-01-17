@@ -1194,6 +1194,7 @@ export { createSecurityHook } from './hooks';
 
 | Spec | Relationship |
 |------|--------------|
+| [Sandbox](./sandbox.md) | Container isolation, resource limits, network policies |
 | [Agent Service](../services/agent-service.md) | Security hooks integration, tool whitelist enforcement |
 | [Git Worktrees](../integrations/git-worktrees.md) | Worktree isolation, path containment |
 | [GitHub App](../integrations/github-app.md) | Webhook signature verification |
