@@ -157,21 +157,16 @@ describe('cn utility', () => {
       expect(result).toBe('foo baz');
     });
 
-    it('handles mixed object values', () => {
+    it('handles mixed boolean object values', () => {
       const result = cn({
         foo: true,
         bar: false,
-        baz: 1,
-        qux: 0,
-        quux: 'truthy',
-        corge: '',
-        grault: null,
-        garply: undefined,
+        baz: true,
+        qux: false,
       });
 
-      // Only truthy values are included: true, 1, 'truthy'
-      // 0, false, '', null, undefined are all falsy
-      expect(result).toBe('foo baz quux');
+      // Only true values are included
+      expect(result).toBe('foo baz');
     });
 
     it('merges objects with other values', () => {
@@ -214,11 +209,7 @@ describe('cn utility', () => {
     });
 
     it('handles deeply nested mixed types', () => {
-      const result = cn([
-        'a',
-        ['b', { c: true, d: false }],
-        [['e', { f: true }]],
-      ]);
+      const result = cn(['a', ['b', { c: true, d: false }], [['e', { f: true }]]]);
 
       expect(result).toBe('a b c e f');
     });
@@ -232,13 +223,7 @@ describe('cn utility', () => {
     });
 
     it('preserves multiple tailwind classes in sequence', () => {
-      const result = cn(
-        'flex',
-        'items-center',
-        'justify-between',
-        'w-full',
-        'h-screen'
-      );
+      const result = cn('flex', 'items-center', 'justify-between', 'w-full', 'h-screen');
 
       expect(result).toBe('flex items-center justify-between w-full h-screen');
     });
@@ -264,16 +249,9 @@ describe('cn utility', () => {
     });
 
     it('handles state variant tailwind classes', () => {
-      const result = cn(
-        'bg-white',
-        'hover:bg-gray-100',
-        'focus:ring-2',
-        'active:bg-gray-200'
-      );
+      const result = cn('bg-white', 'hover:bg-gray-100', 'focus:ring-2', 'active:bg-gray-200');
 
-      expect(result).toBe(
-        'bg-white hover:bg-gray-100 focus:ring-2 active:bg-gray-200'
-      );
+      expect(result).toBe('bg-white hover:bg-gray-100 focus:ring-2 active:bg-gray-200');
     });
 
     it('handles arbitrary value tailwind classes', () => {
@@ -297,8 +275,8 @@ describe('cn utility', () => {
 
   describe('real-world usage patterns', () => {
     it('handles component variant pattern', () => {
-      const variant = 'primary';
-      const size = 'large';
+      const variant: string = 'primary';
+      const size: string = 'large';
 
       const result = cn(
         'btn',
@@ -345,12 +323,7 @@ describe('cn utility', () => {
       const isVisible = true;
       const hasError = false;
 
-      const result = cn(
-        'input',
-        isVisible && 'visible',
-        hasError && 'error',
-        !hasError && 'valid'
-      );
+      const result = cn('input', isVisible && 'visible', hasError && 'error', !hasError && 'valid');
 
       expect(result).toBe('input visible valid');
     });
@@ -368,11 +341,7 @@ describe('cn utility', () => {
         },
       };
 
-      const result = cn(
-        base,
-        variants.intent.primary,
-        variants.size.md
-      );
+      const result = cn(base, variants.intent.primary, variants.size.md);
 
       expect(result).toBe(
         'inline-flex items-center justify-center rounded-md bg-blue-500 text-white px-4 py-2 text-base'

@@ -207,9 +207,7 @@ describe('TaskService', () => {
   it('list filters by agentId', async () => {
     const db = createDbMock();
     const worktrees = createWorktreeServiceMock();
-    db.query.tasks.findMany.mockResolvedValue([
-      { id: 't1', title: 'Task 1', agentId: 'a1' },
-    ]);
+    db.query.tasks.findMany.mockResolvedValue([{ id: 't1', title: 'Task 1', agentId: 'a1' }]);
 
     const service = new TaskService(db as never, worktrees as never);
     const result = await service.list('p1', { agentId: 'a1' });
@@ -228,25 +226,25 @@ describe('TaskService', () => {
     const service = new TaskService(db as never, worktrees as never);
 
     // Test orderBy createdAt
-    await service.list('p1', { orderBy: 'createdAt', orderDirection: 'desc' });
-    expect(result => result.ok).toBeTruthy();
+    const result1 = await service.list('p1', { orderBy: 'createdAt', orderDirection: 'desc' });
+    expect(result1.ok).toBeTruthy();
 
     // Test orderBy updatedAt
-    await service.list('p1', { orderBy: 'updatedAt', orderDirection: 'asc' });
-    expect(result => result.ok).toBeTruthy();
+    const result2 = await service.list('p1', { orderBy: 'updatedAt', orderDirection: 'asc' });
+    expect(result2.ok).toBeTruthy();
 
     // Test orderBy position (default)
-    await service.list('p1', { orderBy: 'position' });
-    expect(result => result.ok).toBeTruthy();
+    const result3 = await service.list('p1', { orderBy: 'position' });
+    expect(result3.ok).toBeTruthy();
   });
 
   it('update modifies task successfully', async () => {
     const db = createDbMock();
     const worktrees = createWorktreeServiceMock();
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', title: 'Updated Title', description: 'New desc' },
-    ]);
+    const updateReturning = vi
+      .fn()
+      .mockResolvedValue([{ id: 't1', title: 'Updated Title', description: 'New desc' }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });
@@ -315,9 +313,9 @@ describe('TaskService', () => {
       .mockResolvedValueOnce({ id: 't1', column: 'backlog', projectId: 'p1' })
       .mockResolvedValueOnce(null); // No existing tasks in column
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', column: 'in_progress', position: 0 },
-    ]);
+    const updateReturning = vi
+      .fn()
+      .mockResolvedValue([{ id: 't1', column: 'in_progress', position: 0 }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });
@@ -354,9 +352,9 @@ describe('TaskService', () => {
       projectId: 'p1',
     });
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', column: 'in_progress', position: 5 },
-    ]);
+    const updateReturning = vi
+      .fn()
+      .mockResolvedValue([{ id: 't1', column: 'in_progress', position: 5 }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });
@@ -377,9 +375,9 @@ describe('TaskService', () => {
       .mockResolvedValueOnce({ id: 't1', column: 'backlog', projectId: 'p1' })
       .mockResolvedValueOnce(null);
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', column: 'in_progress', startedAt: new Date() },
-    ]);
+    const updateReturning = vi
+      .fn()
+      .mockResolvedValue([{ id: 't1', column: 'in_progress', startedAt: new Date() }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });
@@ -415,9 +413,7 @@ describe('TaskService', () => {
     const db = createDbMock();
     const worktrees = createWorktreeServiceMock();
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', position: 3 },
-    ]);
+    const updateReturning = vi.fn().mockResolvedValue([{ id: 't1', position: 3 }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });
@@ -818,9 +814,7 @@ describe('TaskService', () => {
       position: 5,
     });
 
-    const returning = vi.fn().mockResolvedValue([
-      { id: 't1', column: 'backlog', position: 6 },
-    ]);
+    const returning = vi.fn().mockResolvedValue([{ id: 't1', column: 'backlog', position: 6 }]);
     db.insert.mockReturnValue({ values: vi.fn(() => ({ returning })) });
 
     const service = new TaskService(db as never, worktrees as never);
@@ -857,9 +851,9 @@ describe('TaskService', () => {
       .mockResolvedValueOnce({ id: 't1', column: 'waiting_approval', projectId: 'p1' })
       .mockResolvedValueOnce(null);
 
-    const updateReturning = vi.fn().mockResolvedValue([
-      { id: 't1', column: 'verified', completedAt: new Date() },
-    ]);
+    const updateReturning = vi
+      .fn()
+      .mockResolvedValue([{ id: 't1', column: 'verified', completedAt: new Date() }]);
     db.update.mockReturnValue({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturning })) })),
     });

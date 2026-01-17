@@ -258,10 +258,7 @@ describe('WorktreeService', () => {
     const result = await service.copyEnv('w1');
 
     expect(result.ok).toBe(true);
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('cp'),
-      '/tmp/project'
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('cp'), '/tmp/project');
   });
 
   it('copyEnv returns error when cp fails', async () => {
@@ -444,7 +441,8 @@ describe('WorktreeService', () => {
       path: '/tmp/worktree',
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git add
       .mockResolvedValueOnce({ stdout: '', stderr: '' }); // git status
 
@@ -470,7 +468,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git add
       .mockResolvedValueOnce({ stdout: 'M file.ts', stderr: '' }) // git status
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git commit
@@ -483,10 +482,7 @@ describe('WorktreeService', () => {
     if (result.ok) {
       expect(result.value).toBe('abc123');
     }
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('git commit'),
-      '/tmp/worktree'
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('git commit'), '/tmp/worktree');
   });
 
   it('commit returns error when git fails', async () => {
@@ -530,10 +526,7 @@ describe('WorktreeService', () => {
       expect.stringContaining('git worktree remove'),
       '/tmp/project'
     );
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('git branch -D'),
-      '/tmp/project'
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('git branch -D'), '/tmp/project');
   });
 
   it('remove with force flag', async () => {
@@ -555,10 +548,7 @@ describe('WorktreeService', () => {
     const result = await service.remove('w1', true);
 
     expect(result.ok).toBe(true);
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('--force'),
-      '/tmp/project'
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('--force'), '/tmp/project');
   });
 
   it('remove returns error when git fails', async () => {
@@ -673,7 +663,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git add
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git status (no changes)
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git checkout
@@ -684,14 +675,8 @@ describe('WorktreeService', () => {
     const result = await service.merge('w1');
 
     expect(result.ok).toBe(true);
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('git checkout'),
-      '/tmp/project'
-    );
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('git merge'),
-      '/tmp/project'
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('git checkout'), '/tmp/project');
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('git merge'), '/tmp/project');
   });
 
   it('merge returns conflict error on merge conflict', async () => {
@@ -709,7 +694,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git add
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git status
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git checkout
@@ -741,7 +727,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git add
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git status
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // git checkout
@@ -780,7 +767,8 @@ describe('WorktreeService', () => {
       path: '/tmp/worktree',
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '10\t5\tfile1.ts\n3\t1\tfile2.ts', stderr: '' }) // numstat
       .mockResolvedValueOnce({ stdout: '', stderr: '' }); // full diff
 
@@ -805,7 +793,8 @@ describe('WorktreeService', () => {
       path: '/tmp/worktree',
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // numstat
       .mockResolvedValueOnce({ stdout: '', stderr: '' }); // full diff
 
@@ -846,7 +835,8 @@ describe('WorktreeService', () => {
       config: { worktreeRoot: '.worktrees' },
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // branch check
       .mockRejectedValueOnce(new Error('git worktree add failed')); // worktree add
 
@@ -890,7 +880,13 @@ describe('WorktreeService', () => {
     });
 
     const insertReturning = vi.fn().mockResolvedValue([
-      { id: 'w1', projectId: 'p1', branch: 'agent/x/t1', path: '/tmp/worktree', status: 'creating' },
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'creating',
+      },
     ]);
     db.insert.mockReturnValue({ values: vi.fn(() => ({ returning: insertReturning })) });
 
@@ -906,7 +902,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // branch check
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // worktree add
       .mockRejectedValueOnce(new Error('cp failed')); // copyEnv
@@ -929,7 +926,13 @@ describe('WorktreeService', () => {
     });
 
     const insertReturning = vi.fn().mockResolvedValue([
-      { id: 'w1', projectId: 'p1', branch: 'agent/x/t1', path: '/tmp/worktree', status: 'creating' },
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'creating',
+      },
     ]);
     db.insert.mockReturnValue({ values: vi.fn(() => ({ returning: insertReturning })) });
 
@@ -945,7 +948,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // branch check
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // worktree add
       .mockRejectedValueOnce(new Error('bun install failed')); // installDeps (skipEnvCopy=true)
@@ -968,7 +972,13 @@ describe('WorktreeService', () => {
     });
 
     const insertReturning = vi.fn().mockResolvedValue([
-      { id: 'w1', projectId: 'p1', branch: 'agent/x/t1', path: '/tmp/worktree', status: 'creating' },
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'creating',
+      },
     ]);
     db.insert.mockReturnValue({ values: vi.fn(() => ({ returning: insertReturning })) });
 
@@ -984,7 +994,8 @@ describe('WorktreeService', () => {
       set: vi.fn(() => ({ where: updateWhere })),
     });
 
-    const exec = vi.fn()
+    const exec = vi
+      .fn()
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // branch check
       .mockResolvedValueOnce({ stdout: '', stderr: '' }) // worktree add
       .mockRejectedValueOnce(new Error('init script failed')); // initScript
@@ -1010,7 +1021,13 @@ describe('WorktreeService', () => {
     });
 
     const insertReturning = vi.fn().mockResolvedValue([
-      { id: 'w1', projectId: 'p1', branch: 'agent/x/t1', path: '/tmp/worktree', status: 'creating' },
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'creating',
+      },
     ]);
     db.insert.mockReturnValue({ values: vi.fn(() => ({ returning: insertReturning })) });
 

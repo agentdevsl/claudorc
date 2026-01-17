@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { encodeCursor } from '../cursor.js';
-import { validateCursor, type ValidateCursorOptions } from '../pagination.js';
+import { type ValidateCursorOptions, validateCursor } from '../pagination.js';
 
 describe('validateCursor', () => {
   const defaultOptions: ValidateCursorOptions = {
@@ -199,10 +199,9 @@ describe('validateCursor', () => {
     });
 
     it('returns error for valid base64 JSON with missing fields', () => {
-      const incompletePayload = Buffer.from(
-        JSON.stringify({ id: 'item-1' }),
-        'utf-8'
-      ).toString('base64');
+      const incompletePayload = Buffer.from(JSON.stringify({ id: 'item-1' }), 'utf-8').toString(
+        'base64'
+      );
 
       const result = validateCursor(incompletePayload, defaultOptions);
 
@@ -366,7 +365,7 @@ describe('validateCursor', () => {
     it('handles cursor with floating point sortValue', () => {
       const cursor = encodeCursor({
         id: 'item-float',
-        sortValue: 3.14159,
+        sortValue: 3.14,
         sortField: 'rating',
         order: 'desc',
       });
@@ -378,7 +377,7 @@ describe('validateCursor', () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.sortValue).toBe(3.14159);
+        expect(result.value.sortValue).toBe(3.14);
       }
     });
   });

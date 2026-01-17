@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, err } from '../../utils/result.js';
 import type { AppError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
 import type { BootstrapContext, BootstrapState } from '../types.js';
 
 // Track captured callbacks and state
 let capturedEffectCallback: (() => (() => void) | undefined) | null = null;
 let capturedCallbackFn: (() => Promise<void>) | null = null;
-const serviceRefHolder = { current: null as { subscribe: ReturnType<typeof vi.fn>; run: ReturnType<typeof vi.fn> } | null };
+const serviceRefHolder = {
+  current: null as { subscribe: ReturnType<typeof vi.fn>; run: ReturnType<typeof vi.fn> } | null,
+};
 
 // Mock state values
 let currentState: BootstrapState;
@@ -50,7 +52,10 @@ vi.mock('react', () => {
 // Mock BootstrapService
 vi.mock('../service.js', () => {
   return {
-    BootstrapService: vi.fn().mockImplementation(function (this: { subscribe: ReturnType<typeof vi.fn>; run: ReturnType<typeof vi.fn> }) {
+    BootstrapService: vi.fn().mockImplementation(function (this: {
+      subscribe: ReturnType<typeof vi.fn>;
+      run: ReturnType<typeof vi.fn>;
+    }) {
       this.subscribe = mockSubscribe;
       this.run = mockRun;
       serviceRefHolder.current = this;
@@ -386,7 +391,8 @@ describe('useBootstrap integration scenarios', () => {
     }
 
     // Simulate state progression through phases
-    if (capturedSetState) {
+    const setState = capturedSetState as ((state: BootstrapState) => void) | null;
+    if (setState) {
       const phases: BootstrapState['phase'][] = [
         'pglite',
         'schema',
@@ -404,7 +410,7 @@ describe('useBootstrap integration scenarios', () => {
             progress: ((index + 1) / phases.length) * 100,
             isComplete: index === phases.length - 1,
           };
-          capturedSetState(state);
+          setState(state);
         }
       }
 
@@ -443,8 +449,9 @@ describe('useBootstrap integration scenarios', () => {
     }
 
     // Simulate error state
-    if (capturedSetState) {
-      capturedSetState({
+    const setStateForError = capturedSetState as ((state: BootstrapState) => void) | null;
+    if (setStateForError) {
+      setStateForError({
         phase: 'pglite',
         progress: 0,
         isComplete: false,
