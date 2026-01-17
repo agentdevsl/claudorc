@@ -64,10 +64,11 @@ export type WorktreeServiceResult<T> = Promise<Result<T, WorktreeError>>;
 
 /**
  * Escapes a string for safe use in shell commands within double quotes.
- * Escapes: backslash, double quote, backtick, dollar sign, and newlines.
+ * Removes null bytes and escapes: backslash, double quote, backtick, dollar sign, and newlines.
  */
 const escapeShellString = (str: string): string => {
   return str
+    .replace(/\0/g, '') // Remove null bytes to prevent injection
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/`/g, '\\`')
@@ -153,14 +154,38 @@ export class WorktreeService {
       })
       .returning();
 
+    // Run setup operations and check results - failures should prevent activation
     if (!options?.skipEnvCopy) {
-      await this.copyEnv(worktree.id);
+      const envResult = await this.copyEnv(worktree.id);
+      if (!envResult.ok) {
+        await this.db
+          .update(worktrees)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(eq(worktrees.id, worktree.id));
+        return envResult;
+      }
     }
+
     if (!options?.skipDepsInstall) {
-      await this.installDeps(worktree.id);
+      const depsResult = await this.installDeps(worktree.id);
+      if (!depsResult.ok) {
+        await this.db
+          .update(worktrees)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(eq(worktrees.id, worktree.id));
+        return depsResult;
+      }
     }
+
     if (!options?.skipInitScript && project.config?.initScript) {
-      await this.runInitScript(worktree.id);
+      const initResult = await this.runInitScript(worktree.id);
+      if (!initResult.ok) {
+        await this.db
+          .update(worktrees)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(eq(worktrees.id, worktree.id));
+        return initResult;
+      }
     }
 
     await this.db
@@ -301,11 +326,27 @@ export class WorktreeService {
       return ok(undefined);
     }
 
+    // Sanitize the init script - remove null bytes and control characters
+    // Note: initScript is intentionally a user-configured shell command.
+    // Security relies on access control for project config modifications.
+    const sanitizedScript = initScript
+      .replace(/\0/g, '') // Remove null bytes
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // Remove control characters except \t, \n, \r
+      .trim();
+
+    if (!sanitizedScript) {
+      return ok(undefined);
+    }
+
+    console.log(
+      `[WorktreeService] Running init script for worktree ${worktreeId} in ${worktree.path}`
+    );
+
     try {
-      await this.runner.exec(initScript, worktree.path);
+      await this.runner.exec(sanitizedScript, worktree.path);
       return ok(undefined);
     } catch (error) {
-      return err(WorktreeErrors.INIT_SCRIPT_FAILED(initScript, String(error)));
+      return err(WorktreeErrors.INIT_SCRIPT_FAILED(sanitizedScript, String(error)));
     }
   }
 

@@ -1,24 +1,41 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/db/client';
 import { SessionService } from '@/services/session.service';
+import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
 
-const sessionService = new SessionService(
-  db,
-  {
-    createStream: async () => undefined,
-    publish: async () => undefined,
-    subscribe: async function* () {
-      yield { type: 'chunk', data: {} };
-    },
-  },
-  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
-);
+function getSessionService(): SessionService {
+  if (!hasStreamProvider()) {
+    throw new Error('Stream provider not configured');
+  }
+  return new SessionService(db, getStreamProvider(), {
+    baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
+  });
+}
 
 export const Route = createFileRoute('/api/sessions/$id/stream')({
   server: {
     handlers: {
       GET: async (_request, { params }) => {
         const sessionId = params.id;
+
+        // Check if streaming is configured before proceeding
+        let sessionService: SessionService;
+        try {
+          sessionService = getSessionService();
+        } catch (error) {
+          console.error(`[SSE] Stream provider not configured:`, error);
+          return new Response(
+            JSON.stringify({
+              error: 'Streaming is not available',
+              code: 'STREAMING_NOT_CONFIGURED',
+            }),
+            {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        }
+
         const stream = sessionService.subscribe(sessionId);
         const encoder = new TextEncoder();
         let isCancelled = false;
