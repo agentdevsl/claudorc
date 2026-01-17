@@ -21,11 +21,31 @@ export const Route = createFileRoute('/api/sessions/$id/stream')({
         const sessionId = params.id;
         const stream = sessionService.subscribe(sessionId);
         const encoder = new TextEncoder();
+        let isCancelled = false;
+
         const readable = new ReadableStream({
           async start(controller) {
-            for await (const event of stream) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            try {
+              for await (const event of stream) {
+                if (isCancelled) break;
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+              }
+              controller.close();
+            } catch (error) {
+              // Send error event to client before closing
+              const errorEvent = {
+                type: 'error',
+                data: { message: String(error) },
+                timestamp: Date.now(),
+              };
+              controller.enqueue(
+                encoder.encode(`event: error\ndata: ${JSON.stringify(errorEvent)}\n\n`)
+              );
+              controller.close();
             }
+          },
+          cancel() {
+            isCancelled = true;
           },
         });
 
