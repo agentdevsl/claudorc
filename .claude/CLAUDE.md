@@ -68,7 +68,8 @@ specs/
 │
 ├── security/                    # Security
 │   ├── authentication.md        # OAuth, sessions
-│   └── security-model.md        # Tool sandbox
+│   ├── sandbox.md               # Container isolation, DevContainers
+│   └── security-model.md        # Tool sandbox, audit logging
 │
 ├── services/                    # Business Logic (5 services)
 │   ├── agent-service.md         # Agent lifecycle
