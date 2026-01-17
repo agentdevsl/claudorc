@@ -1,9 +1,9 @@
 import { FolderSimple, Gauge, Lightning } from "@phosphor-icons/react";
-import { FolderSimple, Gauge, Lightning } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ProjectPicker } from "@/app/components/features/project-picker";
 import { Button } from "@/app/components/ui/button";
 import { db } from "@/db/client";
+import type { Project } from "@/db/schema/projects";
 import { ProjectService } from "@/services/project.service";
 import { WorktreeService } from "@/services/worktree.service";
 
