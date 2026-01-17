@@ -35,7 +35,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitest/coverage-v8": "^4.0.16",
     "drizzle-kit": "^0.31.8",
-    "jsdom": "^26.0.0",
+    "jsdom": "^27.4.0",
     "typescript": "^5.7.2",
     "vitest": "^4.0.16"
   },
