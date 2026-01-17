@@ -35,7 +35,7 @@ function AgentsPage(): React.JSX.Element {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {agents.map((agent) => (
+        {agents.map((agent: Agent) => (
           <Link
             key={agent.id}
             to="/agents/$agentId"
