@@ -298,15 +298,16 @@ export class WorktreeService {
     }
 
     try {
-      await this.runner.exec('git add -A', worktree.path);
-      const status = await this.runner.exec('git status --porcelain', worktree.path);
+      const escapedPath = escapeShellString(worktree.path);
+      await this.runner.exec('git add -A', escapedPath);
+      const status = await this.runner.exec('git status --porcelain', escapedPath);
       if (!status.stdout.trim()) {
         return ok('');
       }
 
       const escapedMessage = escapeShellString(message);
-      await this.runner.exec(`git commit -m "${escapedMessage}"`, worktree.path);
-      const sha = await this.runner.exec('git rev-parse HEAD', worktree.path);
+      await this.runner.exec(`git commit -m "${escapedMessage}"`, escapedPath);
+      const sha = await this.runner.exec('git rev-parse HEAD', escapedPath);
 
       await this.db
         .update(worktrees)
@@ -342,18 +343,21 @@ export class WorktreeService {
     }
 
     try {
-      await this.runner.exec(`git checkout ${target}`, worktree.project.path);
-      await this.runner.exec('git pull --rebase', worktree.project.path);
+      const escapedTarget = escapeShellString(target);
       const escapedBranch = escapeShellString(worktree.branch);
+      const escapedProjectPath = escapeShellString(worktree.project.path);
+
+      await this.runner.exec(`git checkout "${escapedTarget}"`, escapedProjectPath);
+      await this.runner.exec('git pull --rebase', escapedProjectPath);
       const merge = await this.runner.exec(
-        `git merge ${escapedBranch} --no-ff -m "Merge branch '${escapedBranch}'"`,
-        worktree.project.path
+        `git merge "${escapedBranch}" --no-ff -m "Merge branch '${escapedBranch}'"`,
+        escapedProjectPath
       );
 
       if (merge.stderr.includes('CONFLICT')) {
         const conflicts = await this.runner.exec(
           'git diff --name-only --diff-filter=U',
-          worktree.project.path
+          escapedProjectPath
         );
         return err(
           WorktreeErrors.MERGE_CONFLICT(conflicts.stdout.trim().split('\n').filter(Boolean))
@@ -381,17 +385,20 @@ export class WorktreeService {
     }
 
     try {
+      const escapedPath = escapeShellString(worktree.path);
+      const escapedBaseBranch = escapeShellString(worktree.baseBranch);
+
       const stat = await this.runner.exec(
-        `git diff --stat ${worktree.baseBranch}...HEAD`,
-        worktree.path
+        `git diff --stat "${escapedBaseBranch}"...HEAD`,
+        escapedPath
       );
       const numstat = await this.runner.exec(
-        `git diff --numstat ${worktree.baseBranch}...HEAD`,
-        worktree.path
+        `git diff --numstat "${escapedBaseBranch}"...HEAD`,
+        escapedPath
       );
       const fullDiff = await this.runner.exec(
-        `git diff ${worktree.baseBranch}...HEAD`,
-        worktree.path
+        `git diff "${escapedBaseBranch}"...HEAD`,
+        escapedPath
       );
 
       const files = numstat.stdout
