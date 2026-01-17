@@ -512,7 +512,7 @@ export class WorktreeService {
             hunks: extractHunks(fullDiff.stdout, filePath),
           };
         })
-        .filter((file): file is DiffFile => file.path !== '');
+        .filter((file) => file.path !== '');
 
       const totals = files.reduce(
         (acc, file) => {

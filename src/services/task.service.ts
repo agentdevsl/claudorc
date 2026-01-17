@@ -17,7 +17,6 @@ export type CreateTaskInput = {
   title: string;
   description?: string;
   labels?: string[];
-  metadata?: Record<string, unknown>;
 };
 
 export type UpdateTaskInput = {
@@ -64,7 +63,7 @@ export class TaskService {
   ) {}
 
   async create(input: CreateTaskInput): Promise<Result<Task, TaskError>> {
-    const { projectId, title, description, labels = [], metadata = {} } = input;
+    const { projectId, title, description, labels = [] } = input;
 
     const project = await this.db.query.projects.findFirst({
       where: eq(projects.id, projectId),
@@ -88,7 +87,6 @@ export class TaskService {
         title,
         description,
         labels,
-        metadata,
         column: 'backlog',
         position,
         createdAt: new Date(),
