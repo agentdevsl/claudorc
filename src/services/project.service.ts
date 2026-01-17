@@ -3,6 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { agents } from '../db/schema/agents.js';
 import type { Project, ProjectConfig } from '../db/schema/projects.js';
 import { projects } from '../db/schema/projects.js';
+import { tasks } from '../db/schema/tasks.js';
 import { projectConfigSchema } from '../lib/config/schemas.js';
 import { DEFAULT_PROJECT_CONFIG } from '../lib/config/types.js';
 import { containsSecrets } from '../lib/config/validate-secrets.js';
@@ -42,6 +43,25 @@ export type PathValidation = {
   hasClaudeConfigError?: string;
   defaultBranch: string;
   remoteUrl?: string;
+};
+
+export type ProjectSummary = {
+  project: Project;
+  taskCounts: {
+    backlog: number;
+    inProgress: number;
+    waitingApproval: number;
+    verified: number;
+    total: number;
+  };
+  runningAgents: Array<{
+    id: string;
+    name: string;
+    currentTaskId: string | null;
+    currentTaskTitle?: string;
+  }>;
+  status: 'running' | 'idle' | 'needs-approval';
+  lastActivityAt: Date | null;
 };
 
 export type CommandRunner = {
@@ -140,6 +160,78 @@ export class ProjectService {
     });
 
     return ok(items);
+  }
+
+  async listWithSummaries(
+    options?: ListProjectsOptions
+  ): Promise<Result<ProjectSummary[], ProjectError>> {
+    const projectsResult = await this.list(options);
+    if (!projectsResult.ok) {
+      return projectsResult;
+    }
+
+    const summaries: ProjectSummary[] = [];
+
+    for (const project of projectsResult.value) {
+      // Get task counts by column
+      const projectTasks = await this.db.query.tasks.findMany({
+        where: eq(tasks.projectId, project.id),
+      });
+
+      const taskCounts = {
+        backlog: projectTasks.filter((t) => t.column === 'backlog').length,
+        inProgress: projectTasks.filter((t) => t.column === 'in_progress').length,
+        waitingApproval: projectTasks.filter((t) => t.column === 'waiting_approval').length,
+        verified: projectTasks.filter((t) => t.column === 'verified').length,
+        total: projectTasks.length,
+      };
+
+      // Get running agents for this project
+      const projectAgents = await this.db.query.agents.findMany({
+        where: and(eq(agents.projectId, project.id), eq(agents.status, 'running')),
+      });
+
+      const runningAgents = await Promise.all(
+        projectAgents.map(async (agent) => {
+          let taskTitle: string | undefined;
+          if (agent.currentTaskId) {
+            const task = await this.db.query.tasks.findFirst({
+              where: eq(tasks.id, agent.currentTaskId),
+            });
+            taskTitle = task?.title;
+          }
+          return {
+            id: agent.id,
+            name: agent.name ?? 'Agent',
+            currentTaskId: agent.currentTaskId,
+            currentTaskTitle: taskTitle,
+          };
+        })
+      );
+
+      // Determine project status
+      let status: ProjectSummary['status'] = 'idle';
+      if (runningAgents.length > 0) {
+        status = 'running';
+      } else if (taskCounts.waitingApproval > 0) {
+        status = 'needs-approval';
+      }
+
+      // Get last activity date
+      const lastTask = projectTasks.sort(
+        (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)
+      )[0];
+
+      summaries.push({
+        project,
+        taskCounts,
+        runningAgents,
+        status,
+        lastActivityAt: lastTask?.updatedAt ?? null,
+      });
+    }
+
+    return ok(summaries);
   }
 
   async update(id: string, input: UpdateProjectInput): Promise<Result<Project, ProjectError>> {

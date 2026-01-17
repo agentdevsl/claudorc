@@ -19,10 +19,12 @@ export function LayoutShell({
 }: LayoutShellProps): React.JSX.Element {
   return (
     <div className="flex min-h-screen bg-canvas text-fg">
-      <Sidebar projectName={projectName} projectPath={projectPath} />
+      <div className="hidden md:block">
+        <Sidebar projectName={projectName} projectPath={projectPath} />
+      </div>
       <div className="flex flex-1 flex-col">
         {breadcrumbs ? (
-          <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
+          <header className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
             <Breadcrumbs items={breadcrumbs} />
             {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
           </header>

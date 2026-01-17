@@ -1,0 +1,301 @@
+import { CheckCircle, Clock, Desktop, Warning } from '@phosphor-icons/react';
+import { Link } from '@tanstack/react-router';
+import { Button } from '@/app/components/ui/button';
+import type { Project } from '@/db/schema/projects';
+
+export type ProjectStatus = 'running' | 'idle' | 'needs-approval';
+
+export type TaskCounts = {
+  backlog: number;
+  inProgress: number;
+  waitingApproval: number;
+  verified: number;
+  total: number;
+};
+
+export type ActiveAgent = {
+  id: string;
+  name: string;
+  taskId: string;
+  taskTitle: string;
+  type: 'runner' | 'reviewer';
+};
+
+export interface ProjectCardProps {
+  project: Project;
+  status: ProjectStatus;
+  taskCounts: TaskCounts;
+  activeAgents: ActiveAgent[];
+  successRate?: number;
+  lastRunAt?: Date | null;
+}
+
+const STATUS_CONFIG: Record<ProjectStatus, { label: string; className: string }> = {
+  running: {
+    label: 'Running',
+    className: 'bg-success-muted text-success border-success/40',
+  },
+  idle: {
+    label: 'Idle',
+    className: 'bg-surface-muted text-fg-muted border-border',
+  },
+  'needs-approval': {
+    label: 'Needs Approval',
+    className: 'bg-attention-muted text-attention border-attention/40',
+  },
+};
+
+const AVATAR_COLORS = [
+  'bg-success-muted text-success',
+  'bg-accent-muted text-accent',
+  'bg-done-muted text-done',
+  'bg-attention-muted text-attention',
+] as const;
+
+function getAvatarColor(projectId: string): string {
+  const hash = projectId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+}
+
+interface MiniKanbanBarProps {
+  label: string;
+  count: number;
+  total: number;
+  colorClass: string;
+}
+
+function MiniKanbanBar({ label, count, total, colorClass }: MiniKanbanBarProps): React.JSX.Element {
+  const percentage = total > 0 ? (count / total) * 100 : 0;
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between mb-1.5 text-[11px] uppercase tracking-wide">
+        <span className="text-fg-subtle">{label}</span>
+        <span className={`font-semibold font-mono ${colorClass}`}>{count}</span>
+      </div>
+      <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${colorClass.replace('text-', 'bg-')}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ProjectCard({
+  project,
+  status,
+  taskCounts,
+  activeAgents,
+  successRate,
+  lastRunAt,
+}: ProjectCardProps): React.JSX.Element {
+  const statusConfig = STATUS_CONFIG[status];
+  const avatarColor = getAvatarColor(project.id);
+  const initials = getInitials(project.name);
+
+  const isNeedsApproval = status === 'needs-approval';
+
+  return (
+    <div className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md">
+      {/* Header */}
+      <div className="p-4 flex items-start gap-3 border-b border-border-muted">
+        <div
+          className={`w-12 h-12 rounded-md flex items-center justify-center text-lg font-bold shrink-0 ${avatarColor}`}
+        >
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-base font-semibold text-fg truncate">{project.name}</h3>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full border ${statusConfig.className}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              {statusConfig.label}
+            </span>
+          </div>
+          <p className="text-xs text-fg-subtle font-mono truncate mt-1">{project.path}</p>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4">
+        {/* Mini Kanban */}
+        <div className="flex gap-2 mb-4">
+          <MiniKanbanBar
+            label="Backlog"
+            count={taskCounts.backlog}
+            total={taskCounts.total}
+            colorClass="text-fg-muted"
+          />
+          <MiniKanbanBar
+            label="Todo"
+            count={taskCounts.inProgress}
+            total={taskCounts.total}
+            colorClass="text-accent"
+          />
+          <MiniKanbanBar
+            label="Review"
+            count={taskCounts.waitingApproval}
+            total={taskCounts.total}
+            colorClass="text-attention"
+          />
+          <MiniKanbanBar
+            label="Done"
+            count={taskCounts.verified}
+            total={taskCounts.total}
+            colorClass="text-success"
+          />
+        </div>
+
+        {/* Agent Activity */}
+        <div
+          className={`rounded-md p-3 ${isNeedsApproval ? 'bg-attention-muted border border-attention/30' : 'bg-canvas'}`}
+        >
+          <div className="flex items-center justify-between mb-2 text-xs">
+            <span
+              className={`flex items-center gap-1.5 ${isNeedsApproval ? 'text-attention' : 'text-fg-muted'}`}
+            >
+              {isNeedsApproval ? (
+                <>
+                  <Warning className="h-3.5 w-3.5" />
+                  Pending Review
+                </>
+              ) : (
+                <>
+                  <Desktop className="h-3.5 w-3.5" />
+                  Active Agents
+                </>
+              )}
+            </span>
+            {!isNeedsApproval && activeAgents.length > 0 && (
+              <span className="text-success font-medium">{activeAgents.length} running</span>
+            )}
+            {!isNeedsApproval && activeAgents.length === 0 && (
+              <span className="text-fg-muted">None</span>
+            )}
+          </div>
+          <div className="space-y-2">
+            {isNeedsApproval && taskCounts.waitingApproval > 0 && (
+              <div className="text-xs text-fg">
+                <strong>#{taskCounts.waitingApproval}</strong> task
+                {taskCounts.waitingApproval > 1 ? 's' : ''} awaiting approval
+              </div>
+            )}
+            {!isNeedsApproval && activeAgents.length === 0 && (
+              <div className="text-xs text-fg-subtle">No agents currently running</div>
+            )}
+            {!isNeedsApproval &&
+              activeAgents.map((agent) => (
+                <div key={agent.id} className="flex items-center gap-2 text-xs">
+                  <div
+                    className={`w-5 h-5 rounded-full border border-border ${
+                      agent.type === 'runner'
+                        ? 'bg-gradient-to-br from-success to-accent'
+                        : 'bg-gradient-to-br from-done to-danger'
+                    }`}
+                  />
+                  <span className="text-fg font-medium flex-1 truncate">{agent.name}</span>
+                  <span className="text-fg-subtle font-mono">#{agent.taskId.slice(-6)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 bg-surface-subtle border-t border-border-muted flex items-center justify-between">
+        <div className="flex gap-4">
+          {successRate !== undefined && (
+            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+              <CheckCircle className="h-3.5 w-3.5" />
+              <span>{successRate.toFixed(1)}% success</span>
+            </div>
+          )}
+          {lastRunAt && (
+            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Last run {formatRelativeTime(lastRunAt)}</span>
+            </div>
+          )}
+          {!successRate && !lastRunAt && activeAgents.length === 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+              <Clock className="h-3.5 w-3.5" />
+              <span>No recent activity</span>
+            </div>
+          )}
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/projects/$projectId" params={{ projectId: project.id }}>
+            {isNeedsApproval ? 'Review' : 'Open'}
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function formatRelativeTime(date: Date): string {
+  const now = Date.now();
+  const diff = now - date.getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor(diff / (1000 * 60));
+
+  if (hours > 24) {
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+  if (hours > 0) {
+    return `${hours}h ago`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ago`;
+  }
+  return 'just now';
+}
+
+interface AddProjectCardProps {
+  onClick: () => void;
+}
+
+export function AddProjectCard({ onClick }: AddProjectCardProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-dashed border-border bg-transparent min-h-[280px] flex items-center justify-center cursor-pointer transition-all hover:border-accent hover:bg-accent-muted"
+    >
+      <div className="text-center text-fg-muted">
+        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-surface-muted flex items-center justify-center">
+          <svg
+            className="w-6 h-6 text-fg-subtle"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            role="img"
+            aria-labelledby="add-project-icon-title"
+          >
+            <title id="add-project-icon-title">Add new project</title>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+        </div>
+        <div className="font-medium text-fg mb-1">Add New Project</div>
+        <div className="text-sm">Import or create a project</div>
+      </div>
+    </button>
+  );
+}
