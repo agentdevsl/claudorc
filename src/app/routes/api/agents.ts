@@ -9,6 +9,9 @@ import { withErrorHandling } from '@/lib/api/middleware';
 import { parseBody, parseQuery } from '@/lib/api/validation';
 import { createAgentSchema, listAgentsSchema } from '@/lib/api/schemas';
 
+// TODO: Phase 2 - Replace stub implementations with real services via dependency injection.
+// These stubs allow API routes to be tested without actual git/stream operations.
+// See: /specs/application/architecture/app-bootstrap.md for DI setup requirements.
 const worktreeService = new WorktreeService(db, {
   exec: async () => ({ stdout: '', stderr: '' }),
 });

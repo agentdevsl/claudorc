@@ -57,6 +57,19 @@ export type WorktreeStatusInfo = {
 
 export type WorktreeServiceResult<T> = Promise<Result<T, WorktreeError>>;
 
+/**
+ * Escapes a string for safe use in shell commands within double quotes.
+ * Escapes: backslash, double quote, backtick, dollar sign, and newlines.
+ */
+const escapeShellString = (str: string): string => {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$')
+    .replace(/\n/g, '\\n');
+};
+
 const extractHunks = (diff: string, filePath: string): string[] => {
   const hunks = diff.split(`diff --git a/${filePath} b/${filePath}`);
   if (hunks.length < 2) {
@@ -107,8 +120,12 @@ export class WorktreeService {
     }
 
     try {
+      const escapedPath = escapeShellString(worktreePath);
+      const escapedBranch = escapeShellString(branch);
+      const escapedBaseBranch = escapeShellString(baseBranch);
+
       await this.runner.exec(
-        `git worktree add ${worktreePath} -b ${branch} ${baseBranch}`,
+        `git worktree add "${escapedPath}" -b "${escapedBranch}" "${escapedBaseBranch}"`,
         project.path
       );
     } catch (error) {
@@ -162,11 +179,14 @@ export class WorktreeService {
 
     try {
       const forceFlag = force ? '--force' : '';
+      const escapedPath = escapeShellString(worktree.path);
+      const escapedBranch = escapeShellString(worktree.branch);
+
       await this.runner.exec(
-        `git worktree remove ${worktree.path} ${forceFlag}`,
+        `git worktree remove "${escapedPath}" ${forceFlag}`,
         worktree.project.path
       );
-      await this.runner.exec(`git branch -D ${worktree.branch}`, worktree.project.path);
+      await this.runner.exec(`git branch -D "${escapedBranch}"`, worktree.project.path);
 
       await this.db
         .update(worktrees)
@@ -219,7 +239,9 @@ export class WorktreeService {
     const targetPath = path.join(worktree.path, envFile);
 
     try {
-      await this.runner.exec(`cp ${sourcePath} ${targetPath}`, worktree.project.path);
+      const escapedSource = escapeShellString(sourcePath);
+      const escapedTarget = escapeShellString(targetPath);
+      await this.runner.exec(`cp "${escapedSource}" "${escapedTarget}"`, worktree.project.path);
       return ok(undefined);
     } catch (error) {
       return err(WorktreeErrors.ENV_COPY_FAILED(String(error)));
@@ -282,7 +304,8 @@ export class WorktreeService {
         return ok('');
       }
 
-      await this.runner.exec(`git commit -m "${message}"`, worktree.path);
+      const escapedMessage = escapeShellString(message);
+      await this.runner.exec(`git commit -m "${escapedMessage}"`, worktree.path);
       const sha = await this.runner.exec('git rev-parse HEAD', worktree.path);
 
       await this.db
@@ -321,8 +344,9 @@ export class WorktreeService {
     try {
       await this.runner.exec(`git checkout ${target}`, worktree.project.path);
       await this.runner.exec('git pull --rebase', worktree.project.path);
+      const escapedBranch = escapeShellString(worktree.branch);
       const merge = await this.runner.exec(
-        `git merge ${worktree.branch} --no-ff -m "Merge branch '${worktree.branch}'"`,
+        `git merge ${escapedBranch} --no-ff -m "Merge branch '${escapedBranch}'"`,
         worktree.project.path
       );
 

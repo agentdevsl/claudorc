@@ -224,7 +224,8 @@ export class ProjectService {
     try {
       const remote = await this.runner.exec('git remote get-url origin', normalized);
       remoteUrl = remote.stdout.trim() || undefined;
-    } catch {
+    } catch (error) {
+      console.warn(`[ProjectService] Could not detect remote URL for ${normalized}:`, error);
       remoteUrl = undefined;
     }
 
@@ -232,7 +233,8 @@ export class ProjectService {
     try {
       const branch = await this.runner.exec('git symbolic-ref --short HEAD', normalized);
       defaultBranch = branch.stdout.trim() || 'main';
-    } catch {
+    } catch (error) {
+      console.warn(`[ProjectService] Could not detect default branch for ${normalized}:`, error);
       defaultBranch = 'main';
     }
 
