@@ -4,15 +4,10 @@ repos:
       - id: biome-check
         name: Biome Check
         description: Lints and formats TypeScript/JavaScript files
-        entry: bunx biome check --write --no-errors-on-unmatched
+        entry: bun run biome check --write .
         language: system
-        types_or:
-          - javascript
-          - jsx
-          - ts
-          - tsx
-          - json
-        pass_filenames: true
+        pass_filenames: false
+        always_run: true
         stages:
           - pre-commit
   - repo: local
@@ -55,24 +50,27 @@ repos:
     hooks:
       - id: markdownlint-fix
         name: Lint Markdown
-        exclude: ^.claude/
+        exclude: ^(\.claude/|\.devcontainer/|specs/)
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.22.1
     hooks:
       - id: gitleaks
         name: Detect secrets
+        exclude: ^\.devcontainer/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
         name: Fix end of files
-        exclude: ^.claude/
+        exclude: ^(\.claude/|\.devcontainer/)
       - id: check-yaml
         name: Check YAML syntax
         args:
           - --allow-multiple-documents
+        exclude: ^\.devcontainer/
       - id: check-json
         name: Check JSON syntax
+        exclude: ^\.devcontainer/
       - id: check-added-large-files
         name: Check for large files
         args:
@@ -81,6 +79,7 @@ repos:
         name: Check for merge conflicts
       - id: detect-private-key
         name: Detect private keys
+        exclude: ^(\.devcontainer/|specs/)
       - id: trailing-whitespace
         name: Trim trailing whitespace
-        exclude: ^.claude/
+        exclude: ^(\.claude/|\.devcontainer/)

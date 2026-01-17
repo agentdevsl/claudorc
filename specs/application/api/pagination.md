@@ -31,12 +31,14 @@ AgentPane uses cursor-based pagination as the primary strategy for several reaso
 ### When to Use Each Approach
 
 **Use cursor-based (default):**
+
 - List endpoints with real-time updates
 - Infinite scroll UIs
 - Large datasets (>1000 items)
 - Data that changes frequently
 
 **Consider offset-based (special cases only):**
+
 - Admin reports requiring page jumping
 - Export functionality with known total count
 - Static datasets that rarely change
@@ -203,6 +205,7 @@ export function validateCursor(
 ### Opaqueness Principle
 
 Cursors are **opaque to clients**. The API documentation should never describe the internal cursor format. Clients must:
+
 - Treat cursors as opaque strings
 - Never parse or construct cursors manually
 - Only use cursors returned from the API
@@ -790,6 +793,7 @@ export const agentIndexes = {
 ### GET /api/projects
 
 **Sort Configuration:**
+
 - Default sort: `updatedAt` DESC
 - Allowed sorts: `updatedAt`, `createdAt`, `name`
 
@@ -859,6 +863,7 @@ export const ServerRoute = createServerFileRoute().methods({
 ### GET /api/tasks
 
 **Sort Configuration:**
+
 - Default sort: `position` ASC (within column)
 - Allowed sorts: `position`, `createdAt`, `updatedAt`
 - Always filtered by `projectId`
@@ -894,6 +899,7 @@ const result = await paginatedQuery({
 ### GET /api/agents
 
 **Sort Configuration:**
+
 - Default sort: `status`, then `name` ASC
 - Complex multi-field sorting
 
@@ -926,6 +932,7 @@ const result = await paginatedQuery({
 ### GET /api/sessions/:id/history
 
 **Sort Configuration:**
+
 - Default sort: `timestamp` ASC (chronological playback)
 - Supports filtering by event type and time range
 
@@ -1070,6 +1077,7 @@ if (cursor) {
 When items are added/removed during pagination:
 
 **Behavior guarantees:**
+
 - Items added before current cursor position: Will NOT appear
 - Items added after current cursor position: Will appear when reached
 - Items deleted before cursor: No effect (cursor still valid)
@@ -1180,6 +1188,7 @@ async function getTotalCount(
 ```
 
 **Recommendations:**
+
 - Include `totalCount` for small datasets (<10,000 rows)
 - Use estimated count for large datasets
 - Omit entirely for time-series data (session events)
@@ -1509,6 +1518,7 @@ Returned when the cursor is malformed, tampered with, or incompatible.
 ```
 
 **Causes:**
+
 - Cursor string is not valid Base64
 - Cursor JSON structure is invalid
 - Cursor version is incompatible
@@ -1516,6 +1526,7 @@ Returned when the cursor is malformed, tampered with, or incompatible.
 - Cursor was tampered with
 
 **Client handling:**
+
 ```typescript
 if (error.code === 'INVALID_CURSOR') {
   // Reset pagination and start fresh
@@ -1542,6 +1553,7 @@ Optional error for time-limited cursors.
 ```
 
 **Implementation (optional):**
+
 ```typescript
 // lib/api/cursor.ts
 const CURSOR_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour

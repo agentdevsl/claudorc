@@ -24,7 +24,9 @@ vi.mock('@/services/project.service', () => ({
   },
 }));
 
-vi.mock('@/db/client', () => ({ db: {} }));
+vi.mock('@/app/routes/api/runtime', () => ({
+  getApiRuntime: () => ({ ok: true, value: { db: {}, runner: {} } }),
+}));
 
 import { Route as ProjectsRoute } from '@/app/routes/api/projects';
 import { Route as ProjectRoute } from '@/app/routes/api/projects/$id';
@@ -162,14 +164,16 @@ describe('Project API', () => {
     expect(response?.status).toBe(200);
     const data = await parseJson<{ ok: true; data: Project }>(response as Response);
     expect(data.data.id).toBe(sampleProject.id);
-    expect(projectServiceMocks.updateConfig).toHaveBeenCalled();
+    expect(projectServiceMocks.update).toHaveBeenCalled();
   });
 
   it('returns conflict when deleting project with running agents', async () => {
     projectServiceMocks.delete.mockResolvedValue(err(ProjectErrors.HAS_RUNNING_AGENTS(2)));
 
     const response = await ProjectRoute.options.server?.handlers?.DELETE({
-      request: new Request('http://localhost/api/projects/proj-1', { method: 'DELETE' }),
+      request: new Request('http://localhost/api/projects/proj-1', {
+        method: 'DELETE',
+      }),
       params: { id: sampleProject.id },
     });
 

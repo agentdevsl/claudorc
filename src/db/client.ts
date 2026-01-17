@@ -4,7 +4,7 @@ import * as schema from './schema';
 
 const envDataDir = process.env.PGLITE_DATA_DIR;
 const pgliteDataDir = envDataDir === undefined ? 'idb://agentpane' : envDataDir || undefined;
-const pglite = new PGlite(pgliteDataDir);
+export const pglite = new PGlite(pgliteDataDir);
 
 export const db = drizzle(pglite, { schema });
 

@@ -5,6 +5,7 @@
 The AgentConfigDialog allows users to configure agent execution parameters before starting a task or when creating/editing an agent. It provides controls for execution limits, model selection, allowed tools, and advanced settings.
 
 **Related Wireframes:**
+
 - [Agent Config Dialog](../wireframes/agent-config-dialog.html) - Complete dialog with all configuration options
 
 ---

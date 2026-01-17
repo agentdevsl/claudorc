@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { db } from '@/db/client';
+import { getApiRuntime } from '@/app/routes/api/runtime';
 import { encodeCursor } from '@/lib/api/cursor';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
@@ -8,13 +8,14 @@ import { parseBody, parseQuery } from '@/lib/api/validation';
 import { ProjectService } from '@/services/project.service';
 import { WorktreeService } from '@/services/worktree.service';
 
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
+const runtime = getApiRuntime();
+if (!runtime.ok) {
+  throw new Error(runtime.error.message);
+}
 
-const service = new ProjectService(db, worktreeService, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
+const worktreeService = new WorktreeService(runtime.value.db, runtime.value.runner);
+
+const service = new ProjectService(runtime.value.db, worktreeService, runtime.value.runner);
 
 export const Route = createFileRoute('/api/projects')({
   server: {
@@ -32,7 +33,9 @@ export const Route = createFileRoute('/api/projects')({
         });
 
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         const items = result.value;
@@ -70,7 +73,9 @@ export const Route = createFileRoute('/api/projects')({
         });
 
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         return Response.json(success(result.value), { status: 201 });

@@ -832,6 +832,7 @@ Worktrees are candidates for cleanup when:
 4. **Manual**: User requests deletion
 
 Protected worktrees:
+
 - Main worktree (project root)
 - Worktrees with active agents
 - Worktrees with uncommitted changes (unless force)

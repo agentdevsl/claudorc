@@ -48,6 +48,7 @@ Durable Streams uses **HTTP-based transport** (not WebSocket):
 | **Write** | `stream.append()` | HTTP POST with exactly-once semantics |
 
 This separation enables:
+
 - CDN caching for reads
 - Exactly-once delivery via offset tracking
 - Resumable streams after disconnection

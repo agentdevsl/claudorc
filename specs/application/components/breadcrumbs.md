@@ -5,6 +5,7 @@
 The Breadcrumbs component provides navigation hierarchy visualization and location awareness within the AgentPane application. It integrates with TanStack Router to automatically generate breadcrumb trails from the route tree while supporting manual overrides and dynamic content resolution.
 
 **Related Specifications:**
+
 - [Routing Specification](../routing/routes.md) - Route definitions and `useBreadcrumbs()` hook
 - [Component Patterns](../implementation/component-patterns.md) - Base component styling
 
@@ -433,14 +434,17 @@ Home / ... / Backlog / Implement Login
 ## Responsive Behavior
 
 ### Desktop (>= 1024px)
+
 - Full breadcrumb trail displayed
 - All items visible (with truncation if configured)
 
 ### Tablet (768px - 1023px)
+
 - Full trail with potential truncation at `maxItems: 4`
 - Slightly reduced padding
 
 ### Mobile (< 768px)
+
 - Collapse to show only: Current + Parent
 - Dropdown to access full hierarchy
 - Touch-friendly 44px tap targets

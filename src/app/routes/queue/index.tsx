@@ -1,12 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { EmptyState } from "@/app/components/features/empty-state";
-import { LayoutShell } from "@/app/components/features/layout-shell";
-import { QueueStatus } from "@/app/components/features/queue-status";
-import { QueueWaitingState } from "@/app/components/features/queue-waiting-state";
-import type { QueuePosition } from "@/services/agent.service";
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
+import { EmptyState } from '@/app/components/features/empty-state';
+import { LayoutShell } from '@/app/components/features/layout-shell';
+import { QueueStatus } from '@/app/components/features/queue-status';
+import { QueueWaitingState } from '@/app/components/features/queue-waiting-state';
+import type { QueuePosition } from '@/services/agent.service';
 
-export const Route = createFileRoute("/queue")({
+export const Route = createFileRoute('/queue')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { queued: [] as QueuePosition[] };
@@ -23,7 +23,7 @@ function QueuePage(): React.JSX.Element {
   const [queued] = useState<QueuePosition[]>(loaderData.queued ?? []);
 
   return (
-    <LayoutShell breadcrumbs={[{ label: "Queue" }]}>
+    <LayoutShell breadcrumbs={[{ label: 'Queue' }]}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
         {queued.length === 0 ? (
           <EmptyState

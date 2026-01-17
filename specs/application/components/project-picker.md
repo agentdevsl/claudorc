@@ -5,6 +5,7 @@
 The ProjectPicker is a modal component for browsing, searching, and switching between projects. It provides a command-palette-style interface with keyboard navigation, project search, and quick access to recent projects.
 
 **Related Wireframes:**
+
 - [Project Picker Modal](../wireframes/github-project-picker.html) - Primary design reference
 - [New Project Dialog](../wireframes/new-project-dialog.html) - Linked via "New Project" button
 

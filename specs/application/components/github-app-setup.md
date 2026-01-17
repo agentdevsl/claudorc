@@ -5,6 +5,7 @@
 The GitHubAppSetup component provides a multi-state interface for connecting, configuring, and managing the GitHub App integration. It handles OAuth flow, installation selection, repository sync, and disconnection.
 
 **Related Wireframes:**
+
 - [GitHub App Setup](../wireframes/github-app-setup.html) - All states: disconnected, OAuth, installation, connected
 
 ---

@@ -5,6 +5,7 @@
 The TaskDetailDialog is a modal component that displays comprehensive task information and provides inline editing capabilities. It serves as the primary interface for viewing task details, managing metadata, tracking activity history, and performing context-sensitive actions based on the task's current workflow state.
 
 **Related Wireframes:**
+
 - [Task Detail Dialog](../wireframes/task-detail-dialog.html) - Full modal with edit form
 - [Kanban Board Full](../wireframes/kanban-board-full.html) - Task cards that open this dialog
 
@@ -328,6 +329,7 @@ Custom select for agent assignment with status indicators.
 Tabbed view of task activity.
 
 **Tabs:**
+
 - **Timeline**: All events in chronological order
 - **Comments**: User comments and feedback
 - **History**: State changes only
@@ -748,6 +750,7 @@ useEffect(() => {
 ### Color Contrast
 
 All text meets WCAG 2.1 AA requirements:
+
 - Primary text: 7:1 contrast ratio
 - Secondary text: 4.5:1 contrast ratio
 - Interactive elements: Clear focus indicators

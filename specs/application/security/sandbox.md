@@ -2018,28 +2018,33 @@ streamBridge.execWithStream('npm test');
 ## Implementation Checklist
 
 ### Phase 1: Docker Sandbox
+
 - [ ] Implement `DockerSandboxProvider`
 - [ ] Create restricted network setup script
 - [ ] Add sandbox config to project schema
 - [ ] Integrate with AgentService
 
 ### Phase 2: DevContainer Support
+
 - [ ] Create devcontainer.json template
 - [ ] Implement `DevContainerProvider`
 - [ ] Add VS Code integration documentation
 
 ### Phase 3: Resource Monitoring
+
 - [ ] Add real-time resource usage tracking
 - [ ] Implement resource limit enforcement
 - [ ] Add UI for resource visualization
 
 ### Phase 4: Durable Sessions Integration
+
 - [ ] Implement `SandboxStreamBridge`
 - [ ] Connect `execStream` to terminal event publishing
 - [ ] Add `useSandboxTerminal` React hook
 - [ ] Test session persistence and replay
 
 ### Phase 5: Network Policies
+
 - [ ] Implement egress proxy for restricted mode
 - [ ] Add allowlist configuration UI
 - [ ] Log network access attempts

@@ -11,7 +11,11 @@ import { Route as IndexRoute } from './routes/index';
 import { Route as ProjectsProjectIdIndexRoute } from './routes/projects/$projectId/index';
 import type { Route as ProjectsProjectIdTasksTaskIdRoute } from './routes/projects/$projectId/tasks/$taskId';
 import { Route as ProjectsIndexRoute } from './routes/projects/index';
+import { Route as QueueIndexRoute } from './routes/queue/index';
 import { Route as SessionsSessionIdRoute } from './routes/sessions/$sessionId';
+import { Route as SessionsIndexRoute } from './routes/sessions/index';
+import { Route as SettingsIndexRoute } from './routes/settings/index';
+import { Route as WorktreesIndexRoute } from './routes/worktrees/index';
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
@@ -62,6 +66,34 @@ declare module '@tanstack/react-router' {
       path: '/sessions/$sessionId';
       fullPath: '/sessions/$sessionId';
       preLoaderRoute: typeof SessionsSessionIdRoute;
+      parentRoute: typeof rootRoute;
+    };
+    '/queue': {
+      id: '/queue/';
+      path: '/queue';
+      fullPath: '/queue';
+      preLoaderRoute: typeof QueueIndexRoute;
+      parentRoute: typeof rootRoute;
+    };
+    '/sessions': {
+      id: '/sessions/';
+      path: '/sessions';
+      fullPath: '/sessions';
+      preLoaderRoute: typeof SessionsIndexRoute;
+      parentRoute: typeof rootRoute;
+    };
+    '/settings': {
+      id: '/settings/';
+      path: '/settings';
+      fullPath: '/settings';
+      preLoaderRoute: typeof SettingsIndexRoute;
+      parentRoute: typeof rootRoute;
+    };
+    '/worktrees': {
+      id: '/worktrees/';
+      path: '/worktrees';
+      fullPath: '/worktrees';
+      preLoaderRoute: typeof WorktreesIndexRoute;
       parentRoute: typeof rootRoute;
     };
     '/projects/$projectId/tasks/$taskId': {
@@ -208,6 +240,10 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute;
   '/agents/$agentId': typeof AgentsAgentIdRoute;
   '/sessions/$sessionId': typeof SessionsSessionIdRoute;
+  '/queue': typeof QueueIndexRoute;
+  '/sessions': typeof SessionsIndexRoute;
+  '/settings': typeof SettingsIndexRoute;
+  '/worktrees': typeof WorktreesIndexRoute;
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute;
 }
 
@@ -218,6 +254,10 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute;
   '/agents/$agentId': typeof AgentsAgentIdRoute;
   '/sessions/$sessionId': typeof SessionsSessionIdRoute;
+  '/queue': typeof QueueIndexRoute;
+  '/sessions': typeof SessionsIndexRoute;
+  '/settings': typeof SettingsIndexRoute;
+  '/worktrees': typeof WorktreesIndexRoute;
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute;
 }
 
@@ -229,6 +269,10 @@ export interface FileRoutesById {
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute;
   '/agents/$agentId': typeof AgentsAgentIdRoute;
   '/sessions/$sessionId': typeof SessionsSessionIdRoute;
+  '/queue/': typeof QueueIndexRoute;
+  '/sessions/': typeof SessionsIndexRoute;
+  '/settings/': typeof SettingsIndexRoute;
+  '/worktrees/': typeof WorktreesIndexRoute;
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute;
 }
 
@@ -241,6 +285,10 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/agents/$agentId'
     | '/sessions/$sessionId'
+    | '/queue'
+    | '/sessions'
+    | '/settings'
+    | '/worktrees'
     | '/projects/$projectId/tasks/$taskId';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -250,6 +298,10 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/agents/$agentId'
     | '/sessions/$sessionId'
+    | '/queue'
+    | '/sessions'
+    | '/settings'
+    | '/worktrees'
     | '/projects/$projectId/tasks/$taskId';
   id:
     | '__root__'
@@ -259,6 +311,10 @@ export interface FileRouteTypes {
     | '/projects/$projectId/'
     | '/agents/$agentId'
     | '/sessions/$sessionId'
+    | '/queue/'
+    | '/sessions/'
+    | '/settings/'
+    | '/worktrees/'
     | '/projects/$projectId/tasks/$taskId';
   fileRoutesById: FileRoutesById;
 }
@@ -270,6 +326,10 @@ export interface RootRouteChildren {
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute;
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute;
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute;
+  QueueIndexRoute: typeof QueueIndexRoute;
+  SessionsIndexRoute: typeof SessionsIndexRoute;
+  SettingsIndexRoute: typeof SettingsIndexRoute;
+  WorktreesIndexRoute: typeof WorktreesIndexRoute;
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -279,6 +339,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsProjectIdIndexRoute,
   AgentsAgentIdRoute,
   SessionsSessionIdRoute,
+  QueueIndexRoute,
+  SessionsIndexRoute,
+  SettingsIndexRoute,
+  WorktreesIndexRoute,
 };
 
 export const routeTree = rootRoute._addFileChildren(rootRouteChildren);

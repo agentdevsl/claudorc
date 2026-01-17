@@ -5,6 +5,7 @@
 The WorktreeManagement component displays and manages git worktrees for a project. It shows active worktrees, their status, associated tasks, and provides actions for merging, removing, and pruning worktrees.
 
 **Related Wireframes:**
+
 - [Worktree Management](../wireframes/worktree-management.html) - Worktree list with status and actions
 
 ---

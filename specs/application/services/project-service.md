@@ -5,6 +5,7 @@
 The ProjectService manages CRUD operations for projects, configuration management, and GitHub synchronization. It provides a type-safe interface for managing project entities within AgentPane.
 
 **Key Concept: Project = Working Context for a Repository**
+
 - A project is a user's working context for a git repository
 - Every project **must** be linked to a git repository (required, not optional)
 - Project name is derived from the repository directory name
@@ -12,6 +13,7 @@ The ProjectService manages CRUD operations for projects, configuration managemen
 - The project holds user-specific: agent config, worktrees, session history, preferences
 
 **Related Wireframes:**
+
 - [Add Repository Dialog](../wireframes/new-project-dialog.html) - Repository selection
 - [Project Settings](../wireframes/project-settings.html) - Working context configuration
 
@@ -95,17 +97,20 @@ export interface PathValidation {
 Creates a new project as a working context for a git repository.
 
 **Signature:**
+
 ```typescript
 create(input: CreateProjectInput): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
+
 - `path` must be an absolute path to an existing directory
 - `path` must contain a `.git` directory (must be a git repository)
 - If `config` provided, must pass `validateConfig`
 - `maxConcurrentAgents` must be 1-10 (default: 3)
 
 **Business Rules:**
+
 1. Path is normalized using `path.resolve()` before storage
 2. **Project name is derived from directory name** (e.g., `/Users/me/git/my-app` → `my-app`)
 3. Default config values are merged with provided config
@@ -114,10 +119,12 @@ create(input: CreateProjectInput): Promise<Result<Project, ProjectError>>
 6. Git remote info is detected and stored if available
 
 **Side Effects:**
+
 - **Database:** Inserts new row into `projects` table
 - **Events:** Emits `project:created` event to Durable Streams
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Path doesn't exist or not accessible | `ProjectErrors.PATH_INVALID(path)` |
@@ -125,6 +132,7 @@ create(input: CreateProjectInput): Promise<Result<Project, ProjectError>>
 | Config validation failed | `ProjectErrors.CONFIG_INVALID(errors)` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.create({
   path: '/Users/user/git/agentpane',
@@ -149,25 +157,31 @@ if (result.ok) {
 Retrieves a project by its ID.
 
 **Signature:**
+
 ```typescript
 getById(id: string): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
+
 - `id` must be a valid CUID2 format
 
 **Business Rules:**
+
 1. Returns the complete project record including all configuration
 
 **Side Effects:**
+
 - None
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project ID not found | `ProjectErrors.NOT_FOUND` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.getById('clp1234567890abcdef');
 
@@ -183,25 +197,31 @@ if (result.ok) {
 Lists projects with optional filtering and pagination.
 
 **Signature:**
+
 ```typescript
 list(options?: ListProjectsOptions): Promise<Result<Project[], ProjectError>>
 ```
 
 **Preconditions:**
+
 - `limit` must be 1-100 (default: 50)
 - `offset` must be >= 0 (default: 0)
 
 **Business Rules:**
+
 1. Default ordering is by `updatedAt` descending (most recent first)
 2. Returns empty array if no projects exist
 
 **Side Effects:**
+
 - None
 
 **Error Conditions:**
+
 - None (returns empty array if no results)
 
 **Example:**
+
 ```typescript
 const result = await projectService.list({
   limit: 10,
@@ -221,30 +241,36 @@ if (result.ok) {
 Updates an existing project's metadata.
 
 **Signature:**
+
 ```typescript
 update(id: string, input: UpdateProjectInput): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
+
 - Project with `id` must exist
 - `name` (if provided) must be 1-100 characters
 - `maxConcurrentAgents` (if provided) must be 1-10
 
 **Business Rules:**
+
 1. Only provided fields are updated
 2. `updatedAt` is automatically set to current timestamp
 3. Cannot update `path` after creation (use delete and recreate)
 
 **Side Effects:**
+
 - **Database:** Updates row in `projects` table
 - **Events:** Emits `project:updated` event to Durable Streams
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project ID not found | `ProjectErrors.NOT_FOUND` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.update('clp1234567890abcdef', {
   name: 'AgentPane v2',
@@ -259,30 +285,36 @@ const result = await projectService.update('clp1234567890abcdef', {
 Deletes a project and all associated data.
 
 **Signature:**
+
 ```typescript
 delete(id: string): Promise<Result<void, ProjectError>>
 ```
 
 **Preconditions:**
+
 - Project with `id` must exist
 - No agents currently running for this project
 
 **Business Rules:**
+
 1. Cascades delete to: tasks, agents, sessions, worktrees, agent_runs, audit_logs
 2. Does not delete actual files on disk
 3. Does not delete git branches/worktrees on disk (cleanup is separate)
 
 **Side Effects:**
+
 - **Database:** Deletes project and cascaded records
 - **Events:** Emits `project:deleted` event to Durable Streams
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project ID not found | `ProjectErrors.NOT_FOUND` |
 | Has running agents | `ProjectErrors.HAS_RUNNING_AGENTS(count)` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.delete('clp1234567890abcdef');
 
@@ -298,31 +330,37 @@ if (!result.ok && result.error.code === 'PROJECT_HAS_RUNNING_AGENTS') {
 Updates project configuration settings.
 
 **Signature:**
+
 ```typescript
 updateConfig(id: string, config: Partial<ProjectConfig>): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
+
 - Project with `id` must exist
 - Partial config must pass validation
 
 **Business Rules:**
+
 1. Merges provided config with existing config
 2. Validates merged config before saving
 3. Changes take effect immediately for new agent executions
 4. Running agents continue with their existing config until restart
 
 **Side Effects:**
+
 - **Database:** Updates `config` JSONB field in `projects` table
 - **Events:** Emits `project:config:updated` event to Durable Streams
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project ID not found | `ProjectErrors.NOT_FOUND` |
 | Config validation failed | `ProjectErrors.CONFIG_INVALID(errors)` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.updateConfig('clp1234567890abcdef', {
   maxTurns: 100,
@@ -338,16 +376,19 @@ const result = await projectService.updateConfig('clp1234567890abcdef', {
 Syncs project configuration from a GitHub repository.
 
 **Signature:**
+
 ```typescript
 syncFromGitHub(id: string): Promise<Result<Project, ProjectError>>
 ```
 
 **Preconditions:**
+
 - Project with `id` must exist
 - Project must have `githubOwner`, `githubRepo`, and `githubInstallationId` configured
 - GitHub App installation must be active
 
 **Business Rules:**
+
 1. Fetches configuration from `configPath` (default: `.claude/`) in the repository
 2. Reads `config.json` or `config.yaml` from that path
 3. Validates fetched configuration
@@ -355,17 +396,20 @@ syncFromGitHub(id: string): Promise<Result<Project, ProjectError>>
 5. Updates `updatedAt` timestamp
 
 **Side Effects:**
+
 - **Database:** Updates `config` field in `projects` table
 - **Events:** Emits `project:synced` event to Durable Streams
 - **External:** Makes GitHub API calls via GitHub App authentication
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project ID not found | `ProjectErrors.NOT_FOUND` |
 | Config validation failed | `ProjectErrors.CONFIG_INVALID(errors)` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.syncFromGitHub('clp1234567890abcdef');
 
@@ -381,14 +425,17 @@ if (result.ok) {
 Validates a filesystem path for project creation. Returns repository info if valid.
 
 **Signature:**
+
 ```typescript
 validatePath(path: string): Promise<Result<PathValidation, ProjectError>>
 ```
 
 **Preconditions:**
+
 - `path` must be an absolute path
 
 **Business Rules:**
+
 1. Checks if path exists and is accessible
 2. **Requires** path to be a git repository (contains `.git`)
 3. Checks for existing `.claude/` config directory
@@ -396,15 +443,18 @@ validatePath(path: string): Promise<Result<PathValidation, ProjectError>>
 5. Derives project name from directory name
 
 **Side Effects:**
+
 - **Filesystem:** Reads directory metadata and git config
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Path doesn't exist | `ProjectErrors.PATH_INVALID(path)` |
 | Path is not a git repository | `ProjectErrors.NOT_A_GIT_REPO(path)` |
 
 **Example:**
+
 ```typescript
 const result = await projectService.validatePath('/Users/user/git/myproject');
 
@@ -422,14 +472,17 @@ if (result.ok) {
 Validates a project configuration object.
 
 **Signature:**
+
 ```typescript
 validateConfig(config: Partial<ProjectConfig>): Result<ProjectConfig, ProjectError>
 ```
 
 **Preconditions:**
+
 - None (validates the provided config object)
 
 **Business Rules:**
+
 1. Uses Zod schema for validation
 2. Returns normalized config with defaults applied
 3. Validates:
@@ -442,14 +495,17 @@ validateConfig(config: Partial<ProjectConfig>): Result<ProjectConfig, ProjectErr
    - `model`: valid Claude model string
 
 **Side Effects:**
+
 - None (pure function)
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Validation failed | `ProjectErrors.CONFIG_INVALID(errors)` |
 
 **Example:**
+
 ```typescript
 const result = projectService.validateConfig({
   maxTurns: 1000, // Invalid: > 500

@@ -14,22 +14,22 @@ if [ -d "$CLAUDE_DIR" ]; then
     echo "      Volume has files with incorrect ownership - fixing with sudo..."
     sudo chown -R node:node "$CLAUDE_DIR"
   fi
-  
+
   # Ensure required files exist with correct permissions
   chmod 700 "$CLAUDE_DIR"
-  
+
   # Create .claude.json if it doesn't exist
   if [ ! -f "$CLAUDE_DIR/.claude.json" ]; then
     echo '{}' > "$CLAUDE_DIR/.claude.json"
   fi
   chmod 600 "$CLAUDE_DIR/.claude.json"
-  
-  # Create settings.json if it doesn't exist  
+
+  # Create settings.json if it doesn't exist
   if [ ! -f "$CLAUDE_DIR/settings.json" ]; then
     echo '{"statusLine": "ccstatusline"}' > "$CLAUDE_DIR/settings.json"
   fi
   chmod 600 "$CLAUDE_DIR/settings.json"
-  
+
   echo "      .claude directory permissions fixed"
 else
   echo "      Creating .claude directory..."

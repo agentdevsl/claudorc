@@ -8,7 +8,7 @@ retry_command() {
     local max_attempts=3
     local attempt=1
     local delay=5
-    
+
     while [ $attempt -le $max_attempts ]; do
         if "$@"; then
             return 0
@@ -21,7 +21,7 @@ retry_command() {
             attempt=$((attempt + 1))
         fi
     done
-    
+
     echo "Command failed after $max_attempts attempts."
     return 1
 }

@@ -188,12 +188,14 @@ Button.displayName = 'Button';
 ### Tailwind Classes Reference
 
 **Heights:**
+
 - `sm`: `h-8` = 32px
 - `default`: `h-9` = 36px ✓ (design system standard)
 - `lg`: `h-10` = 40px
 - `icon`: `h-9 w-9` = 36x36px square
 
 **Transitions:**
+
 - `transition-all duration-200` (0.2s for standard button interactions)
 - `focus-visible:ring-2 focus-visible:ring-offset-2` (3px ring, 2px offset)
 
@@ -1512,9 +1514,9 @@ describe('Button', () => {
 
 ## References
 
-- **Radix UI:** https://www.radix-ui.com/docs
-- **Tailwind CSS:** https://tailwindcss.com/docs
-- **class-variance-authority:** https://cva.style/docs
-- **React Slot:** https://radix-ui.com/docs/primitives/utilities/slot
+- **Radix UI:** <https://www.radix-ui.com/docs>
+- **Tailwind CSS:** <https://tailwindcss.com/docs>
+- **class-variance-authority:** <https://cva.style/docs>
+- **React Slot:** <https://radix-ui.com/docs/primitives/utilities/slot>
 - **AGENTS.md Tech Stack:** /Users/simon.lynch/git/claudorc/AGENTS.md
 - **Wireframe Design System:** /Users/simon.lynch/git/claudorc/specs/wireframe-review.md

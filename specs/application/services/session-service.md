@@ -5,6 +5,7 @@
 The SessionService manages collaborative agent sessions with real-time event streaming, presence tracking, and URL-addressable session access. It integrates with Durable Streams for persistent, replayable event delivery.
 
 **Related Wireframes:**
+
 - [Agent Session Presence](/specs/wireframes/agent-session-presence.html) - Real-time presence indicators, share URLs
 - [Session History](/specs/wireframes/session-history.html) - Session replay, timeline, audit trail
 - [GitHub Terminal Split](/specs/wireframes/github-terminal-split.html) - Agent stream, file preview

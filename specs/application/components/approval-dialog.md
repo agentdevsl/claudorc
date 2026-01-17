@@ -5,6 +5,7 @@
 The Approval Dialog is a modal component that presents agent work for human review before merging to the main branch. It displays the full git diff, task metadata, test status, and provides controls for approving or rejecting changes with feedback.
 
 **Related Wireframes:**
+
 - [Approval Dialog](../wireframes/approval-dialog.html) - Full modal with diff viewer
 
 ---

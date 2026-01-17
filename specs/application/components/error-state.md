@@ -5,6 +5,7 @@
 The ErrorState component provides detailed error visualization for agent failures, including error details, stack traces, activity logs, and retry options. It helps users understand what went wrong and take corrective action.
 
 **Related Wireframes:**
+
 - [Error State Expanded](../wireframes/error-state-expanded.html) - Full error view with stack trace and retry options
 
 ---

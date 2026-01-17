@@ -5,11 +5,13 @@
 The Configuration Management system handles all configuration loading, validation, and hot-reload capabilities for AgentPane. It provides a unified interface for accessing environment variables, project settings, agent skills, and application defaults with proper precedence rules and type-safe validation using Zod schemas.
 
 **Configuration Model:** Hybrid global + per-project, following Claude Code conventions. This provides:
+
 - **Global (User-level)**: Personal skills, preferences, and defaults at `~/.claude/`
 - **Per-Project**: Project-specific config synced from Git repository `.claude/` folder
 - **Merge Strategy**: Project config overrides global; environment variables override all
 
 **Related Specifications:**
+
 - [Project Service](../services/project-service.md) - Uses config for project-level settings
 - [GitHub App](../integrations/github-app.md) - Repository config sync via webhooks
 - [Database Schema](../database/schema.md) - `projects.config` JSONB field
@@ -135,6 +137,7 @@ AgentPane-specific application data (not Claude Code compatible):
 ### Sync Triggers
 
 Configuration and skills are automatically synced when:
+
 1. **Webhook Push**: GitHub App receives `push` event to default branch
 2. **Manual Sync**: User clicks "Sync from GitHub" in project settings
 3. **Project Link**: Project is first linked to a GitHub repository

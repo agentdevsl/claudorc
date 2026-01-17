@@ -5,6 +5,7 @@
 This specification defines the authentication architecture for AgentPane, covering user identity, session management, API protection, and the integration with GitHub OAuth. While AgentPane operates primarily as a single-user local application, this authentication system is designed to support future multi-user scenarios.
 
 **Design Principles**:
+
 - **Local-First**: Authentication works offline after initial GitHub setup
 - **GitHub Identity**: User identity derived from GitHub OAuth
 - **Session-Based**: Secure HTTP-only cookies for web sessions
@@ -1302,6 +1303,7 @@ SESSION_COOKIE_NAME=agentpane_session  # Default
 ### Local Development Mode
 
 When `NODE_ENV=development`:
+
 - Local user creation enabled (no GitHub required)
 - Secure cookie flag disabled (allows HTTP)
 - Debug logging enabled

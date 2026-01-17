@@ -5,6 +5,7 @@
 The ProjectSettings component provides a tabbed interface for configuring project-level settings including general information, agent configuration, worktree settings, and integrations. It is accessible from the project detail page header.
 
 **Related Wireframes:**
+
 - [Project Settings](../wireframes/project-settings.html) - Complete settings page with all tabs
 
 ---

@@ -5,22 +5,26 @@
 The AddRepositoryDialog is a modal for adding git repositories to AgentPane as projects. A project is a user's working context for a repository - it holds user-specific configuration, agent settings, worktrees, and session history.
 
 **Key Concept: Project = Working Context for a Repo**
+
 - A project references a git repository (required, not optional)
 - Multiple users can have projects referencing the same repository
 - Project name is derived from the repository directory name
 - The repository is the identity; project is the working context
 
 **Purpose:**
+
 - Select an existing local git repository to work with
 - Clone a remote repository and set up as a new project
 - Quick access to recently used repositories
 
 **Use Cases:**
+
 1. User wants to add an existing local repository to AgentPane
 2. User wants to clone a remote GitHub repository
 3. User wants to quickly select from recently accessed repositories
 
 **Related Wireframes:**
+
 - [Add Repository Dialog](../wireframes/new-project-dialog.html) - Primary design reference
 - [Project Picker](../wireframes/github-project-picker.html) - Linked via "Add Repository" button
 

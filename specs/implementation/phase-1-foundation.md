@@ -32,6 +32,7 @@ function unwrapOr<T, E>(result: Result<T, E>, defaultValue: T): T;
 ```
 
 **Tests (8):**
+
 - `ok()` returns success result
 - `err()` returns error result
 - Type narrowing works correctly with `isOk`/`isErr`
@@ -48,6 +49,7 @@ function deepMerge<T extends object>(target: T, ...sources: Partial<T>[]): T;
 ```
 
 **Tests (6):**
+
 - Shallow merge works
 - Deep nested merge works
 - Arrays are replaced (not merged)
@@ -869,6 +871,7 @@ export function useBootstrapContext() {
 **States:** `idle` → `starting` → `running` → `paused` → `completed` | `error`
 
 **Events:**
+
 | Event | Description | Payload |
 |-------|-------------|---------|
 | START | Begin execution | `{ taskId: string }` |
@@ -880,6 +883,7 @@ export function useBootstrapContext() {
 | ABORT | Force stop | - |
 
 **Guards:**
+
 ```typescript
 const guards = {
   withinTurnLimit: (ctx) => ctx.currentTurn < ctx.maxTurns,
@@ -892,6 +896,7 @@ const guards = {
 ```
 
 **Actions:**
+
 ```typescript
 const actions = {
   incrementTurn: assign({ currentTurn: (ctx) => ctx.currentTurn + 1 }),
@@ -916,6 +921,7 @@ const actions = {
 **States:** `backlog` → `in_progress` → `waiting_approval` → `verified`
 
 **Valid Transitions:**
+
 ```typescript
 const VALID_TRANSITIONS: Record<TaskColumn, TaskColumn[]> = {
   backlog: ['in_progress'],
@@ -926,6 +932,7 @@ const VALID_TRANSITIONS: Record<TaskColumn, TaskColumn[]> = {
 ```
 
 **Events:**
+
 | Event | Description | From → To |
 |-------|-------------|-----------|
 | ASSIGN | Assign to agent | backlog → in_progress |
@@ -935,6 +942,7 @@ const VALID_TRANSITIONS: Record<TaskColumn, TaskColumn[]> = {
 | CANCEL | Cancel task | any → backlog |
 
 **Guards:**
+
 ```typescript
 const guards = {
   canAssign: (ctx) => ctx.task.column === 'backlog' && !ctx.task.agentId,
@@ -952,6 +960,7 @@ const guards = {
 **States:** `idle` → `initializing` → `active` → `paused` → `closing` → `closed` | `error`
 
 **Events:**
+
 | Event | Description |
 |-------|-------------|
 | INITIALIZE | Begin session setup |
@@ -965,6 +974,7 @@ const guards = {
 | TIMEOUT | Idle/connection timeout |
 
 **Guards:**
+
 ```typescript
 const guards = {
   hasCapacity: (ctx) => ctx.participants.length < ctx.maxParticipants,
@@ -981,6 +991,7 @@ const guards = {
 **States:** `creating` → `initializing` → `active` → `dirty` → `committing` → `merging` → `conflict` | `removing` → `removed` | `error`
 
 **Events:**
+
 | Event | Description |
 |-------|-------------|
 | CREATE | Create git worktree |
@@ -992,6 +1003,7 @@ const guards = {
 | REMOVE | Delete worktree |
 
 **Guards:**
+
 ```typescript
 const guards = {
   canCreate: (ctx) => !ctx.branchExists && ctx.pathAvailable,
@@ -1043,6 +1055,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
 ### Config Hierarchy
 
 Priority (highest to lowest):
+
 1. Environment Variables
 2. Per-Project Config (`{project}/.claude/settings.json`)
 3. Global User Config (`~/.claude/settings.json`)

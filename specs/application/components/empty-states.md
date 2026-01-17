@@ -5,6 +5,7 @@
 Empty states provide visual feedback and actionable guidance when a view has no content. They use consistent visual hierarchy: icon, title, subtitle, and optional action buttons.
 
 **Related Wireframes:**
+
 - [Empty States](../wireframes/empty-states.html) - All empty state variants (first run, no tasks, no agents, empty session)
 
 ---

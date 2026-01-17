@@ -97,19 +97,19 @@ use these skills
 
 | Layer              | Technology       | Package                                                                                             | Version          |
 | ------------------ | ---------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
-| Runtime            | Bun              | https://bun.sh                                                                                      | 1.3.6            |
-| Framework          | TanStack Start   | @tanstack/react-start (https://github.com/TanStack/router)                                          | 1.150.0          |
-| Database           | PGlite           | @electric-sql/pglite (https://github.com/electric-sql/pglite)                                       | 0.3.15           |
-| ORM                | Drizzle          | drizzle-orm + drizzle-kit (https://github.com/drizzle-team/drizzle-orm)                             | 0.45.1           |
-| Client State       | TanStack DB      | @tanstack/db + @tanstack/react-db (https://github.com/TanStack/db)                                  | 0.5.20 / 0.1.64  |
-| Agent Events       | Durable Streams  | @durable-streams/client + @durable-streams/state (https://github.com/durable-streams/durable-streams) | 0.1.5            |
-| AI / Agents        | Claude Agent SDK | @anthropic-ai/claude-agent-sdk (https://github.com/anthropics/claude-agent-sdk-typescript)          | 0.2.9            |
-| UI                 | Radix + Tailwind | @radix-ui/* + tailwindcss (https://github.com/radix-ui/primitives)                                  | 1.2.4 / 4.1.18   |
-| Drag & Drop        | dnd-kit          | @dnd-kit/core + @dnd-kit/sortable (https://github.com/clauderic/dnd-kit)                            | 6.3.1            |
-| Testing            | Vitest           | vitest (https://github.com/vitest-dev/vitest)                                                       | 4.0.17           |
-| UI Testing         | Agent Browser    | agent-browser (https://github.com/vercel-labs/agent-browser)                                        | 0.5.0            |
-| Linting/Formatting | Biome            | @biomejs/biome (https://github.com/biomejs/biome)                                                   | 2.3.11           |
-| CI/CD              | GitHub Actions   | https://github.com/features/actions                                                                 | -                |
+| Runtime            | Bun              | <https://bun.sh>                                                                                      | 1.3.6            |
+| Framework          | TanStack Start   | @tanstack/react-start (<https://github.com/TanStack/router>)                                          | 1.150.0          |
+| Database           | PGlite           | @electric-sql/pglite (<https://github.com/electric-sql/pglite>)                                       | 0.3.15           |
+| ORM                | Drizzle          | drizzle-orm + drizzle-kit (<https://github.com/drizzle-team/drizzle-orm>)                             | 0.45.1           |
+| Client State       | TanStack DB      | @tanstack/db + @tanstack/react-db (<https://github.com/TanStack/db>)                                  | 0.5.20 / 0.1.64  |
+| Agent Events       | Durable Streams  | @durable-streams/client + @durable-streams/state (<https://github.com/durable-streams/durable-streams>) | 0.1.5            |
+| AI / Agents        | Claude Agent SDK | @anthropic-ai/claude-agent-sdk (<https://github.com/anthropics/claude-agent-sdk-typescript>)          | 0.2.9            |
+| UI                 | Radix + Tailwind | @radix-ui/* + tailwindcss (<https://github.com/radix-ui/primitives>)                                  | 1.2.4 / 4.1.18   |
+| Drag & Drop        | dnd-kit          | @dnd-kit/core + @dnd-kit/sortable (<https://github.com/clauderic/dnd-kit>)                            | 6.3.1            |
+| Testing            | Vitest           | vitest (<https://github.com/vitest-dev/vitest>)                                                       | 4.0.17           |
+| UI Testing         | Agent Browser    | agent-browser (<https://github.com/vercel-labs/agent-browser>)                                        | 0.5.0            |
+| Linting/Formatting | Biome            | @biomejs/biome (<https://github.com/biomejs/biome>)                                                   | 2.3.11           |
+| CI/CD              | GitHub Actions   | <https://github.com/features/actions>                                                                 | -                |
 
 ### Utility Libraries
 

@@ -354,16 +354,17 @@ resource "aws_s3_bucket_logging" "data" {
 # iam.tf:20
 resource "aws_iam_policy" "app_policy" {
   name = "application-policy"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "*"
-      Resource = "*"
+      Action   = "_"
+      Resource = "_"
     }]
   })
 }
+
 ```
 </input>
 

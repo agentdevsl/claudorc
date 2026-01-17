@@ -1,11 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { EmptyState } from "@/app/components/features/empty-state";
-import { LayoutShell } from "@/app/components/features/layout-shell";
-import { WorktreeManagement } from "@/app/components/features/worktree-management";
-import type { WorktreeStatusInfo } from "@/services/worktree.service";
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
+import { EmptyState } from '@/app/components/features/empty-state';
+import { LayoutShell } from '@/app/components/features/layout-shell';
+import { WorktreeManagement } from '@/app/components/features/worktree-management';
+import type { WorktreeStatusInfo } from '@/services/worktree.service';
 
-export const Route = createFileRoute("/worktrees")({
+export const Route = createFileRoute('/worktrees')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { project: null, worktrees: [] as WorktreeStatusInfo[] };
@@ -14,17 +14,13 @@ export const Route = createFileRoute("/worktrees")({
     const projectsResult = await context.services.projectService.list({
       limit: 1,
     });
-    const project = projectsResult.ok
-      ? (projectsResult.value[0] ?? null)
-      : null;
+    const project = projectsResult.ok ? (projectsResult.value[0] ?? null) : null;
 
     if (!project) {
       return { project: null, worktrees: [] };
     }
 
-    const worktreesResult = await context.services.worktreeService.list(
-      project.id,
-    );
+    const worktreesResult = await context.services.worktreeService.list(project.id);
     return {
       project,
       worktrees: worktreesResult.ok ? worktreesResult.value : [],
@@ -36,13 +32,11 @@ export const Route = createFileRoute("/worktrees")({
 function WorktreesPage(): React.JSX.Element {
   const { worktreeService } = Route.useRouteContext().services ?? {};
   const loaderData = Route.useLoaderData();
-  const [worktrees, setWorktrees] = useState<WorktreeStatusInfo[]>(
-    loaderData.worktrees ?? [],
-  );
+  const [worktrees, setWorktrees] = useState<WorktreeStatusInfo[]>(loaderData.worktrees ?? []);
 
   return (
     <LayoutShell
-      breadcrumbs={[{ label: "Worktrees" }]}
+      breadcrumbs={[{ label: 'Worktrees' }]}
       projectName={loaderData.project?.name}
       projectPath={loaderData.project?.path}
     >
@@ -54,9 +48,7 @@ function WorktreesPage(): React.JSX.Element {
               if (!worktreeService) return;
               const result = await worktreeService.remove(worktreeId, true);
               if (result.ok) {
-                setWorktrees((prev) =>
-                  prev.filter((worktree) => worktree.id !== worktreeId),
-                );
+                setWorktrees((prev) => prev.filter((worktree) => worktree.id !== worktreeId));
               }
             }}
           />

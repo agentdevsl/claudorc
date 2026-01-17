@@ -39,6 +39,7 @@ Complete REST API specification for AgentPane using TanStack Start server routes
 List all projects.
 
 **Request Schema:**
+
 ```typescript
 // Query parameters
 const listProjectsSchema = z.object({
@@ -49,6 +50,7 @@ const listProjectsSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -62,11 +64,13 @@ const listProjectsSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid query parameters |
 
 **Example:**
+
 ```bash
 curl -X GET "/api/projects?limit=10"
 ```
@@ -99,6 +103,7 @@ curl -X GET "/api/projects?limit=10"
 Create a new project.
 
 **Request Schema:**
+
 ```typescript
 const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
@@ -112,6 +117,7 @@ const createProjectSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -120,6 +126,7 @@ const createProjectSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -127,6 +134,7 @@ const createProjectSchema = z.object({
 | 409 | `PROJECT_PATH_EXISTS` | Project with path already exists |
 
 **Example:**
+
 ```bash
 curl -X POST "/api/projects" \
   -H "Content-Type: application/json" \
@@ -140,6 +148,7 @@ curl -X POST "/api/projects" \
 Get project by ID.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -148,6 +157,7 @@ Get project by ID.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `INVALID_ID` | Invalid project ID format |
@@ -160,6 +170,7 @@ Get project by ID.
 Update a project.
 
 **Request Schema:**
+
 ```typescript
 const updateProjectSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -170,6 +181,7 @@ const updateProjectSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -178,6 +190,7 @@ const updateProjectSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -190,6 +203,7 @@ const updateProjectSchema = z.object({
 Delete a project.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -198,6 +212,7 @@ Delete a project.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `PROJECT_NOT_FOUND` | Project doesn't exist |
@@ -212,6 +227,7 @@ Delete a project.
 List tasks with filtering.
 
 **Request Schema:**
+
 ```typescript
 const listTasksSchema = z.object({
   projectId: z.string().cuid2(),
@@ -223,6 +239,7 @@ const listTasksSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -242,6 +259,7 @@ const listTasksSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid query parameters |
@@ -253,6 +271,7 @@ const listTasksSchema = z.object({
 Create a new task.
 
 **Request Schema:**
+
 ```typescript
 const createTaskSchema = z.object({
   projectId: z.string().cuid2(),
@@ -263,6 +282,7 @@ const createTaskSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -271,12 +291,14 @@ const createTaskSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
 | 404 | `PROJECT_NOT_FOUND` | Project doesn't exist |
 
 **Example:**
+
 ```bash
 curl -X POST "/api/tasks" \
   -H "Content-Type: application/json" \
@@ -295,6 +317,7 @@ curl -X POST "/api/tasks" \
 Get task by ID.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -308,6 +331,7 @@ Get task by ID.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `TASK_NOT_FOUND` | Task doesn't exist |
@@ -319,6 +343,7 @@ Get task by ID.
 Update a task.
 
 **Request Schema:**
+
 ```typescript
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -328,6 +353,7 @@ const updateTaskSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -336,6 +362,7 @@ const updateTaskSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -348,6 +375,7 @@ const updateTaskSchema = z.object({
 Delete a task.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -356,6 +384,7 @@ Delete a task.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `TASK_NOT_FOUND` | Task doesn't exist |
@@ -368,6 +397,7 @@ Delete a task.
 Move task to a different column (Kanban drag-drop).
 
 **Request Schema:**
+
 ```typescript
 const moveTaskSchema = z.object({
   column: z.enum(['backlog', 'in_progress', 'waiting_approval', 'verified']),
@@ -376,6 +406,7 @@ const moveTaskSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -384,6 +415,7 @@ const moveTaskSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -392,6 +424,7 @@ const moveTaskSchema = z.object({
 | 409 | `TASK_POSITION_CONFLICT` | Concurrent position update |
 
 **Valid Transitions:**
+
 ```
 backlog -> in_progress (auto-assigns agent)
 in_progress -> waiting_approval (agent completed)
@@ -400,6 +433,7 @@ waiting_approval -> in_progress (user rejects)
 ```
 
 **Example:**
+
 ```bash
 curl -X POST "/api/tasks/clx1234567890/move" \
   -H "Content-Type: application/json" \
@@ -413,6 +447,7 @@ curl -X POST "/api/tasks/clx1234567890/move" \
 Approve task changes (merge branch).
 
 **Request Schema:**
+
 ```typescript
 const approveTaskSchema = z.object({
   approvedBy: z.string().optional(),  // User ID
@@ -420,6 +455,7 @@ const approveTaskSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -431,6 +467,7 @@ const approveTaskSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `TASK_NOT_WAITING_APPROVAL` | Task not in waiting_approval |
@@ -446,6 +483,7 @@ const approveTaskSchema = z.object({
 Reject task changes (resume agent with feedback).
 
 **Request Schema:**
+
 ```typescript
 const rejectTaskSchema = z.object({
   reason: z.string().min(1).max(1000),
@@ -453,6 +491,7 @@ const rejectTaskSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -464,6 +503,7 @@ const rejectTaskSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Missing reason |
@@ -479,6 +519,7 @@ const rejectTaskSchema = z.object({
 List agents for a project.
 
 **Request Schema:**
+
 ```typescript
 const listAgentsSchema = z.object({
   projectId: z.string().cuid2(),
@@ -488,6 +529,7 @@ const listAgentsSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -502,6 +544,7 @@ const listAgentsSchema = z.object({
 Create a new agent.
 
 **Request Schema:**
+
 ```typescript
 const createAgentSchema = z.object({
   projectId: z.string().cuid2(),
@@ -512,6 +555,7 @@ const createAgentSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -520,6 +564,7 @@ const createAgentSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -532,6 +577,7 @@ const createAgentSchema = z.object({
 Get agent by ID.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -544,6 +590,7 @@ Get agent by ID.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `AGENT_NOT_FOUND` | Agent doesn't exist |
@@ -555,6 +602,7 @@ Get agent by ID.
 Update agent configuration.
 
 **Request Schema:**
+
 ```typescript
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -563,6 +611,7 @@ const updateAgentSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -577,6 +626,7 @@ const updateAgentSchema = z.object({
 Delete an agent.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -585,6 +635,7 @@ Delete an agent.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `AGENT_NOT_RUNNING` | Agent is running (stop first) |
@@ -597,6 +648,7 @@ Delete an agent.
 Start an agent on a task.
 
 **Request Schema:**
+
 ```typescript
 const startAgentSchema = z.object({
   taskId: z.string().cuid2().optional(),  // If not provided, picks from backlog
@@ -604,6 +656,7 @@ const startAgentSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -617,6 +670,7 @@ const startAgentSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `AGENT_NO_AVAILABLE_TASK` | No tasks in backlog |
@@ -627,6 +681,7 @@ const startAgentSchema = z.object({
 | 429 | `CONCURRENCY_LIMIT_EXCEEDED` | Too many concurrent agents |
 
 **Example:**
+
 ```bash
 curl -X POST "/api/agents/clx1234567890/start" \
   -H "Content-Type: application/json" \
@@ -640,6 +695,7 @@ curl -X POST "/api/agents/clx1234567890/start" \
 Stop a running agent.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -651,6 +707,7 @@ Stop a running agent.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `AGENT_NOT_RUNNING` | Agent not running |
@@ -663,6 +720,7 @@ Stop a running agent.
 Get agent execution status.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -688,6 +746,7 @@ Get agent execution status.
 Create a new session.
 
 **Request Schema:**
+
 ```typescript
 const createSessionSchema = z.object({
   projectId: z.string().cuid2(),
@@ -698,6 +757,7 @@ const createSessionSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -708,6 +768,7 @@ const createSessionSchema = z.object({
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `VALIDATION_ERROR` | Invalid request body |
@@ -720,6 +781,7 @@ const createSessionSchema = z.object({
 Get session by ID.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -733,6 +795,7 @@ Get session by ID.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `SESSION_NOT_FOUND` | Session doesn't exist |
@@ -744,10 +807,12 @@ Get session by ID.
 Server-Sent Events endpoint for real-time session events.
 
 **Response:**
+
 - Content-Type: `text/event-stream`
 - Events: `SessionEvent` objects (see session-service.md)
 
 **Event Format:**
+
 ```
 event: chunk
 data: {"type":"chunk","agentId":"agt_123","text":"Hello","timestamp":1705420800000}
@@ -760,12 +825,14 @@ data: {"type":"presence:joined","userId":"usr_456","timestamp":1705420802000}
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 404 | `SESSION_NOT_FOUND` | Session doesn't exist |
 | 502 | `SESSION_CONNECTION_FAILED` | Stream connection failed |
 
 **Example:**
+
 ```javascript
 const eventSource = new EventSource('/api/sessions/clx123/stream');
 
@@ -787,6 +854,7 @@ eventSource.addEventListener('tool:start', (e) => {
 Get historical session events (replay).
 
 **Request Schema:**
+
 ```typescript
 const historySchema = z.object({
   startTime: z.number().optional(),
@@ -798,6 +866,7 @@ const historySchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -816,6 +885,7 @@ const historySchema = z.object({
 Close a session.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -826,6 +896,7 @@ Close a session.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 400 | `SESSION_CLOSED` | Already closed |
@@ -838,6 +909,7 @@ Close a session.
 Get active users in session.
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -855,6 +927,7 @@ Get active users in session.
 Update presence (cursor, activity).
 
 **Request Schema:**
+
 ```typescript
 const presenceUpdateSchema = z.object({
   cursor: z.object({
@@ -866,6 +939,7 @@ const presenceUpdateSchema = z.object({
 ```
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -882,12 +956,14 @@ const presenceUpdateSchema = z.object({
 GitHub webhook handler for push events and config sync.
 
 **Headers:**
+
 - `X-GitHub-Event`: Event type (push, installation, etc.)
 - `X-Hub-Signature-256`: HMAC signature for verification
 
 **Request Body:** GitHub webhook payload
 
 **Response Schema:**
+
 ```typescript
 {
   ok: true,
@@ -896,11 +972,13 @@ GitHub webhook handler for push events and config sync.
 ```
 
 **Error Responses:**
+
 | Status | Code | Condition |
 |--------|------|-----------|
 | 401 | `GITHUB_WEBHOOK_INVALID` | Invalid signature |
 
 **Handled Events:**
+
 - `push`: Sync config if `.claude/` files changed
 - `installation`: Handle app install/uninstall
 - `pull_request`: Auto-create tasks from PRs (optional)
@@ -1058,6 +1136,7 @@ export const ServerRoute = createServerFileRoute().methods({
 | Webhook handler | 100 | 1 minute |
 
 **Rate Limit Response:**
+
 ```typescript
 {
   "ok": false,
@@ -1074,6 +1153,7 @@ export const ServerRoute = createServerFileRoute().methods({
 ```
 
 **Rate Limit Headers:**
+
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 0
@@ -1086,10 +1166,12 @@ Retry-After: 30
 ## Authentication
 
 All endpoints require authentication via one of:
+
 - `Authorization: Bearer <token>` header
 - Session cookie (for browser clients)
 
 **Unauthenticated Response:**
+
 ```typescript
 {
   "ok": false,

@@ -94,4 +94,4 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
     uv tool install pre-commit --with pre-commit-uv && \
     uv tool install specify-cli --from git+https://github.com/github/spec-kit.git && \
     go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc 
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc

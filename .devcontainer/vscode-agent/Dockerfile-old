@@ -112,4 +112,3 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
         "${VAULT_RADAR_VERSION}" \
         "${INSTALL_VAULT_RADAR}" \
     && sudo rm -rf /tmp/library-scripts
-

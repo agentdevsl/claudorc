@@ -5,11 +5,13 @@
 Comprehensive test case catalog for AgentPane, organized by feature area. Each test case includes a checkbox for TDD tracking, priority level, and test type classification.
 
 **Test Types**:
+
 - `Unit`: Isolated function/component tests
 - `Integration`: Multi-component interaction tests
 - `E2E`: Full system flow tests via Agent Browser
 
 **Priority Levels**:
+
 - `P0`: Critical - must pass for release
 - `P1`: High - core functionality
 - `P2`: Medium - important features

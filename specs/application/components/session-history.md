@@ -5,6 +5,7 @@
 The SessionHistory component displays a chronological list of past agent sessions for a project or task, allowing users to review completed work, view session details, and access session recordings.
 
 **Related Wireframes:**
+
 - [Session History](../wireframes/session-history.html) - Session list with filtering and detail view
 
 ---

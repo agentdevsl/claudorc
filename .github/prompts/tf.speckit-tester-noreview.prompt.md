@@ -14,7 +14,8 @@ This skill provides automated testing capabilities for the complete Speckit pipe
 ## Test Scenario
 
 Please read the following file to load the test scenario:
-#file: github/test-scenarios/${input:scenario}
+
+# file: github/test-scenarios/${input:scenario}
 
 ## Core Concepts
 

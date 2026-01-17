@@ -5,6 +5,7 @@
 Comprehensive test infrastructure for AgentPane, providing mock implementations, test factories, utilities, and configuration for unit, integration, and E2E testing. This specification ensures consistent, isolated, and reproducible test execution across all test types.
 
 **Related Documents**:
+
 - [Test Cases Catalog](./test-cases.md) - Complete test case inventory
 - [Database Schema](../database/schema.md) - Data models for factories
 - [Error Catalog](../errors/error-catalog.md) - Error types for mocking

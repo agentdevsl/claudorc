@@ -5,6 +5,7 @@
 The KanbanBoard component provides a 4-column drag-and-drop task management interface for the AgentPane workflow. It displays tasks organized by workflow state (backlog, in_progress, waiting_approval, verified), supports multi-select operations, and integrates with the task service for state transitions.
 
 **Related Wireframes:**
+
 - [Kanban Board Full](../wireframes/kanban-board-full.html) - Complete board with drag overlay
 - [Task Detail Dialog](../wireframes/task-detail-dialog.html) - Task editing modal
 

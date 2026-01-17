@@ -5,6 +5,7 @@
 The Toast/Notification system provides non-blocking feedback messages to users for operation results, status updates, and system notifications. Toasts appear temporarily and can be dismissed manually or automatically.
 
 **Related Specifications:**
+
 - [Animation System](../implementation/animation-system.md) - Animation tokens and timing
 - [Component Patterns](../implementation/component-patterns.md) - Radix UI integration patterns
 - [Design Tokens](../wireframes/design-tokens.css) - Color and spacing tokens

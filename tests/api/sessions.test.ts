@@ -28,6 +28,12 @@ vi.mock('@/services/session.service', () => ({
   },
 }));
 vi.mock('@/db/client', () => ({ db: {} }));
+vi.mock('@/app/routes/api/runtime', () => ({
+  getApiRuntime: () => ({
+    ok: true,
+    value: { db: {}, runner: {}, streams: {} },
+  }),
+}));
 
 import { Route as SessionsRoute } from '@/app/routes/api/sessions';
 import { Route as SessionRoute } from '@/app/routes/api/sessions/$id';

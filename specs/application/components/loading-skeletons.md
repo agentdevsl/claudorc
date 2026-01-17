@@ -3,6 +3,7 @@
 AgentPane loading skeleton components for perceived performance and layout stability during data fetching. This specification defines the skeleton system aligned with the GitHub dark theme design tokens and animation system.
 
 **Related Specifications:**
+
 - [Component Patterns](../implementation/component-patterns.md) - Base UI components
 - [Animation System](../implementation/animation-system.md) - Timing and easing
 - [Design Tokens](../wireframes/design-tokens.css) - Color system

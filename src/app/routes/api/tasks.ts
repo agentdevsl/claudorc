@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { db } from '@/db/client';
+import { getApiRuntime } from '@/app/routes/api/runtime';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { createTaskSchema, listTasksSchema } from '@/lib/api/schemas';
@@ -7,11 +7,13 @@ import { parseBody, parseQuery } from '@/lib/api/validation';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
 
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
+const runtime = getApiRuntime();
+if (!runtime.ok) {
+  throw new Error(runtime.error.message);
+}
 
-const taskService = new TaskService(db, worktreeService);
+const worktreeService = new WorktreeService(runtime.value.db, runtime.value.runner);
+const taskService = new TaskService(runtime.value.db, worktreeService);
 
 export const Route = createFileRoute('/api/tasks')({
   server: {
@@ -31,7 +33,9 @@ export const Route = createFileRoute('/api/tasks')({
         });
 
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         const counts = result.value.reduce(
@@ -64,7 +68,9 @@ export const Route = createFileRoute('/api/tasks')({
 
         const result = await taskService.create(parsed.value);
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         return Response.json(success(result.value), { status: 201 });

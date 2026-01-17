@@ -3,6 +3,7 @@
 AgentPane mobile-first responsive design system. This specification defines how layouts, components, and interactions adapt across device sizes to provide an optimal experience on mobile, tablet, and desktop.
 
 **Reference Documents:**
+
 - [Mobile Responsive Wireframe](../wireframes/mobile-responsive.html) - Visual reference
 - [Design Tokens](../wireframes/design-tokens.css) - CSS custom properties
 - [Component Patterns](./component-patterns.md) - UI component implementations
@@ -128,6 +129,7 @@ interface SidebarState {
 ```
 
 **Drawer Specifications:**
+
 - Width: 280px
 - Background: `--bg-default` (#161b22)
 - Border: `1px solid --border-default` (#30363d)
@@ -151,6 +153,7 @@ interface SidebarState {
 ```
 
 **Collapsed Mode Specifications:**
+
 - Width: 52px (icon only)
 - Expanded width: 240px
 - Icon size: 20px
@@ -211,6 +214,7 @@ const [activeColumn, setActiveColumn] = useState<TaskColumn>('backlog');
 ```
 
 **Mobile Card Specifications:**
+
 - Full-width cards
 - Min-height: 88px
 - Padding: 12px
@@ -234,6 +238,7 @@ const [activeColumn, setActiveColumn] = useState<TaskColumn>('backlog');
 ```
 
 **Tablet Layout Specifications:**
+
 - Column width: 280px fixed
 - Snap scroll: `snap-x snap-mandatory`
 - Column snap: `snap-start`
@@ -306,6 +311,7 @@ const [activeColumn, setActiveColumn] = useState<TaskColumn>('backlog');
 ```
 
 **Mobile Sheet Specifications:**
+
 - Full viewport height
 - Header: 56px fixed
 - Content: Scrollable
@@ -528,6 +534,7 @@ const CARD_SWIPE_ACTIONS: SwipeAction[] = [
 ```
 
 **Swipe Specifications:**
+
 - Threshold: 30% of card width
 - Velocity threshold: 0.5 (pixels/ms)
 - Haptic feedback: Light vibration on threshold reach
@@ -592,6 +599,7 @@ function usePullToRefresh(onRefresh: () => Promise<void>) {
 ```
 
 **Pull-to-Refresh Specifications:**
+
 - Pull threshold: 80px
 - Max overscroll: 120px
 - Spinner appears at: 60px
@@ -642,6 +650,7 @@ function useLongPress(
 ```
 
 **Long-Press Specifications:**
+
 - Delay: 500ms
 - Haptic feedback: 50ms vibration
 - Visual feedback: Scale down to 0.98 during press
@@ -776,6 +785,7 @@ const buttonVariants = cva(
 ```
 
 **Mobile Input Specifications:**
+
 - Height: 44px minimum
 - Font size: 16px (prevents iOS zoom)
 - Full width on mobile
@@ -811,6 +821,7 @@ export function ResponsiveSelect({ children, ...props }: SelectProps) {
 ```
 
 **Bottom Sheet Specifications:**
+
 - Max height: 60vh
 - Border radius (top): 12px
 - Handle: 36px x 4px centered, `--fg-muted`
@@ -961,6 +972,7 @@ export function BottomNav() {
 ```
 
 **Bottom Nav Specifications:**
+
 - Height: 56px + safe area
 - Background: `--bg-default`
 - Border: 1px top `--border-default`

@@ -1,20 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { db } from '@/db/client';
+import { getApiRuntime } from '@/app/routes/api/runtime';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { SessionService } from '@/services/session.service';
 
-const sessionService = new SessionService(
-  db,
-  {
-    createStream: async () => undefined,
-    publish: async () => undefined,
-    subscribe: async function* () {
-      yield { type: 'chunk', data: {} };
-    },
-  },
-  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
-);
+const runtime = getApiRuntime();
+if (!runtime.ok) {
+  throw new Error(runtime.error.message);
+}
+
+if (!runtime.value.streams) {
+  throw new Error('Stream provider not configured');
+}
+
+const sessionService = new SessionService(runtime.value.db, runtime.value.streams, {
+  baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
+});
 
 export const Route = createFileRoute('/api/sessions/$id/history')({
   server: {
@@ -27,7 +28,9 @@ export const Route = createFileRoute('/api/sessions/$id/history')({
         });
 
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         return Response.json(success(result.value));

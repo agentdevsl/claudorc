@@ -28,6 +28,12 @@ vi.mock('@/services/agent.service', () => ({
   },
 }));
 vi.mock('@/db/client', () => ({ db: {} }));
+vi.mock('@/app/routes/api/runtime', () => ({
+  getApiRuntime: () => ({
+    ok: true,
+    value: { db: {}, runner: {}, streams: {} },
+  }),
+}));
 
 import { Route as AgentsRoute } from '@/app/routes/api/agents';
 import { Route as AgentRoute } from '@/app/routes/api/agents/$id';
@@ -141,7 +147,9 @@ describe('Agent API', () => {
     agentServiceMocks.delete.mockResolvedValue(ok(undefined));
 
     const response = await AgentRoute.options.server?.handlers?.DELETE({
-      request: new Request('http://localhost/api/agents/agent-1', { method: 'DELETE' }),
+      request: new Request('http://localhost/api/agents/agent-1', {
+        method: 'DELETE',
+      }),
       params: { id: sampleAgent.id },
     });
 
@@ -176,7 +184,9 @@ describe('Agent API', () => {
     agentServiceMocks.stop.mockResolvedValue(ok(undefined));
 
     const response = await AgentStopRoute.options.server?.handlers?.POST({
-      request: new Request('http://localhost/api/agents/agent-1/stop', { method: 'POST' }),
+      request: new Request('http://localhost/api/agents/agent-1/stop', {
+        method: 'POST',
+      }),
       params: { id: sampleAgent.id },
     });
 

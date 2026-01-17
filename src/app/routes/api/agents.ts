@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { db } from '@/db/client';
+import { getApiRuntime } from '@/app/routes/api/runtime';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { createAgentSchema, listAgentsSchema } from '@/lib/api/schemas';
@@ -9,28 +9,25 @@ import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
 
-// TODO: Phase 2 - Replace stub implementations with real services via dependency injection.
-// These stubs allow API routes to be tested without actual git/stream operations.
-// See: /specs/application/architecture/app-bootstrap.md for DI setup requirements.
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
+const runtime = getApiRuntime();
+if (!runtime.ok) {
+  throw new Error(runtime.error.message);
+}
+
+const worktreeService = new WorktreeService(runtime.value.db, runtime.value.runner);
+const taskService = new TaskService(runtime.value.db, worktreeService);
+if (!runtime.value.streams) {
+  throw new Error('Stream provider not configured');
+}
+const sessionService = new SessionService(runtime.value.db, runtime.value.streams, {
+  baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
 });
-
-const taskService = new TaskService(db, worktreeService);
-
-const sessionService = new SessionService(
-  db,
-  {
-    createStream: async () => undefined,
-    publish: async () => undefined,
-    subscribe: async function* () {
-      yield { type: 'chunk', data: {} };
-    },
-  },
-  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
+const agentService = new AgentService(
+  runtime.value.db,
+  worktreeService,
+  taskService,
+  sessionService
 );
-
-const agentService = new AgentService(db, worktreeService, taskService, sessionService);
 
 export const Route = createFileRoute('/api/agents')({
   server: {
@@ -42,10 +39,13 @@ export const Route = createFileRoute('/api/agents')({
         }
 
         const result = await agentService.list(parsed.value.projectId);
-        // list() returns Result<Agent[], never> - error case is unreachable
         if (!result.ok) {
           return Response.json(
-            failure({ code: 'INTERNAL_ERROR', message: 'Unexpected error', status: 500 }),
+            failure({
+              code: 'INTERNAL_ERROR',
+              message: 'Unexpected error',
+              status: 500,
+            }),
             { status: 500 }
           );
         }
@@ -81,7 +81,9 @@ export const Route = createFileRoute('/api/agents')({
             : undefined,
         });
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure(result.error), {
+            status: result.error.status,
+          });
         }
 
         return Response.json(success(result.value), { status: 201 });

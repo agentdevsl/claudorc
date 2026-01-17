@@ -5,6 +5,7 @@
 The QueueWaitingState component displays when a task is queued waiting for an available agent slot. It shows queue position, estimated wait time, and currently running agents.
 
 **Related Wireframes:**
+
 - [Queue Waiting State](../wireframes/queue-waiting-state.html) - Queue position display and running agent status
 
 ---

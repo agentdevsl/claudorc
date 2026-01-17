@@ -5,6 +5,7 @@
 The TaskService manages CRUD operations for tasks, Kanban board operations (column transitions, reordering), and the approval workflow. It enforces the 4-column workflow state machine and handles task-to-agent assignment.
 
 **Related Wireframes:**
+
 - [Kanban Board](../wireframes/kanban-board-full.html) - Task board with drag-and-drop
 - [Task Detail Dialog](../wireframes/task-detail-dialog.html) - Task creation and editing
 - [Approval Dialog](../wireframes/approval-dialog.html) - Diff review and approval workflow
@@ -190,33 +191,39 @@ export function getValidTransitions(from: TaskColumn): TaskColumn[] {
 Creates a new task in the backlog column.
 
 **Signature:**
+
 ```typescript
 create(input: CreateTaskInput): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - `projectId` must reference an existing project
 - `title` must be 1-200 characters
 - `description` must be <= 5000 characters
 - `labels` must be <= 10 items
 
 **Business Rules:**
+
 1. New tasks always start in `backlog` column
 2. Position is set to end of backlog (max position + 1)
 3. Task ID is generated using CUID2
 4. `createdAt` and `updatedAt` are set to current timestamp
 
 **Side Effects:**
+
 - **Database:** Inserts new row into `tasks` table
 - **Events:** Emits `task:created` event to Durable Streams
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Project not found | `TaskErrors.NOT_FOUND` (via project lookup) |
 | Validation failed | `ValidationErrors.VALIDATION_ERROR` |
 
 **Example:**
+
 ```typescript
 const result = await taskService.create({
   projectId: 'clp1234567890abcdef',
@@ -238,20 +245,25 @@ if (result.ok) {
 Retrieves a task by its ID.
 
 **Signature:**
+
 ```typescript
 getById(id: string): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - `id` must be a valid CUID2 format
 
 **Business Rules:**
+
 1. Returns the complete task record including all metadata
 
 **Side Effects:**
+
 - None
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task ID not found | `TaskErrors.NOT_FOUND` |
@@ -263,23 +275,28 @@ getById(id: string): Promise<Result<Task, TaskError>>
 Lists tasks for a project with optional filtering.
 
 **Signature:**
+
 ```typescript
 list(projectId: string, options?: ListTasksOptions): Promise<Result<Task[], TaskError>>
 ```
 
 **Preconditions:**
+
 - `projectId` must reference an existing project
 - `limit` must be 1-100 (default: 50)
 
 **Business Rules:**
+
 1. Default ordering is by `position` ascending within each column
 2. Can filter by column, agent assignment
 3. Returns empty array if no tasks match
 
 **Side Effects:**
+
 - None
 
 **Example:**
+
 ```typescript
 const result = await taskService.list('clp1234567890abcdef', {
   column: 'in_progress',
@@ -295,25 +312,30 @@ const result = await taskService.list('clp1234567890abcdef', {
 Updates task metadata (not column or position).
 
 **Signature:**
+
 ```typescript
 update(id: string, input: UpdateTaskInput): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - `title` (if provided) must be 1-200 characters
 
 **Business Rules:**
+
 1. Only metadata fields can be updated (title, description, labels, metadata)
 2. Use `moveColumn` to change column
 3. Use `reorder` to change position
 4. `updatedAt` is automatically set
 
 **Side Effects:**
+
 - **Database:** Updates row in `tasks` table
 - **Events:** Emits `task:updated` event
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
@@ -325,24 +347,29 @@ update(id: string, input: UpdateTaskInput): Promise<Result<Task, TaskError>>
 Deletes a task.
 
 **Signature:**
+
 ```typescript
 delete(id: string): Promise<Result<void, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - Task must not have an active agent assigned
 
 **Business Rules:**
+
 1. Cascades delete to associated audit logs
 2. Does not delete associated worktree (handled separately)
 3. Reorders remaining tasks in column to fill gap
 
 **Side Effects:**
+
 - **Database:** Deletes task record
 - **Events:** Emits `task:deleted` event
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
@@ -355,15 +382,18 @@ delete(id: string): Promise<Result<void, TaskError>>
 Moves a task to a different column.
 
 **Signature:**
+
 ```typescript
 moveColumn(id: string, column: TaskColumn, position?: number): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - Transition from current column to target column must be valid
 
 **Business Rules:**
+
 1. Validates transition using state machine
 2. If `position` not provided, places at end of target column
 3. Reorders source column to fill gap
@@ -381,12 +411,14 @@ moveColumn(id: string, column: TaskColumn, position?: number): Promise<Result<Ta
    - Cleans up worktree
 
 **Side Effects:**
+
 - **Database:** Updates task column and position
 - **Events:** Emits `task:moved` event
 - **Worktree:** May create/merge/remove worktree
 - **Git:** May create branch, merge to main
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
@@ -394,6 +426,7 @@ moveColumn(id: string, column: TaskColumn, position?: number): Promise<Result<Ta
 | Position conflict | `TaskErrors.POSITION_CONFLICT` |
 
 **Example:**
+
 ```typescript
 // Move task from backlog to in_progress
 const result = await taskService.moveColumn(
@@ -415,30 +448,36 @@ if (!result.ok && result.error.code === 'TASK_INVALID_TRANSITION') {
 Reorders a task within its current column.
 
 **Signature:**
+
 ```typescript
 reorder(id: string, position: number): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - `position` must be >= 0 and <= max position in column
 
 **Business Rules:**
+
 1. Uses optimistic locking to handle concurrent reorders
 2. Shifts other tasks up or down as needed
 3. Position 0 is top of column
 
 **Side Effects:**
+
 - **Database:** Updates positions of affected tasks
 - **Events:** Emits `task:reordered` event
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
 | Concurrent update | `TaskErrors.POSITION_CONFLICT` |
 
 **Example:**
+
 ```typescript
 // Move task to top of its column
 const result = await taskService.reorder('task123', 0);
@@ -451,21 +490,26 @@ const result = await taskService.reorder('task123', 0);
 Gets all tasks in a specific column, ordered by position.
 
 **Signature:**
+
 ```typescript
 getByColumn(projectId: string, column: TaskColumn): Promise<Result<Task[], TaskError>>
 ```
 
 **Preconditions:**
+
 - `projectId` must reference an existing project
 
 **Business Rules:**
+
 1. Returns tasks ordered by `position` ascending
 2. Returns empty array if no tasks in column
 
 **Side Effects:**
+
 - None
 
 **Example:**
+
 ```typescript
 const result = await taskService.getByColumn(
   'clp1234567890abcdef',
@@ -486,16 +530,19 @@ if (result.ok) {
 Approves a task in the waiting_approval column.
 
 **Signature:**
+
 ```typescript
 approve(id: string, input: ApproveInput): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - Task must be in `waiting_approval` column
 - Task must have a diff (changes to approve)
 
 **Business Rules:**
+
 1. Validates task is in correct column
 2. Sets `approvedAt` to current timestamp
 3. Sets `approvedBy` if provided
@@ -507,12 +554,14 @@ approve(id: string, input: ApproveInput): Promise<Result<Task, TaskError>>
 6. Resets rejection count
 
 **Side Effects:**
+
 - **Database:** Updates task status and approval metadata
 - **Events:** Emits `task:approved` event, `workflow:approved` event
 - **Git:** Commits, merges branch, removes worktree
 - **Agent:** Stops associated agent
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
@@ -521,6 +570,7 @@ approve(id: string, input: ApproveInput): Promise<Result<Task, TaskError>>
 | Already approved | `TaskErrors.ALREADY_APPROVED` |
 
 **Example:**
+
 ```typescript
 const result = await taskService.approve('task123', {
   approvedBy: 'user@example.com',
@@ -539,16 +589,19 @@ if (result.ok) {
 Rejects a task and returns it to in_progress with feedback.
 
 **Signature:**
+
 ```typescript
 reject(id: string, input: RejectInput): Promise<Result<Task, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - Task must be in `waiting_approval` column
 - `reason` must be 1-1000 characters
 
 **Business Rules:**
+
 1. Validates task is in correct column
 2. Stores rejection reason in `rejectionReason` field
 3. Increments `rejectionCount`
@@ -557,17 +610,20 @@ reject(id: string, input: RejectInput): Promise<Result<Task, TaskError>>
 6. Clears diff summary (will be regenerated on next completion)
 
 **Side Effects:**
+
 - **Database:** Updates task status and rejection metadata
 - **Events:** Emits `task:rejected` event, `workflow:rejected` event
 - **Agent:** Resumes agent with feedback prompt
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
 | Not in waiting_approval | `TaskErrors.NOT_WAITING_APPROVAL(currentColumn)` |
 
 **Example:**
+
 ```typescript
 const result = await taskService.reject('task123', {
   reason: 'Missing error handling for edge case. Please add try-catch around the API call.',
@@ -585,30 +641,36 @@ if (result.ok) {
 Generates a diff for a task's changes.
 
 **Signature:**
+
 ```typescript
 getDiff(id: string): Promise<Result<DiffResult, TaskError>>
 ```
 
 **Preconditions:**
+
 - Task with `id` must exist
 - Task must have a worktree/branch assigned
 
 **Business Rules:**
+
 1. Compares task branch against default branch
 2. Returns structured diff with file changes and line counts
 3. Caches diff summary in task record for quick access
 
 **Side Effects:**
+
 - **Git:** Runs `git diff` against worktree
 - **Database:** May update cached diff summary
 
 **Error Conditions:**
+
 | Condition | Error |
 |-----------|-------|
 | Task not found | `TaskErrors.NOT_FOUND` |
 | No worktree/branch | `TaskErrors.NO_DIFF` |
 
 **Example:**
+
 ```typescript
 const result = await taskService.getDiff('task123');
 

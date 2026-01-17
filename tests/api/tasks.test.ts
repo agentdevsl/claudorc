@@ -31,6 +31,9 @@ vi.mock('@/services/task.service', () => ({
   },
 }));
 vi.mock('@/db/client', () => ({ db: {} }));
+vi.mock('@/app/routes/api/runtime', () => ({
+  getApiRuntime: () => ({ ok: true, value: { db: {}, runner: {} } }),
+}));
 
 import { Route as TasksRoute } from '@/app/routes/api/tasks';
 import { Route as TaskRoute } from '@/app/routes/api/tasks/$id';
@@ -174,7 +177,9 @@ describe('Task API', () => {
     taskServiceMocks.delete.mockResolvedValue(ok(undefined));
 
     const response = await TaskRoute.options.server?.handlers?.DELETE({
-      request: new Request('http://localhost/api/tasks/task-1', { method: 'DELETE' }),
+      request: new Request('http://localhost/api/tasks/task-1', {
+        method: 'DELETE',
+      }),
       params: { id: sampleTask.id },
     });
 
@@ -187,7 +192,9 @@ describe('Task API', () => {
     taskServiceMocks.moveColumn.mockResolvedValue(ok({ ...sampleTask, column: 'in_progress' }));
 
     const response = await TaskMoveRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/tasks/task-1/move', { column: 'in_progress' }),
+      request: jsonRequest('http://localhost/api/tasks/task-1/move', {
+        column: 'in_progress',
+      }),
       params: { id: sampleTask.id },
     });
 
@@ -202,7 +209,9 @@ describe('Task API', () => {
     );
 
     const response = await TaskMoveRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/tasks/task-1/move', { column: 'verified' }),
+      request: jsonRequest('http://localhost/api/tasks/task-1/move', {
+        column: 'verified',
+      }),
       params: { id: sampleTask.id },
     });
 
@@ -215,7 +224,9 @@ describe('Task API', () => {
     taskServiceMocks.approve.mockResolvedValue(ok({ ...sampleTask, column: 'verified' }));
 
     const response = await TaskApproveRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/tasks/task-1/approve', { approvedBy: 'user-1' }),
+      request: jsonRequest('http://localhost/api/tasks/task-1/approve', {
+        approvedBy: 'user-1',
+      }),
       params: { id: sampleTask.id },
     });
 
@@ -228,7 +239,9 @@ describe('Task API', () => {
     taskServiceMocks.reject.mockResolvedValue(ok({ ...sampleTask, column: 'in_progress' }));
 
     const response = await TaskRejectRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/tasks/task-1/reject', { reason: 'Needs changes' }),
+      request: jsonRequest('http://localhost/api/tasks/task-1/reject', {
+        reason: 'Needs changes',
+      }),
       params: { id: sampleTask.id },
     });
 

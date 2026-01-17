@@ -5,6 +5,7 @@
 This specification defines the deployment architecture, environment configuration, build processes, and operational procedures for AgentPane. The primary deployment model is a single-node local installation, with optional Docker containerization and cloud deployment patterns for scaling.
 
 **Tech Stack Reference:**
+
 | Component | Technology | Version |
 |-----------|------------|---------|
 | Runtime | Bun | 1.3.6 |
@@ -17,6 +18,7 @@ This specification defines the deployment architecture, environment configuratio
 | Linting | Biome | 2.3.11 |
 
 **Related Specifications:**
+
 - [App Bootstrap](../architecture/app-bootstrap.md) - Application initialization sequence
 - [Database Schema](../database/schema.md) - PGlite schema and migrations
 - [Configuration Management](../configuration/config-management.md) - Environment and config handling

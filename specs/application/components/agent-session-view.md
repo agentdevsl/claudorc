@@ -5,6 +5,7 @@
 The AgentSessionView is the primary interface for observing and interacting with a running agent session. It provides real-time streaming output, collaborative presence indicators, activity tracking, and bidirectional terminal input via Durable Streams.
 
 **Related Wireframes:**
+
 - [Agent Session Presence](../wireframes/agent-session-presence.html) - Real-time presence indicators, avatar stack, share URLs
 - [GitHub Terminal Split](../wireframes/github-terminal-split.html) - Agent stream, file preview layout
 

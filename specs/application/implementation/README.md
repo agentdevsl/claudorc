@@ -9,6 +9,7 @@ This directory contains detailed implementation guides for AgentPane development
 Complete guide to implementing Radix UI + Tailwind CSS components with class-variance-authority.
 
 **Coverage:**
+
 - Button component with CVA variants (primary, secondary, success, danger, ghost)
 - Dialog/Modal with Radix Dialog, overlay blur, scale animations
 - Dropdown menus with Radix Dropdown Menu (theme switcher, project picker)
@@ -19,6 +20,7 @@ Complete guide to implementing Radix UI + Tailwind CSS components with class-var
 - Checkbox with Radix Checkbox (worktree selection, task selection)
 
 **Key Features:**
+
 - GitHub Dark design system tokens (colors, spacing, typography, timing)
 - Animation patterns (fade, slide, zoom with 200ms standard timing)
 - Accessibility checklist (WCAG 2.1 AA)
@@ -43,6 +45,7 @@ Import components from `@/components/ui/` following shadcn/ui style patterns.
 ## Design System
 
 **Colors:**
+
 - Canvas: `#0d1117` (main background)
 - Default: `#161b22` (cards/sections)
 - Subtle: `#1c2128` (hover)
@@ -54,15 +57,18 @@ Import components from `@/components/ui/` following shadcn/ui style patterns.
 - Error: `#f85149` (red)
 
 **Typography:**
+
 - Sans-serif: Mona Sans (primary)
 - Monospace: Fira Code (code/data)
 - Base: 14px, Code: 13px
 
 **Spacing:**
+
 - Border radius: 6px
 - Padding scale: 1/2/3/4/6 units (4px base)
 
 **Animation Timing:**
+
 - Fast: 100ms (feedback)
 - Base: 200ms (standard interactions)
 - Slow: 300ms (complex animations)

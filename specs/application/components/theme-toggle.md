@@ -5,6 +5,7 @@
 The ThemeToggle component provides a segmented control for switching between light, dark, and system themes. It persists user preference to localStorage and respects OS-level color scheme preferences.
 
 **Related Wireframes:**
+
 - [Theme Toggle](../wireframes/theme-toggle.html) - Segmented control design with all theme states
 
 ---

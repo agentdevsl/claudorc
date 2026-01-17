@@ -5,6 +5,7 @@
 This specification covers all form-related components for the AgentPane application. Components follow the established design system tokens, Radix UI primitives, and class-variance-authority patterns.
 
 **Related Documentation:**
+
 - [Component Patterns](../implementation/component-patterns.md) - Base component implementations
 - [Design Tokens](../wireframes/design-tokens.css) - CSS custom properties
 - [Error Catalog](../errors/error-catalog.md) - Validation error messages
@@ -1599,6 +1600,7 @@ function RadioCardItem({
 Reference the existing implementation in [Component Patterns](../implementation/component-patterns.md#7-switchtoggle).
 
 The Switch component is already documented with:
+
 - Radix UI primitive integration
 - Green checked state (`bg-green-600`)
 - Smooth thumb transition
