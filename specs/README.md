@@ -7,7 +7,7 @@ This directory contains the complete application specifications for AgentPane, a
 | Metric | Value |
 |--------|-------|
 | **Total Spec Files** | 42 markdown files |
-| **Total Wireframes** | 21 HTML files |
+| **Total Wireframes** | 20 HTML files |
 | **Estimated Lines** | ~45,000+ |
 | **Coverage** | 100% |
 
@@ -102,7 +102,6 @@ specs/
     ├── github-project-picker.html     # Project selection
     ├── github-terminal-split.html     # Terminal split view
     ├── kanban-board-full.html         # Full kanban board
-    ├── logo-mesh-variations.html      # Logo designs
     ├── mobile-responsive.html         # Mobile layouts
     ├── new-project-dialog.html        # New project wizard
     ├── project-settings.html          # Project configuration

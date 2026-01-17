@@ -88,7 +88,7 @@ specs/
 │   ├── test-cases.md            # 164+ test cases
 │   └── test-infrastructure.md   # Mocks, factories
 │
-└── wireframes/                  # Visual Designs (21 HTML files)
+└── wireframes/                  # Visual Designs (20 HTML files)
     ├── design-tokens.css        # Design system
     └── *.html                   # UI wireframes
 ```
