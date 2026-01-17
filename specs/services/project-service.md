@@ -73,10 +73,15 @@ export interface ListProjectsOptions {
 }
 
 export interface PathValidation {
-  valid: boolean;
-  isGitRepo: boolean;
+  /** Derived project name from directory */
+  name: string;
+  /** Absolute path to repository */
+  path: string;
+  /** Whether .claude/ config exists */
   hasClaudeConfig: boolean;
-  defaultBranch?: string;
+  /** Default branch (e.g., 'main') */
+  defaultBranch: string;
+  /** Remote origin URL if configured */
   remoteUrl?: string;
 }
 ```
@@ -373,7 +378,7 @@ if (result.ok) {
 
 ### validatePath
 
-Validates a filesystem path for project creation.
+Validates a filesystem path for project creation. Returns repository info if valid.
 
 **Signature:**
 ```typescript
@@ -385,10 +390,10 @@ validatePath(path: string): Promise<Result<PathValidation, ProjectError>>
 
 **Business Rules:**
 1. Checks if path exists and is accessible
-2. Checks if path is already registered to another project
-3. Detects if path is a git repository
-4. Checks for existing `.claude/` or `.claude/` config directory
-5. Extracts default branch and remote URL if git repo
+2. **Requires** path to be a git repository (contains `.git`)
+3. Checks for existing `.claude/` config directory
+4. Extracts default branch and remote URL from git config
+5. Derives project name from directory name
 
 **Side Effects:**
 - **Filesystem:** Reads directory metadata and git config
@@ -397,14 +402,15 @@ validatePath(path: string): Promise<Result<PathValidation, ProjectError>>
 | Condition | Error |
 |-----------|-------|
 | Path doesn't exist | `ProjectErrors.PATH_INVALID(path)` |
-| Path already registered | `ProjectErrors.PATH_EXISTS` |
+| Path is not a git repository | `ProjectErrors.NOT_A_GIT_REPO(path)` |
 
 **Example:**
 ```typescript
 const result = await projectService.validatePath('/Users/user/git/myproject');
 
-if (result.ok && result.value.valid) {
-  console.log('Is git repo:', result.value.isGitRepo);
+if (result.ok) {
+  console.log('Name:', result.value.name); // 'myproject'
+  console.log('Branch:', result.value.defaultBranch); // 'main'
   console.log('Has config:', result.value.hasClaudeConfig);
 }
 ```
@@ -481,39 +487,36 @@ export class ProjectService implements IProjectService {
       ));
     }
 
-    // 2. Normalize and validate path
+    // 2. Normalize and validate path (also checks git repo requirement)
     const normalizedPath = resolve(input.path);
     const pathResult = await this.validatePath(normalizedPath);
     if (!pathResult.ok) {
       return err(pathResult.error);
     }
 
-    // 3. Check for duplicate path
-    const existing = await db.query.projects.findFirst({
-      where: eq(projects.path, normalizedPath),
-    });
-    if (existing) {
-      return err(ProjectErrors.PATH_EXISTS);
-    }
-
-    // 4. Validate and merge config
+    // 3. Validate and merge config
     const configResult = this.validateConfig(input.config ?? {});
     if (!configResult.ok) {
       return err(configResult.error);
     }
 
+    // 4. Derive name from directory and detect git info
+    const { name, defaultBranch, remoteUrl, hasClaudeConfig } = pathResult.value;
+
+    // Parse remote URL for GitHub owner/repo if available
+    const gitHubInfo = remoteUrl ? parseGitHubRemote(remoteUrl) : null;
+
     // 5. Insert into database
     const [project] = await db.insert(projects).values({
       id: createId(),
-      name: input.name,
+      name, // Derived from directory name
       path: normalizedPath,
-      description: input.description,
       config: configResult.value,
       maxConcurrentAgents: input.maxConcurrentAgents ?? 3,
-      githubOwner: input.githubOwner,
-      githubRepo: input.githubRepo,
-      githubInstallationId: input.githubInstallationId,
-      configPath: input.configPath ?? '.claude',
+      githubOwner: gitHubInfo?.owner,
+      githubRepo: gitHubInfo?.repo,
+      configPath: hasClaudeConfig ? '.claude' : null,
+      defaultBranch,
     }).returning();
 
     // 6. Emit event
@@ -652,46 +655,50 @@ export class ProjectService implements IProjectService {
       return err(ProjectErrors.PATH_INVALID(path));
     }
 
-    // Check if already registered
-    const existing = await db.query.projects.findFirst({
-      where: eq(projects.path, normalizedPath),
-    });
-
-    if (existing) {
-      return err(ProjectErrors.PATH_EXISTS);
-    }
-
-    // Detect git repo and config
-    const validation: PathValidation = {
-      valid: true,
-      isGitRepo: false,
-      hasClaudeConfig: false,
-    };
-
-    // Check for .git directory
+    // REQUIRED: Check for .git directory (must be a git repository)
     try {
       await access(`${normalizedPath}/.git`, constants.R_OK);
-      validation.isGitRepo = true;
-      // Extract git info...
     } catch {
-      // Not a git repo
+      return err(ProjectErrors.NOT_A_GIT_REPO(path));
     }
 
-    // Check for .claude config directory (primary) or .agentpane (legacy/backward compat)
+    // Derive name from directory
+    const name = normalizedPath.split('/').pop() || '';
+
+    // Check for .claude/ config directory
+    let hasClaudeConfig = false;
     try {
       await access(`${normalizedPath}/.claude`, constants.R_OK);
-      validation.hasClaudeConfig = true;
+      hasClaudeConfig = true;
     } catch {
-      // Legacy: Check for .agentpane (backward compatibility)
-      try {
-        await access(`${normalizedPath}/.agentpane`, constants.R_OK);
-        validation.hasClaudeConfig = true;
-      } catch {
-        // No config directory found
-      }
+      // No config dir, that's fine
     }
 
-    return ok(validation);
+    // Extract git info (default branch, remote URL)
+    const gitInfo = await this.extractGitInfo(normalizedPath);
+
+    return ok({
+      name,
+      path: normalizedPath,
+      hasClaudeConfig,
+      defaultBranch: gitInfo.defaultBranch || 'main',
+      remoteUrl: gitInfo.remoteUrl,
+    });
+  }
+
+  private async extractGitInfo(path: string): Promise<{ defaultBranch?: string; remoteUrl?: string }> {
+    // Read git config for branch and remote info
+    // Implementation uses git commands or config file parsing
+    try {
+      // Could use: git config --get remote.origin.url
+      // Could use: git symbolic-ref --short HEAD
+      return {
+        defaultBranch: 'main', // Default, detect from git
+        remoteUrl: undefined,  // Parse from git remote
+      };
+    } catch {
+      return {};
+    }
   }
 
   validateConfig(config: Partial<ProjectConfig>): Result<ProjectConfig, ProjectError> {
