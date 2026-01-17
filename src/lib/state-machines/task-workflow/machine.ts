@@ -94,84 +94,53 @@ const transition = (machine: TaskMachineInternal, event: TaskWorkflowEvent): Tas
     case 'backlog':
       if (event.type === 'ASSIGN') {
         if (!canAssign(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('TASK_ALREADY_ASSIGNED', 'Task already assigned', 409)),
-          };
+          return nextError(
+            machine,
+            createError('TASK_ALREADY_ASSIGNED', 'Task already assigned', 409)
+          );
         }
         if (!withinConcurrencyLimit(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(
-              createError('CONCURRENCY_LIMIT_EXCEEDED', 'Concurrency limit exceeded', 429)
-            ),
-          };
+          return nextError(
+            machine,
+            createError('CONCURRENCY_LIMIT_EXCEEDED', 'Concurrency limit exceeded', 429)
+          );
         }
-        const nextContext = { ...ctx, column: 'in_progress', agentId: event.agentId };
-        return {
-          ...machine,
-          state: 'in_progress',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'in_progress', context: nextContext }),
-        };
+        return nextState(machine, 'in_progress', {
+          ...ctx,
+          column: 'in_progress',
+          agentId: event.agentId,
+        });
       }
       break;
     case 'in_progress':
       if (event.type === 'COMPLETE') {
-        const nextContext = { ...ctx, column: 'waiting_approval' };
-        return {
-          ...machine,
-          state: 'waiting_approval',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'waiting_approval', context: nextContext }),
-        };
+        return nextState(machine, 'waiting_approval', { ...ctx, column: 'waiting_approval' });
       }
       if (event.type === 'CANCEL') {
-        const nextContext = { ...ctx, column: 'backlog', agentId: undefined };
-        return {
-          ...machine,
-          state: 'backlog',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'backlog', context: nextContext }),
-        };
+        return nextState(machine, 'backlog', { ...ctx, column: 'backlog', agentId: undefined });
       }
       break;
     case 'waiting_approval':
       if (event.type === 'APPROVE') {
         if (!canApprove(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('TASK_NOT_WAITING_APPROVAL', 'Not waiting approval', 400)),
-          };
+          return nextError(
+            machine,
+            createError('TASK_NOT_WAITING_APPROVAL', 'Not waiting approval', 400)
+          );
         }
         if (!hasDiff(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('TASK_NO_DIFF', 'No changes to approve', 400)),
-          };
+          return nextError(machine, createError('TASK_NO_DIFF', 'No changes to approve', 400));
         }
-        const nextContext = { ...ctx, column: 'verified' };
-        return {
-          ...machine,
-          state: 'verified',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'verified', context: nextContext }),
-        };
+        return nextState(machine, 'verified', { ...ctx, column: 'verified' });
       }
       if (event.type === 'REJECT') {
         if (!canReject(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('TASK_NOT_WAITING_APPROVAL', 'Not waiting approval', 400)),
-          };
+          return nextError(
+            machine,
+            createError('TASK_NOT_WAITING_APPROVAL', 'Not waiting approval', 400)
+          );
         }
-        const nextContext = { ...ctx, column: 'in_progress' };
-        return {
-          ...machine,
-          state: 'in_progress',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'in_progress', context: nextContext }),
-        };
+        return nextState(machine, 'in_progress', { ...ctx, column: 'in_progress' });
       }
       break;
     case 'verified':
@@ -180,13 +149,11 @@ const transition = (machine: TaskMachineInternal, event: TaskWorkflowEvent): Tas
       break;
   }
 
-  return {
-    ...machine,
-    lastResult: err(
-      createError('TASK_INVALID_TRANSITION', 'Invalid task transition', 400, {
-        state: machine.state,
-        event: event.type,
-      })
-    ),
-  };
+  return nextError(
+    machine,
+    createError('TASK_INVALID_TRANSITION', 'Invalid task transition', 400, {
+      state: machine.state,
+      event: event.type,
+    })
+  );
 };

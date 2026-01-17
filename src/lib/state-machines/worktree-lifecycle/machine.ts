@@ -22,6 +22,25 @@ export type WorktreeMachineResult = Result<WorktreeMachine, AppError> & {
 
 type WorktreeMachineInternal = WorktreeMachine & { lastResult: Result<WorktreeMachine, AppError> };
 
+const nextState = <S extends WorktreeLifecycleState>(
+  machine: WorktreeMachineInternal,
+  state: S,
+  context: WorktreeLifecycleContext
+): WorktreeMachineInternal => ({
+  ...machine,
+  state,
+  context,
+  lastResult: ok({ state, context, send: machine.send }),
+});
+
+const nextError = (
+  machine: WorktreeMachineInternal,
+  error: AppError
+): WorktreeMachineInternal => ({
+  ...machine,
+  lastResult: err(error),
+});
+
 const createMachineResult = (
   machine: WorktreeMachine,
   result: Result<WorktreeMachine, AppError>
@@ -81,122 +100,75 @@ const transition = (machine: WorktreeMachineInternal, event: WorktreeLifecycleEv
   switch (machine.state) {
     case 'creating':
       if (event.type === 'INIT_COMPLETE' && canCreate(ctx)) {
-        const next = { ...ctx, status: 'active', lastActivity: Date.now() };
-        return {
-          ...machine,
-          state: 'active',
-          context: next,
-          lastResult: ok({ ...machine, state: 'active', context: next }),
-        };
+        return nextState(machine, 'active', {
+          ...ctx,
+          status: 'active',
+          lastActivity: Date.now(),
+        });
       }
       break;
     case 'active':
       if (event.type === 'MODIFY') {
-        const next = { ...ctx, status: 'dirty', hasUncommittedChanges: true };
-        return {
-          ...machine,
-          state: 'dirty',
-          context: next,
-          lastResult: ok({ ...machine, state: 'dirty', context: next }),
-        };
+        return nextState(machine, 'dirty', {
+          ...ctx,
+          status: 'dirty',
+          hasUncommittedChanges: true,
+        });
       }
       if (event.type === 'MERGE') {
         if (!canMerge(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('WORKTREE_DIRTY', 'Worktree dirty', 400)),
-          };
+          return nextError(machine, createError('WORKTREE_DIRTY', 'Worktree dirty', 400));
         }
-        const next = { ...ctx, status: 'merging' };
-        return {
-          ...machine,
-          state: 'merging',
-          context: next,
-          lastResult: ok({ ...machine, state: 'merging', context: next }),
-        };
+        return nextState(machine, 'merging', { ...ctx, status: 'merging' });
       }
       if (event.type === 'REMOVE' && canRemove(ctx)) {
-        const next = { ...ctx, status: 'removing' };
-        return {
-          ...machine,
-          state: 'removing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'removing', context: next }),
-        };
+        return nextState(machine, 'removing', { ...ctx, status: 'removing' });
       }
       break;
     case 'dirty':
       if (event.type === 'COMMIT') {
-        const next = { ...ctx, status: 'committing', hasUncommittedChanges: false };
-        return {
-          ...machine,
-          state: 'committing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'committing', context: next }),
-        };
+        return nextState(machine, 'committing', {
+          ...ctx,
+          status: 'committing',
+          hasUncommittedChanges: false,
+        });
       }
       if (event.type === 'MERGE') {
         if (!canMerge(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('WORKTREE_DIRTY', 'Worktree dirty', 400)),
-          };
+          return nextError(machine, createError('WORKTREE_DIRTY', 'Worktree dirty', 400));
         }
-        const next = { ...ctx, status: 'merging' };
-        return {
-          ...machine,
-          state: 'merging',
-          context: next,
-          lastResult: ok({ ...machine, state: 'merging', context: next }),
-        };
+        return nextState(machine, 'merging', { ...ctx, status: 'merging' });
       }
       break;
     case 'committing':
       if (event.type === 'MERGE') {
-        const next = { ...ctx, status: 'merging' };
-        return {
-          ...machine,
-          state: 'merging',
-          context: next,
-          lastResult: ok({ ...machine, state: 'merging', context: next }),
-        };
+        return nextState(machine, 'merging', { ...ctx, status: 'merging' });
       }
       break;
     case 'merging':
       if (event.type === 'RESOLVE_CONFLICT') {
-        const next = { ...ctx, status: 'active', conflictFiles: [] };
-        return {
-          ...machine,
-          state: 'active',
-          context: next,
-          lastResult: ok({ ...machine, state: 'active', context: next }),
-        };
+        return nextState(machine, 'active', {
+          ...ctx,
+          status: 'active',
+          conflictFiles: [],
+        });
       }
       if (event.type === 'MODIFY' && hasConflicts(ctx)) {
-        const next = { ...ctx, status: 'conflict' };
-        return { ...machine, state: 'conflict', context: next, lastResult: ok(machine) };
+        return nextState(machine, 'conflict', { ...ctx, status: 'conflict' });
       }
       break;
     case 'conflict':
       if (event.type === 'RESOLVE_CONFLICT') {
-        const next = { ...ctx, status: 'active', conflictFiles: [] };
-        return {
-          ...machine,
-          state: 'active',
-          context: next,
-          lastResult: ok({ ...machine, state: 'active', context: next }),
-        };
+        return nextState(machine, 'active', {
+          ...ctx,
+          status: 'active',
+          conflictFiles: [],
+        });
       }
       break;
     case 'removing':
       if (event.type === 'REMOVE') {
-        const next = { ...ctx, status: 'removed' };
-        return {
-          ...machine,
-          state: 'removed',
-          context: next,
-          lastResult: ok({ ...machine, state: 'removed', context: next }),
-        };
+        return nextState(machine, 'removed', { ...ctx, status: 'removed' });
       }
       break;
     default:
@@ -204,22 +176,19 @@ const transition = (machine: WorktreeMachineInternal, event: WorktreeLifecycleEv
   }
 
   if (event.type === 'ERROR') {
-    const next = { ...ctx, status: 'error' };
     return {
       ...machine,
       state: 'error',
-      context: next,
+      context: { ...ctx, status: 'error' },
       lastResult: err(createError('WORKTREE_ERROR', 'Worktree error', 500)),
     };
   }
 
-  return {
-    ...machine,
-    lastResult: err(
-      createError('WORKTREE_INVALID_TRANSITION', 'Invalid worktree transition', 400, {
-        state: machine.state,
-        event: event.type,
-      })
-    ),
-  };
+  return nextError(
+    machine,
+    createError('WORKTREE_INVALID_TRANSITION', 'Invalid worktree transition', 400, {
+      state: machine.state,
+      event: event.type,
+    })
+  );
 };

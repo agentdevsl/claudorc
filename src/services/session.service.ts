@@ -120,6 +120,10 @@ export class SessionService {
       })
       .returning();
 
+    if (!session) {
+      return err(SessionErrors.NOT_FOUND);
+    }
+
     presenceStore.set(sessionId, new Map());
     await this.streams.createStream(sessionId, sessionSchema);
 

@@ -99,6 +99,10 @@ export class ProjectService {
       })
       .returning();
 
+    if (!project) {
+      return err(ProjectErrors.NOT_FOUND);
+    }
+
     return ok(project);
   }
 

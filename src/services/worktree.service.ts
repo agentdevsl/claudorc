@@ -76,7 +76,7 @@ const escapeShellString = (str: string): string => {
     .replace(/\n/g, '\\n');
 };
 
-const extractHunks = (diff: string, filePath: string): string[] => {
+const extractHunks = (diff: string, filePath: string): DiffHunk[] => {
   const hunks = diff.split(`diff --git a/${filePath} b/${filePath}`);
   const hunkContent = hunks[1];
   if (!hunkContent) {
@@ -84,7 +84,28 @@ const extractHunks = (diff: string, filePath: string): string[] => {
   }
 
   const lines = hunkContent.split('\n');
-  return lines.filter((line) => line.startsWith('@@'));
+  const hunkHeaders = lines.filter((line) => line.startsWith('@@'));
+
+  return hunkHeaders.map((header) => {
+    // Parse hunk header like "@@ -1,3 +1,5 @@"
+    const match = header.match(/@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/);
+    if (!match) {
+      return {
+        oldStart: 0,
+        oldLines: 0,
+        newStart: 0,
+        newLines: 0,
+        content: header,
+      };
+    }
+    return {
+      oldStart: Number.parseInt(match[1] ?? '0', 10),
+      oldLines: Number.parseInt(match[2] || '1', 10),
+      newStart: Number.parseInt(match[3] ?? '0', 10),
+      newLines: Number.parseInt(match[4] || '1', 10),
+      content: header,
+    };
+  });
 };
 
 export type CommandResult = {
@@ -143,7 +164,7 @@ export class WorktreeService {
       return err(WorktreeErrors.CREATION_FAILED(branch, String(error)));
     }
 
-    const [worktree] = await this.db
+    const [insertedWorktree] = await this.db
       .insert(worktrees)
       .values({
         projectId,
@@ -155,46 +176,57 @@ export class WorktreeService {
       })
       .returning();
 
+    if (!insertedWorktree) {
+      return err(WorktreeErrors.CREATION_FAILED(branch, 'Failed to insert worktree record'));
+    }
+
+    const worktreeId = insertedWorktree.id;
+
     // Run setup operations and check results - failures should prevent activation
     if (!options?.skipEnvCopy) {
-      const envResult = await this.copyEnv(worktree.id);
+      const envResult = await this.copyEnv(worktreeId);
       if (!envResult.ok) {
         await this.db
           .update(worktrees)
           .set({ status: 'error', updatedAt: new Date() })
-          .where(eq(worktrees.id, worktree.id));
+          .where(eq(worktrees.id, worktreeId));
         return envResult;
       }
     }
 
     if (!options?.skipDepsInstall) {
-      const depsResult = await this.installDeps(worktree.id);
+      const depsResult = await this.installDeps(worktreeId);
       if (!depsResult.ok) {
         await this.db
           .update(worktrees)
           .set({ status: 'error', updatedAt: new Date() })
-          .where(eq(worktrees.id, worktree.id));
+          .where(eq(worktrees.id, worktreeId));
         return depsResult;
       }
     }
 
     if (!options?.skipInitScript && project.config?.initScript) {
-      const initResult = await this.runInitScript(worktree.id);
+      const initResult = await this.runInitScript(worktreeId);
       if (!initResult.ok) {
         await this.db
           .update(worktrees)
           .set({ status: 'error', updatedAt: new Date() })
-          .where(eq(worktrees.id, worktree.id));
+          .where(eq(worktrees.id, worktreeId));
         return initResult;
       }
     }
 
-    await this.db
+    const [updatedWorktree] = await this.db
       .update(worktrees)
       .set({ status: 'active', updatedAt: new Date() })
-      .where(eq(worktrees.id, worktree.id));
+      .where(eq(worktrees.id, worktreeId))
+      .returning();
 
-    return ok({ ...worktree, status: 'active' });
+    if (!updatedWorktree) {
+      return err(WorktreeErrors.CREATION_FAILED(branch, 'Failed to activate worktree'));
+    }
+
+    return ok(updatedWorktree);
   }
 
   async remove(worktreeId: string, force = false): WorktreeServiceResult<void> {

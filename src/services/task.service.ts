@@ -96,6 +96,10 @@ export class TaskService {
       })
       .returning();
 
+    if (!task) {
+      return err(TaskErrors.NOT_FOUND);
+    }
+
     return ok(task);
   }
 
