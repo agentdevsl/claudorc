@@ -1,6 +1,6 @@
 import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
-import { createServerDb } from '../../../db/client.js';
+import { createServerDb } from '@/db/client';
 import type { BootstrapContext } from '../types.js';
 
 export const validateSchema = async (ctx: BootstrapContext) => {

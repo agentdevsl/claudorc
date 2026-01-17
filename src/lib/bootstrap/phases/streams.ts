@@ -1,9 +1,18 @@
 import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
+
+const resolveStreamsClient = async () => {
+  if (globalThis.DurableStreamsClient) {
+    return { DurableStreamsClient: globalThis.DurableStreamsClient };
+  }
+
+  return import('@durable-streams/client');
+};
 
 export const connectStreams = async () => {
   try {
-    const { DurableStreamsClient } = await import('@durable-streams/client');
+    const { DurableStreamsClient } = await resolveStreamsClient();
     const client = new DurableStreamsClient({
       url: '/api/streams',
       reconnect: {
@@ -25,3 +34,11 @@ export const connectStreams = async () => {
     );
   }
 };
+
+declare global {
+  var DurableStreamsClient:
+    | (new (config: { url: string; reconnect: Record<string, unknown> }) => {
+        connect: () => Promise<void>;
+      })
+    | undefined;
+}

@@ -103,8 +103,6 @@ describe('BootstrapService', () => {
   });
 
   it('times out phases', async () => {
-    vi.useFakeTimers();
-
     const phases: BootstrapPhaseConfig[] = [
       {
         name: 'pglite',
@@ -118,14 +116,9 @@ describe('BootstrapService', () => {
     ];
 
     const service = new BootstrapService(phases);
-    const runPromise = service.run();
-
-    await vi.advanceTimersByTimeAsync(60);
-    const result = await runPromise;
+    const result = await service.run();
 
     expect(result.ok).toBe(false);
-
-    vi.useRealTimers();
   });
 
   it('sets context for streams phase', async () => {
@@ -197,16 +190,24 @@ describe('bootstrap phases', () => {
   });
 
   it('streams phase returns ok on successful connect', async () => {
-    vi.doMock('@durable-streams/client', () => ({
-      DurableStreamsClient: class {
-        async connect() {
-          return undefined;
-        }
-      },
-    }));
-
     const { connectStreams } = await import('../phases/streams.js');
+    const originalClient = globalThis.DurableStreamsClient;
+
+    class MockClient {
+      async connect() {
+        return undefined;
+      }
+    }
+
+    globalThis.DurableStreamsClient = MockClient;
+
     const result = await connectStreams();
+
+    if (originalClient) {
+      globalThis.DurableStreamsClient = originalClient;
+    } else {
+      delete globalThis.DurableStreamsClient;
+    }
 
     expect(result.ok).toBe(true);
   });

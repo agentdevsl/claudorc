@@ -16,6 +16,8 @@ import type { Database } from '../types/database.js';
 
 export type CreateProjectInput = {
   path: string;
+  name?: string;
+  description?: string;
   config?: Partial<ProjectConfig>;
   maxConcurrentAgents?: number;
 };

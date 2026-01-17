@@ -1,11 +1,10 @@
 # Continuity Ledger
 
-- Goal (incl. success criteria): Implement Phase 1 Foundation Layer per specs/tasks; complete P0 tasks with tests and passing checks.
-- Constraints/Assumptions: TDD; TypeScript strict; async/await; Result types; no mutable globals; use env vars for config; follow AGENTS.md rules; avoid TodoWrite/Task tools.
-- Key decisions: Use `src/lib/utils/` for utilities and `src/lib/utils/__tests__/`; keep template index files for now; use npm for installs/tests; use Drizzle migrations.
-- State: Commit pending; initial git add failed (pathspec 'db').
-- Done: Full test suite passed (102 tests).
-- Now: Confirm whether to include AGENTS.md and `.claude/commands` file; re-run staging with correct paths.
-- Next: Create single commit for Phase 1 foundation.
-- Open questions (UNCONFIRMED if needed): Include AGENTS.md and `.claude/commands/# AgentPane Phase 1: Foundation Layer.md`?
-- Working set (files/ids/commands): git add (failed); pending git commit
+- Goal (incl. success criteria): Implement Phase 3 API layer per specs/tasks with tests for endpoints.
+- Constraints/Assumptions: TDD; TypeScript strict; async/await; Result types; no mutable globals; use env vars for config; follow AGENTS.md rules; use bun not npm; avoid TodoWrite/Task tools; append spec errors to SPEC_UPDATES.md.
+- Key decisions: Started API infrastructure (A-001..A-005); switched to bun for tests; added routes for projects/tasks/agents/sessions plus SSE history; confirmed TanStack Start server routes are defined via createFileRoute server handlers (no createServerFileRoute export).
+- State: API routes now use createFileRoute server handlers; endpoint tests added for projects/tasks/agents/sessions.
+- Done: API utilities + schemas; cursor/response tests pass; routes for projects, tasks, agents, sessions, session stream/history; added ValidationErrors.INVALID_URL; updated API routes to createFileRoute + status code propagation; switched session baseUrl to APP_URL env; added endpoint tests in tests/api/projects.test.ts, tests/api/tasks.test.ts, tests/api/agents.test.ts, tests/api/sessions.test.ts; aligned API schemas with spec (cuid validation, limits).
+- Now: Confirm changes and await next instruction.
+- Next: Commit Phase 3 API layer once requested.
+- Working set (files/ids/commands): src/db/client.ts; vitest.config.ts; src/app/routes/api/_; tests/api/_.test.ts

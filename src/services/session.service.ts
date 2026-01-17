@@ -4,6 +4,7 @@ import { err, ok } from '../lib/utils/result.js';
 import type { Result } from '../lib/utils/result.js';
 import { SessionErrors } from '../lib/errors/session-errors.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
+import { ValidationErrors } from '../lib/errors/validation-errors.js';
 import type { SessionError } from '../lib/errors/session-errors.js';
 import type { Database } from '../types/database.js';
 import { sessions } from '../db/schema/sessions.js';
@@ -47,12 +48,14 @@ export type ListSessionsOptions = {
 
 export type PresenceUpdate = {
   cursor?: { x: number; y: number };
+  activeFile?: string;
 };
 
 export type ActiveUser = {
   userId: string;
   lastSeen: number;
   cursor?: { x: number; y: number };
+  activeFile?: string;
 };
 
 export type SubscribeOptions = {
@@ -334,11 +337,11 @@ export class SessionService {
       const parsed = new URL(url);
       const match = parsed.pathname.match(/\/sessions\/([a-z0-9]+)$/i);
       if (!match) {
-        return err(SessionErrors.INVALID_URL(url));
+        return err(ValidationErrors.INVALID_URL(url));
       }
       return ok(match[1]);
     } catch {
-      return err(SessionErrors.INVALID_URL(url));
+      return err(ValidationErrors.INVALID_URL(url));
     }
   }
 }

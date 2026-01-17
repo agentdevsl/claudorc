@@ -1,0 +1,5 @@
+# Redirect `bun test` to use vitest
+# This prevents confusion between Bun's built-in test runner and vitest
+
+[test]
+preload = ["./scripts/bun-test-redirect.ts"]

@@ -21,10 +21,15 @@ export const ValidationErrors = {
       value,
       allowedValues: allowed,
     }),
+  INVALID_URL: (url: string) =>
+    createError('INVALID_URL', `Invalid URL: ${url}`, 400, {
+      url,
+    }),
 } as const;
 
 export type ValidationError =
   | ReturnType<typeof ValidationErrors.VALIDATION_ERROR>
   | ReturnType<typeof ValidationErrors.INVALID_ID>
   | ReturnType<typeof ValidationErrors.MISSING_REQUIRED_FIELD>
-  | ReturnType<typeof ValidationErrors.INVALID_ENUM_VALUE>;
+  | ReturnType<typeof ValidationErrors.INVALID_ENUM_VALUE>
+  | ReturnType<typeof ValidationErrors.INVALID_URL>;

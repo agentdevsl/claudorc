@@ -5,8 +5,13 @@ import type { Result } from '../lib/utils/result.js';
 import type { Agent, AgentConfig, NewAgent } from '../db/schema/agents.js';
 import { agents } from '../db/schema/agents.js';
 import { agentRuns } from '../db/schema/agent-runs.js';
+import type { Session } from '../db/schema/sessions.js';
+import { sessions } from '../db/schema/sessions.js';
+import type { Task } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
 import { projects } from '../db/schema/projects.js';
+import type { Worktree } from '../db/schema/worktrees.js';
+import { worktrees } from '../db/schema/worktrees.js';
 import type { AgentError } from '../lib/errors/agent-errors.js';
 import { AgentErrors } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
@@ -53,10 +58,7 @@ export type PostToolUseHook = (input: {
 }) => Promise<void>;
 
 type WorktreeService = {
-  create: (input: {
-    projectId: string;
-    taskId: string;
-  }) => Promise<Result<{ id: string; path: string }, AgentError>>;
+  create: (input: { projectId: string; taskId: string }) => Promise<Result<Worktree, AgentError>>;
 };
 
 type TaskService = {
@@ -72,24 +74,7 @@ type SessionService = {
     taskId?: string;
     agentId?: string;
     title?: string;
-  }) => Promise<Result<{ id: string }, AgentError>>;
-  publish: (
-    sessionId: string,
-    event: { id: string; type: string; timestamp: number; data: unknown }
-  ) => Promise<Result<void, AgentError>>;
-};
-
-type TaskService = {
-  moveColumn: (taskId: string, column: AgentStatus) => Promise<Result<unknown, AgentError>>;
-};
-
-type SessionService = {
-  create: (input: {
-    projectId: string;
-    taskId?: string;
-    agentId?: string;
-    title?: string;
-  }) => Promise<Result<{ id: string }, AgentError>>;
+  }) => Promise<Result<Session, AgentError>>;
   publish: (
     sessionId: string,
     event: { id: string; type: string; timestamp: number; data: unknown }
@@ -201,8 +186,13 @@ export class AgentService {
 
   async start(
     agentId: string,
-    taskId: string
-  ): Promise<Result<AgentRunResult, AgentError | ConcurrencyError>> {
+    taskId?: string
+  ): Promise<
+    Result<
+      { agent: Agent; task: Task; session: Session; worktree: Worktree },
+      AgentError | ConcurrencyError
+    >
+  > {
     const agent = await this.db.query.agents.findFirst({
       where: eq(agents.id, agentId),
     });
@@ -215,19 +205,28 @@ export class AgentService {
       return err(AgentErrors.ALREADY_RUNNING(agent.currentTaskId ?? undefined));
     }
 
-    const task = await this.db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
+    let task = taskId
+      ? await this.db.query.tasks.findFirst({
+          where: eq(tasks.id, taskId),
+        })
+      : null;
 
     if (!task) {
-      return err(AgentErrors.NOT_FOUND);
+      task = await this.db.query.tasks.findFirst({
+        where: and(eq(tasks.projectId, agent.projectId), eq(tasks.column, 'backlog')),
+        orderBy: desc(tasks.createdAt),
+      });
+    }
+
+    if (!task) {
+      return err(AgentErrors.NO_AVAILABLE_TASK);
     }
 
     if (task.column !== 'backlog') {
       return err(AgentErrors.NO_AVAILABLE_TASK);
     }
 
-    await this.taskService.moveColumn(taskId, 'in_progress');
+    await this.taskService.moveColumn(task.id, 'in_progress');
 
     const availability = await this.checkAvailability(agent.projectId);
     if (!availability.ok || !availability.value) {
@@ -240,14 +239,17 @@ export class AgentService {
       );
     }
 
-    const worktree = await this.worktreeService.create({ projectId: agent.projectId, taskId });
+    const worktree = await this.worktreeService.create({
+      projectId: agent.projectId,
+      taskId: task.id,
+    });
     if (!worktree.ok) {
       return worktree;
     }
 
     const session = await this.sessionService.create({
       projectId: agent.projectId,
-      taskId,
+      taskId: task.id,
       agentId: agent.id,
       title: task.title,
     });
@@ -263,17 +265,17 @@ export class AgentService {
         agentId,
         sessionId: session.value.id,
         worktreeId: worktree.value.id,
-        branch: `agent/${agentId}/${taskId}`,
+        branch: `agent/${agentId}/${task.id}`,
         startedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(eq(tasks.id, task.id));
 
     await this.db
       .update(agents)
       .set({
         status: 'starting',
-        currentTaskId: taskId,
+        currentTaskId: task.id,
         currentSessionId: session.value.id,
         currentTurn: 0,
         updatedAt: new Date(),
@@ -284,14 +286,14 @@ export class AgentService {
       id: createId(),
       type: 'state:update',
       timestamp: Date.now(),
-      data: { status: 'starting', agentId, taskId },
+      data: { status: 'starting', agentId, taskId: task.id },
     });
 
     const [agentRun] = await this.db
       .insert(agentRuns)
       .values({
         agentId,
-        taskId,
+        taskId: task.id,
         projectId: agent.projectId,
         sessionId: session.value.id,
         status: 'running',
@@ -303,18 +305,37 @@ export class AgentService {
 
     await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
 
-    const result: AgentRunResult = {
-      runId: agentRun.id,
-      status: 'completed',
-      turnCount: 0,
-    };
-
     await this.db
       .update(agentRuns)
       .set({ status: 'completed', completedAt: new Date(), turnCount: 0 })
       .where(eq(agentRuns.id, agentRun.id));
 
-    return ok(result);
+    const updatedAgent = await this.db.query.agents.findFirst({
+      where: eq(agents.id, agentId),
+    });
+
+    const updatedTask = await this.db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    });
+
+    const updatedSession = await this.db.query.sessions.findFirst({
+      where: eq(sessions.id, session.value.id),
+    });
+
+    const updatedWorktree = await this.db.query.worktrees.findFirst({
+      where: eq(worktrees.id, worktree.value.id),
+    });
+
+    if (!updatedAgent || !updatedTask || !updatedSession || !updatedWorktree) {
+      return err(AgentErrors.EXECUTION_ERROR('Missing updated resources after start'));
+    }
+
+    return ok({
+      agent: updatedAgent,
+      task: updatedTask,
+      session: updatedSession,
+      worktree: updatedWorktree,
+    });
   }
 
   async stop(agentId: string): Promise<Result<void, AgentError>> {
