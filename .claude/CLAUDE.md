@@ -27,7 +27,7 @@ specs/application/
 ├── architecture/                # System Architecture
 │   └── app-bootstrap.md         # 6-phase initialization
 │
-├── components/                  # UI Components (10 specs)
+├── components/                  # UI Components (19 specs)
 │   ├── kanban-board.md          # Task board with drag-drop
 │   ├── approval-dialog.md       # Code review modal
 │   ├── agent-session-view.md    # Real-time agent UI
@@ -37,7 +37,16 @@ specs/application/
 │   ├── form-inputs.md           # Form components
 │   ├── toast-notifications.md   # Toast system
 │   ├── breadcrumbs.md           # Navigation
-│   └── loading-skeletons.md     # Loading states
+│   ├── loading-skeletons.md     # Loading states
+│   ├── agent-config-dialog.md   # Agent execution settings
+│   ├── theme-toggle.md          # Light/dark/system theme
+│   ├── empty-states.md          # Empty state presets
+│   ├── project-settings.md      # Project configuration
+│   ├── session-history.md       # Session list with filters
+│   ├── worktree-management.md   # Git worktree management
+│   ├── queue-waiting-state.md   # Queue position display
+│   ├── github-app-setup.md      # GitHub OAuth integration
+│   └── error-state.md           # Error visualization
 │
 ├── configuration/               # Configuration
 │   └── config-management.md     # Project config, env vars
