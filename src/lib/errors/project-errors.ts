@@ -7,6 +7,10 @@ export const ProjectErrors = {
     createError('PROJECT_PATH_INVALID', `Invalid project path: ${path}`, 400, {
       path,
     }),
+  NOT_A_GIT_REPO: (path: string) =>
+    createError('PROJECT_NOT_A_GIT_REPO', `Path is not a git repository: ${path}`, 400, {
+      path,
+    }),
   HAS_RUNNING_AGENTS: (count: number) =>
     createError(
       'PROJECT_HAS_RUNNING_AGENTS',
@@ -24,5 +28,6 @@ export type ProjectError =
   | typeof ProjectErrors.NOT_FOUND
   | typeof ProjectErrors.PATH_EXISTS
   | ReturnType<typeof ProjectErrors.PATH_INVALID>
+  | ReturnType<typeof ProjectErrors.NOT_A_GIT_REPO>
   | ReturnType<typeof ProjectErrors.HAS_RUNNING_AGENTS>
   | ReturnType<typeof ProjectErrors.CONFIG_INVALID>;
