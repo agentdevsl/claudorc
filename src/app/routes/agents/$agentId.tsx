@@ -1,44 +1,13 @@
-import { Gear } from '@phosphor-icons/react';
-import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
-import { AgentConfigDialog } from '@/app/components/features/agent-config-dialog';
-import { Button } from '@/app/components/ui/button';
-import { db } from '@/db/client';
-import type { AgentConfig } from '@/db/schema/agents';
-import { AgentService } from '@/services/agent.service';
-import { SessionService } from '@/services/session.service';
-import { TaskService } from '@/services/task.service';
-import { WorktreeService } from '@/services/worktree.service';
+import { Gear } from "@phosphor-icons/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { AgentConfigDialog } from "@/app/components/features/agent-config-dialog";
+import { Button } from "@/app/components/ui/button";
+import { useServices } from "@/app/services/service-context";
+import type { Agent, AgentConfig } from "@/db/schema/agents";
 
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
-
-const taskService = new TaskService(db, worktreeService);
-
-const sessionService = new SessionService(
-  db,
-  {
-    createStream: async () => undefined,
-    publish: async () => undefined,
-    subscribe: async function* () {
-      yield { type: 'chunk', data: {} };
-    },
-  },
-  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
-);
-
-const agentService = new AgentService(db, worktreeService, taskService, sessionService);
-
-export const Route = createFileRoute('/agents/$agentId')({
-  loader: async ({ params }) => {
-    const agentResult = await agentService.getById(params.agentId);
-    if (!agentResult.ok) {
-      throw new Error('Agent not found');
-    }
-
-    return { agent: agentResult.value };
-  },
+export const Route = createFileRoute("/agents/$agentId")({
+  loader: async () => ({ agent: null as Agent | null }),
   component: AgentDetailPage,
 });
 
@@ -51,7 +20,9 @@ function AgentDetailPage(): React.JSX.Element {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-fg-muted">Agent</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">{agent.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">
+            {agent.name}
+          </h1>
           <p className="text-sm text-fg-muted capitalize">{agent.type}</p>
         </div>
         <Button variant="outline" onClick={() => setShowConfig(true)}>
@@ -68,7 +39,9 @@ function AgentDetailPage(): React.JSX.Element {
           </div>
           <div className="text-right">
             <p className="text-sm font-medium text-fg">Current task</p>
-            <p className="text-xs text-fg-muted">{agent.currentTaskId ?? 'None'}</p>
+            <p className="text-xs text-fg-muted">
+              {agent.currentTaskId ?? "None"}
+            </p>
           </div>
         </div>
       </section>

@@ -1,9 +1,25 @@
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useState } from 'react';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
+import { KanbanCard } from './kanban-card';
+import { KanbanColumn } from './kanban-column';
 
 interface KanbanBoardProps {
   tasks: Task[];
   onTaskMove: (taskId: string, column: TaskColumn, position: number) => Promise<void>;
   onTaskClick: (task: Task) => void;
+  isLoading?: boolean;
 }
 
 const COLUMNS: { id: TaskColumn; label: string }[] = [
@@ -17,43 +33,78 @@ export function KanbanBoard({
   tasks,
   onTaskMove,
   onTaskClick,
+  isLoading,
 }: KanbanBoardProps): React.JSX.Element {
-  const tasksByColumn = COLUMNS.reduce(
-    (acc, col) => {
-      acc[col.id] = tasks.filter((t) => t.column === col.id);
-      return acc;
-    },
-    {} as Record<TaskColumn, Task[]>
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = tasks.find((item) => item.id === event.active.id);
+    if (task) {
+      setActiveTask(task);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+
+    if (!over) {
+      return;
+    }
+
+    const taskId = String(active.id);
+    const overId = String(over.id);
+
+    const columnMatch = COLUMNS.find((column) => column.id === overId);
+    if (columnMatch) {
+      const position = tasks.filter((task) => task.column === columnMatch.id).length;
+      void onTaskMove(taskId, columnMatch.id, position);
+      return;
+    }
+
+    const overTask = tasks.find((task) => task.id === overId);
+    if (!overTask) {
+      return;
+    }
+
+    void onTaskMove(taskId, overTask.column, overTask.position ?? 0);
+  };
+
+  const getTasksByColumn = (column: TaskColumn) =>
+    tasks
+      .filter((task) => task.column === column)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
   return (
-    <div className="flex h-full gap-4 overflow-x-auto p-4">
-      {COLUMNS.map((col) => (
-        <div key={col.id} className="flex w-72 flex-shrink-0 flex-col rounded-lg bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-medium text-fg">{col.label}</h3>
-            <p className="text-xs text-fg-muted">{tasksByColumn[col.id].length} tasks</p>
-          </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-2">
-            {tasksByColumn[col.id].map((task) => (
-              <button
-                key={task.id}
-                type="button"
-                className="w-full rounded border border-border bg-canvas p-3 text-left hover:border-accent"
-                onClick={() => onTaskClick(task)}
-                onDragEnd={() => {
-                  void onTaskMove(task.id, col.id, 0);
-                }}
-              >
-                <p className="text-sm font-medium text-fg">{task.title}</p>
-                {task.description && (
-                  <p className="mt-1 text-xs text-fg-muted line-clamp-2">{task.description}</p>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex h-full gap-4 overflow-x-auto p-4">
+        {COLUMNS.map((column) => (
+          <KanbanColumn
+            key={column.id}
+            id={column.id}
+            title={column.label}
+            tasks={getTasksByColumn(column.id)}
+            onTaskClick={onTaskClick}
+            isLoading={isLoading}
+          />
+        ))}
+      </div>
+
+      <DragOverlay>{activeTask ? <KanbanCard task={activeTask} isDragging /> : null}</DragOverlay>
+    </DndContext>
   );
 }

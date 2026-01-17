@@ -1,6 +1,8 @@
 import { Funnel, Play, Robot } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { useServices } from '@/app/services/service-context';
 import type { Agent } from '@/db/schema/agents';
 
 export const Route = createFileRoute('/agents/')({
@@ -9,7 +11,20 @@ export const Route = createFileRoute('/agents/')({
 });
 
 function AgentsPage(): React.JSX.Element {
-  const { agents } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const { agentService } = useServices();
+  const [agents, setAgents] = useState<Agent[]>(loaderData.agents ?? []);
+
+  useEffect(() => {
+    const load = async () => {
+      const result = await agentService.list('00000000-0000-0000-0000-000000000000');
+      if (result.ok) {
+        setAgents(result.value);
+      }
+    };
+
+    void load();
+  }, [agentService]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">

@@ -1,31 +1,30 @@
 import { FolderSimple, Plus } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { db } from '@/db/client';
-import { ProjectService } from '@/services/project.service';
-import { WorktreeService } from '@/services/worktree.service';
-
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
-
-const projectService = new ProjectService(db, worktreeService, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
+import { useServices } from '@/app/services/service-context';
+import type { Project } from '@/db/schema/projects';
 
 export const Route = createFileRoute('/projects/')({
-  loader: async () => {
-    const projects = await projectService.list({ limit: 24 });
-
-    return {
-      projects: projects.ok ? projects.value : [],
-    };
-  },
+  loader: async () => ({ projects: [] }),
   component: ProjectsPage,
 });
 
 function ProjectsPage(): React.JSX.Element {
-  const { projects } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const { projectService } = useServices();
+  const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
+
+  useEffect(() => {
+    const load = async () => {
+      const result = await projectService.list({ limit: 24 });
+      if (result.ok) {
+        setProjects(result.value);
+      }
+    };
+
+    void load();
+  }, [projectService]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">

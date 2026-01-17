@@ -1,4 +1,17 @@
+import { useEffect, useState } from 'react';
+import { Trash } from '@phosphor-icons/react';
 import type { Task } from '@/db/schema/tasks';
+import { Button } from '@/app/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
+import { TextInput } from '@/app/components/ui/text-input';
+import { Textarea } from '@/app/components/ui/textarea';
 
 interface TaskDetailDialogProps {
   task: Task | null;
@@ -14,61 +27,81 @@ export function TaskDetailDialog({
   onOpenChange,
   onSave,
   onDelete,
-}: TaskDetailDialogProps): React.JSX.Element | null {
-  if (!open) return null;
+}: TaskDetailDialogProps): React.JSX.Element {
+  const [title, setTitle] = useState(task?.title ?? '');
+  const [description, setDescription] = useState(task?.description ?? '');
+
+  useEffect(() => {
+    setTitle(task?.title ?? '');
+    setDescription(task?.description ?? '');
+  }, [task]);
+
+  const handleSave = async () => {
+    await onSave({ title, description });
+    onOpenChange(false);
+  };
+
+  const handleDelete = async () => {
+    if (!task) {
+      return;
+    }
+    await onDelete(task.id);
+    onOpenChange(false);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-lg bg-surface p-6">
-        <h2 className="text-lg font-semibold text-fg">{task ? 'Edit Task' : 'New Task'}</h2>
-        {task && (
-          <div className="mt-4 space-y-4">
-            <div>
-              <span className="text-sm font-medium text-fg">Title</span>
-              <p className="text-sm text-fg-muted">{task.title}</p>
-            </div>
-            {task.description && (
-              <div>
-                <span className="text-sm font-medium text-fg">Description</span>
-                <p className="text-sm text-fg-muted">{task.description}</p>
-              </div>
-            )}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{task ? 'Edit task' : 'New task'}</DialogTitle>
+          <DialogDescription>
+            {task ? 'Update task details and save changes.' : 'Add details for the new task.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label
+              htmlFor="task-title"
+              className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+            >
+              Title
+            </label>
+            <TextInput
+              id="task-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
           </div>
-        )}
-        <div className="mt-6 flex justify-between">
-          {task && (
-            <button
-              type="button"
-              className="rounded px-3 py-1.5 text-sm text-red-500 hover:bg-red-500/10"
-              onClick={() => {
-                void onDelete(task.id);
-                onOpenChange(false);
-              }}
+          <div className="space-y-2">
+            <label
+              htmlFor="task-description"
+              className="text-xs font-medium uppercase tracking-wide text-fg-muted"
             >
-              Delete
-            </button>
-          )}
-          <div className="ml-auto flex gap-2">
-            <button
-              type="button"
-              className="rounded px-3 py-1.5 text-sm text-fg-muted hover:bg-surface-hover"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="rounded bg-accent px-3 py-1.5 text-sm text-accent-fg hover:bg-accent-hover"
-              onClick={() => {
-                void onSave({});
-                onOpenChange(false);
-              }}
-            >
-              Save
-            </button>
+              Description
+            </label>
+            <Textarea
+              id="task-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={4}
+            />
           </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="mt-6">
+          {task && (
+            <Button variant="destructive" onClick={handleDelete}>
+              <Trash className="h-4 w-4" />
+              Delete
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

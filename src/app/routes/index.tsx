@@ -1,33 +1,35 @@
 import { FolderSimple, Gauge, Lightning } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { ProjectPicker } from '@/app/components/features/project-picker';
 import { Button } from '@/app/components/ui/button';
-import { db } from '@/db/client';
-import { ProjectService } from '@/services/project.service';
-import { WorktreeService } from '@/services/worktree.service';
-
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
-
-const projectService = new ProjectService(db, worktreeService, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
+import { useServices } from '@/app/services/service-context';
+import type { Project } from '@/db/schema/projects';
 
 export const Route = createFileRoute('/')({
-  loader: async () => {
-    const projects = await projectService.list({ limit: 6 });
-
-    return {
-      projects: projects.ok ? projects.value : [],
-      runningAgents: 0,
-    };
-  },
+  loader: async () => ({ projects: [], runningAgents: 0 }),
   component: Dashboard,
 });
 
 function Dashboard(): React.JSX.Element {
-  const { projects, runningAgents } = Route.useLoaderData();
+  const { projectService } = useServices();
+  const loaderData = Route.useLoaderData();
+  const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
+  const [runningAgents, setRunningAgents] = useState(loaderData.runningAgents ?? 0);
+
+  useEffect(() => {
+    const load = async () => {
+      const projectsResult = await projectService.list({ limit: 6 });
+
+      if (projectsResult.ok) {
+        setProjects(projectsResult.value);
+      }
+
+      setRunningAgents(0);
+    };
+
+    void load();
+  }, [projectService]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
