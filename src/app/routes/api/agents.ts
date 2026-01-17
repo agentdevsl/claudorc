@@ -44,7 +44,10 @@ export const Route = createFileRoute('/api/agents')({
         const result = await agentService.list(parsed.value.projectId);
         // list() returns Result<Agent[], never> - error case is unreachable
         if (!result.ok) {
-          return Response.json(failure({ code: 'INTERNAL_ERROR', message: 'Unexpected error', status: 500 }), { status: 500 });
+          return Response.json(
+            failure({ code: 'INTERNAL_ERROR', message: 'Unexpected error', status: 500 }),
+            { status: 500 }
+          );
         }
 
         const filteredByStatus = parsed.value.status

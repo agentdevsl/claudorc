@@ -33,10 +33,7 @@ const nextState = <S extends WorktreeLifecycleState>(
   lastResult: ok({ state, context, send: machine.send }),
 });
 
-const nextError = (
-  machine: WorktreeMachineInternal,
-  error: AppError
-): WorktreeMachineInternal => ({
+const nextError = (machine: WorktreeMachineInternal, error: AppError): WorktreeMachineInternal => ({
   ...machine,
   lastResult: err(error),
 });
@@ -94,7 +91,10 @@ export const createWorktreeLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: WorktreeMachineInternal, event: WorktreeLifecycleEvent): WorktreeMachineInternal => {
+const transition = (
+  machine: WorktreeMachineInternal,
+  event: WorktreeLifecycleEvent
+): WorktreeMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {

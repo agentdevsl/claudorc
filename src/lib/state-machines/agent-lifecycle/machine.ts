@@ -30,10 +30,7 @@ const nextState = <S extends AgentLifecycleState>(
   lastResult: ok({ state, context, send: machine.send }),
 });
 
-const nextError = (
-  machine: AgentMachineInternal,
-  error: AppError
-): AgentMachineInternal => ({
+const nextError = (machine: AgentMachineInternal, error: AppError): AgentMachineInternal => ({
   ...machine,
   lastResult: err(error),
 });
@@ -86,7 +83,10 @@ export const createAgentLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: AgentMachineInternal, event: AgentLifecycleEvent): AgentMachineInternal => {
+const transition = (
+  machine: AgentMachineInternal,
+  event: AgentLifecycleEvent
+): AgentMachineInternal => {
   const ctx = machine.context;
 
   if (!isToolAllowed(ctx, event)) {

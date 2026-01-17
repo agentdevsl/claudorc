@@ -15,7 +15,8 @@ const resolveStreamsClient = async (): Promise<DurableStreamsClientConstructor |
 
   try {
     const module = await import('@durable-streams/client');
-    return (module as { DurableStreamsClient?: DurableStreamsClientConstructor }).DurableStreamsClient;
+    return (module as { DurableStreamsClient?: DurableStreamsClientConstructor })
+      .DurableStreamsClient;
   } catch {
     return undefined;
   }

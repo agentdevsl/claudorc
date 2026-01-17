@@ -33,10 +33,7 @@ const nextState = <S extends SessionLifecycleState>(
   lastResult: ok({ state, context, send: machine.send }),
 });
 
-const nextError = (
-  machine: SessionMachineInternal,
-  error: AppError
-): SessionMachineInternal => ({
+const nextError = (machine: SessionMachineInternal, error: AppError): SessionMachineInternal => ({
   ...machine,
   lastResult: err(error),
 });
@@ -89,7 +86,10 @@ export const createSessionLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: SessionMachineInternal, event: SessionLifecycleEvent): SessionMachineInternal => {
+const transition = (
+  machine: SessionMachineInternal,
+  event: SessionLifecycleEvent
+): SessionMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {

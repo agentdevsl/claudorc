@@ -19,8 +19,12 @@ export const tasks = pgTable('tasks', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   agentId: text('agent_id').references(() => agents.id, { onDelete: 'set null' }),
-  sessionId: text('session_id').references((): AnyPgColumn => sessions.id, { onDelete: 'set null' }),
-  worktreeId: text('worktree_id').references((): AnyPgColumn => worktrees.id, { onDelete: 'set null' }),
+  sessionId: text('session_id').references((): AnyPgColumn => sessions.id, {
+    onDelete: 'set null',
+  }),
+  worktreeId: text('worktree_id').references((): AnyPgColumn => worktrees.id, {
+    onDelete: 'set null',
+  }),
   title: text('title').notNull(),
   description: text('description'),
   column: taskColumnEnum('column').default('backlog').notNull(),

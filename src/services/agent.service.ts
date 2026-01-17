@@ -4,12 +4,12 @@ import { agentRuns } from '../db/schema/agent-runs.js';
 import type { Agent, AgentConfig, NewAgent } from '../db/schema/agents.js';
 import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
+import type { Session } from '../db/schema/sessions.js';
 import { sessions } from '../db/schema/sessions.js';
 import type { Task } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
 import type { Worktree } from '../db/schema/worktrees.js';
 import { worktrees } from '../db/schema/worktrees.js';
-import type { Session } from '../db/schema/sessions.js';
 import type { AgentError } from '../lib/errors/agent-errors.js';
 import { AgentErrors } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
@@ -240,9 +240,7 @@ export class AgentService {
       const project = await this.db.query.projects.findFirst({
         where: eq(projects.id, agent.projectId),
       });
-      return err(
-        ConcurrencyErrors.LIMIT_EXCEEDED(runningCount, project?.maxConcurrentAgents ?? 1)
-      );
+      return err(ConcurrencyErrors.LIMIT_EXCEEDED(runningCount, project?.maxConcurrentAgents ?? 1));
     }
 
     await this.taskService.moveColumn(task.id, 'in_progress');

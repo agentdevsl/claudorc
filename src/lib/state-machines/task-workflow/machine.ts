@@ -29,10 +29,7 @@ const nextState = <S extends TaskWorkflowState>(
   lastResult: ok({ state, context, send: machine.send }),
 });
 
-const nextError = (
-  machine: TaskMachineInternal,
-  error: AppError
-): TaskMachineInternal => ({
+const nextError = (machine: TaskMachineInternal, error: AppError): TaskMachineInternal => ({
   ...machine,
   lastResult: err(error),
 });
@@ -87,7 +84,10 @@ export const createTaskWorkflowMachine = (
   return machine;
 };
 
-const transition = (machine: TaskMachineInternal, event: TaskWorkflowEvent): TaskMachineInternal => {
+const transition = (
+  machine: TaskMachineInternal,
+  event: TaskWorkflowEvent
+): TaskMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {

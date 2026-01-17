@@ -14,9 +14,7 @@ const mapZodIssues = (
   issues: readonly { path: PropertyKey[]; message: string }[]
 ): ValidationIssue[] =>
   issues.map((issue) => ({
-    path: issue.path.map((segment) =>
-      typeof segment === 'symbol' ? String(segment) : segment
-    ),
+    path: issue.path.map((segment) => (typeof segment === 'symbol' ? String(segment) : segment)),
     message: issue.message,
   }));
 
