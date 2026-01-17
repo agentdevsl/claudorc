@@ -87,7 +87,7 @@ function AgentDetailPage(): React.JSX.Element {
           agent={agent}
           open={showConfig}
           onOpenChange={setShowConfig}
-          onSave={async (config: AgentConfig) => {
+          onSave={async (config: Partial<AgentConfig>) => {
             await agentService.update(agent.id, config);
           }}
         />
