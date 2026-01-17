@@ -24,7 +24,13 @@ export type SessionEventType =
   | 'approval:requested'
   | 'approval:approved'
   | 'approval:rejected'
-  | 'state:update';
+  | 'state:update'
+  | 'agent:started'
+  | 'agent:turn'
+  | 'agent:turn_limit'
+  | 'agent:completed'
+  | 'agent:error'
+  | 'agent:warning';
 
 export type SessionEvent = {
   id: string;

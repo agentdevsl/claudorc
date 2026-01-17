@@ -112,3 +112,53 @@ export const updatePresenceSchema = z.object({
     .optional(),
   activeFile: z.string().optional(),
 });
+
+// Worktree schemas
+export const listWorktreesSchema = z.object({
+  projectId: cuidSchema,
+});
+
+export const createWorktreeSchema = z.object({
+  projectId: cuidSchema,
+  taskId: cuidSchema,
+  baseBranch: z.string().optional(),
+});
+
+export const commitWorktreeSchema = z.object({
+  message: z.string().min(1).max(500),
+});
+
+export const mergeWorktreeSchema = z.object({
+  targetBranch: z.string().optional(),
+});
+
+export const pruneWorktreesSchema = z.object({
+  projectId: cuidSchema,
+});
+
+// Agent lifecycle schemas
+export const pauseAgentSchema = z.object({});
+
+export const resumeAgentSchema = z.object({
+  feedback: z.string().max(5000).optional(),
+});
+
+// GitHub webhook schema
+export const githubWebhookSchema = z.object({
+  action: z.string(),
+  installation: z
+    .object({
+      id: z.number(),
+      account: z.object({
+        login: z.string(),
+        type: z.string(),
+      }),
+    })
+    .optional(),
+  repository: z
+    .object({
+      owner: z.object({ login: z.string() }),
+      name: z.string(),
+    })
+    .optional(),
+});

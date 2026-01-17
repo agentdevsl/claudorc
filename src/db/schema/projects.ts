@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { githubInstallations } from './github.js';
 
 export type ProjectConfig = {
   worktreeRoot: string;
@@ -24,6 +25,8 @@ export const projects = pgTable('projects', {
   maxConcurrentAgents: integer('max_concurrent_agents').default(3),
   githubOwner: text('github_owner'),
   githubRepo: text('github_repo'),
+  githubInstallationId: text('github_installation_id').references(() => githubInstallations.id),
+  configPath: text('config_path').default('.claude'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

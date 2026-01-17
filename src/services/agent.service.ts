@@ -10,6 +10,9 @@ import type { Task } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
 import type { Worktree } from '../db/schema/worktrees.js';
 import { worktrees } from '../db/schema/worktrees.js';
+import { createAgentHooks } from '../lib/agents/hooks/index.js';
+import { handleAgentError } from '../lib/agents/recovery.js';
+import { runAgentWithStreaming } from '../lib/agents/stream-handler.js';
 import type { AgentError } from '../lib/errors/agent-errors.js';
 import { AgentErrors } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
@@ -327,12 +330,37 @@ export class AgentService {
 
     await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
 
-    if (agentRun) {
-      await this.db
-        .update(agentRuns)
-        .set({ status: 'completed', completedAt: new Date(), turnsUsed: 0 })
-        .where(eq(agentRuns.id, agentRun.id));
-    }
+    // Build task prompt
+    const taskPrompt = `Work on the following task:\n\nTitle: ${task.title}\n\nDescription: ${task.description ?? 'No description provided'}\n\nThe task is in the worktree at: ${worktree.value.path}`;
+
+    // Create agent hooks for streaming and audit
+    const hooks = createAgentHooks({
+      agentId,
+      sessionId: session.value.id,
+      agentRunId: agentRun?.id ?? createId(),
+      taskId: task.id,
+      projectId: agent.projectId,
+      allowedTools: agent.config?.allowedTools ?? [],
+      db: this.db,
+      sessionService: this.sessionService,
+    });
+
+    // Start agent execution asynchronously (fire-and-forget with error handling)
+    // The agent runs in the background and updates state through events
+    this.executeAgentAsync(
+      agentId,
+      session.value.id,
+      taskPrompt,
+      {
+        allowedTools: agent.config?.allowedTools ?? [],
+        maxTurns: agent.config?.maxTurns ?? 50,
+        model: agent.config?.model ?? 'claude-sonnet-4-20250514',
+        cwd: worktree.value.path,
+        hooks,
+      },
+      agentRun?.id ?? createId(),
+      task.id
+    );
 
     const updatedAgent = await this.db.query.agents.findFirst({
       where: eq(agents.id, agentId),
@@ -360,6 +388,141 @@ export class AgentService {
       session: updatedSession,
       worktree: updatedWorktree,
     });
+  }
+
+  private async executeAgentAsync(
+    agentId: string,
+    sessionId: string,
+    prompt: string,
+    options: {
+      allowedTools: string[];
+      maxTurns: number;
+      model: string;
+      cwd: string;
+      hooks: ReturnType<typeof createAgentHooks>;
+    },
+    runId: string,
+    taskId: string
+  ): Promise<void> {
+    try {
+      const result = await runAgentWithStreaming({
+        agentId,
+        sessionId,
+        prompt,
+        allowedTools: options.allowedTools,
+        maxTurns: options.maxTurns,
+        model: options.model,
+        cwd: options.cwd,
+        hooks: options.hooks,
+        sessionService: this.sessionService,
+      });
+
+      // Update agent run with result
+      // Map 'turn_limit' to 'paused' since enum doesn't have turn_limit
+      const dbStatus = result.status === 'turn_limit' ? 'paused' : result.status;
+      await this.db
+        .update(agentRuns)
+        .set({
+          status: dbStatus,
+          completedAt: new Date(),
+          turnsUsed: result.turnCount,
+          errorMessage: result.error,
+        })
+        .where(eq(agentRuns.id, runId));
+
+      // Update agent status based on result
+      if (result.status === 'completed') {
+        await this.db
+          .update(agents)
+          .set({
+            status: 'idle',
+            currentTaskId: null,
+            currentSessionId: null,
+            currentTurn: result.turnCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, agentId));
+
+        // Move task to waiting_approval
+        await this.db
+          .update(tasks)
+          .set({
+            column: 'waiting_approval',
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(tasks.id, taskId));
+      } else if (result.status === 'turn_limit' || result.status === 'paused') {
+        await this.db
+          .update(agents)
+          .set({
+            status: 'paused',
+            currentTurn: result.turnCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, agentId));
+
+        // Move task to waiting_approval for review
+        await this.db
+          .update(tasks)
+          .set({
+            column: 'waiting_approval',
+            updatedAt: new Date(),
+          })
+          .where(eq(tasks.id, taskId));
+      } else if (result.status === 'error') {
+        await this.db
+          .update(agents)
+          .set({
+            status: 'error',
+            currentTurn: result.turnCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, agentId));
+      }
+
+      // Remove from running agents
+      runningAgents.delete(agentId);
+    } catch (error) {
+      console.error(`[AgentService] Agent ${agentId} execution failed:`, error);
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const recovery = handleAgentError(error instanceof Error ? error : new Error(errorMessage), {
+        agentId,
+        taskId,
+        maxTurns: options.maxTurns,
+        currentTurn: 0,
+      });
+
+      // Update run with error
+      await this.db
+        .update(agentRuns)
+        .set({
+          status: 'error',
+          completedAt: new Date(),
+          errorMessage: errorMessage,
+        })
+        .where(eq(agentRuns.id, runId));
+
+      // Update agent status
+      await this.db
+        .update(agents)
+        .set({
+          status: recovery.action === 'pause' ? 'paused' : 'error',
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, agentId));
+
+      // Publish error event
+      await this.sessionService.publish(sessionId, {
+        id: createId(),
+        type: 'agent:error',
+        timestamp: Date.now(),
+        data: { agentId, error: errorMessage, recovery: recovery.action },
+      });
+
+      runningAgents.delete(agentId);
+    }
   }
 
   async stop(agentId: string): Promise<Result<void, AgentError>> {

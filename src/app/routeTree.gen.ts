@@ -230,6 +230,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: unknown;
       parentRoute: typeof rootRoute;
     };
+    '/api/agents/$id/pause': {
+      id: '/api/agents/$id/pause';
+      path: '/api/agents/$id/pause';
+      fullPath: '/api/agents/$id/pause';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/agents/$id/resume': {
+      id: '/api/agents/$id/resume';
+      path: '/api/agents/$id/resume';
+      fullPath: '/api/agents/$id/resume';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/webhooks/github': {
+      id: '/api/webhooks/github';
+      path: '/api/webhooks/github';
+      fullPath: '/api/webhooks/github';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/': {
+      id: '/api/worktrees/';
+      path: '/api/worktrees/';
+      fullPath: '/api/worktrees/';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/$id': {
+      id: '/api/worktrees/$id';
+      path: '/api/worktrees/$id';
+      fullPath: '/api/worktrees/$id';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/$id/commit': {
+      id: '/api/worktrees/$id/commit';
+      path: '/api/worktrees/$id/commit';
+      fullPath: '/api/worktrees/$id/commit';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/$id/diff': {
+      id: '/api/worktrees/$id/diff';
+      path: '/api/worktrees/$id/diff';
+      fullPath: '/api/worktrees/$id/diff';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/$id/merge': {
+      id: '/api/worktrees/$id/merge';
+      path: '/api/worktrees/$id/merge';
+      fullPath: '/api/worktrees/$id/merge';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
+    '/api/worktrees/prune': {
+      id: '/api/worktrees/prune';
+      path: '/api/worktrees/prune';
+      fullPath: '/api/worktrees/prune';
+      preLoaderRoute: unknown;
+      parentRoute: typeof rootRoute;
+    };
   }
 }
 

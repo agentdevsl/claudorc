@@ -8,6 +8,8 @@ import { DEFAULT_PROJECT_CONFIG } from '../lib/config/types.js';
 import { containsSecrets } from '../lib/config/validate-secrets.js';
 import type { ProjectError } from '../lib/errors/project-errors.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
+import { getInstallationOctokit } from '../lib/github/client.js';
+import { syncConfigFromGitHub } from '../lib/github/config-sync.js';
 import { deepMerge } from '../lib/utils/deep-merge.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
@@ -218,7 +220,68 @@ export class ProjectService {
       return err(ProjectErrors.CONFIG_INVALID(['Missing GitHub repository metadata']));
     }
 
-    return err(ProjectErrors.CONFIG_INVALID(['GitHub sync not implemented yet']));
+    if (!project.githubInstallationId) {
+      return err(ProjectErrors.CONFIG_INVALID(['Missing GitHub App installation ID']));
+    }
+
+    try {
+      // Get installation-scoped Octokit client
+      const { githubInstallations } = await import('../db/schema/github.js');
+      const installation = await this.db.query.githubInstallations.findFirst({
+        where: eq(githubInstallations.id, project.githubInstallationId),
+      });
+
+      if (!installation) {
+        return err(ProjectErrors.CONFIG_INVALID(['GitHub App installation not found']));
+      }
+
+      const octokit = await getInstallationOctokit(Number(installation.installationId));
+
+      // Fetch config from GitHub
+      const configResult = await syncConfigFromGitHub({
+        octokit,
+        owner: project.githubOwner,
+        repo: project.githubRepo,
+        configPath: project.configPath ?? '.claude',
+      });
+
+      if (!configResult.ok) {
+        return err(ProjectErrors.CONFIG_INVALID([configResult.error.message]));
+      }
+
+      // Validate the synced config
+      const validation = this.validateConfig(configResult.value.config);
+      if (!validation.ok) {
+        return validation;
+      }
+
+      // Merge synced config with existing config
+      const mergedConfig = deepMerge(project.config ?? {}, validation.value) as ProjectConfig;
+
+      // Update project with synced config
+      const [updated] = await this.db
+        .update(projects)
+        .set({ config: mergedConfig, updatedAt: this.updateTimestamp() })
+        .where(eq(projects.id, id))
+        .returning();
+
+      if (!updated) {
+        return err(ProjectErrors.NOT_FOUND);
+      }
+
+      console.log(
+        `[ProjectService] Synced config from GitHub for project ${id}: ${configResult.value.path} (sha: ${configResult.value.sha})`
+      );
+
+      return ok(updated);
+    } catch (error) {
+      console.error(`[ProjectService] GitHub sync failed for project ${id}:`, error);
+      return err(
+        ProjectErrors.CONFIG_INVALID([
+          `GitHub sync failed: ${error instanceof Error ? error.message : String(error)}`,
+        ])
+      );
+    }
   }
 
   async validatePath(projectPath: string): Promise<Result<PathValidation, ProjectError>> {
