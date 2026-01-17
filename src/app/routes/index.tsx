@@ -1,44 +1,49 @@
-import { FolderSimple, Gauge, Lightning } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { ProjectPicker } from '@/app/components/features/project-picker';
-import { Button } from '@/app/components/ui/button';
-import { useServices } from '@/app/services/service-context';
-import type { Project } from '@/db/schema/projects';
+import { FolderSimple, Gauge, Lightning } from "@phosphor-icons/react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ProjectPicker } from "@/app/components/features/project-picker";
+import { Button } from "@/app/components/ui/button";
+import { useServices } from "@/app/services/service-context";
+import type { Project } from "@/db/schema/projects";
 
-export const Route = createFileRoute('/')({
-  loader: async () => ({ projects: [], runningAgents: 0 }),
+export const Route = createFileRoute("/")({
+  loader: async ({ context }) => {
+    if (!context.services) {
+      return { projects: [], runningAgents: 0 };
+    }
+
+    const projectsResult = await context.services.projectService.list({
+      limit: 6,
+    });
+    const runningAgentsResult =
+      await context.services.agentService.getRunningCount("all");
+
+    return {
+      projects: projectsResult.ok ? projectsResult.value : [],
+      runningAgents: runningAgentsResult.ok ? runningAgentsResult.value : 0,
+    };
+  },
   component: Dashboard,
 });
 
 function Dashboard(): React.JSX.Element {
-  const { projectService } = useServices();
   const loaderData = Route.useLoaderData();
-  const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
-  const [runningAgents, setRunningAgents] = useState(loaderData.runningAgents ?? 0);
-
-  useEffect(() => {
-    const load = async () => {
-      const projectsResult = await projectService.list({ limit: 6 });
-
-      if (projectsResult.ok) {
-        setProjects(projectsResult.value);
-      }
-
-      setRunningAgents(0);
-    };
-
-    void load();
-  }, [projectService]);
+  const [projects] = useState<Project[]>(loaderData.projects ?? []);
+  const [runningAgents] = useState(loaderData.runningAgents ?? 0);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-fg-muted">AgentPane</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Dashboard</h1>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">
+            AgentPane
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">
+            Dashboard
+          </h1>
           <p className="text-sm text-fg-muted">
-            Keep projects, agents, and sessions flowing with local-first control.
+            Keep projects, agents, and sessions flowing with local-first
+            control.
           </p>
         </div>
         <Button>New Project</Button>
@@ -50,21 +55,27 @@ function Dashboard(): React.JSX.Element {
             <FolderSimple className="h-4 w-4" />
             <span className="text-sm">Projects</span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">{projects.length}</p>
+          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">
+            {projects.length}
+          </p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-fg-muted">
             <Gauge className="h-4 w-4" />
             <span className="text-sm">Running agents</span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">{runningAgents}</p>
+          <p className="mt-3 text-2xl font-semibold text-fg tabular-nums">
+            {runningAgents}
+          </p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-fg-muted">
             <Lightning className="h-4 w-4" />
             <span className="text-sm">Recent activity</span>
           </div>
-          <p className="mt-3 text-sm text-fg-muted">Review the latest sessions and approvals.</p>
+          <p className="mt-3 text-sm text-fg-muted">
+            Review the latest sessions and approvals.
+          </p>
         </div>
       </div>
 
@@ -72,7 +83,9 @@ function Dashboard(): React.JSX.Element {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-fg">Recent projects</h2>
-            <p className="text-sm text-fg-muted">Jump back into active workspaces.</p>
+            <p className="text-sm text-fg-muted">
+              Jump back into active workspaces.
+            </p>
           </div>
           <ProjectPicker
             projects={projects}
@@ -91,8 +104,12 @@ function Dashboard(): React.JSX.Element {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-fg">{project.name}</h3>
-                  <p className="text-xs text-fg-muted truncate">{project.path}</p>
+                  <h3 className="text-sm font-semibold text-fg">
+                    {project.name}
+                  </h3>
+                  <p className="text-xs text-fg-muted truncate">
+                    {project.path}
+                  </p>
                 </div>
                 <span className="text-xs text-fg-muted">View</span>
               </div>
