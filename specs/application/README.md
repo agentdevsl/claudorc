@@ -16,7 +16,7 @@ This directory contains the complete application specifications for AgentPane, a
 ## Document Tree
 
 ```
-specs/
+specs/application/
 ├── README.md                          # This file - specification overview
 ├── user-stories.md                    # 23 user stories with acceptance criteria
 ├── wireframe-review.md                # Wireframe coverage analysis

@@ -2,21 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Note**: This project uses AGENTS.md files for detailed guidance and has comprehensive specifications in `/specs`.
+**Note**: This project uses AGENTS.md files for detailed guidance and has comprehensive specifications in `/specs/application`.
 
 ## Primary References
 
 1. **AGENTS.md** - Development guidelines and tech stack: `./AGENTS.md`
-2. **Specifications** - Complete application specs: `/specs/README.md`
+2. **Specifications** - Complete application specs: `/specs/application/README.md`
 
 ## Application Specifications
 
-The `/specs` directory contains **100% complete specifications** for building AgentPane. Always consult these before implementing features.
+The `/specs/application` directory contains **100% complete specifications** for building AgentPane. Always consult these before implementing features.
 
 ### Specification Structure
 
 ```
-specs/
+specs/application/
 ├── README.md                    # Spec overview and document tree
 ├── user-stories.md              # 23 user stories with acceptance criteria
 │
