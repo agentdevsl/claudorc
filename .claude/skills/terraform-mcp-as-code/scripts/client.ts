@@ -68,7 +68,10 @@ export async function closeMCPClient(): Promise<void> {
  * @param input - The input parameters for the tool
  * @returns The tool response
  */
-export async function callMCPTool<TOutput = any>(toolName: string, input: any): Promise<TOutput> {
+export async function callMCPTool<TOutput = unknown>(
+  toolName: string,
+  input: unknown
+): Promise<TOutput> {
   if (!mcpClient || !isConnected) {
     throw new Error('MCP client not initialized. Call initializeMCPClient() first.');
   }

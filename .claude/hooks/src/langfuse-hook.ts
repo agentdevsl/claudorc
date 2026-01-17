@@ -392,7 +392,9 @@ function processEvent(event: ClaudeCodeEvent): void {
         }
 
         finalizeToolObservation(active.observation, result, active.ctx, event.tokens);
-        activeObservations.delete(event.tool_use_id!);
+        if (event.tool_use_id) {
+          activeObservations.delete(event.tool_use_id);
+        }
 
         // Record scores for failure tracking
         // Check if preceding tool failed for cascade detection
@@ -440,7 +442,7 @@ function processEvent(event: ClaudeCodeEvent): void {
 
         const restoredCtx: ToolContext = persistedSpan.ctx ?? {
           toolName: event.tool_name,
-          toolUseId: event.tool_use_id!, // Safe: isCrossProcess requires tool_use_id
+          toolUseId: event.tool_use_id ?? 'unknown', // Fallback to 'unknown' if undefined
           toolInput: event.tool_input,
           isSubagent,
           subagentType: subagentInfo?.type,

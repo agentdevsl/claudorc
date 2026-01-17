@@ -26,10 +26,10 @@ export interface GetLatestModuleVersionOutput {
   content?: Array<{
     type: string;
     text?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
   isError?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
