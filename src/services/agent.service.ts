@@ -1,25 +1,25 @@
-import { createId } from '@paralleldrive/cuid2';
-import { and, desc, eq } from 'drizzle-orm';
-import { agentRuns } from '../db/schema/agent-runs.js';
-import type { Agent, AgentConfig, NewAgent } from '../db/schema/agents.js';
-import { agents } from '../db/schema/agents.js';
-import { projects } from '../db/schema/projects.js';
-import type { Session } from '../db/schema/sessions.js';
-import { sessions } from '../db/schema/sessions.js';
-import type { Task } from '../db/schema/tasks.js';
-import { tasks } from '../db/schema/tasks.js';
-import type { Worktree } from '../db/schema/worktrees.js';
-import { worktrees } from '../db/schema/worktrees.js';
-import type { AgentError } from '../lib/errors/agent-errors.js';
-import { AgentErrors } from '../lib/errors/agent-errors.js';
-import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
-import { ConcurrencyErrors } from '../lib/errors/concurrency-errors.js';
-import type { ValidationError } from '../lib/errors/validation-errors.js';
-import { ValidationErrors } from '../lib/errors/validation-errors.js';
-import type { Result } from '../lib/utils/result.js';
-import { err, ok } from '../lib/utils/result.js';
-import type { Database } from '../types/database.js';
-import type { SessionEvent, SessionWithPresence } from './session.service.js';
+import { createId } from "@paralleldrive/cuid2";
+import { and, desc, eq } from "drizzle-orm";
+import { agentRuns } from "../db/schema/agent-runs.js";
+import type { Agent, AgentConfig, NewAgent } from "../db/schema/agents.js";
+import { agents } from "../db/schema/agents.js";
+import { projects } from "../db/schema/projects.js";
+import type { Session } from "../db/schema/sessions.js";
+import { sessions } from "../db/schema/sessions.js";
+import type { Task } from "../db/schema/tasks.js";
+import { tasks } from "../db/schema/tasks.js";
+import type { Worktree } from "../db/schema/worktrees.js";
+import { worktrees } from "../db/schema/worktrees.js";
+import type { AgentError } from "../lib/errors/agent-errors.js";
+import { AgentErrors } from "../lib/errors/agent-errors.js";
+import type { ConcurrencyError } from "../lib/errors/concurrency-errors.js";
+import { ConcurrencyErrors } from "../lib/errors/concurrency-errors.js";
+import type { ValidationError } from "../lib/errors/validation-errors.js";
+import { ValidationErrors } from "../lib/errors/validation-errors.js";
+import type { Result } from "../lib/utils/result.js";
+import { err, ok } from "../lib/utils/result.js";
+import type { Database } from "../types/database.js";
+import type { SessionEvent, SessionWithPresence } from "./session.service.js";
 
 export type AgentExecutionContext = {
   agentId: string;
@@ -34,7 +34,7 @@ export type AgentExecutionContext = {
 
 export type AgentRunResult = {
   runId: string;
-  status: 'completed' | 'error' | 'turn_limit' | 'paused';
+  status: "completed" | "error" | "turn_limit" | "paused";
   turnCount: number;
   result?: string;
   error?: string;
@@ -59,13 +59,16 @@ export type PostToolUseHook = (input: {
 }) => Promise<void>;
 
 type WorktreeService = {
-  create: (input: { projectId: string; taskId: string }) => Promise<Result<Worktree, AgentError>>;
+  create: (input: {
+    projectId: string;
+    taskId: string;
+  }) => Promise<Result<Worktree, AgentError>>;
 };
 
 type TaskService = {
   moveColumn: (
     taskId: string,
-    column: 'in_progress' | 'waiting_approval'
+    column: "in_progress" | "waiting_approval",
   ) => Promise<Result<unknown, AgentError>>;
 };
 
@@ -76,7 +79,10 @@ type SessionServiceInterface = {
     agentId?: string;
     title?: string;
   }) => Promise<Result<SessionWithPresence, unknown>>;
-  publish: (sessionId: string, event: SessionEvent) => Promise<Result<void, unknown>>;
+  publish: (
+    sessionId: string,
+    event: SessionEvent,
+  ) => Promise<Result<void, unknown>>;
 };
 
 const runningAgents = new Map<string, AbortController>();
@@ -89,7 +95,7 @@ export class AgentService {
     private db: Database,
     private worktreeService: WorktreeService,
     private taskService: TaskService,
-    private sessionService: SessionServiceInterface
+    private sessionService: SessionServiceInterface,
   ) {}
 
   async create(input: NewAgent): Promise<Result<Agent, ValidationError>> {
@@ -98,11 +104,12 @@ export class AgentService {
     });
 
     if (!project) {
-      return err(ValidationErrors.INVALID_ID('projectId'));
+      return err(ValidationErrors.INVALID_ID("projectId"));
     }
 
     const config: AgentConfig = {
-      allowedTools: input.config?.allowedTools ?? project.config?.allowedTools ?? [],
+      allowedTools:
+        input.config?.allowedTools ?? project.config?.allowedTools ?? [],
       maxTurns: input.config?.maxTurns ?? project.config?.maxTurns ?? 50,
       model: input.config?.model ?? project.config?.model,
       systemPrompt: input.config?.systemPrompt ?? project.config?.systemPrompt,
@@ -141,23 +148,44 @@ export class AgentService {
     return ok(items);
   }
 
+  async listAll(): Promise<Result<Agent[], never>> {
+    const items = await this.db.query.agents.findMany({
+      orderBy: [desc(agents.updatedAt)],
+    });
+
+    return ok(items);
+  }
+
+  async getRunningCountAll(): Promise<Result<number, never>> {
+    const running = await this.db.query.agents.findMany({
+      where: eq(agents.status, "running"),
+    });
+
+    return ok(running.length);
+  }
+
   async update(
     id: string,
-    input: Partial<AgentConfig>
+    input: Partial<AgentConfig>,
   ): Promise<Result<Agent, AgentError | ValidationError>> {
     const existing = await this.getById(id);
     if (!existing.ok) {
       return existing;
     }
 
-    if (existing.value.status === 'running') {
+    if (existing.value.status === "running") {
       if (input.allowedTools || input.model) {
-        return err(AgentErrors.ALREADY_RUNNING(existing.value.currentTaskId ?? undefined));
+        return err(
+          AgentErrors.ALREADY_RUNNING(
+            existing.value.currentTaskId ?? undefined,
+          ),
+        );
       }
     }
 
     const mergedConfig: AgentConfig = {
-      allowedTools: input.allowedTools ?? existing.value.config?.allowedTools ?? [],
+      allowedTools:
+        input.allowedTools ?? existing.value.config?.allowedTools ?? [],
       maxTurns: input.maxTurns ?? existing.value.config?.maxTurns ?? 50,
       model: input.model ?? existing.value.config?.model,
       systemPrompt: input.systemPrompt ?? existing.value.config?.systemPrompt,
@@ -192,7 +220,7 @@ export class AgentService {
 
   async start(
     agentId: string,
-    taskId?: string
+    taskId?: string,
   ): Promise<
     Result<
       { agent: Agent; task: Task; session: Session; worktree: Worktree },
@@ -207,7 +235,7 @@ export class AgentService {
       return err(AgentErrors.NOT_FOUND);
     }
 
-    if (agent.status !== 'idle') {
+    if (agent.status !== "idle") {
       return err(AgentErrors.ALREADY_RUNNING(agent.currentTaskId ?? undefined));
     }
 
@@ -219,7 +247,10 @@ export class AgentService {
 
     if (!task) {
       task = await this.db.query.tasks.findFirst({
-        where: and(eq(tasks.projectId, agent.projectId), eq(tasks.column, 'backlog')),
+        where: and(
+          eq(tasks.projectId, agent.projectId),
+          eq(tasks.column, "backlog"),
+        ),
         orderBy: desc(tasks.createdAt),
       });
     }
@@ -228,7 +259,7 @@ export class AgentService {
       return err(AgentErrors.NO_AVAILABLE_TASK);
     }
 
-    if (task.column !== 'backlog') {
+    if (task.column !== "backlog") {
       return err(AgentErrors.NO_AVAILABLE_TASK);
     }
 
@@ -240,10 +271,15 @@ export class AgentService {
       const project = await this.db.query.projects.findFirst({
         where: eq(projects.id, agent.projectId),
       });
-      return err(ConcurrencyErrors.LIMIT_EXCEEDED(runningCount, project?.maxConcurrentAgents ?? 1));
+      return err(
+        ConcurrencyErrors.LIMIT_EXCEEDED(
+          runningCount,
+          project?.maxConcurrentAgents ?? 1,
+        ),
+      );
     }
 
-    await this.taskService.moveColumn(task.id, 'in_progress');
+    await this.taskService.moveColumn(task.id, "in_progress");
 
     const worktree = await this.worktreeService.create({
       projectId: agent.projectId,
@@ -261,13 +297,13 @@ export class AgentService {
     });
 
     if (!session.ok) {
-      return err(AgentErrors.EXECUTION_ERROR('Failed to create session'));
+      return err(AgentErrors.EXECUTION_ERROR("Failed to create session"));
     }
 
     await this.db
       .update(tasks)
       .set({
-        column: 'in_progress',
+        column: "in_progress",
         agentId,
         sessionId: session.value.id,
         worktreeId: worktree.value.id,
@@ -280,7 +316,7 @@ export class AgentService {
     await this.db
       .update(agents)
       .set({
-        status: 'starting',
+        status: "starting",
         currentTaskId: task.id,
         currentSessionId: session.value.id,
         currentTurn: 0,
@@ -290,9 +326,9 @@ export class AgentService {
 
     await this.sessionService.publish(session.value.id, {
       id: createId(),
-      type: 'state:update',
+      type: "state:update",
       timestamp: Date.now(),
-      data: { status: 'starting', agentId, taskId: task.id },
+      data: { status: "starting", agentId, taskId: task.id },
     });
 
     const [agentRun] = await this.db
@@ -302,19 +338,22 @@ export class AgentService {
         taskId: task.id,
         projectId: agent.projectId,
         sessionId: session.value.id,
-        status: 'running',
+        status: "running",
       })
       .returning();
 
     const controller = new AbortController();
     runningAgents.set(agentId, controller);
 
-    await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
+    await this.db
+      .update(agents)
+      .set({ status: "running" })
+      .where(eq(agents.id, agentId));
 
     if (agentRun) {
       await this.db
         .update(agentRuns)
-        .set({ status: 'completed', completedAt: new Date(), turnsUsed: 0 })
+        .set({ status: "completed", completedAt: new Date(), turnsUsed: 0 })
         .where(eq(agentRuns.id, agentRun.id));
     }
 
@@ -335,7 +374,9 @@ export class AgentService {
     });
 
     if (!updatedAgent || !updatedTask || !updatedSession || !updatedWorktree) {
-      return err(AgentErrors.EXECUTION_ERROR('Missing updated resources after start'));
+      return err(
+        AgentErrors.EXECUTION_ERROR("Missing updated resources after start"),
+      );
     }
 
     return ok({
@@ -357,7 +398,12 @@ export class AgentService {
 
     await this.db
       .update(agents)
-      .set({ status: 'idle', currentTaskId: null, currentSessionId: null, updatedAt: new Date() })
+      .set({
+        status: "idle",
+        currentTaskId: null,
+        currentSessionId: null,
+        updatedAt: new Date(),
+      })
       .where(eq(agents.id, agentId));
 
     return ok(undefined);
@@ -374,13 +420,16 @@ export class AgentService {
 
     await this.db
       .update(agents)
-      .set({ status: 'paused', updatedAt: new Date() })
+      .set({ status: "paused", updatedAt: new Date() })
       .where(eq(agents.id, agentId));
 
     return ok(undefined);
   }
 
-  async resume(agentId: string, feedback?: string): Promise<Result<AgentRunResult, AgentError>> {
+  async resume(
+    agentId: string,
+    feedback?: string,
+  ): Promise<Result<AgentRunResult, AgentError>> {
     const agent = await this.db.query.agents.findFirst({
       where: eq(agents.id, agentId),
     });
@@ -391,19 +440,23 @@ export class AgentService {
 
     await this.db
       .update(agents)
-      .set({ status: 'running', updatedAt: new Date() })
+      .set({ status: "running", updatedAt: new Date() })
       .where(eq(agents.id, agentId));
 
     if (agent.currentSessionId) {
       await this.sessionService.publish(agent.currentSessionId, {
         id: createId(),
-        type: 'approval:rejected',
+        type: "approval:rejected",
         timestamp: Date.now(),
         data: { feedback },
       });
     }
 
-    return ok({ runId: createId(), status: 'paused', turnCount: agent.currentTurn ?? 0 });
+    return ok({
+      runId: createId(),
+      status: "paused",
+      turnCount: agent.currentTurn ?? 0,
+    });
   }
 
   async checkAvailability(projectId: string): Promise<Result<boolean, never>> {
@@ -422,14 +475,14 @@ export class AgentService {
 
   async queueTask(
     _projectId: string,
-    _taskId: string
+    _taskId: string,
   ): Promise<Result<QueuePosition, ConcurrencyError>> {
     return err(ConcurrencyErrors.QUEUE_FULL(0, 0));
   }
 
   async getRunningCount(projectId: string): Promise<Result<number, never>> {
     const running = await this.db.query.agents.findMany({
-      where: and(eq(agents.projectId, projectId), eq(agents.status, 'running')),
+      where: and(eq(agents.projectId, projectId), eq(agents.status, "running")),
     });
 
     return ok(running.length);

@@ -1,6 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
-import { routeTree } from "./routeTree.gen";
 import type { BootstrapContext as BootstrapContextType } from "@/lib/bootstrap/types";
+import { routeTree } from "./routeTree.gen";
 import type { Services } from "./services/services";
 
 export type RouterContext = {

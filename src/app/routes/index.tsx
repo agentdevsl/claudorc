@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
       limit: 6,
     });
     const runningAgentsResult =
-      await context.services.agentService.getRunningCount("all");
+      await context.services.agentService.getRunningCountAll();
 
     return {
       projects: projectsResult.ok ? projectsResult.value : [],
