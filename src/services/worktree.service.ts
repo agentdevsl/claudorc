@@ -114,7 +114,11 @@ export class WorktreeService {
     const root = project.config?.worktreeRoot ?? '.worktrees';
     const worktreePath = path.join(project.path, root, branch.replaceAll('/', '-'));
 
-    const branchCheck = await this.runner.exec(`git branch --list ${branch}`, project.path);
+    const escapedBranchForCheck = escapeShellString(branch);
+    const branchCheck = await this.runner.exec(
+      `git branch --list "${escapedBranchForCheck}"`,
+      project.path
+    );
     if (branchCheck.stdout.trim()) {
       return err(WorktreeErrors.BRANCH_EXISTS(branch));
     }
@@ -218,6 +222,11 @@ export class WorktreeService {
       const result = await this.remove(worktree.id, true);
       if (result.ok) {
         pruned += 1;
+      } else {
+        console.warn(
+          `[WorktreeService] Failed to prune worktree ${worktree.id} (${worktree.branch}):`,
+          result.error
+        );
       }
     }
 
@@ -298,16 +307,17 @@ export class WorktreeService {
     }
 
     try {
-      const escapedPath = escapeShellString(worktree.path);
-      await this.runner.exec('git add -A', escapedPath);
-      const status = await this.runner.exec('git status --porcelain', escapedPath);
+      // Note: cwd parameter uses raw path (passed to process spawn, not shell interpolated)
+      // Only command arguments need shell escaping
+      await this.runner.exec('git add -A', worktree.path);
+      const status = await this.runner.exec('git status --porcelain', worktree.path);
       if (!status.stdout.trim()) {
         return ok('');
       }
 
       const escapedMessage = escapeShellString(message);
-      await this.runner.exec(`git commit -m "${escapedMessage}"`, escapedPath);
-      const sha = await this.runner.exec('git rev-parse HEAD', escapedPath);
+      await this.runner.exec(`git commit -m "${escapedMessage}"`, worktree.path);
+      const sha = await this.runner.exec('git rev-parse HEAD', worktree.path);
 
       await this.db
         .update(worktrees)
@@ -343,21 +353,21 @@ export class WorktreeService {
     }
 
     try {
+      // Note: cwd uses raw path; only command arguments need escaping
       const escapedTarget = escapeShellString(target);
       const escapedBranch = escapeShellString(worktree.branch);
-      const escapedProjectPath = escapeShellString(worktree.project.path);
 
-      await this.runner.exec(`git checkout "${escapedTarget}"`, escapedProjectPath);
-      await this.runner.exec('git pull --rebase', escapedProjectPath);
+      await this.runner.exec(`git checkout "${escapedTarget}"`, worktree.project.path);
+      await this.runner.exec('git pull --rebase', worktree.project.path);
       const merge = await this.runner.exec(
         `git merge "${escapedBranch}" --no-ff -m "Merge branch '${escapedBranch}'"`,
-        escapedProjectPath
+        worktree.project.path
       );
 
       if (merge.stderr.includes('CONFLICT')) {
         const conflicts = await this.runner.exec(
           'git diff --name-only --diff-filter=U',
-          escapedProjectPath
+          worktree.project.path
         );
         return err(
           WorktreeErrors.MERGE_CONFLICT(conflicts.stdout.trim().split('\n').filter(Boolean))
@@ -385,20 +395,20 @@ export class WorktreeService {
     }
 
     try {
-      const escapedPath = escapeShellString(worktree.path);
+      // Note: cwd uses raw path; only command arguments need escaping
       const escapedBaseBranch = escapeShellString(worktree.baseBranch);
 
       const stat = await this.runner.exec(
         `git diff --stat "${escapedBaseBranch}"...HEAD`,
-        escapedPath
+        worktree.path
       );
       const numstat = await this.runner.exec(
         `git diff --numstat "${escapedBaseBranch}"...HEAD`,
-        escapedPath
+        worktree.path
       );
       const fullDiff = await this.runner.exec(
         `git diff "${escapedBaseBranch}"...HEAD`,
-        escapedPath
+        worktree.path
       );
 
       const files = numstat.stdout

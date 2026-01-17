@@ -241,7 +241,10 @@ export class ProjectService {
     const hasClaudeConfig = await this.runner
       .exec('test -d .claude && echo yes || echo no', normalized)
       .then((res) => res.stdout.trim() === 'yes')
-      .catch(() => false);
+      .catch((error) => {
+        console.warn(`[ProjectService] Could not detect .claude directory for ${normalized}:`, error);
+        return false;
+      });
 
     return ok({
       name,
