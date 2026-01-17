@@ -20,18 +20,16 @@ export function TaskDetailDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-lg rounded-lg bg-surface p-6">
-        <h2 className="text-lg font-semibold text-fg">
-          {task ? 'Edit Task' : 'New Task'}
-        </h2>
+        <h2 className="text-lg font-semibold text-fg">{task ? 'Edit Task' : 'New Task'}</h2>
         {task && (
           <div className="mt-4 space-y-4">
             <div>
-              <label className="text-sm font-medium text-fg">Title</label>
+              <span className="text-sm font-medium text-fg">Title</span>
               <p className="text-sm text-fg-muted">{task.title}</p>
             </div>
             {task.description && (
               <div>
-                <label className="text-sm font-medium text-fg">Description</label>
+                <span className="text-sm font-medium text-fg">Description</span>
                 <p className="text-sm text-fg-muted">{task.description}</p>
               </div>
             )}

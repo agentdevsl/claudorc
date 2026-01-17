@@ -29,10 +29,7 @@ export function KanbanBoard({
   return (
     <div className="flex h-full gap-4 overflow-x-auto p-4">
       {COLUMNS.map((col) => (
-        <div
-          key={col.id}
-          className="flex w-72 flex-shrink-0 flex-col rounded-lg bg-surface"
-        >
+        <div key={col.id} className="flex w-72 flex-shrink-0 flex-col rounded-lg bg-surface">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-medium text-fg">{col.label}</h3>
             <p className="text-xs text-fg-muted">{tasksByColumn[col.id].length} tasks</p>
@@ -50,9 +47,7 @@ export function KanbanBoard({
               >
                 <p className="text-sm font-medium text-fg">{task.title}</p>
                 {task.description && (
-                  <p className="mt-1 text-xs text-fg-muted line-clamp-2">
-                    {task.description}
-                  </p>
+                  <p className="mt-1 text-xs text-fg-muted line-clamp-2">{task.description}</p>
                 )}
               </button>
             ))}

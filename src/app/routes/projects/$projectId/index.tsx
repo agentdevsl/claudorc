@@ -1,20 +1,20 @@
-import { Plus } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { ApprovalDialog } from "@/app/components/features/approval-dialog";
-import { KanbanBoard } from "@/app/components/features/kanban-board";
-import { TaskDetailDialog } from "@/app/components/features/task-detail-dialog";
-import { Button } from "@/app/components/ui/button";
-import { db } from "@/db/client";
-import type { Task, TaskColumn } from "@/db/schema/tasks";
-import { AgentService } from "@/services/agent.service";
-import { ProjectService } from "@/services/project.service";
-import { SessionService } from "@/services/session.service";
-import { TaskService } from "@/services/task.service";
-import { WorktreeService } from "@/services/worktree.service";
+import { Plus } from '@phosphor-icons/react';
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
+import { ApprovalDialog } from '@/app/components/features/approval-dialog';
+import { KanbanBoard } from '@/app/components/features/kanban-board';
+import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
+import { Button } from '@/app/components/ui/button';
+import { db } from '@/db/client';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
+import { AgentService } from '@/services/agent.service';
+import { ProjectService } from '@/services/project.service';
+import { SessionService } from '@/services/session.service';
+import { TaskService } from '@/services/task.service';
+import { WorktreeService } from '@/services/worktree.service';
 
 const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: "", stderr: "" }),
+  exec: async () => ({ stdout: '', stderr: '' }),
 });
 
 const taskService = new TaskService(db, worktreeService);
@@ -25,24 +25,19 @@ const sessionService = new SessionService(
     createStream: async () => undefined,
     publish: async () => undefined,
     subscribe: async function* () {
-      yield { type: "chunk", data: {} };
+      yield { type: 'chunk', data: {} };
     },
   },
-  { baseUrl: process.env.APP_URL ?? "http://localhost:5173" },
+  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
 );
 
-const agentService = new AgentService(
-  db,
-  worktreeService,
-  taskService,
-  sessionService,
-);
+const agentService = new AgentService(db, worktreeService, taskService, sessionService);
 
 const projectService = new ProjectService(db, worktreeService, {
-  exec: async () => ({ stdout: "", stderr: "" }),
+  exec: async () => ({ stdout: '', stderr: '' }),
 });
 
-export const Route = createFileRoute("/projects/$projectId/")({
+export const Route = createFileRoute('/projects/$projectId/')({
   loader: async ({ params }) => {
     const [projectResult, tasksResult, agentsResult] = await Promise.all([
       projectService.getById(params.projectId),
@@ -51,7 +46,7 @@ export const Route = createFileRoute("/projects/$projectId/")({
     ]);
 
     if (!projectResult.ok) {
-      throw new Error("Project not found");
+      throw new Error('Project not found');
     }
 
     return {
@@ -69,16 +64,12 @@ function ProjectKanban(): React.JSX.Element {
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<Task | null>(null);
 
-  const handleTaskMove = async (
-    taskId: string,
-    column: TaskColumn,
-    position: number,
-  ) => {
+  const handleTaskMove = async (taskId: string, column: TaskColumn, position: number) => {
     await taskService.moveColumn(taskId, column, position);
   };
 
   const handleTaskClick = (task: Task) => {
-    if (task.column === "waiting_approval") {
+    if (task.column === 'waiting_approval') {
       setApprovalTask(task);
     } else {
       setSelectedTask(task);
@@ -88,7 +79,7 @@ function ProjectKanban(): React.JSX.Element {
   const handleApprove = async (commitMessage?: string) => {
     if (!approvalTask) return;
     await taskService.approve(approvalTask.id, {
-      approvedBy: "current-user",
+      approvedBy: 'current-user',
       createMergeCommit: commitMessage ? true : undefined,
     });
   };
@@ -102,9 +93,7 @@ function ProjectKanban(): React.JSX.Element {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-fg-muted">
-            Project
-          </p>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">Project</p>
           <h1 className="text-lg font-semibold text-fg">{project.name}</h1>
         </div>
         <Button onClick={() => setShowNewTask(true)}>
@@ -114,11 +103,7 @@ function ProjectKanban(): React.JSX.Element {
       </header>
 
       <main className="flex-1 overflow-hidden bg-canvas">
-        <KanbanBoard
-          tasks={tasks}
-          onTaskMove={handleTaskMove}
-          onTaskClick={handleTaskClick}
-        />
+        <KanbanBoard tasks={tasks} onTaskMove={handleTaskMove} onTaskClick={handleTaskClick} />
       </main>
 
       <TaskDetailDialog
@@ -136,7 +121,7 @@ function ProjectKanban(): React.JSX.Element {
           } else {
             await taskService.create({
               projectId: project.id,
-              title: data.title ?? "",
+              title: data.title ?? '',
               description: data.description,
             });
           }
