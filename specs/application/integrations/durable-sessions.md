@@ -33,10 +33,24 @@ Pattern reference: [Electric SQL Durable Sessions](https://electric-sql.com/blog
 |  Durable Streams (@durable-streams/client)                  |
 |  Persistent, addressable binary streams                     |
 +-------------------------------------------------------------+
-|  Electric Sync Engine                                        |
-|  Postgres -> HTTP sync via CDN -> Client                    |
+|  HTTP Transport                                              |
+|  Reads: SSE/long-poll | Writes: HTTP POST (append)          |
 +-------------------------------------------------------------+
 ```
+
+### Transport Model
+
+Durable Streams uses **HTTP-based transport** (not WebSocket):
+
+| Operation | Method | Description |
+|-----------|--------|-------------|
+| **Read** | `stream.stream()` | SSE or long-poll for live tailing |
+| **Write** | `stream.append()` | HTTP POST with exactly-once semantics |
+
+This separation enables:
+- CDN caching for reads
+- Exactly-once delivery via offset tracking
+- Resumable streams after disconnection
 
 ---
 
@@ -459,17 +473,21 @@ import { createServerFileRoute } from '@tanstack/react-start/server';
 import { streams } from '@/lib/streams/server';
 
 export const ServerRoute = createServerFileRoute().methods({
-  // SSE endpoint for session subscriptions
+  // SSE endpoint for session subscriptions (reads)
   GET: async ({ request }) => {
     const url = new URL(request.url);
     const sessionId = url.searchParams.get('sessionId');
+    const offset = url.searchParams.get('offset'); // For resumability
 
     if (!sessionId) {
       return new Response('Missing sessionId', { status: 400 });
     }
 
-    // Create SSE stream
-    const stream = streams.createStream(`session:${sessionId}`);
+    // Create SSE stream with offset-based resumption
+    const stream = streams.stream(`session:${sessionId}`, {
+      offset: offset ? parseInt(offset, 10) : undefined,
+      live: true, // Enable live tailing
+    });
 
     return new Response(stream, {
       headers: {
@@ -480,57 +498,37 @@ export const ServerRoute = createServerFileRoute().methods({
     });
   },
 
-  // WebSocket upgrade for bidirectional communication
-  // (handled by Bun's native WebSocket support)
-});
-
-// WebSocket handler for bidirectional sessions
-export const ws = {
-  open(ws, request) {
+  // HTTP POST endpoint for writes (terminal input, presence)
+  POST: async ({ request }) => {
     const url = new URL(request.url);
     const sessionId = url.searchParams.get('sessionId');
-    const userId = url.searchParams.get('userId');
 
-    if (sessionId && userId) {
-      ws.subscribe(`session:${sessionId}`);
-
-      // Publish join event
-      streams.publish(`session:${sessionId}`, {
-        channel: 'presence',
-        data: {
-          userId,
-          sessionId,
-          lastSeen: Date.now(),
-          joinedAt: Date.now(),
-        },
-      });
+    if (!sessionId) {
+      return new Response('Missing sessionId', { status: 400 });
     }
-  },
 
-  message(ws, message) {
-    // Handle incoming messages (terminal input, presence updates)
-    const data = JSON.parse(message.toString());
+    const body = await request.json();
+    const { channel, data } = body;
 
-    if (data.channel === 'terminal' && data.type === 'input') {
-      streams.publish(`session:${data.sessionId}`, {
-        channel: 'terminal',
-        data: {
-          id: `terminal-${Date.now()}`,
-          sessionId: data.sessionId,
-          type: 'input',
-          data: data.data,
-          source: 'user',
-          timestamp: Date.now(),
-        },
-      });
-    }
-  },
+    // Append to the session stream
+    const result = await streams.append(`session:${sessionId}`, {
+      channel,
+      data: {
+        ...data,
+        id: data.id ?? `${channel}-${Date.now()}`,
+        timestamp: data.timestamp ?? Date.now(),
+      },
+    });
 
-  close(ws, code, reason) {
-    // Presence leave handled automatically by subscription cleanup
+    return Response.json({
+      ok: true,
+      offset: result.offset, // Return offset for client tracking
+    });
   },
-};
+});
 ```
+
+> **Note:** Durable Streams uses HTTP for both reads (SSE) and writes (POST). This enables CDN caching, exactly-once delivery via offsets, and automatic reconnection handling.
 
 ---
 
@@ -724,26 +722,27 @@ export function createMultiplexedSession(sessionId: string): MultiplexedSession 
 
 ```typescript
 // lib/sessions/optimistic.ts
-import { client } from '../streams/client';
+import { createId } from '@paralleldrive/cuid2';
 import type { TerminalEvent } from './schema';
 
 interface OptimisticWriteOptions {
   onOptimistic: (event: TerminalEvent) => void;
-  onConfirm: (event: TerminalEvent) => void;
+  onConfirm: (event: TerminalEvent, offset: number) => void;
   onRollback: (event: TerminalEvent, error: Error) => void;
 }
 
 /**
  * Send terminal input with optimistic UI update
+ * Uses HTTP POST to append to the session stream
  */
-export function sendTerminalInput(
+export async function sendTerminalInput(
   sessionId: string,
   input: string,
   options: OptimisticWriteOptions
-): void {
+): Promise<void> {
   // Create optimistic event
   const optimisticEvent: TerminalEvent = {
-    id: `optimistic-${Date.now()}`,
+    id: createId(),
     sessionId,
     type: 'input',
     data: input,
@@ -754,19 +753,31 @@ export function sendTerminalInput(
   // Apply optimistic update immediately
   options.onOptimistic(optimisticEvent);
 
-  // Send to server
-  client.send(sessionId, {
-    channel: 'terminal',
-    data: optimisticEvent,
-  }).then(() => {
-    options.onConfirm(optimisticEvent);
-  }).catch((error) => {
-    options.onRollback(optimisticEvent, error);
-  });
+  try {
+    // HTTP POST to append to the stream
+    const response = await fetch(`/api/streams?sessionId=${sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'terminal',
+        data: optimisticEvent,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to send: ${response.status}`);
+    }
+
+    const result = await response.json();
+    options.onConfirm(optimisticEvent, result.offset);
+  } catch (error) {
+    options.onRollback(optimisticEvent, error as Error);
+  }
 }
 
 /**
  * Send presence update with optimistic cursor position
+ * Uses HTTP POST to append to the session stream
  */
 export function sendPresenceUpdate(
   sessionId: string,
@@ -779,17 +790,21 @@ export function sendPresenceUpdate(
   // Apply optimistic update immediately
   options.onOptimistic(cursor);
 
-  // Debounced send to server (presence updates can be batched)
-  client.send(sessionId, {
-    channel: 'presence',
-    data: {
-      userId,
-      sessionId,
-      cursor,
-      lastSeen: Date.now(),
-      joinedAt: 0, // Ignored for updates
-    },
-  });
+  // Debounced HTTP POST (presence updates can be batched)
+  fetch(`/api/streams?sessionId=${sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel: 'presence',
+      data: {
+        userId,
+        sessionId,
+        cursor,
+        lastSeen: Date.now(),
+        joinedAt: 0, // Ignored for updates
+      },
+    }),
+  }).catch(console.error); // Fire-and-forget for presence
 }
 ```
 
@@ -1644,4 +1659,19 @@ export const extendedSessionService: ExtendedSessionService = {
 | [Error Catalog](../errors/error-catalog.md) | SessionError types |
 | [User Stories](../user-stories.md) | Collaborative session requirements |
 | [Wireframes](../wireframes/) | Session presence UI, terminal I/O |
-| [API Endpoints](../api/endpoints.md) | Session REST/WebSocket routes |
+| [API Endpoints](../api/endpoints.md) | Session REST API routes (SSE + HTTP POST) |
+
+---
+
+## Transport Summary
+
+| Feature | Transport | Endpoint |
+|---------|-----------|----------|
+| Agent output streaming | SSE (GET) | `/api/streams?sessionId=X` |
+| Tool call events | SSE (GET) | `/api/streams?sessionId=X` |
+| Presence updates (read) | SSE (GET) | `/api/streams?sessionId=X` |
+| Terminal input (write) | HTTP POST | `/api/streams?sessionId=X` |
+| Presence updates (write) | HTTP POST | `/api/streams?sessionId=X` |
+| Session history replay | SSE with offset | `/api/streams?sessionId=X&offset=N` |
+
+All writes use HTTP POST with `append()` semantics. This provides exactly-once delivery via offset tracking and enables automatic retry on failure.
