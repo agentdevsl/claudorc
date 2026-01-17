@@ -20,7 +20,7 @@ export const useBootstrap = (): {
     serviceRef.current = service;
     const unsubscribe = service.subscribe(setState);
 
-    service.run().then((result) => {
+    void service.run().then((result) => {
       if (result.ok) {
         setContext(result.value);
       }

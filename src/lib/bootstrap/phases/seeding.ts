@@ -1,7 +1,7 @@
 import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
 import type { BootstrapContext } from '../types.js';
-import * as schema from '../../../db/schema/index.js';
+// Schema import reserved for future typed seeding operations
 
 export const seedDefaults = async (ctx: BootstrapContext) => {
   if (!ctx.db) {

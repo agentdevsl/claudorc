@@ -63,7 +63,7 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
   }),
 }));
 
-export const worktreesRelations = relations(worktrees, ({ one, many }) => ({
+export const worktreesRelations = relations(worktrees, ({ one }) => ({
   project: one(projects, {
     fields: [worktrees.projectId],
     references: [projects.id],

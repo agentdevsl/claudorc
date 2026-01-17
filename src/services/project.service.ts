@@ -219,7 +219,7 @@ export class ProjectService {
 
     try {
       await this.runner.exec('git rev-parse --git-dir', normalized);
-    } catch (error) {
+    } catch {
       return err(ProjectErrors.NOT_A_GIT_REPO(normalized));
     }
 

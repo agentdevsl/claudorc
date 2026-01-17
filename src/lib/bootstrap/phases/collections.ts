@@ -1,6 +1,6 @@
 import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
-import * as schema from '../../../db/schema/index.js';
+// Schema import reserved for future use with typed collections
 import type { BootstrapContext } from '../types.js';
 
 type CollectionMap = Record<string, { insertMany: (items: unknown[]) => void }>;

@@ -10,7 +10,7 @@ import { ProjectErrors } from '../lib/errors/project-errors.js';
 import { ValidationErrors } from '../lib/errors/validation-errors.js';
 import type { Database } from '../types/database.js';
 import type { GitDiff } from './worktree.service.js';
-import { canTransition, getValidTransitions } from './task-transitions.js';
+import { canTransition } from './task-transitions.js';
 
 export type CreateTaskInput = {
   projectId: string;

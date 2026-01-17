@@ -452,10 +452,7 @@ export class WorktreeService {
       // Note: cwd uses raw path; only command arguments need escaping
       const escapedBaseBranch = escapeShellString(worktree.baseBranch);
 
-      const stat = await this.runner.exec(
-        `git diff --stat "${escapedBaseBranch}"...HEAD`,
-        worktree.path
-      );
+      // Get diff statistics for file-level analysis
       const numstat = await this.runner.exec(
         `git diff --numstat "${escapedBaseBranch}"...HEAD`,
         worktree.path

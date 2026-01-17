@@ -413,8 +413,8 @@ export class AgentService {
   }
 
   async queueTask(
-    projectId: string,
-    taskId: string
+    _projectId: string,
+    _taskId: string
   ): Promise<Result<QueuePosition, ConcurrencyError>> {
     return err(ConcurrencyErrors.QUEUE_FULL(0, 0));
   }
