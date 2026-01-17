@@ -15,15 +15,6 @@ repos:
         pass_filenames: true
         stages:
           - pre-commit
-      - id: prettier-svelte
-        name: Prettier (Svelte only)
-        description: Formats Svelte files with Prettier
-        entry: bunx prettier --write
-        language: system
-        files: \.svelte$
-        pass_filenames: true
-        stages:
-          - pre-commit
   - repo: local
     hooks:
       - id: typecheck
