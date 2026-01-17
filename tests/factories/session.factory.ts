@@ -1,0 +1,87 @@
+import { createId } from '@paralleldrive/cuid2';
+import type { NewSession, Session } from '../../src/db/schema/sessions';
+import { sessions } from '../../src/db/schema/sessions';
+import { getTestDb } from '../helpers/database';
+
+type SessionStatus = 'idle' | 'initializing' | 'active' | 'paused' | 'closing' | 'closed' | 'error';
+
+export type SessionFactoryOptions = Partial<Omit<NewSession, 'projectId'>> & {
+  projectId?: string;
+  status?: SessionStatus;
+  taskId?: string | null;
+  agentId?: string | null;
+};
+
+export function buildSession(projectId: string, options: SessionFactoryOptions = {}): NewSession {
+  const id = options.id ?? createId();
+
+  return {
+    id,
+    projectId,
+    taskId: options.taskId ?? null,
+    agentId: options.agentId ?? null,
+    status: options.status ?? 'active',
+    title: options.title ?? `Test Session ${id.slice(0, 6)}`,
+    url: options.url ?? `http://localhost:3000/sessions/${id}`,
+    closedAt: options.closedAt ?? null,
+  };
+}
+
+export async function createTestSession(
+  projectId: string,
+  options: SessionFactoryOptions = {}
+): Promise<Session> {
+  const db = getTestDb();
+  const data = buildSession(projectId, options);
+
+  const [session] = await db.insert(sessions).values(data).returning();
+
+  if (!session) {
+    throw new Error('Failed to create test session');
+  }
+
+  return session;
+}
+
+export async function createTestSessions(
+  projectId: string,
+  count: number,
+  options: SessionFactoryOptions = {}
+): Promise<Session[]> {
+  const createdSessions: Session[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const session = await createTestSession(projectId, {
+      ...options,
+      title: options.title ?? `Test Session ${i + 1}`,
+    });
+    createdSessions.push(session);
+  }
+
+  return createdSessions;
+}
+
+export async function createActiveSession(
+  projectId: string,
+  taskId: string,
+  agentId: string,
+  options: SessionFactoryOptions = {}
+): Promise<Session> {
+  return createTestSession(projectId, {
+    ...options,
+    taskId,
+    agentId,
+    status: 'active',
+  });
+}
+
+export async function createClosedSession(
+  projectId: string,
+  options: SessionFactoryOptions = {}
+): Promise<Session> {
+  return createTestSession(projectId, {
+    ...options,
+    status: 'closed',
+    closedAt: options.closedAt ?? new Date(),
+  });
+}

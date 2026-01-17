@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest --config vitest.e2e.config.ts",
+    "test:integration": "vitest --include 'tests/integration/**'",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
+    "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -37,6 +40,7 @@
     "agent-browser": "0.5.0",
     "drizzle-kit": "^0.31.8",
     "jsdom": "^27.4.0",
+    "playwright": "^1.57.0",
     "typescript": "^5.7.2",
     "vitest": "^4.0.16"
   },

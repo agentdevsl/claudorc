@@ -1,0 +1,98 @@
+import { createId } from '@paralleldrive/cuid2';
+import type { NewTask, Task, TaskColumn } from '../../src/db/schema/tasks';
+import { tasks } from '../../src/db/schema/tasks';
+import type { DiffSummary } from '../../src/lib/types/diff';
+import { getTestDb } from '../helpers/database';
+
+export type TaskFactoryOptions = Partial<Omit<NewTask, 'projectId'>> & {
+  projectId?: string;
+  column?: TaskColumn;
+  labels?: string[];
+  diffSummary?: DiffSummary;
+  withApproval?: boolean;
+  withRejection?: boolean;
+};
+
+export function buildTask(projectId: string, options: TaskFactoryOptions = {}): NewTask {
+  const id = options.id ?? createId();
+  const now = new Date();
+
+  return {
+    id,
+    projectId,
+    title: options.title ?? `Test Task ${id.slice(0, 6)}`,
+    description: options.description ?? null,
+    column: options.column ?? 'backlog',
+    position: options.position ?? 0,
+    labels: options.labels ?? [],
+    agentId: options.agentId ?? null,
+    sessionId: options.sessionId ?? null,
+    worktreeId: options.worktreeId ?? null,
+    branch: options.branch ?? null,
+    diffSummary: options.diffSummary ?? null,
+    approvedAt: options.withApproval ? now : (options.approvedAt ?? null),
+    approvedBy: options.withApproval ? 'test-user' : (options.approvedBy ?? null),
+    rejectionCount: options.withRejection ? 1 : (options.rejectionCount ?? 0),
+    rejectionReason: options.withRejection ? 'Test rejection' : (options.rejectionReason ?? null),
+    startedAt: options.startedAt ?? null,
+    completedAt: options.completedAt ?? null,
+  };
+}
+
+export async function createTestTask(
+  projectId: string,
+  options: TaskFactoryOptions = {}
+): Promise<Task> {
+  const db = getTestDb();
+  const data = buildTask(projectId, options);
+
+  const [task] = await db.insert(tasks).values(data).returning();
+
+  if (!task) {
+    throw new Error('Failed to create test task');
+  }
+
+  return task;
+}
+
+export async function createTestTasks(
+  projectId: string,
+  count: number,
+  options: TaskFactoryOptions = {}
+): Promise<Task[]> {
+  const createdTasks: Task[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const task = await createTestTask(projectId, {
+      ...options,
+      title: options.title ?? `Test Task ${i + 1}`,
+      position: options.position ?? i,
+    });
+    createdTasks.push(task);
+  }
+
+  return createdTasks;
+}
+
+export async function createTasksInColumns(
+  projectId: string,
+  counts: Partial<Record<TaskColumn, number>>
+): Promise<Record<TaskColumn, Task[]>> {
+  const result: Record<TaskColumn, Task[]> = {
+    backlog: [],
+    in_progress: [],
+    waiting_approval: [],
+    verified: [],
+  };
+
+  for (const [column, count] of Object.entries(counts)) {
+    if (count && count > 0) {
+      const tasks = await createTestTasks(projectId, count, {
+        column: column as TaskColumn,
+      });
+      result[column as TaskColumn] = tasks;
+    }
+  }
+
+  return result;
+}

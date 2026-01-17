@@ -1,0 +1,64 @@
+import { createId } from '@paralleldrive/cuid2';
+import type { NewProject, Project, ProjectConfig } from '../../src/db/schema/projects';
+import { projects } from '../../src/db/schema/projects';
+import { getTestDb } from '../helpers/database';
+
+export type ProjectFactoryOptions = Partial<NewProject> & {
+  config?: Partial<ProjectConfig>;
+};
+
+const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
+  worktreeRoot: '.worktrees',
+  defaultBranch: 'main',
+  allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+  maxTurns: 50,
+};
+
+export function buildProject(options: ProjectFactoryOptions = {}): NewProject {
+  const id = options.id ?? createId();
+  return {
+    id,
+    name: options.name ?? `Test Project ${id.slice(0, 6)}`,
+    path: options.path ?? `/tmp/test-project-${id}`,
+    description: options.description ?? null,
+    config: {
+      ...DEFAULT_PROJECT_CONFIG,
+      ...options.config,
+    },
+    maxConcurrentAgents: options.maxConcurrentAgents ?? 3,
+    githubOwner: options.githubOwner ?? null,
+    githubRepo: options.githubRepo ?? null,
+    githubInstallationId: options.githubInstallationId ?? null,
+    configPath: options.configPath ?? '.claude',
+  };
+}
+
+export async function createTestProject(options: ProjectFactoryOptions = {}): Promise<Project> {
+  const db = getTestDb();
+  const data = buildProject(options);
+
+  const [project] = await db.insert(projects).values(data).returning();
+
+  if (!project) {
+    throw new Error('Failed to create test project');
+  }
+
+  return project;
+}
+
+export async function createTestProjects(
+  count: number,
+  options: ProjectFactoryOptions = {}
+): Promise<Project[]> {
+  const createdProjects: Project[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const project = await createTestProject({
+      ...options,
+      name: options.name ?? `Test Project ${i + 1}`,
+    });
+    createdProjects.push(project);
+  }
+
+  return createdProjects;
+}
