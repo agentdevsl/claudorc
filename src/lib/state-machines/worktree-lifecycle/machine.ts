@@ -34,37 +34,37 @@ const createMachineResult = (
 export const createWorktreeLifecycleMachine = (
   initial: Partial<WorktreeLifecycleContext> & { branch: string }
 ): WorktreeMachine => {
+  const { branch, ...rest } = initial;
   const context: WorktreeLifecycleContext = {
     status: 'creating',
-    branch: initial.branch,
-    path: initial.path,
+    branch,
+    path: rest.path,
     lastActivity: Date.now(),
     branchExists: false,
     pathAvailable: true,
     hasUncommittedChanges: false,
     conflictFiles: [],
-    ...initial,
+    ...rest,
   };
 
   const machine: WorktreeMachineInternal = {
     state: context.status,
     context,
-    send: (event) => {
-      const next = transition(machine, event);
-      update(next);
-      return createMachineResult(next, next.lastResult);
-    },
-    lastResult: ok({
-      state: context.status,
-      context,
-      send: () => ({
-        ok: true,
-        value: machine,
-        state: machine.state,
-        send: machine.send,
-      }),
-    }),
+    send: null as unknown as WorktreeMachine['send'],
+    lastResult: null as unknown as Result<WorktreeMachine, AppError>,
   };
+
+  machine.send = (event) => {
+    const next = transition(machine, event);
+    update(next);
+    return createMachineResult(next, next.lastResult);
+  };
+
+  machine.lastResult = ok({
+    state: context.status,
+    context,
+    send: machine.send,
+  });
 
   const update = (next: WorktreeMachineInternal) => {
     machine.state = next.state;
@@ -75,7 +75,7 @@ export const createWorktreeLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: WorktreeMachineInternal, event: WorktreeLifecycleEvent) => {
+const transition = (machine: WorktreeMachineInternal, event: WorktreeLifecycleEvent): WorktreeMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {

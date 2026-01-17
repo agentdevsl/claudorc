@@ -18,6 +18,25 @@ export type TaskMachineResult = Result<TaskMachine, AppError> & {
 
 type TaskMachineInternal = TaskMachine & { lastResult: Result<TaskMachine, AppError> };
 
+const nextState = <S extends TaskWorkflowState>(
+  machine: TaskMachineInternal,
+  state: S,
+  context: TaskWorkflowContext
+): TaskMachineInternal => ({
+  ...machine,
+  state,
+  context,
+  lastResult: ok({ state, context, send: machine.send }),
+});
+
+const nextError = (
+  machine: TaskMachineInternal,
+  error: AppError
+): TaskMachineInternal => ({
+  ...machine,
+  lastResult: err(error),
+});
+
 const createMachineResult = (
   machine: TaskMachine,
   result: Result<TaskMachine, AppError>
@@ -30,34 +49,34 @@ const createMachineResult = (
 export const createTaskWorkflowMachine = (
   initial: Partial<TaskWorkflowContext> & { taskId: string }
 ): TaskMachine => {
+  const { taskId, ...rest } = initial;
   const context: TaskWorkflowContext = {
-    taskId: initial.taskId,
+    taskId,
     column: 'backlog',
     runningAgents: 0,
     maxConcurrentAgents: 3,
     diffSummary: null,
-    ...initial,
+    ...rest,
   };
 
   const machine: TaskMachineInternal = {
     state: context.column,
     context,
-    send: (event) => {
-      const next = transition(machine, event);
-      update(next);
-      return createMachineResult(next, next.lastResult);
-    },
-    lastResult: ok({
-      state: context.column,
-      context,
-      send: () => ({
-        ok: true,
-        value: machine,
-        state: machine.state,
-        send: machine.send,
-      }),
-    }),
+    send: null as unknown as TaskMachine['send'],
+    lastResult: null as unknown as Result<TaskMachine, AppError>,
   };
+
+  machine.send = (event) => {
+    const next = transition(machine, event);
+    update(next);
+    return createMachineResult(next, next.lastResult);
+  };
+
+  machine.lastResult = ok({
+    state: context.column,
+    context,
+    send: machine.send,
+  });
 
   const update = (next: TaskMachineInternal) => {
     machine.state = next.state;
@@ -68,7 +87,7 @@ export const createTaskWorkflowMachine = (
   return machine;
 };
 
-const transition = (machine: TaskMachineInternal, event: TaskWorkflowEvent) => {
+const transition = (machine: TaskMachineInternal, event: TaskWorkflowEvent): TaskMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {

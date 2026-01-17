@@ -19,6 +19,25 @@ export type AgentMachineResult = Result<AgentMachine, AppError> & {
 
 type AgentMachineInternal = AgentMachine & { lastResult: Result<AgentMachine, AppError> };
 
+const nextState = <S extends AgentLifecycleState>(
+  machine: AgentMachineInternal,
+  state: S,
+  context: AgentLifecycleContext
+): AgentMachineInternal => ({
+  ...machine,
+  state,
+  context,
+  lastResult: ok({ state, context, send: machine.send }),
+});
+
+const nextError = (
+  machine: AgentMachineInternal,
+  error: AppError
+): AgentMachineInternal => ({
+  ...machine,
+  lastResult: err(error),
+});
+
 const createMachineResult = (
   machine: AgentMachine,
   result: Result<AgentMachine, AppError>
@@ -42,22 +61,21 @@ export const createAgentLifecycleMachine = (
   const machine: AgentMachineInternal = {
     state: context.status,
     context,
-    send: (event) => {
-      const next = transition(machine, event);
-      update(next);
-      return createMachineResult(next, next.lastResult);
-    },
-    lastResult: ok({
-      state: context.status,
-      context,
-      send: () => ({
-        ok: true,
-        value: machine,
-        state: machine.state,
-        send: machine.send,
-      }),
-    }),
+    send: null as unknown as AgentMachine['send'],
+    lastResult: null as unknown as Result<AgentMachine, AppError>,
   };
+
+  machine.send = (event) => {
+    const next = transition(machine, event);
+    update(next);
+    return createMachineResult(next, next.lastResult);
+  };
+
+  machine.lastResult = ok({
+    state: context.status,
+    context,
+    send: machine.send,
+  });
 
   const update = (next: AgentMachineInternal) => {
     machine.state = next.state;
@@ -68,101 +86,59 @@ export const createAgentLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: AgentMachineInternal, event: AgentLifecycleEvent) => {
+const transition = (machine: AgentMachineInternal, event: AgentLifecycleEvent): AgentMachineInternal => {
   const ctx = machine.context;
 
   if (!isToolAllowed(ctx, event)) {
-    const error = createError('AGENT_TOOL_NOT_ALLOWED', 'Tool not allowed', 403);
-    return { ...machine, lastResult: err(error) };
+    return nextError(machine, createError('AGENT_TOOL_NOT_ALLOWED', 'Tool not allowed', 403));
   }
 
   switch (machine.state) {
     case 'idle': {
       if (event.type === 'START' && canStart({ ...ctx, taskId: event.taskId })) {
-        const nextContext = { ...ctx, status: 'running', taskId: event.taskId };
-        return {
-          ...machine,
-          state: 'running',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'running', context: nextContext }),
-        };
+        return nextState(machine, 'running', { ...ctx, status: 'running', taskId: event.taskId });
       }
       break;
     }
     case 'running': {
       if (event.type === 'STEP') {
         const nextContext = incrementTurn(ctx);
-        const updated = { ...machine, context: nextContext };
         if (!withinTurnLimit(nextContext)) {
-          const error = createError('AGENT_TURN_LIMIT_EXCEEDED', 'Turn limit exceeded', 200);
-          return { ...updated, lastResult: err(error) };
+          return nextError(
+            { ...machine, context: nextContext },
+            createError('AGENT_TURN_LIMIT_EXCEEDED', 'Turn limit exceeded', 200)
+          );
         }
-        return { ...updated, lastResult: ok(updated) };
+        return nextState(machine, 'running', nextContext);
       }
       if (event.type === 'PAUSE' && canPause(ctx)) {
-        const nextContext = { ...ctx, status: 'paused' };
-        return {
-          ...machine,
-          state: 'paused',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'paused', context: nextContext }),
-        };
+        return nextState(machine, 'paused', { ...ctx, status: 'paused' });
       }
       if (event.type === 'COMPLETE') {
-        const cleared = clearTask({ ...ctx, status: 'completed' });
-        return {
-          ...machine,
-          state: 'completed',
-          context: cleared,
-          lastResult: ok({ ...machine, state: 'completed', context: cleared }),
-        };
+        return nextState(machine, 'completed', clearTask({ ...ctx, status: 'completed' }));
       }
       if (event.type === 'ERROR') {
         const errored = setError(ctx, event);
         return { ...machine, state: 'error', context: errored, lastResult: err(event.error) };
       }
       if (event.type === 'ABORT') {
-        const cleared = clearTask({ ...ctx, status: 'idle' });
-        return {
-          ...machine,
-          state: 'idle',
-          context: cleared,
-          lastResult: ok({ ...machine, state: 'idle', context: cleared }),
-        };
+        return nextState(machine, 'idle', clearTask({ ...ctx, status: 'idle' }));
       }
       break;
     }
     case 'paused': {
       if (event.type === 'RESUME' && canResume(ctx)) {
-        const nextContext = { ...ctx, status: 'running' };
-        return {
-          ...machine,
-          state: 'running',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'running', context: nextContext }),
-        };
+        return nextState(machine, 'running', { ...ctx, status: 'running' });
       }
       if (event.type === 'ABORT') {
-        const cleared = clearTask({ ...ctx, status: 'idle' });
-        return {
-          ...machine,
-          state: 'idle',
-          context: cleared,
-          lastResult: ok({ ...machine, state: 'idle', context: cleared }),
-        };
+        return nextState(machine, 'idle', clearTask({ ...ctx, status: 'idle' }));
       }
       break;
     }
     case 'completed':
     case 'error': {
       if (event.type === 'START' && canStart(ctx)) {
-        const nextContext = { ...ctx, status: 'running' };
-        return {
-          ...machine,
-          state: 'running',
-          context: nextContext,
-          lastResult: ok({ ...machine, state: 'running', context: nextContext }),
-        };
+        return nextState(machine, 'running', { ...ctx, status: 'running' });
       }
       break;
     }
@@ -170,9 +146,11 @@ const transition = (machine: AgentMachineInternal, event: AgentLifecycleEvent) =
       break;
   }
 
-  const error = createError('AGENT_INVALID_TRANSITION', 'Invalid agent transition', 400, {
-    state: machine.state,
-    event: event.type,
-  });
-  return { ...machine, lastResult: err(error) };
+  return nextError(
+    machine,
+    createError('AGENT_INVALID_TRANSITION', 'Invalid agent transition', 400, {
+      state: machine.state,
+      event: event.type,
+    })
+  );
 };

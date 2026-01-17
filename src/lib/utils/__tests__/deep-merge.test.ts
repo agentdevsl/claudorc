@@ -32,7 +32,7 @@ describe('deepMerge', () => {
   });
 
   it('overrides with null values', () => {
-    const result = deepMerge({ count: 4 }, { count: null });
+    const result = deepMerge({ count: 4 as number | null }, { count: null });
 
     expect(result).toEqual({ count: null });
   });

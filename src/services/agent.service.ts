@@ -9,6 +9,7 @@ import type { Task } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
 import type { Worktree } from '../db/schema/worktrees.js';
 import { worktrees } from '../db/schema/worktrees.js';
+import type { Session } from '../db/schema/sessions.js';
 import type { AgentError } from '../lib/errors/agent-errors.js';
 import { AgentErrors } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
@@ -116,7 +117,7 @@ export class AgentService {
       })
       .returning();
 
-    return ok(agent);
+    return ok(agent as Agent);
   }
 
   async getById(id: string): Promise<Result<Agent, AgentError>> {
@@ -155,9 +156,17 @@ export class AgentService {
       }
     }
 
+    const mergedConfig: AgentConfig = {
+      allowedTools: input.allowedTools ?? existing.value.config?.allowedTools ?? [],
+      maxTurns: input.maxTurns ?? existing.value.config?.maxTurns ?? 50,
+      model: input.model ?? existing.value.config?.model,
+      systemPrompt: input.systemPrompt ?? existing.value.config?.systemPrompt,
+      temperature: input.temperature ?? existing.value.config?.temperature,
+    };
+
     const [updated] = await this.db
       .update(agents)
-      .set({ config: { ...existing.value.config, ...input }, updatedAt: new Date() })
+      .set({ config: mergedConfig, updatedAt: new Date() })
       .where(eq(agents.id, id))
       .returning();
 
@@ -226,12 +235,13 @@ export class AgentService {
     // Check concurrency BEFORE modifying task state to avoid race condition
     const availability = await this.checkAvailability(agent.projectId);
     if (!availability.ok || !availability.value) {
-      const running = await this.getRunningCount(agent.projectId);
+      const runningResult = await this.getRunningCount(agent.projectId);
+      const runningCount = runningResult.ok ? runningResult.value : 0;
       const project = await this.db.query.projects.findFirst({
         where: eq(projects.id, agent.projectId),
       });
       return err(
-        ConcurrencyErrors.LIMIT_EXCEEDED(running.value, project?.maxConcurrentAgents ?? 1)
+        ConcurrencyErrors.LIMIT_EXCEEDED(runningCount, project?.maxConcurrentAgents ?? 1)
       );
     }
 
@@ -253,7 +263,7 @@ export class AgentService {
     });
 
     if (!session.ok) {
-      return session;
+      return err(AgentErrors.EXECUTION_ERROR('Failed to create session'));
     }
 
     await this.db
@@ -303,10 +313,12 @@ export class AgentService {
 
     await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
 
-    await this.db
-      .update(agentRuns)
-      .set({ status: 'completed', completedAt: new Date(), turnCount: 0 })
-      .where(eq(agentRuns.id, agentRun.id));
+    if (agentRun) {
+      await this.db
+        .update(agentRuns)
+        .set({ status: 'completed', completedAt: new Date(), turnsUsed: 0 })
+        .where(eq(agentRuns.id, agentRun.id));
+    }
 
     const updatedAgent = await this.db.query.agents.findFirst({
       where: eq(agents.id, agentId),
@@ -405,8 +417,9 @@ export class AgentService {
       return ok(false);
     }
 
-    const running = await this.getRunningCount(projectId);
-    return ok(running.value < (project.maxConcurrentAgents ?? 3));
+    const runningResult = await this.getRunningCount(projectId);
+    const runningCount = runningResult.ok ? runningResult.value : 0;
+    return ok(runningCount < (project.maxConcurrentAgents ?? 3));
   }
 
   async queueTask(

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AppError } from '../../errors/base.js';
 import { err, ok } from '../../utils/result.js';
 import { BootstrapService } from '../service.js';
-import type { BootstrapContext, BootstrapPhaseConfig } from '../types.js';
+import type { BootstrapPhaseConfig } from '../types.js';
 
 describe('BootstrapService', () => {
   it('runs all phases and returns context', async () => {
@@ -235,12 +235,3 @@ describe('bootstrap phases', () => {
 });
 
 // Hook/provider tests will be added in UI layer once React tooling is present.
-
-type PhaseContext = BootstrapContext & Record<string, unknown>;
-
-declare module '../types.js' {
-  interface BootstrapContext extends PhaseContext {
-    schema?: string;
-    github?: string;
-  }
-}

@@ -59,7 +59,7 @@ const workflowSchema = z.object({
     'worktree:merged',
     'worktree:removed',
   ]),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   actor: z.string().optional(),
   timestamp: z.number(),
 });
@@ -78,12 +78,12 @@ const agentStateSchema = z.object({
 });
 
 export const sessionSchema = createStateSchema({
-  chunks: { schema: chunkSchema, type: 'chunk' },
-  toolCalls: { schema: toolCallSchema, type: 'tool' },
-  presence: { schema: presenceSchema, type: 'presence' },
-  terminal: { schema: terminalSchema, type: 'terminal' },
-  workflow: { schema: workflowSchema, type: 'workflow' },
-  agentState: { schema: agentStateSchema, type: 'state' },
+  chunks: { schema: chunkSchema, type: 'chunk', primaryKey: 'id' },
+  toolCalls: { schema: toolCallSchema, type: 'tool', primaryKey: 'id' },
+  presence: { schema: presenceSchema, type: 'presence', primaryKey: 'userId' },
+  terminal: { schema: terminalSchema, type: 'terminal', primaryKey: 'id' },
+  workflow: { schema: workflowSchema, type: 'workflow', primaryKey: 'id' },
+  agentState: { schema: agentStateSchema, type: 'state', primaryKey: 'agentId' },
 });
 
 export type ChunkEvent = z.infer<typeof chunkSchema>;

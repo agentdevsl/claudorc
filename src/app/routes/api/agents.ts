@@ -42,8 +42,9 @@ export const Route = createFileRoute('/api/agents')({
         }
 
         const result = await agentService.list(parsed.value.projectId);
+        // list() returns Result<Agent[], never> - error case is unreachable
         if (!result.ok) {
-          return Response.json(failure(result.error), { status: result.error.status });
+          return Response.json(failure({ code: 'INTERNAL_ERROR', message: 'Unexpected error', status: 500 }), { status: 500 });
         }
 
         const filteredByStatus = parsed.value.status
@@ -62,7 +63,20 @@ export const Route = createFileRoute('/api/agents')({
           return Response.json(failure(parsed.error), { status: 400 });
         }
 
-        const result = await agentService.create(parsed.value);
+        const result = await agentService.create({
+          projectId: parsed.value.projectId,
+          name: parsed.value.name,
+          type: parsed.value.type,
+          config: parsed.value.config
+            ? {
+                allowedTools: parsed.value.config.allowedTools ?? [],
+                maxTurns: parsed.value.config.maxTurns ?? 50,
+                model: parsed.value.config.model,
+                systemPrompt: parsed.value.config.systemPrompt,
+                temperature: parsed.value.config.temperature,
+              }
+            : undefined,
+        });
         if (!result.ok) {
           return Response.json(failure(result.error), { status: result.error.status });
         }

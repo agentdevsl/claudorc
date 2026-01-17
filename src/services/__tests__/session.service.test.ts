@@ -86,7 +86,8 @@ describe('SessionService', () => {
       baseUrl: 'http://localhost:3000',
     });
 
-    const iterator = service.subscribe('s1');
+    const iterable = service.subscribe('s1');
+    const iterator = iterable[Symbol.asyncIterator]();
     const first = await iterator.next();
 
     expect(first.done).toBe(false);

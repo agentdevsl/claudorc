@@ -60,12 +60,12 @@ const mergeObject = <T extends AnyRecord>(
   return result as T;
 };
 
-export const deepMerge = <T extends object>(target: T, ...sources: Partial<T>[]): T => {
+export const deepMerge = <T extends AnyRecord>(target: T, ...sources: AnyRecord[]): T => {
   if (sources.length === 0) {
     return target;
   }
 
-  return sources.reduce((accumulator, source) => {
+  return sources.reduce<T>((accumulator, source) => {
     if (source === undefined || source === null) {
       return accumulator;
     }
@@ -74,8 +74,8 @@ export const deepMerge = <T extends object>(target: T, ...sources: Partial<T>[])
       return source as T;
     }
 
-    return mergeObject(accumulator as AnyRecord, source as Partial<AnyRecord>, {
+    return mergeObject(accumulator, source as Partial<T>, {
       seen: new WeakMap<object, object>(),
-    });
+    }) as T;
   }, target);
 };

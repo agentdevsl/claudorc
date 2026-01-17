@@ -36,15 +36,15 @@ export const Route = createFileRoute('/api/projects')({
         }
 
         const items = result.value;
-        const nextCursor =
-          items.length > 0
-            ? encodeCursor({
-                id: items[items.length - 1].id,
-                sortValue: items[items.length - 1].updatedAt?.toString() ?? null,
-                sortField: 'updatedAt',
-                order: 'desc',
-              })
-            : null;
+        const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
+        const nextCursor = lastItem
+          ? encodeCursor({
+              id: lastItem.id,
+              sortValue: lastItem.updatedAt?.toString() ?? null,
+              sortField: 'updatedAt',
+              order: 'desc',
+            })
+          : null;
 
         return Response.json(
           success({

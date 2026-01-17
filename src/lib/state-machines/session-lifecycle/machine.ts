@@ -22,6 +22,25 @@ export type SessionMachineResult = Result<SessionMachine, AppError> & {
 
 type SessionMachineInternal = SessionMachine & { lastResult: Result<SessionMachine, AppError> };
 
+const nextState = <S extends SessionLifecycleState>(
+  machine: SessionMachineInternal,
+  state: S,
+  context: SessionLifecycleContext
+): SessionMachineInternal => ({
+  ...machine,
+  state,
+  context,
+  lastResult: ok({ state, context, send: machine.send }),
+});
+
+const nextError = (
+  machine: SessionMachineInternal,
+  error: AppError
+): SessionMachineInternal => ({
+  ...machine,
+  lastResult: err(error),
+});
+
 const createMachineResult = (
   machine: SessionMachine,
   result: Result<SessionMachine, AppError>
@@ -45,22 +64,21 @@ export const createSessionLifecycleMachine = (
   const machine: SessionMachineInternal = {
     state: context.status,
     context,
-    send: (event) => {
-      const next = transition(machine, event);
-      update(next);
-      return createMachineResult(next, next.lastResult);
-    },
-    lastResult: ok({
-      state: context.status,
-      context,
-      send: () => ({
-        ok: true,
-        value: machine,
-        state: machine.state,
-        send: machine.send,
-      }),
-    }),
+    send: null as unknown as SessionMachine['send'],
+    lastResult: null as unknown as Result<SessionMachine, AppError>,
   };
+
+  machine.send = (event) => {
+    const next = transition(machine, event);
+    update(next);
+    return createMachineResult(next, next.lastResult);
+  };
+
+  machine.lastResult = ok({
+    state: context.status,
+    context,
+    send: machine.send,
+  });
 
   const update = (next: SessionMachineInternal) => {
     machine.state = next.state;
@@ -71,139 +89,75 @@ export const createSessionLifecycleMachine = (
   return machine;
 };
 
-const transition = (machine: SessionMachineInternal, event: SessionLifecycleEvent) => {
+const transition = (machine: SessionMachineInternal, event: SessionLifecycleEvent): SessionMachineInternal => {
   const ctx = machine.context;
 
   switch (machine.state) {
     case 'idle':
       if (event.type === 'INITIALIZE') {
-        const next = { ...ctx, status: 'initializing' };
-        return {
-          ...machine,
-          state: 'initializing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'initializing', context: next }),
-        };
+        return nextState(machine, 'initializing', { ...ctx, status: 'initializing' });
       }
       break;
     case 'initializing':
       if (event.type === 'READY') {
-        const next = { ...ctx, status: 'active' };
-        return {
-          ...machine,
-          state: 'active',
-          context: next,
-          lastResult: ok({ ...machine, state: 'active', context: next }),
-        };
+        return nextState(machine, 'active', { ...ctx, status: 'active' });
       }
       break;
     case 'active':
       if (event.type === 'JOIN') {
         if (!hasCapacity(ctx)) {
-          return {
-            ...machine,
-            lastResult: err(createError('SESSION_CAPACITY_REACHED', 'Session full', 409)),
-          };
+          return nextError(machine, createError('SESSION_CAPACITY_REACHED', 'Session full', 409));
         }
         const nextParticipants = ctx.participants.concat(event.userId);
-        const next = { ...ctx, participants: nextParticipants, lastActivity: Date.now() };
-        return {
-          ...machine,
-          context: next,
-          lastResult: ok({ ...machine, context: next }),
-        };
+        return nextState(machine, 'active', {
+          ...ctx,
+          participants: nextParticipants,
+          lastActivity: Date.now(),
+        });
       }
       if (event.type === 'LEAVE') {
         if (!isParticipant(ctx, event.userId)) {
-          return {
-            ...machine,
-            lastResult: err(createError('SESSION_NOT_PARTICIPANT', 'User not in session', 400)),
-          };
+          return nextError(
+            machine,
+            createError('SESSION_NOT_PARTICIPANT', 'User not in session', 400)
+          );
         }
         const nextParticipants = ctx.participants.filter((id) => id !== event.userId);
-        const next = { ...ctx, participants: nextParticipants, lastActivity: Date.now() };
-        return {
-          ...machine,
-          context: next,
-          lastResult: ok({ ...machine, context: next }),
-        };
+        return nextState(machine, 'active', {
+          ...ctx,
+          participants: nextParticipants,
+          lastActivity: Date.now(),
+        });
       }
       if (event.type === 'HEARTBEAT') {
-        const next = { ...ctx, lastActivity: Date.now() };
-        return {
-          ...machine,
-          context: next,
-          lastResult: ok({ ...machine, context: next }),
-        };
+        return nextState(machine, 'active', { ...ctx, lastActivity: Date.now() });
       }
       if (event.type === 'PAUSE') {
-        const next = { ...ctx, status: 'paused' };
-        return {
-          ...machine,
-          state: 'paused',
-          context: next,
-          lastResult: ok({ ...machine, state: 'paused', context: next }),
-        };
+        return nextState(machine, 'paused', { ...ctx, status: 'paused' });
       }
       if (event.type === 'TIMEOUT' && isStale(ctx)) {
-        const next = { ...ctx, status: 'closing' };
-        return {
-          ...machine,
-          state: 'closing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'closing', context: next }),
-        };
+        return nextState(machine, 'closing', { ...ctx, status: 'closing' });
       }
       if (event.type === 'CLOSE' && canClose(ctx)) {
-        const next = { ...ctx, status: 'closing' };
-        return {
-          ...machine,
-          state: 'closing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'closing', context: next }),
-        };
+        return nextState(machine, 'closing', { ...ctx, status: 'closing' });
       }
       break;
     case 'paused':
       if (event.type === 'RESUME') {
-        const next = { ...ctx, status: 'active' };
-        return {
-          ...machine,
-          state: 'active',
-          context: next,
-          lastResult: ok({ ...machine, state: 'active', context: next }),
-        };
+        return nextState(machine, 'active', { ...ctx, status: 'active' });
       }
       if (event.type === 'CLOSE' && canClose(ctx)) {
-        const next = { ...ctx, status: 'closing' };
-        return {
-          ...machine,
-          state: 'closing',
-          context: next,
-          lastResult: ok({ ...machine, state: 'closing', context: next }),
-        };
+        return nextState(machine, 'closing', { ...ctx, status: 'closing' });
       }
       break;
     case 'closing':
       if (event.type === 'CLOSE') {
-        const next = { ...ctx, status: 'closed' };
-        return {
-          ...machine,
-          state: 'closed',
-          context: next,
-          lastResult: ok({ ...machine, state: 'closed', context: next }),
-        };
+        return nextState(machine, 'closed', { ...ctx, status: 'closed' });
       }
       break;
     case 'error':
       if (event.type === 'CLOSE') {
-        const next = { ...ctx, status: 'closed' };
-        return {
-          ...machine,
-          state: 'closed',
-          context: next,
-          lastResult: ok({ ...machine, state: 'closed', context: next }),
-        };
+        return nextState(machine, 'closed', { ...ctx, status: 'closed' });
       }
       break;
     default:
@@ -211,17 +165,19 @@ const transition = (machine: SessionMachineInternal, event: SessionLifecycleEven
   }
 
   if (event.type === 'ERROR') {
-    const next = { ...ctx, status: 'error', error: event.error };
-    return { ...machine, state: 'error', context: next, lastResult: err(event.error) };
+    return {
+      ...machine,
+      state: 'error',
+      context: { ...ctx, status: 'error', error: event.error },
+      lastResult: err(event.error),
+    };
   }
 
-  return {
-    ...machine,
-    lastResult: err(
-      createError('SESSION_INVALID_TRANSITION', 'Invalid session transition', 400, {
-        state: machine.state,
-        event: event.type,
-      })
-    ),
-  };
+  return nextError(
+    machine,
+    createError('SESSION_INVALID_TRANSITION', 'Invalid session transition', 400, {
+      state: machine.state,
+      event: event.type,
+    })
+  );
 };
