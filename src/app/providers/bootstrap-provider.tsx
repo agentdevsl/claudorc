@@ -1,4 +1,6 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
+import { ServiceProvider } from '@/app/services/service-context';
+import { createServices } from '@/app/services/services';
 import { useBootstrap } from '../../lib/bootstrap/hooks.js';
 import type { BootstrapContext as BootstrapContextType } from '../../lib/bootstrap/types.js';
 import type { AppError } from '../../lib/errors/base.js';
@@ -12,11 +14,33 @@ export const BootstrapProvider = ({ children }: { children: React.ReactNode }) =
     return <BootstrapErrorUI error={state.error} onRetry={retry} />;
   }
 
-  if (!state.isComplete) {
+  if (!state.isComplete || !context) {
     return <BootstrapLoadingUI phase={state.phase} progress={state.progress} />;
   }
 
-  return <BootstrapContext.Provider value={context}>{children}</BootstrapContext.Provider>;
+  return <BootstrapProviderInner context={context} retry={retry}>{children}</BootstrapProviderInner>;
+};
+
+const BootstrapProviderInner = ({
+  context,
+  retry,
+  children,
+}: {
+  context: BootstrapContextType;
+  retry: () => Promise<void>;
+  children: React.ReactNode;
+}) => {
+  const servicesResult = useMemo(() => createServices(context), [context]);
+
+  if (!servicesResult.ok) {
+    return <BootstrapErrorUI error={servicesResult.error} onRetry={retry} />;
+  }
+
+  return (
+    <BootstrapContext.Provider value={context}>
+      <ServiceProvider services={servicesResult.value}>{children}</ServiceProvider>
+    </BootstrapContext.Provider>
+  );
 };
 
 export const useBootstrapContext = () => {
