@@ -1,6 +1,7 @@
 import { Robot, Funnel, Play } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/app/components/ui/button";
+import type { Agent } from "@/db/schema/agents";
 
 export const Route = createFileRoute("/agents/")({
   loader: async () => ({ agents: [] }),
