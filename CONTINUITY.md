@@ -5,6 +5,6 @@
 - Key decisions: Started API infrastructure (A-001..A-005); switched to bun for tests; added routes for projects/tasks/agents/sessions plus SSE history; confirmed TanStack Start server routes are defined via createFileRoute server handlers (no createServerFileRoute export).
 - State: API routes now use createFileRoute server handlers; endpoint tests added for projects/tasks/agents/sessions; bun run test passes.
 - Done: API utilities + schemas; cursor/response tests pass; routes for projects, tasks, agents, sessions, session stream/history; added ValidationErrors.INVALID_URL; updated API routes to createFileRoute + status code propagation; switched session baseUrl to APP_URL env; added endpoint tests in tests/api/projects.test.ts, tests/api/tasks.test.ts, tests/api/agents.test.ts, tests/api/sessions.test.ts; aligned API schemas with spec (cuid validation, limits); added PGlite test config via PGLITE_DATA_DIR and env-aware client init; moved API route imports to @ aliases; hardened project/worktree services command safety (escape paths, avoid console warnings).
-- Now: Await commit request.
+- Now: Confirm remote state; await next task.
 - Next: (none yet).
-- Working set (files/ids/commands): src/services/project.service.ts; src/services/worktree.service.ts
+- Working set (files/ids/commands): (none)
