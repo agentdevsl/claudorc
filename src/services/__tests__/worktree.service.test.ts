@@ -58,17 +58,41 @@ describe('WorktreeService', () => {
       config: { worktreeRoot: '.worktrees', initScript: undefined },
     });
 
-    const returning = vi
-      .fn()
-      .mockResolvedValue([
-        { id: 'w1', projectId: 'p1', branch: 'agent/x/t1', path: '/tmp/worktree' },
-      ]);
-    db.insert.mockReturnValue({ values: vi.fn(() => ({ returning })) });
+    // Mock insert returning the initial worktree record
+    const insertReturning = vi.fn().mockResolvedValue([
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'creating',
+      },
+    ]);
+    db.insert.mockReturnValue({ values: vi.fn(() => ({ returning: insertReturning })) });
+
+    // Mock update returning the activated worktree record
+    const updateReturning = vi.fn().mockResolvedValue([
+      {
+        id: 'w1',
+        projectId: 'p1',
+        branch: 'agent/x/t1',
+        path: '/tmp/worktree',
+        status: 'active',
+      },
+    ]);
+    db.update.mockReturnValue({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({ returning: updateReturning })),
+      })),
+    });
 
     const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
     const service = new WorktreeService(db as never, { exec });
 
-    const result = await service.create({ projectId: 'p1', taskId: 't1' }, { skipEnvCopy: true });
+    const result = await service.create(
+      { projectId: 'p1', taskId: 't1' },
+      { skipEnvCopy: true, skipDepsInstall: true, skipInitScript: true }
+    );
 
     expect(result.ok).toBe(true);
     if (result.ok) {
