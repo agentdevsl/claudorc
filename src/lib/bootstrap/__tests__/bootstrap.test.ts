@@ -1,0 +1,245 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { AppError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
+import type { BootstrapContext, BootstrapPhaseConfig } from '../types.js';
+import { BootstrapService } from '../service.js';
+
+describe('BootstrapService', () => {
+  it('runs all phases and returns context', async () => {
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'pglite',
+        fn: async () => ok('db'),
+        timeout: 100,
+        recoverable: false,
+      },
+      {
+        name: 'schema',
+        fn: async () => ok('schema'),
+        timeout: 100,
+        recoverable: false,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const result = await service.run();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toMatchObject({
+        db: 'db',
+      });
+    }
+  });
+
+  it('stops on non-recoverable errors', async () => {
+    const fatalError: AppError = {
+      code: 'BOOTSTRAP_FAIL',
+      message: 'failed',
+      status: 500,
+    };
+
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'pglite',
+        fn: async () => err(fatalError),
+        timeout: 100,
+        recoverable: false,
+      },
+      {
+        name: 'schema',
+        fn: async () => ok('schema'),
+        timeout: 100,
+        recoverable: false,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const result = await service.run();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toEqual(fatalError);
+    }
+  });
+
+  it('continues on recoverable errors', async () => {
+    const recoverableError: AppError = {
+      code: 'BOOTSTRAP_WARN',
+      message: 'warn',
+      status: 500,
+    };
+
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'pglite',
+        fn: async () => ok('db'),
+        timeout: 100,
+        recoverable: false,
+      },
+      {
+        name: 'streams',
+        fn: async () => err(recoverableError),
+        timeout: 100,
+        recoverable: true,
+      },
+      {
+        name: 'github',
+        fn: async () => ok('token'),
+        timeout: 100,
+        recoverable: true,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const result = await service.run();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toMatchObject({
+        db: 'db',
+      });
+    }
+  });
+
+  it('times out phases', async () => {
+    vi.useFakeTimers();
+
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'pglite',
+        fn: async () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(ok('db')), 200);
+          }),
+        timeout: 50,
+        recoverable: false,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const runPromise = service.run();
+
+    await vi.advanceTimersByTimeAsync(60);
+    const result = await runPromise;
+
+    expect(result.ok).toBe(false);
+
+    vi.useRealTimers();
+  });
+
+  it('sets context for streams phase', async () => {
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'streams',
+        fn: async () => ok({ connected: true }),
+        timeout: 100,
+        recoverable: false,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const result = await service.run();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.streams).toEqual({ connected: true });
+    }
+  });
+
+  it('notifies subscribers on state changes', async () => {
+    const phases: BootstrapPhaseConfig[] = [
+      {
+        name: 'pglite',
+        fn: async () => ok('db'),
+        timeout: 100,
+        recoverable: false,
+      },
+    ];
+
+    const service = new BootstrapService(phases);
+    const listener = vi.fn();
+    const unsubscribe = service.subscribe(listener);
+
+    await service.run();
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalled();
+  });
+});
+
+describe('bootstrap phases', () => {
+  it('pglite phase returns error if IndexedDB missing', async () => {
+    const { initializePGlite } = await import('../phases/pglite.js');
+    const originalIndexedDb = globalThis.indexedDB;
+    // @ts-expect-error - deleting for test
+    delete globalThis.indexedDB;
+
+    const result = await initializePGlite();
+
+    expect(result.ok).toBe(false);
+
+    globalThis.indexedDB = originalIndexedDb;
+  });
+
+  it('schema phase returns error when db missing', async () => {
+    const { validateSchema } = await import('../phases/schema.js');
+    const result = await validateSchema({});
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('collections phase returns error when db missing', async () => {
+    const { initializeCollections } = await import('../phases/collections.js');
+    const result = await initializeCollections({});
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('streams phase returns ok on successful connect', async () => {
+    vi.doMock('@durable-streams/client', () => ({
+      DurableStreamsClient: class {
+        async connect() {
+          return undefined;
+        }
+      },
+    }));
+
+    const { connectStreams } = await import('../phases/streams.js');
+    const result = await connectStreams();
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('github phase returns ok when token missing', async () => {
+    const { validateGitHub } = await import('../phases/github.js');
+    const originalToken = process.env.GITHUB_TOKEN;
+
+    delete process.env.GITHUB_TOKEN;
+    const result = await validateGitHub({});
+
+    expect(result.ok).toBe(true);
+
+    if (originalToken !== undefined) {
+      process.env.GITHUB_TOKEN = originalToken;
+    }
+  });
+
+  it('seeding phase returns error when db missing', async () => {
+    const { seedDefaults } = await import('../phases/seeding.js');
+    const result = await seedDefaults({});
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+// Hook/provider tests will be added in UI layer once React tooling is present.
+
+type PhaseContext = BootstrapContext & Record<string, unknown>;
+
+declare module '../types.js' {
+  interface BootstrapContext extends PhaseContext {
+    schema?: string;
+    github?: string;
+  }
+}

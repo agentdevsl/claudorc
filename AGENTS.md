@@ -17,6 +17,10 @@ Maintain a single Continuity Ledger for this workspace in `http://CONTINUITY.md`
 - `http://CONTINUITY.md` is for long-running continuity across compaction (the “what/why/current state”), not a step-by-step task list.
 - Keep them consistent: when the plan or state changes, update the ledger at the intent/progress level (not every micro-step).
 
+### Error Log
+
+As you find and fix errors in the specs, append error found and fix into SPEC_UPDATES.md
+
 ### In replies
 
 - Begin with a brief “Ledger Snapshot” (Goal + Now/Next + Open Questions). Print the full ledger only when it materially changes or when the user asks.
