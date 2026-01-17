@@ -358,7 +358,7 @@ function processEvent(event: ClaudeCodeEvent): void {
       const isSubagent = isSubagentTool(event.tool_name);
       const subagentInfo = isSubagent ? getSubagentInfo(event.tool_input) : null;
 
-      let toolDurationMs;
+      let toolDurationMs: number | undefined;
 
       // Check if there's a persisted span for cross-process handling FIRST
       // This determines whether we're in cross-process mode

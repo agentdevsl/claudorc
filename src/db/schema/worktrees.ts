@@ -1,7 +1,9 @@
 import { createId } from '@paralleldrive/cuid2';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { worktreeStatusEnum } from './enums';
+
 export type { WorktreeStatus } from './enums';
+
 import { projects } from './projects';
 import { tasks } from './tasks';
 
