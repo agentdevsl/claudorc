@@ -3,6 +3,23 @@ import { ValidationErrors } from '../errors/validation-errors.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 
+type ValidationIssue = { path: (string | number)[]; message: string };
+
+/**
+ * Maps Zod v4 issues to ValidationIssue format.
+ * Zod v4 uses PropertyKey[] (string | number | symbol) for path,
+ * but ValidationIssue expects (string | number)[].
+ */
+const mapZodIssues = (
+  issues: readonly { path: PropertyKey[]; message: string }[]
+): ValidationIssue[] =>
+  issues.map((issue) => ({
+    path: issue.path.map((segment) =>
+      typeof segment === 'symbol' ? String(segment) : segment
+    ),
+    message: issue.message,
+  }));
+
 export const parseBody = async <T>(
   request: Request,
   schema: z.ZodType<T>
@@ -11,7 +28,7 @@ export const parseBody = async <T>(
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
-      return err(ValidationErrors.VALIDATION_ERROR(parsed.error.issues));
+      return err(ValidationErrors.VALIDATION_ERROR(mapZodIssues(parsed.error.issues)));
     }
     return ok(parsed.data);
   } catch (error) {
@@ -26,7 +43,7 @@ export const parseQuery = <T>(
   const raw = Object.fromEntries(params.entries());
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    return err(ValidationErrors.VALIDATION_ERROR(parsed.error.issues));
+    return err(ValidationErrors.VALIDATION_ERROR(mapZodIssues(parsed.error.issues)));
   }
   return ok(parsed.data);
 };

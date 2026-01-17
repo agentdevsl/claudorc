@@ -15,7 +15,7 @@ function getSessionService(): SessionService {
 export const Route = createFileRoute('/api/sessions/$id/stream')({
   server: {
     handlers: {
-      GET: async (_request, { params }) => {
+      GET: async ({ params }: { params: { id: string } }) => {
         const sessionId = params.id;
 
         // Check if streaming is configured before proceeding

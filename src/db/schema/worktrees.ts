@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { worktreeStatusEnum } from './enums';
 
@@ -14,7 +15,7 @@ export const worktrees = pgTable('worktrees', {
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
-  taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  taskId: text('task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
   branch: text('branch').notNull(),
   path: text('path').notNull(),
   baseBranch: text('base_branch').default('main').notNull(),

@@ -19,7 +19,7 @@ export const seedDefaults = async (ctx: BootstrapContext) => {
       ['Default Project', process.cwd(), 'Default project created on first run']
     );
 
-    const projectId = result.rows?.[0]?.id as string | undefined;
+    const projectId = (result.rows?.[0] as { id?: string } | undefined)?.id;
     if (!projectId) {
       return err(createError('BOOTSTRAP_SEED_FAILED', 'Failed to seed project', 500));
     }

@@ -5,7 +5,7 @@ import {
   MagnifyingGlass,
   Robot,
   RocketLaunch,
-  WarningTriangle,
+  Warning,
   WifiSlash,
 } from '@phosphor-icons/react';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -86,7 +86,7 @@ const PRESETS: Record<
     subtitle: 'Try adjusting your search or filters',
   },
   error: {
-    icon: WarningTriangle,
+    icon: Warning,
     title: 'Something went wrong',
     subtitle: 'Please try again or contact support',
   },

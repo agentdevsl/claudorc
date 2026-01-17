@@ -4,7 +4,6 @@ import { agentRuns } from '../db/schema/agent-runs.js';
 import type { Agent, AgentConfig, NewAgent } from '../db/schema/agents.js';
 import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
-import type { Session } from '../db/schema/sessions.js';
 import { sessions } from '../db/schema/sessions.js';
 import type { Task } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
@@ -19,6 +18,7 @@ import { ValidationErrors } from '../lib/errors/validation-errors.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+import type { SessionEvent, SessionWithPresence } from './session.service.js';
 
 export type AgentExecutionContext = {
   agentId: string;
@@ -68,17 +68,14 @@ type TaskService = {
   ) => Promise<Result<unknown, AgentError>>;
 };
 
-type SessionService = {
+type SessionServiceInterface = {
   create: (input: {
     projectId: string;
     taskId?: string;
     agentId?: string;
     title?: string;
-  }) => Promise<Result<Session, AgentError>>;
-  publish: (
-    sessionId: string,
-    event: { id: string; type: string; timestamp: number; data: unknown }
-  ) => Promise<Result<void, AgentError>>;
+  }) => Promise<Result<SessionWithPresence, unknown>>;
+  publish: (sessionId: string, event: SessionEvent) => Promise<Result<void, unknown>>;
 };
 
 const runningAgents = new Map<string, AbortController>();
@@ -91,7 +88,7 @@ export class AgentService {
     private db: Database,
     private worktreeService: WorktreeService,
     private taskService: TaskService,
-    private sessionService: SessionService
+    private sessionService: SessionServiceInterface
   ) {}
 
   async create(input: NewAgent): Promise<Result<Agent, ValidationError>> {

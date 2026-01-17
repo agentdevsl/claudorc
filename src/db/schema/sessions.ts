@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { agents } from './agents';
 import { sessionStatusEnum } from './enums';
@@ -12,7 +13,7 @@ export const sessions = pgTable('sessions', {
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
-  taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  taskId: text('task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
   agentId: text('agent_id').references(() => agents.id, { onDelete: 'set null' }),
   status: sessionStatusEnum('status').default('idle').notNull(),
   title: text('title'),

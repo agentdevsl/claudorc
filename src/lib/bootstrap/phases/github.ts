@@ -11,7 +11,7 @@ export const validateGitHub = async (ctx: BootstrapContext) => {
   try {
     const { Octokit } = await import('octokit');
     const octokit = new Octokit({ auth: token });
-    await octokit.users.getAuthenticated();
+    await octokit.rest.users.getAuthenticated();
     ctx.githubToken = token;
     return ok(undefined);
   } catch (error) {

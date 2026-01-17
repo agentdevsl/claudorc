@@ -39,6 +39,9 @@ export class BootstrapService {
 
     for (let index = 0; index < phases.length; index += 1) {
       const phase = phases[index];
+      if (!phase) {
+        continue;
+      }
       this.updateState({
         phase: phase.name,
         progress: (index / phases.length) * 100,
@@ -49,8 +52,8 @@ export class BootstrapService {
       if (result.ok) {
         this.applyPhaseResult({ name: phase.name, value: result.value });
       } else if (!phase.recoverable) {
-        this.updateState({ error: result.error });
-        return result;
+        this.updateState({ error: result.error as BootstrapState['error'] });
+        return err(result.error as NonNullable<BootstrapState['error']>);
       }
     }
 

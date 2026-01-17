@@ -3,9 +3,18 @@ import { err, ok } from '../../utils/result.js';
 // Schema import reserved for future use with typed collections
 import type { BootstrapContext } from '../types.js';
 
-type CollectionMap = Record<string, { insertMany: (items: unknown[]) => void }>;
+interface Collection {
+  insertMany: (items: unknown[]) => void;
+}
 
-const createCollection = () => ({
+interface CollectionMap {
+  projects: Collection;
+  tasks: Collection;
+  agents: Collection;
+  sessions: Collection;
+}
+
+const createCollection = (): Collection => ({
   insertMany: (_items: unknown[]) => undefined,
 });
 
@@ -34,7 +43,7 @@ export const initializeCollections = async (ctx: BootstrapContext) => {
     collections.agents.insertMany(agents.rows ?? []);
     collections.sessions.insertMany(sessions.rows ?? []);
 
-    ctx.collections = collections;
+    ctx.collections = collections as unknown as Record<string, unknown>;
 
     return ok(collections);
   } catch (error) {
