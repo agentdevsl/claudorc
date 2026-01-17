@@ -1,10 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
 import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { agentStatusEnum } from './enums';
 import { agents } from './agents';
+import { agentStatusEnum } from './enums';
 import { projects } from './projects';
-import { tasks } from './tasks';
 import { sessions } from './sessions';
+import { tasks } from './tasks';
 
 export const agentRuns = pgTable('agent_runs', {
   id: text('id')

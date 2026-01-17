@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SessionService } from '../session.service.js';
 import { SessionErrors } from '../../lib/errors/session-errors.js';
+import { SessionService } from '../session.service.js';
 
 const createDbMock = () => ({
   query: {

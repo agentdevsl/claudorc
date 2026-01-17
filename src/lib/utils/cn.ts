@@ -1,8 +1,8 @@
 type ClassValue = string | number | boolean | null | undefined;
 
-type ClassInput = ClassValue | ClassInput[] | { [key: string]: boolean };
+type ClassInput = ClassValue | ClassInput[] | Record<string, boolean>;
 
-const toClassName = (input: ClassInput): string => {
+function toClassName(input: ClassInput): string {
   if (!input) {
     return '';
   }
@@ -19,8 +19,8 @@ const toClassName = (input: ClassInput): string => {
   }
 
   return String(input);
-};
+}
 
-export const cn = (...inputs: ClassInput[]): string => {
+export function cn(...inputs: ClassInput[]): string {
   return inputs.map(toClassName).filter(Boolean).join(' ');
-};
+}

@@ -1,13 +1,13 @@
-import { err, ok } from '../../utils/result.js';
-import type { Result } from '../../utils/result.js';
 import type { AppError } from '../../errors/base.js';
 import { createError } from '../../errors/base.js';
+import type { Result } from '../../utils/result.js';
+import { err, ok } from '../../utils/result.js';
+import { canCreate, canMerge, canRemove, hasConflicts } from './guards.js';
 import type {
   WorktreeLifecycleContext,
   WorktreeLifecycleEvent,
   WorktreeLifecycleState,
 } from './types.js';
-import { canCreate, canMerge, canRemove, hasConflicts } from './guards.js';
 
 export type WorktreeMachine = {
   state: WorktreeLifecycleState;

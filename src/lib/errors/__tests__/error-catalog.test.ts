@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   AgentErrors,
   ConcurrencyErrors,
+  createError,
   GitHubErrors,
   ProjectErrors,
   SessionErrors,
   TaskErrors,
   ValidationErrors,
   WorktreeErrors,
-  createError,
 } from '../index.js';
 
 describe('error catalog', () => {

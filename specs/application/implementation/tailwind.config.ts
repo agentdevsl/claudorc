@@ -17,10 +17,7 @@ import type { Config } from 'tailwindcss';
  */
 
 const config: Config = {
-  content: [
-    './src/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
-  ],
+  content: ['./src/**/*.{js,ts,jsx,tsx}', './components/**/*.{js,ts,jsx,tsx}'],
 
   theme: {
     extend: {
@@ -43,7 +40,7 @@ const config: Config = {
        */
       colors: {
         // Canvas and surface backgrounds
-        'canvas': {
+        canvas: {
           DEFAULT: '#0d1117',
           light: '#ffffff',
         },
@@ -124,9 +121,9 @@ const config: Config = {
        * - lg: 12px (large elements, prominent containers)
        */
       borderRadius: {
-        'sm': '4px',
-        'DEFAULT': '6px',
-        'lg': '12px',
+        sm: '4px',
+        DEFAULT: '6px',
+        lg: '12px',
       },
 
       /**
@@ -137,8 +134,8 @@ const config: Config = {
        * - mono: 'Fira Code' for code blocks and monospaced text
        */
       fontFamily: {
-        'sans': ['Mona Sans', 'system-ui', '-apple-system', 'sans-serif'],
-        'mono': ['Fira Code', 'monospace'],
+        sans: ['Mona Sans', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Fira Code', 'monospace'],
       },
 
       /**
@@ -255,17 +252,17 @@ const config: Config = {
        * varying opacity levels for hierarchy.
        */
       boxShadow: {
-        'sm': '0 1px 2px rgba(0, 0, 0, 0.3)',
-        'DEFAULT': '0 4px 12px rgba(0, 0, 0, 0.4)',
-        'lg': '0 12px 32px rgba(0, 0, 0, 0.5)',
-        'xl': '0 20px 64px rgba(0, 0, 0, 0.6)',
+        sm: '0 1px 2px rgba(0, 0, 0, 0.3)',
+        DEFAULT: '0 4px 12px rgba(0, 0, 0, 0.4)',
+        lg: '0 12px 32px rgba(0, 0, 0, 0.5)',
+        xl: '0 20px 64px rgba(0, 0, 0, 0.6)',
 
         // Inset shadows for sunken effects
         'inset-sm': 'inset 0 1px 2px rgba(0, 0, 0, 0.3)',
         'inset-DEFAULT': 'inset 0 1px 4px rgba(0, 0, 0, 0.4)',
 
         // Focus ring shadows
-        'focus': '0 0 0 3px rgba(88, 166, 255, 0.3)',
+        focus: '0 0 0 3px rgba(88, 166, 255, 0.3)',
         'focus-error': '0 0 0 3px rgba(248, 81, 73, 0.3)',
         'focus-success': '0 0 0 3px rgba(63, 185, 80, 0.3)',
       },
@@ -277,9 +274,9 @@ const config: Config = {
        * Uses consistent easing and durations throughout the application.
        */
       transitionDuration: {
-        'fast': '150ms',
-        'normal': '200ms',
-        'slow': '300ms',
+        fast: '150ms',
+        normal: '200ms',
+        slow: '300ms',
       },
       transitionTimingFunction: {
         'ease-out': 'cubic-bezier(0.25, 1, 0.5, 1)',

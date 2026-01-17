@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/db/client';
-import { SessionService } from '@/services/session.service';
 import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
+import { SessionService } from '@/services/session.service';
 
 function getSessionService(): SessionService {
   if (!hasStreamProvider()) {

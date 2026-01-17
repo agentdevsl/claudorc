@@ -1,5 +1,5 @@
-import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
 // Schema import reserved for future use with typed collections
 import type { BootstrapContext } from '../types.js';
 

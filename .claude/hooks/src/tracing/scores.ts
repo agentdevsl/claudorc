@@ -3,7 +3,7 @@
  * Provides type-safe score names, categorical values, and idempotency key generation.
  */
 
-import { LangfuseClient } from '@langfuse/client';
+import type { LangfuseClient } from '@langfuse/client';
 
 // Score data types supported by Langfuse
 type ScoreDataType = 'NUMERIC' | 'BOOLEAN' | 'CATEGORICAL';

@@ -1,7 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { sessionStatusEnum } from './enums';
 import { agents } from './agents';
+import { sessionStatusEnum } from './enums';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
@@ -18,6 +18,7 @@ export const sessions = pgTable('sessions', {
   title: text('title'),
   url: text('url').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
   closedAt: timestamp('closed_at'),
 });
 

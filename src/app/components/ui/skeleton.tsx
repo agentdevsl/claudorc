@@ -1,6 +1,9 @@
 import { cn } from '@/lib/utils/cn';
 
-export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Skeleton({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
   return (
     <div
       className={cn(

@@ -16,26 +16,26 @@
      ========================================== */
 
   /* Background Colors (Cool Neutral) */
-  --bg-canvas: #0d1117;      /* Darkest - main page background */
-  --bg-default: #161b22;     /* Cards, containers */
-  --bg-subtle: #1c2128;      /* Hover states, subtle containers */
-  --bg-muted: #21262d;       /* Inactive elements */
-  --bg-emphasis: #30363d;    /* Emphasis, badges, active states */
+  --bg-canvas: #0d1117; /* Darkest - main page background */
+  --bg-default: #161b22; /* Cards, containers */
+  --bg-subtle: #1c2128; /* Hover states, subtle containers */
+  --bg-muted: #21262d; /* Inactive elements */
+  --bg-emphasis: #30363d; /* Emphasis, badges, active states */
 
   /* Foreground Colors */
-  --fg-default: #e6edf3;     /* Primary text */
-  --fg-muted: #8b949e;       /* Secondary text */
-  --fg-subtle: #6e7681;      /* Tertiary text, placeholders */
+  --fg-default: #e6edf3; /* Primary text */
+  --fg-muted: #8b949e; /* Secondary text */
+  --fg-subtle: #6e7681; /* Tertiary text, placeholders */
   --fg-on-emphasis: #ffffff; /* Text on emphasis backgrounds */
 
   /* Border Colors */
   --border-default: #30363d; /* Primary borders */
-  --border-muted: #21262d;   /* Subtle borders */
+  --border-muted: #21262d; /* Subtle borders */
   --border-subtle: rgba(240, 246, 252, 0.1); /* Transparent borders */
 
   /* Accent Colors */
-  --accent-fg: #58a6ff;      /* Primary accent (blue) */
-  --accent-emphasis: #1f6feb;/* Accent backgrounds */
+  --accent-fg: #58a6ff; /* Primary accent (blue) */
+  --accent-emphasis: #1f6feb; /* Accent backgrounds */
   --accent-muted: rgba(56, 139, 253, 0.15); /* Accent subtle bg */
 
   /* Semantic Colors - Status */
@@ -63,17 +63,18 @@
      ========================================== */
 
   /* Font Family */
-  --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  --font-sans:
+    "Mona Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
 
   /* Font Sizes (4px grid aligned) */
-  --font-xs: 12px;    /* Small labels, badges, metadata */
-  --font-sm: 12px;    /* Secondary text, descriptions */
-  --font-base: 14px;  /* Body text, inputs, buttons */
-  --font-lg: 16px;    /* Section titles, emphasized text */
-  --font-xl: 18px;    /* Card titles, subheadings */
-  --font-2xl: 24px;   /* Page titles, major headings */
-  --font-3xl: 32px;   /* Hero text, large displays */
+  --font-xs: 12px; /* Small labels, badges, metadata */
+  --font-sm: 12px; /* Secondary text, descriptions */
+  --font-base: 14px; /* Body text, inputs, buttons */
+  --font-lg: 16px; /* Section titles, emphasized text */
+  --font-xl: 18px; /* Card titles, subheadings */
+  --font-2xl: 24px; /* Page titles, major headings */
+  --font-3xl: 32px; /* Hero text, large displays */
 
   /* Font Weights (only 400, 500, 600) */
   --font-normal: 400;
@@ -86,9 +87,9 @@
   --leading-relaxed: 1.625;
 
   /* Letter Spacing */
-  --tracking-tight: -0.02em;  /* Headlines */
-  --tracking-normal: 0;       /* Body */
-  --tracking-wide: 0.02em;    /* Uppercase labels */
+  --tracking-tight: -0.02em; /* Headlines */
+  --tracking-normal: 0; /* Body */
+  --tracking-wide: 0.02em; /* Uppercase labels */
 
   /* ==========================================
      SPACING (4px Grid)
@@ -99,27 +100,27 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 20px;   /* DEPRECATED: Use --space-4 or --space-6 */
+  --space-5: 20px; /* DEPRECATED: Use --space-4 or --space-6 */
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
 
   /* Semantic Spacing */
-  --spacing-xs: var(--space-1);   /* 4px - micro gaps */
-  --spacing-sm: var(--space-2);   /* 8px - tight spacing */
-  --spacing-md: var(--space-4);   /* 16px - standard */
-  --spacing-lg: var(--space-6);   /* 24px - generous */
-  --spacing-xl: var(--space-8);   /* 32px - major separation */
+  --spacing-xs: var(--space-1); /* 4px - micro gaps */
+  --spacing-sm: var(--space-2); /* 8px - tight spacing */
+  --spacing-md: var(--space-4); /* 16px - standard */
+  --spacing-lg: var(--space-6); /* 24px - generous */
+  --spacing-xl: var(--space-8); /* 32px - major separation */
 
   /* ==========================================
      BORDER RADIUS
      ========================================== */
 
-  --radius-sm: 4px;   /* Micro elements, tags */
-  --radius: 6px;      /* Primary - buttons, inputs, cards */
-  --radius-lg: 12px;  /* Large cards, modals */
-  --radius-xl: 16px;  /* Full-width panels (use sparingly) */
+  --radius-sm: 4px; /* Micro elements, tags */
+  --radius: 6px; /* Primary - buttons, inputs, cards */
+  --radius-lg: 12px; /* Large cards, modals */
+  --radius-xl: 16px; /* Full-width panels (use sparingly) */
   --radius-full: 9999px; /* Pills, avatars */
 
   /* ==========================================
@@ -162,7 +163,7 @@
   --btn-height-sm: 32px;
   --btn-height: 36px;
   --btn-height-lg: 40px;
-  --btn-height-touch: 44px;  /* Mobile touch target */
+  --btn-height-touch: 44px; /* Mobile touch target */
   --btn-padding-x: var(--space-4);
   --btn-padding-y: var(--space-2);
   --btn-radius: var(--radius);
@@ -179,8 +180,8 @@
   --input-bg: var(--bg-default);
 
   /* Cards */
-  --card-padding: var(--space-4);  /* 16px */
-  --card-radius: var(--radius);    /* 6px */
+  --card-padding: var(--space-4); /* 16px */
+  --card-radius: var(--radius); /* 6px */
   --card-border: 1px solid var(--border-default);
   --card-bg: var(--bg-default);
 
@@ -207,9 +208,9 @@
   --easing: cubic-bezier(0.25, 1, 0.5, 1);
 
   /* Transitions */
-  --transition-colors: color var(--duration-fast) var(--easing),
-                       background-color var(--duration-fast) var(--easing),
-                       border-color var(--duration-fast) var(--easing);
+  --transition-colors:
+    color var(--duration-fast) var(--easing), background-color var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing);
   --transition-transform: transform var(--duration-normal) var(--easing);
   --transition-opacity: opacity var(--duration-fast) var(--easing);
 
@@ -237,7 +238,7 @@
   }
 
   .main-layout {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
 }
 
@@ -263,9 +264,9 @@
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
   }
 }
 

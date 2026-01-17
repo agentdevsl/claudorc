@@ -1,20 +1,20 @@
 /**
  * Unit tests for the scores module.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  SCORE_TOOL_SUCCESS,
-  SCORE_FAILURE_CATEGORY,
-  SCORE_ERROR_SEVERITY,
-  SCORE_SESSION_SUCCESS_RATE,
-  SCORE_SESSION_HEALTH,
-  SCORE_DOMINANT_FAILURE_MODE,
-  FAILURE_CATEGORIES,
-  SESSION_HEALTH_VALUES,
-  getErrorSeverity,
-  createScoreIdempotencyKey,
   calculateSessionHealth,
+  createScoreIdempotencyKey,
+  FAILURE_CATEGORIES,
   findDominantFailureMode,
+  getErrorSeverity,
+  SCORE_DOMINANT_FAILURE_MODE,
+  SCORE_ERROR_SEVERITY,
+  SCORE_FAILURE_CATEGORY,
+  SCORE_SESSION_HEALTH,
+  SCORE_SESSION_SUCCESS_RATE,
+  SCORE_TOOL_SUCCESS,
+  SESSION_HEALTH_VALUES,
 } from './scores.js';
 
 describe('Score Constants', () => {

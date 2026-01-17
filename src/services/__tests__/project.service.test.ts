@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ProjectService } from '../project.service.js';
-import { ProjectErrors } from '../../lib/errors/project-errors.js';
 import { DEFAULT_PROJECT_CONFIG } from '../../lib/config/types.js';
+import { ProjectErrors } from '../../lib/errors/project-errors.js';
+import { ProjectService } from '../project.service.js';
 
 const createDbMock = () => ({
   query: {

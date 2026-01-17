@@ -7,6 +7,8 @@ export const taskColumnEnum = pgEnum('task_column', [
   'verified',
 ]);
 
+export type TaskColumn = (typeof taskColumnEnum.enumValues)[number];
+
 export const agentStatusEnum = pgEnum('agent_status', [
   'idle',
   'starting',
@@ -26,6 +28,8 @@ export const worktreeStatusEnum = pgEnum('worktree_status', [
   'removed',
   'error',
 ]);
+
+export type WorktreeStatus = (typeof worktreeStatusEnum.enumValues)[number];
 
 export const toolStatusEnum = pgEnum('tool_status', ['pending', 'running', 'complete', 'error']);
 

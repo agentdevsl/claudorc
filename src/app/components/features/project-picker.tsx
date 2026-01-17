@@ -1,5 +1,5 @@
+import { CaretUpDown, Check, FolderSimple, Plus } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { Check, CaretUpDown, FolderSimple, Plus } from '@phosphor-icons/react';
 import { Button } from '@/app/components/ui/button';
 import {
   DropdownMenu,
@@ -8,8 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils/cn';
 import type { Project } from '@/db/schema/projects';
+import { cn } from '@/lib/utils/cn';
 
 interface ProjectPickerProps {
   projects: Project[];
@@ -23,7 +23,7 @@ export function ProjectPicker({
   selectedProject,
   onSelect,
   onNewProject,
-}: ProjectPickerProps) {
+}: ProjectPickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
 
   return (

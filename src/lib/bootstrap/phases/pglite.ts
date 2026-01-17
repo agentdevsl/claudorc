@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
-import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
 import type { BootstrapContext } from '../types.js';
 
 const BOOTSTRAP_ERROR_CODE = 'BOOTSTRAP_PGLITE_INIT_FAILED';

@@ -10,17 +10,17 @@
  */
 
 import {
-  writeFileSync,
-  readFileSync,
-  unlinkSync,
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   renameSync,
+  unlinkSync,
+  writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { SpanState, ActiveSpanInfo, SessionMetrics, ToolChainContext } from './types.js';
+import { join } from 'node:path';
+import type { ActiveSpanInfo, SessionMetrics, SpanState, ToolChainContext } from './types.js';
 
 /** Directory for storing span state files */
 const PERSISTENCE_DIR = join(tmpdir(), 'langfuse-claude-code');
@@ -786,7 +786,7 @@ export function cleanupProcessedEvents(sessionId: string): void {
     const timestamp = parseInt(lastPart, 10);
 
     // If not a valid timestamp (e.g., it's a tool_use_id), keep it
-    if (isNaN(timestamp) || timestamp > 2000000000) return true;
+    if (Number.isNaN(timestamp) || timestamp > 2000000000) return true;
 
     // If timestamp is within the max age, keep it
     return now - timestamp < PROCESSED_EVENT_MAX_AGE_SECONDS;

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, err } from '@/lib/utils/result';
-import { AgentErrors } from '@/lib/errors/agent-errors';
 import type { Agent } from '@/db/schema/agents';
+import { AgentErrors } from '@/lib/errors/agent-errors';
+import { err, ok } from '@/lib/utils/result';
 
 const agentServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -32,8 +32,8 @@ vi.mock('@/db/client', () => ({ db: {} }));
 import { Route as AgentsRoute } from '@/app/routes/api/agents';
 import { Route as AgentRoute } from '@/app/routes/api/agents/$id';
 import { Route as AgentStartRoute } from '@/app/routes/api/agents/$id/start';
-import { Route as AgentStopRoute } from '@/app/routes/api/agents/$id/stop';
 import { Route as AgentStatusRoute } from '@/app/routes/api/agents/$id/status';
+import { Route as AgentStopRoute } from '@/app/routes/api/agents/$id/stop';
 
 const sampleAgent: Agent = {
   id: 'agent-1',

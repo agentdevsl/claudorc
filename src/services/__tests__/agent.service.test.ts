@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentService } from '../agent.service.js';
 import { AgentErrors } from '../../lib/errors/agent-errors.js';
 import { ConcurrencyErrors } from '../../lib/errors/concurrency-errors.js';
 import { ValidationErrors } from '../../lib/errors/validation-errors.js';
+import { AgentService } from '../agent.service.js';
 
 const createDbMock = () => ({
   query: {

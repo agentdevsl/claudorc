@@ -1,13 +1,13 @@
-import { err, ok } from '../../utils/result.js';
-import type { Result } from '../../utils/result.js';
 import type { AppError } from '../../errors/base.js';
 import { createError } from '../../errors/base.js';
+import type { Result } from '../../utils/result.js';
+import { err, ok } from '../../utils/result.js';
+import { canClose, hasCapacity, isParticipant, isStale } from './guards.js';
 import type {
   SessionLifecycleContext,
   SessionLifecycleEvent,
   SessionLifecycleState,
 } from './types.js';
-import { canClose, hasCapacity, isParticipant, isStale } from './guards.js';
 
 export type SessionMachine = {
   state: SessionLifecycleState;

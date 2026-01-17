@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/db/client';
+import { withErrorHandling } from '@/lib/api/middleware';
+import { failure, success } from '@/lib/api/response';
+import { createAgentSchema, listAgentsSchema } from '@/lib/api/schemas';
+import { parseBody, parseQuery } from '@/lib/api/validation';
 import { AgentService } from '@/services/agent.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
-import { failure, success } from '@/lib/api/response';
-import { withErrorHandling } from '@/lib/api/middleware';
-import { parseBody, parseQuery } from '@/lib/api/validation';
-import { createAgentSchema, listAgentsSchema } from '@/lib/api/schemas';
 
 // TODO: Phase 2 - Replace stub implementations with real services via dependency injection.
 // These stubs allow API routes to be tested without actual git/stream operations.

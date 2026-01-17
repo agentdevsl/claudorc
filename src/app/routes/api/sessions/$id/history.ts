@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/db/client';
-import { SessionService } from '@/services/session.service';
-import { failure, success } from '@/lib/api/response';
 import { withErrorHandling } from '@/lib/api/middleware';
+import { failure, success } from '@/lib/api/response';
+import { SessionService } from '@/services/session.service';
 
 const sessionService = new SessionService(
   db,

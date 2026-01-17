@@ -2,7 +2,7 @@
  * Unit tests for the observations module.
  * Focused on formatStatusMessage and related formatting functions.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { formatStatusMessage } from './observations.js';
 import type { ToolResult } from './types.js';
 
@@ -139,12 +139,12 @@ describe('formatStatusMessage', () => {
         error: longError,
       };
       const message = formatStatusMessage(result);
-      expect(message).toContain('- ' + 'a'.repeat(100) + '...');
+      expect(message).toContain(`- ${'a'.repeat(100)}...`);
       expect(message).not.toContain('a'.repeat(101));
     });
 
     it('should handle very long error messages', () => {
-      const veryLongError = 'Error: '.repeat(100) + 'final part';
+      const veryLongError = `${'Error: '.repeat(100)}final part`;
       const result: ToolResult = {
         success: false,
         error: veryLongError,

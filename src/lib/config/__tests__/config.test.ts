@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deepMerge } from '../../utils/deep-merge.js';
-import { DEFAULT_PROJECT_CONFIG } from '../types.js';
 import { loadProjectConfig, loadProjectConfigFrom } from '../config-service.js';
+import { DEFAULT_PROJECT_CONFIG } from '../types.js';
 import { containsSecrets } from '../validate-secrets.js';
 
 const sampleConfig = {

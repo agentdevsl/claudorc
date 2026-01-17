@@ -1,10 +1,10 @@
-import { err, ok } from '../../utils/result.js';
-import type { Result } from '../../utils/result.js';
 import type { AppError } from '../../errors/base.js';
 import { createError } from '../../errors/base.js';
-import type { AgentLifecycleContext, AgentLifecycleEvent, AgentLifecycleState } from './types.js';
-import { canPause, canResume, canStart, isToolAllowed, withinTurnLimit } from './guards.js';
+import type { Result } from '../../utils/result.js';
+import { err, ok } from '../../utils/result.js';
 import { clearTask, incrementTurn, setError } from './actions.js';
+import { canPause, canResume, canStart, isToolAllowed, withinTurnLimit } from './guards.js';
+import type { AgentLifecycleContext, AgentLifecycleEvent, AgentLifecycleState } from './types.js';
 
 export type AgentMachine = {
   state: AgentLifecycleState;

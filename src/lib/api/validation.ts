@@ -1,7 +1,7 @@
-import { err, ok } from '../utils/result.js';
-import type { Result } from '../utils/result.js';
-import { ValidationErrors } from '../errors/validation-errors.js';
 import type { z } from 'zod';
+import { ValidationErrors } from '../errors/validation-errors.js';
+import type { Result } from '../utils/result.js';
+import { err, ok } from '../utils/result.js';
 
 export const parseBody = async <T>(
   request: Request,

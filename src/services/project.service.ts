@@ -1,17 +1,16 @@
 import path from 'node:path';
 import { and, desc, eq } from 'drizzle-orm';
-import { err, ok } from '../lib/utils/result.js';
-import type { Result } from '../lib/utils/result.js';
-import { DEFAULT_PROJECT_CONFIG } from '../lib/config/types.js';
-import { projectConfigSchema } from '../lib/config/schemas.js';
-import { deepMerge } from '../lib/utils/deep-merge.js';
-import type { ProjectConfig } from '../db/schema/projects.js';
-import { projects } from '../db/schema/projects.js';
 import { agents } from '../db/schema/agents.js';
-import type { Project } from '../db/schema/projects.js';
+import type { Project, ProjectConfig } from '../db/schema/projects.js';
+import { projects } from '../db/schema/projects.js';
+import { projectConfigSchema } from '../lib/config/schemas.js';
+import { DEFAULT_PROJECT_CONFIG } from '../lib/config/types.js';
+import { containsSecrets } from '../lib/config/validate-secrets.js';
 import type { ProjectError } from '../lib/errors/project-errors.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
-import { containsSecrets } from '../lib/config/validate-secrets.js';
+import { deepMerge } from '../lib/utils/deep-merge.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
 
 export type CreateProjectInput = {
@@ -51,8 +50,13 @@ export class ProjectService {
   constructor(
     private db: Database,
     private worktreeService: {
-      prune: (projectId: string) => Promise<
-        Result<{ pruned: number; failed: Array<{ worktreeId: string; branch: string; error: string }> }, ProjectError>
+      prune: (
+        projectId: string
+      ) => Promise<
+        Result<
+          { pruned: number; failed: Array<{ worktreeId: string; branch: string; error: string }> },
+          ProjectError
+        >
       >;
     },
     private runner: CommandRunner
@@ -243,9 +247,15 @@ export class ProjectService {
 
     const claudeConfigResult = await this.runner
       .exec('test -d .claude && echo yes || echo no', normalized)
-      .then((res) => ({ detected: res.stdout.trim() === 'yes', error: undefined as string | undefined }))
+      .then((res) => ({
+        detected: res.stdout.trim() === 'yes',
+        error: undefined as string | undefined,
+      }))
       .catch((error) => {
-        console.warn(`[ProjectService] Could not detect .claude directory for ${normalized}:`, error);
+        console.warn(
+          `[ProjectService] Could not detect .claude directory for ${normalized}:`,
+          error
+        );
         return { detected: false, error: String(error) };
       });
 

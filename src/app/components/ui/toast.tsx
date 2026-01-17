@@ -1,5 +1,5 @@
-import * as ToastPrimitive from '@radix-ui/react-toast';
 import { X } from '@phosphor-icons/react';
+import * as ToastPrimitive from '@radix-ui/react-toast';
 import { cn } from '@/lib/utils/cn';
 
 export const ToastProvider = ToastPrimitive.Provider;

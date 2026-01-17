@@ -1,16 +1,16 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { err, ok } from '../lib/utils/result.js';
-import type { Result } from '../lib/utils/result.js';
+import { projects } from '../db/schema/projects.js';
 import type { Task, TaskColumn } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
-import { projects } from '../db/schema/projects.js';
+import { ProjectErrors } from '../lib/errors/project-errors.js';
 import type { TaskError } from '../lib/errors/task-errors.js';
 import { TaskErrors } from '../lib/errors/task-errors.js';
-import { ProjectErrors } from '../lib/errors/project-errors.js';
 import { ValidationErrors } from '../lib/errors/validation-errors.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
-import type { GitDiff } from './worktree.service.js';
 import { canTransition } from './task-transitions.js';
+import type { GitDiff } from './worktree.service.js';
 
 export type CreateTaskInput = {
   projectId: string;

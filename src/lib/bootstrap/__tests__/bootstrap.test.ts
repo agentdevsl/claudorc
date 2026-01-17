@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppError } from '../../errors/base.js';
 import { err, ok } from '../../utils/result.js';
-import type { BootstrapContext, BootstrapPhaseConfig } from '../types.js';
 import { BootstrapService } from '../service.js';
+import type { BootstrapContext, BootstrapPhaseConfig } from '../types.js';
 
 describe('BootstrapService', () => {
   it('runs all phases and returns context', async () => {

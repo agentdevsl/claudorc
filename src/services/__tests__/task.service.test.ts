@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TaskService } from '../task.service.js';
-import { TaskErrors } from '../../lib/errors/task-errors.js';
 import { ProjectErrors } from '../../lib/errors/project-errors.js';
+import { TaskErrors } from '../../lib/errors/task-errors.js';
+import { TaskService } from '../task.service.js';
 
 const createDbMock = () => ({
   query: {

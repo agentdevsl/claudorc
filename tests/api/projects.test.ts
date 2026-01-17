@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Project } from '@/db/schema/projects';
 import { DEFAULT_PROJECT_CONFIG } from '@/lib/config/types';
 import { ProjectErrors } from '@/lib/errors/project-errors';
-import { ok, err } from '@/lib/utils/result';
-import type { Project } from '@/db/schema/projects';
+import { err, ok } from '@/lib/utils/result';
 
 const projectServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),

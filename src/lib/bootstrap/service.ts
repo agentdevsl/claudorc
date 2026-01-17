@@ -1,10 +1,10 @@
 import { err, ok } from '../utils/result.js';
-import { connectStreams } from './phases/streams.js';
 import { initializeCollections } from './phases/collections.js';
-import { initializePGlite } from './phases/pglite.js';
-import { seedDefaults } from './phases/seeding.js';
 import { validateGitHub } from './phases/github.js';
+import { initializePGlite } from './phases/pglite.js';
 import { validateSchema } from './phases/schema.js';
+import { seedDefaults } from './phases/seeding.js';
+import { connectStreams } from './phases/streams.js';
 import type {
   BootstrapContext,
   BootstrapPhaseConfig,

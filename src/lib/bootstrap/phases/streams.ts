@@ -1,5 +1,5 @@
-import { err, ok } from '../../utils/result.js';
 import { createError } from '../../errors/base.js';
+import { err, ok } from '../../utils/result.js';
 
 const resolveStreamsClient = async () => {
   if (globalThis.DurableStreamsClient) {
@@ -36,7 +36,10 @@ export const connectStreams = async () => {
 
 declare global {
   var DurableStreamsClient:
-    | (new (config: { url: string; reconnect: Record<string, unknown> }) => {
+    | (new (config: {
+        url: string;
+        reconnect: Record<string, unknown>;
+      }) => {
         connect: () => Promise<void>;
       })
     | undefined;

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { config } from 'dotenv';
+import { appendFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appendFileSync } from 'node:fs';
+import { config } from 'dotenv';
 
 // Check enable flag BEFORE loading .env (so CLI can override)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,72 +51,72 @@ debugLog(`Hook started - PID: ${process.pid}, CWD: ${process.cwd()}, __dirname: 
 
 import { createInterface } from 'node:readline';
 import {
-  type ClaudeCodeEvent,
-  isValidEvent,
-  analyzeToolResult,
-  getSubagentInfo,
-  isSubagentTool,
-  getGitContext,
-  getSubagentStopInfo,
-} from './utils.js';
-import {
-  initTracing,
-  shutdownTracing,
-  forceFlush,
-  flushScores,
+  calculateAggregateMetrics,
+  cleanupOldStates,
+  cleanupPendingParentContexts,
+  cleanupProcessedEvents,
   createConfigFromEnv,
+  // Event deduplication for cross-process duplicate prevention
+  createEventFingerprint,
   createSessionObservation,
   createSessionObservationWithParent,
   createToolObservation,
   createToolObservationWithContext,
   createTraceparent,
-  parseTraceparent,
-  finalizeToolObservation,
-  finalizeSessionObservation,
-  recordEvent,
-  recordEventWithContext,
-  // Cross-process upsert for duplicate prevention
-  upsertToolObservation,
-  // Persistence functions for cross-process span linking
-  registerActiveSpan,
-  popActiveSpan,
-  getSessionInfo,
-  initSession,
   deleteSpanState,
-  cleanupOldStates,
-  // Pending parent context for subagent linking
-  storePendingParentContext,
-  findPendingParentContext,
-  cleanupPendingParentContexts,
+  finalizeSessionObservation,
+  finalizeToolObservation,
   // Extended function for SubagentStop cleanup (moved from PostToolUse)
   findAndRemovePendingParentContextBySession,
-  // Metrics tracking functions
-  updateSessionMetrics,
-  getSessionMetrics,
-  calculateAggregateMetrics,
-  // Event deduplication for cross-process duplicate prevention
-  createEventFingerprint,
-  hasProcessedEvent,
-  markEventProcessed,
-  cleanupProcessedEvents,
-  // Score recording for failure tracking
-  getLangfuseClient,
-  recordToolFailureScores,
-  recordToolSuccessScores,
-  recordSessionHealthScores,
+  findPendingParentContext,
+  flushScores,
+  forceFlush,
   // Status message formatting
   formatStatusMessage,
+  // Score recording for failure tracking
+  getLangfuseClient,
+  getSessionInfo,
+  getSessionMetrics,
   // Tool chain state for cascade failure detection
   getToolChainContext,
-  updateToolChainState,
+  hasProcessedEvent,
+  initSession,
+  initTracing,
+  markEventProcessed,
+  type PendingParentContext,
+  parseTraceparent,
+  popActiveSpan,
+  recordEvent,
+  recordEventWithContext,
+  recordSessionHealthScores,
+  recordToolFailureScores,
+  recordToolSuccessScores,
+  // Persistence functions for cross-process span linking
+  registerActiveSpan,
   // Types
   type SessionObservation,
-  type ToolObservation,
-  type ToolContext,
-  type ToolResult,
-  type PendingParentContext,
+  shutdownTracing,
+  // Pending parent context for subagent linking
+  storePendingParentContext,
   type ToolChainContext,
+  type ToolContext,
+  type ToolObservation,
+  type ToolResult,
+  // Metrics tracking functions
+  updateSessionMetrics,
+  updateToolChainState,
+  // Cross-process upsert for duplicate prevention
+  upsertToolObservation,
 } from './tracing/index.js';
+import {
+  analyzeToolResult,
+  type ClaudeCodeEvent,
+  getGitContext,
+  getSubagentInfo,
+  getSubagentStopInfo,
+  isSubagentTool,
+  isValidEvent,
+} from './utils.js';
 
 /**
  * Claude Code Langfuse Hook (Native SDK)

@@ -1,14 +1,14 @@
 import path from 'node:path';
 import { createId } from '@paralleldrive/cuid2';
 import { and, eq, lt } from 'drizzle-orm';
-import type { Database } from '../types/database.js';
-import type { Result } from '../lib/utils/result.js';
-import { err, ok } from '../lib/utils/result.js';
+import { projects } from '../db/schema/projects.js';
 import type { Worktree, WorktreeStatus } from '../db/schema/worktrees.js';
 import { worktrees } from '../db/schema/worktrees.js';
-import { projects } from '../db/schema/projects.js';
 import type { WorktreeError } from '../lib/errors/worktree-errors.js';
 import { WorktreeErrors } from '../lib/errors/worktree-errors.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
+import type { Database } from '../types/database.js';
 
 export type WorktreeCreateInput = {
   projectId: string;
@@ -78,11 +78,12 @@ const escapeShellString = (str: string): string => {
 
 const extractHunks = (diff: string, filePath: string): string[] => {
   const hunks = diff.split(`diff --git a/${filePath} b/${filePath}`);
-  if (hunks.length < 2) {
+  const hunkContent = hunks[1];
+  if (!hunkContent) {
     return [];
   }
 
-  const lines = hunks[1].split('\n');
+  const lines = hunkContent.split('\n');
   return lines.filter((line) => line.startsWith('@@'));
 };
 
@@ -462,20 +463,24 @@ export class WorktreeService {
         worktree.path
       );
 
-      const files = numstat.stdout
+      const files: DiffFile[] = numstat.stdout
         .trim()
         .split('\n')
         .filter(Boolean)
         .map((line) => {
-          const [added, removed, filePath] = line.split('\t');
+          const parts = line.split('\t');
+          const added = parts[0] ?? '0';
+          const removed = parts[1] ?? '0';
+          const filePath = parts[2] ?? '';
           return {
             path: filePath,
             status: 'modified' as const,
-            additions: Number.parseInt(added ?? '0', 10),
-            deletions: Number.parseInt(removed ?? '0', 10),
+            additions: Number.parseInt(added, 10),
+            deletions: Number.parseInt(removed, 10),
             hunks: extractHunks(fullDiff.stdout, filePath),
           };
-        });
+        })
+        .filter((file): file is DiffFile => file.path !== '');
 
       const totals = files.reduce(
         (acc, file) => {
@@ -523,12 +528,12 @@ export class WorktreeService {
     });
 
     return ok(
-      list.map((worktree) => ({
-        id: worktree.id,
-        branch: worktree.branch,
-        status: worktree.status,
-        path: worktree.path,
-        updatedAt: worktree.updatedAt,
+      list.map((wt: Worktree) => ({
+        id: wt.id,
+        branch: wt.branch,
+        status: wt.status,
+        path: wt.path,
+        updatedAt: wt.updatedAt,
       }))
     );
   }

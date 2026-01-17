@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/db/client';
+import { withErrorHandling } from '@/lib/api/middleware';
+import { failure, success } from '@/lib/api/response';
+import { updateProjectSchema } from '@/lib/api/schemas';
+import { parseBody } from '@/lib/api/validation';
+import { ValidationErrors } from '@/lib/errors/validation-errors';
 import { ProjectService } from '@/services/project.service';
 import { WorktreeService } from '@/services/worktree.service';
-import { failure, success } from '@/lib/api/response';
-import { withErrorHandling } from '@/lib/api/middleware';
-import { parseBody } from '@/lib/api/validation';
-import { updateProjectSchema } from '@/lib/api/schemas';
-import { ValidationErrors } from '@/lib/errors/validation-errors';
 
 const worktreeService = new WorktreeService(db, {
   exec: async () => ({ stdout: '', stderr: '' }),

@@ -54,7 +54,7 @@ export const VALID_EVENTS = [
 
 // String Utilities
 export const truncate = (s: string, max = 500): string =>
-  s.length > max ? s.slice(0, max - 3) + '...' : s;
+  s.length > max ? `${s.slice(0, max - 3)}...` : s;
 
 export function stringify(v: unknown): string {
   if (typeof v === 'string') return truncate(v);
@@ -197,7 +197,7 @@ function execGitCommand(args: string[], cwd: string): string | null {
  */
 function extractRepoName(remoteUrl: string): string {
   // Remove trailing .git
-  let url = remoteUrl.replace(/\.git$/, '');
+  const url = remoteUrl.replace(/\.git$/, '');
 
   // Handle SSH format: git@github.com:owner/repo
   const sshMatch = url.match(/[:/]([^/:]+\/[^/:]+)$/);

@@ -3,8 +3,8 @@
  * Tests are written FIRST, then implementation follows.
  */
 
-import { describe, it, expect } from 'vitest';
-import { greet, delay, VERSION } from './index.js';
+import { describe, expect, it } from 'vitest';
+import { delay, greet, VERSION } from './index.js';
 
 describe('index', () => {
   describe('VERSION', () => {

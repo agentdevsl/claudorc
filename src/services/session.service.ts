@@ -1,15 +1,16 @@
 import { createId } from '@paralleldrive/cuid2';
 import { desc, eq } from 'drizzle-orm';
-import { err, ok } from '../lib/utils/result.js';
-import type { Result } from '../lib/utils/result.js';
-import { SessionErrors } from '../lib/errors/session-errors.js';
-import { ProjectErrors } from '../lib/errors/project-errors.js';
-import { ValidationErrors } from '../lib/errors/validation-errors.js';
-import type { SessionError } from '../lib/errors/session-errors.js';
-import type { Database } from '../types/database.js';
-import { sessions } from '../db/schema/sessions.js';
 import { projects } from '../db/schema/projects.js';
+import type { Session } from '../db/schema/sessions.js';
+import { sessions } from '../db/schema/sessions.js';
+import { ProjectErrors } from '../lib/errors/project-errors.js';
+import type { SessionError } from '../lib/errors/session-errors.js';
+import { SessionErrors } from '../lib/errors/session-errors.js';
+import { ValidationErrors } from '../lib/errors/validation-errors.js';
 import { sessionSchema } from '../lib/integrations/durable-streams/schema.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
+import type { Database } from '../types/database.js';
 
 export type SessionEventType =
   | 'chunk'
@@ -156,9 +157,9 @@ export class SessionService {
     });
 
     return ok(
-      items.map((session) => ({
-        ...session,
-        presence: Array.from(presenceStore.get(session.id)?.values() ?? []),
+      items.map((s: Session) => ({
+        ...s,
+        presence: Array.from(presenceStore.get(s.id)?.values() ?? []),
       }))
     );
   }
@@ -336,10 +337,11 @@ export class SessionService {
     try {
       const parsed = new URL(url);
       const match = parsed.pathname.match(/\/sessions\/([a-z0-9]+)$/i);
-      if (!match) {
+      const sessionId = match?.[1];
+      if (!sessionId) {
         return err(ValidationErrors.INVALID_URL(url));
       }
-      return ok(match[1]);
+      return ok(sessionId);
     } catch {
       return err(ValidationErrors.INVALID_URL(url));
     }

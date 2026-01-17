@@ -6,7 +6,7 @@
  * confusing module resolution errors.
  */
 
-console.error('\n\x1b[33m⚠️  This project uses Vitest, not Bun\'s test runner.\x1b[0m\n');
+console.error("\n\x1b[33m⚠️  This project uses Vitest, not Bun's test runner.\x1b[0m\n");
 console.error('Run tests with:\n');
 console.error('  \x1b[36mbun run test\x1b[0m        # single run');
 console.error('  \x1b[36mbun run test:watch\x1b[0m  # watch mode');

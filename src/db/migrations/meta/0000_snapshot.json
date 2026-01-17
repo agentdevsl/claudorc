@@ -79,9 +79,7 @@
         "projects_path_unique": {
           "name": "projects_path_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "path"
-          ]
+          "columns": ["path"]
         }
       },
       "policies": {},
@@ -226,12 +224,8 @@
           "name": "tasks_project_id_projects_id_fk",
           "tableFrom": "tasks",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -239,12 +233,8 @@
           "name": "tasks_agent_id_agents_id_fk",
           "tableFrom": "tasks",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -252,12 +242,8 @@
           "name": "tasks_session_id_sessions_id_fk",
           "tableFrom": "tasks",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -265,12 +251,8 @@
           "name": "tasks_worktree_id_worktrees_id_fk",
           "tableFrom": "tasks",
           "tableTo": "worktrees",
-          "columnsFrom": [
-            "worktree_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["worktree_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -365,12 +347,8 @@
           "name": "agents_project_id_projects_id_fk",
           "tableFrom": "agents",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -462,12 +440,8 @@
           "name": "agent_runs_agent_id_agents_id_fk",
           "tableFrom": "agent_runs",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -475,12 +449,8 @@
           "name": "agent_runs_task_id_tasks_id_fk",
           "tableFrom": "agent_runs",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -488,12 +458,8 @@
           "name": "agent_runs_project_id_projects_id_fk",
           "tableFrom": "agent_runs",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -501,12 +467,8 @@
           "name": "agent_runs_session_id_sessions_id_fk",
           "tableFrom": "agent_runs",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -585,12 +547,8 @@
           "name": "sessions_project_id_projects_id_fk",
           "tableFrom": "sessions",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -598,12 +556,8 @@
           "name": "sessions_task_id_tasks_id_fk",
           "tableFrom": "sessions",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -611,12 +565,8 @@
           "name": "sessions_agent_id_agents_id_fk",
           "tableFrom": "sessions",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -709,12 +659,8 @@
           "name": "worktrees_project_id_projects_id_fk",
           "tableFrom": "worktrees",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -722,12 +668,8 @@
           "name": "worktrees_task_id_tasks_id_fk",
           "tableFrom": "worktrees",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -829,12 +771,8 @@
           "name": "audit_logs_agent_id_agents_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -842,12 +780,8 @@
           "name": "audit_logs_agent_run_id_agent_runs_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "agent_runs",
-          "columnsFrom": [
-            "agent_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -855,12 +789,8 @@
           "name": "audit_logs_task_id_tasks_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -868,12 +798,8 @@
           "name": "audit_logs_project_id_projects_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -941,9 +867,7 @@
         "github_installations_installation_id_unique": {
           "name": "github_installations_installation_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "installation_id"
-          ]
+          "columns": ["installation_id"]
         }
       },
       "policies": {},
@@ -1011,12 +935,8 @@
           "name": "repository_configs_installation_id_github_installations_id_fk",
           "tableFrom": "repository_configs",
           "tableTo": "github_installations",
-          "columnsFrom": [
-            "installation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["installation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1032,68 +952,32 @@
     "public.agent_status": {
       "name": "agent_status",
       "schema": "public",
-      "values": [
-        "idle",
-        "starting",
-        "running",
-        "paused",
-        "error",
-        "completed"
-      ]
+      "values": ["idle", "starting", "running", "paused", "error", "completed"]
     },
     "public.agent_type": {
       "name": "agent_type",
       "schema": "public",
-      "values": [
-        "task",
-        "conversational",
-        "background"
-      ]
+      "values": ["task", "conversational", "background"]
     },
     "public.session_status": {
       "name": "session_status",
       "schema": "public",
-      "values": [
-        "idle",
-        "initializing",
-        "active",
-        "paused",
-        "closing",
-        "closed",
-        "error"
-      ]
+      "values": ["idle", "initializing", "active", "paused", "closing", "closed", "error"]
     },
     "public.task_column": {
       "name": "task_column",
       "schema": "public",
-      "values": [
-        "backlog",
-        "in_progress",
-        "waiting_approval",
-        "verified"
-      ]
+      "values": ["backlog", "in_progress", "waiting_approval", "verified"]
     },
     "public.tool_status": {
       "name": "tool_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "running",
-        "complete",
-        "error"
-      ]
+      "values": ["pending", "running", "complete", "error"]
     },
     "public.worktree_status": {
       "name": "worktree_status",
       "schema": "public",
-      "values": [
-        "creating",
-        "active",
-        "merging",
-        "removing",
-        "removed",
-        "error"
-      ]
+      "values": ["creating", "active", "merging", "removing", "removed", "error"]
     }
   },
   "schemas": {},

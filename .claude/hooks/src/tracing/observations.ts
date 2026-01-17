@@ -3,23 +3,29 @@
  * Uses the v4 SDK with asType support for proper observation types (agent, tool, generation).
  */
 
+import { createHash } from 'node:crypto';
 import {
-  startObservation,
-  type LangfuseSpan,
   type LangfuseAgent,
-  type LangfuseTool,
   type LangfuseGeneration,
+  type LangfuseSpan,
+  type LangfuseTool,
+  startObservation,
 } from '@langfuse/tracing';
-import { context, trace, SpanContext, TraceFlags, ROOT_CONTEXT } from '@opentelemetry/api';
+import {
+  context,
+  ROOT_CONTEXT,
+  type SpanContext,
+  type TraceFlags,
+  trace,
+} from '@opentelemetry/api';
 import type {
+  ObservationLevel,
   SessionContext,
+  SessionMetrics,
+  TokenUsage,
   ToolContext,
   ToolResult,
-  SessionMetrics,
-  ObservationLevel,
-  TokenUsage,
 } from './types.js';
-import { createHash } from 'crypto';
 
 /**
  * Create a W3C traceparent string from trace and span IDs.
@@ -972,7 +978,7 @@ export function formatStatusMessage(result: ToolResult, toolName?: string): stri
   if (result.error) {
     const maxLen = 100;
     const truncated =
-      result.error.length > maxLen ? result.error.substring(0, maxLen) + '...' : result.error;
+      result.error.length > maxLen ? `${result.error.substring(0, maxLen)}...` : result.error;
     parts.push(`- ${truncated}`);
   }
 

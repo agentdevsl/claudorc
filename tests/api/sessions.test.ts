@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, err } from '@/lib/utils/result';
-import { SessionErrors } from '@/lib/errors/session-errors';
-import { ProjectErrors } from '@/lib/errors/project-errors';
 import type { Session } from '@/db/schema/sessions';
+import { ProjectErrors } from '@/lib/errors/project-errors';
+import { SessionErrors } from '@/lib/errors/session-errors';
+import { err, ok } from '@/lib/utils/result';
 
 const sessionServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -32,8 +32,8 @@ vi.mock('@/db/client', () => ({ db: {} }));
 import { Route as SessionsRoute } from '@/app/routes/api/sessions';
 import { Route as SessionRoute } from '@/app/routes/api/sessions/$id';
 import { Route as SessionCloseRoute } from '@/app/routes/api/sessions/$id/close';
-import { Route as SessionPresenceRoute } from '@/app/routes/api/sessions/$id/presence';
 import { Route as SessionHistoryRoute } from '@/app/routes/api/sessions/$id/history';
+import { Route as SessionPresenceRoute } from '@/app/routes/api/sessions/$id/presence';
 
 const sampleSession: Session = {
   id: 'session-1',

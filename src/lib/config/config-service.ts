@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok } from '../utils/result.js';
-import type { Result } from '../utils/result.js';
+import { createError } from '../errors/base.js';
 import { deepMerge } from '../utils/deep-merge.js';
+import type { Result } from '../utils/result.js';
+import { err, ok } from '../utils/result.js';
 import { projectConfigSchema } from './schemas.js';
 import { DEFAULT_PROJECT_CONFIG, type ProjectConfig } from './types.js';
 import { containsSecrets } from './validate-secrets.js';
-import { createError } from '../errors/base.js';
 
 export type ProjectConfigResult = Result<ProjectConfig, ReturnType<typeof createError>>;
 

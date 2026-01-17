@@ -1,5 +1,5 @@
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from '@phosphor-icons/react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { forwardRef } from 'react';
 import { cn } from '@/lib/utils/cn';
 
@@ -44,16 +44,24 @@ export const DialogContent = forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />
-);
+export function DialogHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
+  return <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />;
+}
 
-export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
-    {...props}
-  />
-);
+export function DialogFooter({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
+  return (
+    <div
+      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+      {...props}
+    />
+  );
+}
 
 export const DialogTitle = forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,

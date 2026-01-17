@@ -5,13 +5,13 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  truncate,
-  stringify,
-  isValidEvent,
   analyzeToolResult,
+  type ClaudeCodeEvent,
   getSubagentInfo,
   isSubagentTool,
-  type ClaudeCodeEvent,
+  isValidEvent,
+  stringify,
+  truncate,
 } from './utils.js';
 
 // Realistic test fixtures matching Claude Code events
@@ -365,17 +365,17 @@ describe('getSubagentInfo', () => {
   it('extracts Explore subagent info', () => {
     const info = getSubagentInfo(fixtures.subagentExplore.tool_input);
     expect(info).not.toBeNull();
-    expect(info!.type).toBe('Explore');
-    expect(info!.description).toBe('Find auth handlers');
-    expect(info!.model).toBe('sonnet');
-    expect(info!.prompt_preview).toContain('Search the codebase');
+    expect(info?.type).toBe('Explore');
+    expect(info?.description).toBe('Find auth handlers');
+    expect(info?.model).toBe('sonnet');
+    expect(info?.prompt_preview).toContain('Search the codebase');
   });
 
   it('extracts code-reviewer subagent info', () => {
     const info = getSubagentInfo(fixtures.subagentCodeReview.tool_input);
     expect(info).not.toBeNull();
-    expect(info!.type).toBe('pr-review-toolkit:code-reviewer');
-    expect(info!.description).toBe('Review recent changes');
+    expect(info?.type).toBe('pr-review-toolkit:code-reviewer');
+    expect(info?.description).toBe('Review recent changes');
   });
 
   it('truncates long prompts to 200 chars', () => {
@@ -384,8 +384,8 @@ describe('getSubagentInfo', () => {
       subagent_type: 'Explore',
       prompt: longPrompt,
     });
-    expect(info!.prompt_preview.length).toBeLessThanOrEqual(200);
-    expect(info!.prompt_preview.endsWith('...')).toBe(true);
+    expect(info?.prompt_preview.length).toBeLessThanOrEqual(200);
+    expect(info?.prompt_preview.endsWith('...')).toBe(true);
   });
 
   it('returns null for non-Task tool input', () => {
@@ -406,10 +406,10 @@ describe('getSubagentInfo', () => {
   it('handles missing optional fields', () => {
     const info = getSubagentInfo({ subagent_type: 'Explore' });
     expect(info).not.toBeNull();
-    expect(info!.type).toBe('Explore');
-    expect(info!.description).toBe('');
-    expect(info!.model).toBeUndefined();
-    expect(info!.prompt_preview).toBe('');
+    expect(info?.type).toBe('Explore');
+    expect(info?.description).toBe('');
+    expect(info?.model).toBeUndefined();
+    expect(info?.prompt_preview).toBe('');
   });
 });
 
@@ -812,42 +812,42 @@ describe('Subagent Scenarios', () => {
     it('extracts Explore subagent info correctly', () => {
       const info = getSubagentInfo(subagentFixtures.exploreSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('Explore');
-      expect(info!.description).toBe('Find authentication code');
-      expect(info!.model).toBe('haiku');
-      expect(info!.prompt_preview).toContain('authentication');
+      expect(info?.type).toBe('Explore');
+      expect(info?.description).toBe('Find authentication code');
+      expect(info?.model).toBe('haiku');
+      expect(info?.prompt_preview).toContain('authentication');
     });
 
     it('extracts Plan subagent info correctly', () => {
       const info = getSubagentInfo(subagentFixtures.planSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('Plan');
-      expect(info!.model).toBe('sonnet');
+      expect(info?.type).toBe('Plan');
+      expect(info?.model).toBe('sonnet');
     });
 
     it('extracts namespaced subagent types (pr-review-toolkit:code-reviewer)', () => {
       const info = getSubagentInfo(subagentFixtures.codeReviewerSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('pr-review-toolkit:code-reviewer');
+      expect(info?.type).toBe('pr-review-toolkit:code-reviewer');
     });
 
     it('extracts namespaced subagent types (feature-dev:code-architect)', () => {
       const info = getSubagentInfo(subagentFixtures.featureArchitectSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('feature-dev:code-architect');
-      expect(info!.model).toBe('opus');
+      expect(info?.type).toBe('feature-dev:code-architect');
+      expect(info?.model).toBe('opus');
     });
 
     it('extracts speckit subagent types', () => {
       const info = getSubagentInfo(subagentFixtures.speckitSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('speckit.implement');
+      expect(info?.type).toBe('speckit.implement');
     });
 
     it('extracts general-purpose subagent info', () => {
       const info = getSubagentInfo(subagentFixtures.generalPurposeSubagent.tool_input);
       expect(info).not.toBeNull();
-      expect(info!.type).toBe('general-purpose');
+      expect(info?.type).toBe('general-purpose');
     });
   });
 
@@ -1164,7 +1164,7 @@ describe('Combined Multi-Tool and Subagent Workflows', () => {
       const info = getSubagentInfo(event.tool_input);
       if (event.tool_name === 'Task') {
         expect(info).not.toBeNull();
-        expect(info!.type).toBeDefined();
+        expect(info?.type).toBeDefined();
       } else {
         // Regular tools may return null or have no subagent_type
         if (info !== null) {

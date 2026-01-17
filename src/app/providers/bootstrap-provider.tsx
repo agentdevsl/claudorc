@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react';
-import type { AppError } from '../../lib/errors/base.js';
 import { useBootstrap } from '../../lib/bootstrap/hooks.js';
-import type { BootstrapContext } from '../../lib/bootstrap/types.js';
+import type { BootstrapContext as BootstrapContextType } from '../../lib/bootstrap/types.js';
+import type { AppError } from '../../lib/errors/base.js';
 
-const BootstrapContext = createContext<BootstrapContext | null>(null);
+const BootstrapContext = createContext<BootstrapContextType | null>(null);
 
 export const BootstrapProvider = ({ children }: { children: React.ReactNode }) => {
   const { state, context, retry } = useBootstrap();

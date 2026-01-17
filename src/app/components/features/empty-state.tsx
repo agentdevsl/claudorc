@@ -1,14 +1,14 @@
-import { type VariantProps, cva } from 'class-variance-authority';
 import {
-  WarningTriangle,
-  WifiSlash,
-  RocketLaunch,
+  ChatCircleText,
   FolderSimple,
   ListChecks,
-  Robot,
-  ChatCircleText,
   MagnifyingGlass,
+  Robot,
+  RocketLaunch,
+  WarningTriangle,
+  WifiSlash,
 } from '@phosphor-icons/react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/lib/utils/cn';
 
@@ -105,8 +105,8 @@ export function EmptyState({
   action,
   size,
   className,
-}: EmptyStateProps) {
-  const presetConfig = preset ? PRESETS[preset] : null;
+}: EmptyStateProps): React.JSX.Element {
+  const presetConfig = preset ? PRESETS[preset] : undefined;
   const Icon = icon ?? presetConfig?.icon ?? FolderSimple;
   const displayTitle = title ?? presetConfig?.title ?? 'Nothing here';
   const displaySubtitle = subtitle ?? presetConfig?.subtitle ?? '';

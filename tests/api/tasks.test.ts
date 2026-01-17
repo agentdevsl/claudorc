@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, err } from '@/lib/utils/result';
-import { TaskErrors } from '@/lib/errors/task-errors';
-import { ProjectErrors } from '@/lib/errors/project-errors';
 import type { Task } from '@/db/schema/tasks';
+import { ProjectErrors } from '@/lib/errors/project-errors';
+import { TaskErrors } from '@/lib/errors/task-errors';
+import { err, ok } from '@/lib/utils/result';
 
 const taskServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -34,9 +34,8 @@ vi.mock('@/db/client', () => ({ db: {} }));
 
 import { Route as TasksRoute } from '@/app/routes/api/tasks';
 import { Route as TaskRoute } from '@/app/routes/api/tasks/$id';
-
-import { Route as TaskMoveRoute } from '@/app/routes/api/tasks/$id/move';
 import { Route as TaskApproveRoute } from '@/app/routes/api/tasks/$id/approve';
+import { Route as TaskMoveRoute } from '@/app/routes/api/tasks/$id/move';
 import { Route as TaskRejectRoute } from '@/app/routes/api/tasks/$id/reject';
 
 const sampleTask: Task = {

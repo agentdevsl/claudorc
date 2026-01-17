@@ -87,8 +87,6 @@
     ]
   },
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "XcodeBuildMCP"
-  ],
+  "enabledMcpjsonServers": ["XcodeBuildMCP"],
   "disableAllHooks": true
 }

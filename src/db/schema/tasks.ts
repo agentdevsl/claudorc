@@ -1,8 +1,9 @@
 import { createId } from '@paralleldrive/cuid2';
 import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { DiffSummary } from '../../lib/types/diff.js';
-import { taskColumnEnum } from './enums';
 import { agents } from './agents';
+import { taskColumnEnum } from './enums';
+export type { TaskColumn } from './enums';
 import { projects } from './projects';
 import { sessions } from './sessions';
 import { worktrees } from './worktrees';

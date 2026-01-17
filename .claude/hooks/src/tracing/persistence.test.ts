@@ -2,23 +2,23 @@
  * Tests for persistence module - cross-process span linking
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  loadSpanState,
-  saveSpanState,
-  deleteSpanState,
   cleanupOldStates,
-  registerActiveSpan,
-  popActiveSpan,
+  deleteSpanState,
   getSessionInfo,
-  initSession,
   getToolChainContext,
-  updateToolChainState,
-  resetToolChainState,
+  initSession,
+  loadSpanState,
   type PersistedSpanState,
+  popActiveSpan,
+  registerActiveSpan,
+  resetToolChainState,
+  saveSpanState,
+  updateToolChainState,
 } from './persistence.js';
 
 const PERSISTENCE_DIR = join(tmpdir(), 'langfuse-claude-code');
@@ -72,9 +72,9 @@ describe('Persistence Module', () => {
       const loaded = loadSpanState(sessionId);
 
       expect(loaded).not.toBeNull();
-      expect(loaded!.traceId).toBe('trace-123');
-      expect(loaded!.sessionSpanId).toBe('span-456');
-      expect(loaded!.activeSpans['tool-1'].spanId).toBe('span-tool-1');
+      expect(loaded?.traceId).toBe('trace-123');
+      expect(loaded?.sessionSpanId).toBe('span-456');
+      expect(loaded?.activeSpans['tool-1'].spanId).toBe('span-tool-1');
     });
 
     it('handles special characters in session ID', () => {
@@ -90,7 +90,7 @@ describe('Persistence Module', () => {
       const loaded = loadSpanState(sessionId);
 
       expect(loaded).not.toBeNull();
-      expect(loaded!.traceId).toBe('trace-special');
+      expect(loaded?.traceId).toBe('trace-special');
     });
   });
 
@@ -134,10 +134,10 @@ describe('Persistence Module', () => {
       const popped = popActiveSpan(sessionId, toolUseId);
 
       expect(popped).not.toBeNull();
-      expect(popped!.spanId).toBe('span-id-001');
-      expect(popped!.traceId).toBe('trace-id-001');
-      expect(popped!.sessionSpanId).toBe('session-span-001');
-      expect(popped!.startTime).toBeLessThanOrEqual(Date.now());
+      expect(popped?.spanId).toBe('span-id-001');
+      expect(popped?.traceId).toBe('trace-id-001');
+      expect(popped?.sessionSpanId).toBe('session-span-001');
+      expect(popped?.startTime).toBeLessThanOrEqual(Date.now());
 
       // Pop again should return null
       const poppedAgain = popActiveSpan(sessionId, toolUseId);
@@ -169,13 +169,13 @@ describe('Persistence Module', () => {
 
       // Pop in different order
       const pop2 = popActiveSpan(sessionId, 'tool-2');
-      expect(pop2!.spanId).toBe('span-2');
+      expect(pop2?.spanId).toBe('span-2');
 
       const pop1 = popActiveSpan(sessionId, 'tool-1');
-      expect(pop1!.spanId).toBe('span-1');
+      expect(pop1?.spanId).toBe('span-1');
 
       const pop3 = popActiveSpan(sessionId, 'tool-3');
-      expect(pop3!.spanId).toBe('span-3');
+      expect(pop3?.spanId).toBe('span-3');
     });
 
     it('returns null for non-existent tool use id', () => {
@@ -205,8 +205,8 @@ describe('Persistence Module', () => {
 
       const info = getSessionInfo(sessionId);
       expect(info).not.toBeNull();
-      expect(info!.traceId).toBe('trace-init');
-      expect(info!.sessionSpanId).toBe('session-span-init');
+      expect(info?.traceId).toBe('trace-init');
+      expect(info?.sessionSpanId).toBe('session-span-init');
     });
 
     it('does not overwrite existing session', () => {
@@ -217,8 +217,8 @@ describe('Persistence Module', () => {
 
       const info = getSessionInfo(sessionId);
       expect(info).not.toBeNull();
-      expect(info!.traceId).toBe('trace-first');
-      expect(info!.sessionSpanId).toBe('session-first');
+      expect(info?.traceId).toBe('trace-first');
+      expect(info?.sessionSpanId).toBe('session-first');
     });
 
     it('returns null for non-existent session', () => {
@@ -295,20 +295,20 @@ describe('Persistence Module', () => {
       // Get session info (from file)
       const sessionInfo = getSessionInfo(sessionId);
       expect(sessionInfo).not.toBeNull();
-      expect(sessionInfo!.traceId).toBe(traceId);
-      expect(sessionInfo!.sessionSpanId).toBe(sessionSpanId);
+      expect(sessionInfo?.traceId).toBe(traceId);
+      expect(sessionInfo?.sessionSpanId).toBe(sessionSpanId);
 
       // Pop active span (from file)
       const spanInfo = popActiveSpan(sessionId, toolUseId);
       expect(spanInfo).not.toBeNull();
-      expect(spanInfo!.spanId).toBe(observationId);
-      expect(spanInfo!.traceId).toBe(traceId);
-      expect(spanInfo!.sessionSpanId).toBe(sessionSpanId);
-      expect(spanInfo!.startTime).toBeLessThanOrEqual(Date.now());
-      expect(spanInfo!.startTime).toBeGreaterThanOrEqual(startTime - 100); // Allow small time diff
+      expect(spanInfo?.spanId).toBe(observationId);
+      expect(spanInfo?.traceId).toBe(traceId);
+      expect(spanInfo?.sessionSpanId).toBe(sessionSpanId);
+      expect(spanInfo?.startTime).toBeLessThanOrEqual(Date.now());
+      expect(spanInfo?.startTime).toBeGreaterThanOrEqual(startTime - 100); // Allow small time diff
 
       // Calculate duration
-      const durationMs = Date.now() - spanInfo!.startTime;
+      const durationMs = Date.now() - spanInfo?.startTime;
       expect(durationMs).toBeGreaterThanOrEqual(0);
       expect(durationMs).toBeLessThan(1000); // Should be quick in test
     });
@@ -341,13 +341,13 @@ describe('Persistence Module', () => {
 
       // === Process 2: PostToolUse for tool-2 ===
       const span2 = popActiveSpan(sessionId, 'tool-2');
-      expect(span2!.spanId).toBe('span-2');
+      expect(span2?.spanId).toBe('span-2');
 
       // === Process 3: PostToolUse for tool-1 and tool-3 ===
       const span1 = popActiveSpan(sessionId, 'tool-1');
       const span3 = popActiveSpan(sessionId, 'tool-3');
-      expect(span1!.spanId).toBe('span-1');
-      expect(span3!.spanId).toBe('span-3');
+      expect(span1?.spanId).toBe('span-1');
+      expect(span3?.spanId).toBe('span-3');
 
       // All spans consumed
       expect(popActiveSpan(sessionId, 'tool-1')).toBeNull();
@@ -389,9 +389,9 @@ describe('Persistence Module', () => {
 
         const context = getToolChainContext(sessionId);
         expect(context).not.toBeUndefined();
-        expect(context!.position).toBe(1);
-        expect(context!.precedingTool).toBeUndefined();
-        expect(context!.precedingSuccess).toBeUndefined();
+        expect(context?.position).toBe(1);
+        expect(context?.precedingTool).toBeUndefined();
+        expect(context?.precedingSuccess).toBeUndefined();
       });
 
       it('returns correct position after first tool', () => {
@@ -403,9 +403,9 @@ describe('Persistence Module', () => {
 
         // Check context for second tool
         const context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(2);
-        expect(context!.precedingTool).toBe('Bash');
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.position).toBe(2);
+        expect(context?.precedingTool).toBe('Bash');
+        expect(context?.precedingSuccess).toBe(true);
       });
 
       it('returns correct position after multiple tools', () => {
@@ -419,9 +419,9 @@ describe('Persistence Module', () => {
 
         // Check context for fourth tool
         const context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(4);
-        expect(context!.precedingTool).toBe('Bash');
-        expect(context!.precedingSuccess).toBe(false);
+        expect(context?.position).toBe(4);
+        expect(context?.precedingTool).toBe('Bash');
+        expect(context?.precedingSuccess).toBe(false);
       });
     });
 
@@ -433,15 +433,15 @@ describe('Persistence Module', () => {
         // Position starts at 0 internally
         updateToolChainState(sessionId, 'Tool1', true);
         let context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(2); // 1 (chain position) + 1
+        expect(context?.position).toBe(2); // 1 (chain position) + 1
 
         updateToolChainState(sessionId, 'Tool2', false);
         context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(3);
+        expect(context?.position).toBe(3);
 
         updateToolChainState(sessionId, 'Tool3', true);
         context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(4);
+        expect(context?.position).toBe(4);
       });
 
       it('preserves preceding tool info across calls', () => {
@@ -451,20 +451,20 @@ describe('Persistence Module', () => {
         // First tool: successful Read
         updateToolChainState(sessionId, 'Read', true);
         let context = getToolChainContext(sessionId);
-        expect(context!.precedingTool).toBe('Read');
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.precedingTool).toBe('Read');
+        expect(context?.precedingSuccess).toBe(true);
 
         // Second tool: failed Bash
         updateToolChainState(sessionId, 'Bash', false);
         context = getToolChainContext(sessionId);
-        expect(context!.precedingTool).toBe('Bash');
-        expect(context!.precedingSuccess).toBe(false);
+        expect(context?.precedingTool).toBe('Bash');
+        expect(context?.precedingSuccess).toBe(false);
 
         // Third tool: successful Write
         updateToolChainState(sessionId, 'Write', true);
         context = getToolChainContext(sessionId);
-        expect(context!.precedingTool).toBe('Write');
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.precedingTool).toBe('Write');
+        expect(context?.precedingSuccess).toBe(true);
       });
 
       it('handles non-existent session gracefully', () => {
@@ -485,17 +485,17 @@ describe('Persistence Module', () => {
 
         // Verify we have accumulated state
         let context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(4);
-        expect(context!.precedingTool).toBe('Tool3');
+        expect(context?.position).toBe(4);
+        expect(context?.precedingTool).toBe('Tool3');
 
         // Reset
         resetToolChainState(sessionId);
 
         // Verify reset to initial state
         context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(1);
-        expect(context!.precedingTool).toBeUndefined();
-        expect(context!.precedingSuccess).toBeUndefined();
+        expect(context?.position).toBe(1);
+        expect(context?.precedingTool).toBeUndefined();
+        expect(context?.precedingSuccess).toBeUndefined();
       });
 
       it('handles non-existent session gracefully', () => {
@@ -516,14 +516,14 @@ describe('Persistence Module', () => {
 
         // New chain starts fresh
         let context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(1);
+        expect(context?.position).toBe(1);
 
         // Continue with new chain
         updateToolChainState(sessionId, 'NewTool1', false);
         context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(2);
-        expect(context!.precedingTool).toBe('NewTool1');
-        expect(context!.precedingSuccess).toBe(false);
+        expect(context?.position).toBe(2);
+        expect(context?.precedingTool).toBe('NewTool1');
+        expect(context?.precedingSuccess).toBe(false);
       });
     });
 
@@ -537,10 +537,10 @@ describe('Persistence Module', () => {
 
         // Next tool can check if preceding failed
         const context = getToolChainContext(sessionId);
-        expect(context!.precedingSuccess).toBe(false);
+        expect(context?.precedingSuccess).toBe(false);
 
         // This can be used to mark as cascade failure
-        const isCascade = context!.precedingSuccess === false;
+        const isCascade = context?.precedingSuccess === false;
         expect(isCascade).toBe(true);
       });
 
@@ -553,9 +553,9 @@ describe('Persistence Module', () => {
 
         // Next tool can check if preceding succeeded
         const context = getToolChainContext(sessionId);
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.precedingSuccess).toBe(true);
 
-        const isCascade = context!.precedingSuccess === false;
+        const isCascade = context?.precedingSuccess === false;
         expect(isCascade).toBe(false);
       });
     });
@@ -570,18 +570,18 @@ describe('Persistence Module', () => {
 
         // === Process 2: Second tool starts ===
         let context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(2);
-        expect(context!.precedingTool).toBe('Read');
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.position).toBe(2);
+        expect(context?.precedingTool).toBe('Read');
+        expect(context?.precedingSuccess).toBe(true);
 
         // Second tool completes
         updateToolChainState(sessionId, 'Edit', true);
 
         // === Process 3: Third tool starts ===
         context = getToolChainContext(sessionId);
-        expect(context!.position).toBe(3);
-        expect(context!.precedingTool).toBe('Edit');
-        expect(context!.precedingSuccess).toBe(true);
+        expect(context?.position).toBe(3);
+        expect(context?.precedingTool).toBe('Edit');
+        expect(context?.precedingSuccess).toBe(true);
       });
     });
   });

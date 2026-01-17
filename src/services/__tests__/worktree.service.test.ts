@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { WorktreeService } from '../worktree.service.js';
 import { WorktreeErrors } from '../../lib/errors/worktree-errors.js';
+import { WorktreeService } from '../worktree.service.js';
 
 const createDbMock = () => ({
   query: {

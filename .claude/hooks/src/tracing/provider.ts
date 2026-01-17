@@ -3,10 +3,10 @@
  * Initializes OpenTelemetry with LangfuseSpanProcessor for proper observation types.
  */
 
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { LangfuseClient } from '@langfuse/client';
 import { LangfuseSpanProcessor } from '@langfuse/otel';
 import { setLangfuseTracerProvider } from '@langfuse/tracing';
-import { LangfuseClient } from '@langfuse/client';
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import type { TracingConfig } from './types.js';
 
 // Module-level state
