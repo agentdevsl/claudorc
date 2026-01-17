@@ -40,5 +40,5 @@ export const withErrorHandling =
 
 export const logRequest = async (request: Request, context: ApiContext): Promise<void> => {
   const duration = Date.now() - context.startedAt;
-  console.info(`[api] ${request.method} ${request.url} (${duration}ms)`);
+  console.log(`[api] ${request.method} ${request.url} (${duration}ms)`);
 };

@@ -1,11 +1,11 @@
 import { err, ok } from '../utils/result.js';
 import type { Result } from '../utils/result.js';
 import { ValidationErrors } from '../errors/validation-errors.js';
-import type { ZodSchema } from 'zod';
+import type { z } from 'zod';
 
 export const parseBody = async <T>(
   request: Request,
-  schema: ZodSchema<T>
+  schema: z.ZodType<T>
 ): Promise<Result<T, ReturnType<typeof ValidationErrors.VALIDATION_ERROR>>> => {
   try {
     const body = await request.json();
@@ -21,7 +21,7 @@ export const parseBody = async <T>(
 
 export const parseQuery = <T>(
   params: URLSearchParams,
-  schema: ZodSchema<T>
+  schema: z.ZodType<T>
 ): Result<T, ReturnType<typeof ValidationErrors.VALIDATION_ERROR>> => {
   const raw = Object.fromEntries(params.entries());
   const parsed = schema.safeParse(raw);

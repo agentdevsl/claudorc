@@ -1,7 +1,6 @@
-import type { ZodIssue } from 'zod';
 import { createError } from './base.js';
 
-type ValidationIssue = Pick<ZodIssue, 'path' | 'message'>;
+type ValidationIssue = { path: (string | number)[]; message: string };
 
 export const ValidationErrors = {
   VALIDATION_ERROR: (errors: ValidationIssue[]) =>
