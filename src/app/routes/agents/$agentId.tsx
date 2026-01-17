@@ -1,28 +1,44 @@
-import { Gear } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { AgentConfigDialog } from "@/app/components/features/agent-config-dialog";
-import { Button } from "@/app/components/ui/button";
-import { useServices } from "@/app/services/service-context";
-import type { Agent, AgentConfig } from "@/db/schema/agents";
+import { Gear } from '@phosphor-icons/react';
+import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { AgentConfigDialog } from '@/app/components/features/agent-config-dialog';
+import { Button } from '@/app/components/ui/button';
+import { useServices } from '@/app/services/service-context';
+import type { Agent, AgentConfig } from '@/db/schema/agents';
 
-export const Route = createFileRoute("/agents/$agentId")({
+export const Route = createFileRoute('/agents/$agentId')({
   loader: async () => ({ agent: null as Agent | null }),
   component: AgentDetailPage,
 });
 
 function AgentDetailPage(): React.JSX.Element {
-  const { agent } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const { agentService } = useServices();
+  const { agentId } = Route.useParams();
+  const [agent, setAgent] = useState<Agent | null>(loaderData.agent ?? null);
   const [showConfig, setShowConfig] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const result = await agentService.getById(agentId);
+      if (result.ok) {
+        setAgent(result.value);
+      }
+    };
+
+    void load();
+  }, [agentId, agentService]);
+
+  if (!agent) {
+    return <div className="p-6 text-sm text-fg-muted">Agent not found.</div>;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-fg-muted">Agent</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">
-            {agent.name}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{agent.name}</h1>
           <p className="text-sm text-fg-muted capitalize">{agent.type}</p>
         </div>
         <Button variant="outline" onClick={() => setShowConfig(true)}>
@@ -39,9 +55,7 @@ function AgentDetailPage(): React.JSX.Element {
           </div>
           <div className="text-right">
             <p className="text-sm font-medium text-fg">Current task</p>
-            <p className="text-xs text-fg-muted">
-              {agent.currentTaskId ?? "None"}
-            </p>
+            <p className="text-xs text-fg-muted">{agent.currentTaskId ?? 'None'}</p>
           </div>
         </div>
       </section>
