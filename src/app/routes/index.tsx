@@ -1,9 +1,8 @@
 import { FolderSimple, Gauge, Lightning } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ProjectPicker } from "@/app/components/features/project-picker";
 import { Button } from "@/app/components/ui/button";
-import { useServices } from "@/app/services/service-context";
 import type { Project } from "@/db/schema/projects";
 
 export const Route = createFileRoute("/")({
