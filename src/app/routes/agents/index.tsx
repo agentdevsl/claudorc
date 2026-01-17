@@ -49,7 +49,9 @@ function AgentsPage(): React.JSX.Element {
                 <p className="text-sm font-semibold text-fg">{agent.name}</p>
                 <p className="text-xs text-fg-muted capitalize">{agent.type}</p>
               </div>
-              <span className="text-xs text-fg-muted">{agent.status}</span>
+              <span className="text-xs text-fg-muted capitalize">
+                {agent.status}
+              </span>
             </div>
           </Link>
         ))}
