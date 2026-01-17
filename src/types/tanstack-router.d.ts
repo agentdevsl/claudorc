@@ -11,6 +11,57 @@ import '@tanstack/start-client-core';
  */
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    // UI Routes
+    '/': {
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/agents/': {
+      id: '/agents/';
+      path: '/agents';
+      fullPath: '/agents/';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/agents/$agentId': {
+      id: '/agents/$agentId';
+      path: '/agents/$agentId';
+      fullPath: '/agents/$agentId';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/projects/': {
+      id: '/projects/';
+      path: '/projects';
+      fullPath: '/projects/';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/projects/$projectId/': {
+      id: '/projects/$projectId/';
+      path: '/projects/$projectId';
+      fullPath: '/projects/$projectId/';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/projects/$projectId/tasks/$taskId': {
+      id: '/projects/$projectId/tasks/$taskId';
+      path: '/projects/$projectId/tasks/$taskId';
+      fullPath: '/projects/$projectId/tasks/$taskId';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    '/sessions/$sessionId': {
+      id: '/sessions/$sessionId';
+      path: '/sessions/$sessionId';
+      fullPath: '/sessions/$sessionId';
+      preLoaderRoute: unknown;
+      parentRoute: unknown;
+    };
+    // API Routes
     '/api/agents': {
       id: '/api/agents';
       path: '/api/agents';

@@ -1,38 +1,9 @@
-import { Bot, Funnel, Play } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { Button } from '@/app/components/ui/button';
-import { db } from '@/db/client';
-import { AgentService } from '@/services/agent.service';
-import { SessionService } from '@/services/session.service';
-import { TaskService } from '@/services/task.service';
-import { WorktreeService } from '@/services/worktree.service';
+import { Robot, Funnel, Play } from "@phosphor-icons/react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@/app/components/ui/button";
 
-const worktreeService = new WorktreeService(db, {
-  exec: async () => ({ stdout: '', stderr: '' }),
-});
-
-const taskService = new TaskService(db, worktreeService);
-
-const sessionService = new SessionService(
-  db,
-  {
-    createStream: async () => undefined,
-    publish: async () => undefined,
-    subscribe: async function* () {
-      yield { type: 'chunk', data: {} };
-    },
-  },
-  { baseUrl: process.env.APP_URL ?? 'http://localhost:5173' }
-);
-
-const agentService = new AgentService(db, worktreeService, taskService, sessionService);
-
-export const Route = createFileRoute('/agents/')({
-  loader: async () => {
-    return {
-      agents: (await agentService.list('')).ok ? [] : [],
-    };
-  },
+export const Route = createFileRoute("/agents/")({
+  loader: async () => ({ agents: [] }),
   component: AgentsPage,
 });
 
@@ -43,8 +14,12 @@ function AgentsPage(): React.JSX.Element {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-fg-muted">Workspace</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Agents</h1>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">
+            Workspace
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">
+            Agents
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline">
