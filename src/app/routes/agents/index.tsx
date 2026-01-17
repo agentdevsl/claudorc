@@ -1,7 +1,6 @@
 import { Funnel, Play, Robot } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
-import type { Agent } from '@/db/schema/agents';
 
 export const Route = createFileRoute('/agents/')({
   loader: async () => ({ agents: [] }),
@@ -31,7 +30,7 @@ function AgentsPage(): React.JSX.Element {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {agents.map((agent: Agent) => (
+        {agents.map((agent) => (
           <Link
             key={agent.id}
             to="/agents/$agentId"
