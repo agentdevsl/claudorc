@@ -23,7 +23,6 @@ export type UpdateTaskInput = {
   title?: string;
   description?: string;
   labels?: string[];
-  metadata?: Record<string, unknown>;
 };
 
 export type ListTasksOptions = {
