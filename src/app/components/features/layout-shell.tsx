@@ -43,7 +43,8 @@ export function LayoutShell({
               </button>
               <div>
                 <Breadcrumbs items={breadcrumbs} />
-                {pageTitle ? (
+                {/* Only show separate page title when there are multiple breadcrumbs to avoid duplication */}
+                {pageTitle && breadcrumbs.length > 1 ? (
                   <div className="text-sm font-semibold text-fg" data-testid="page-title">
                     {pageTitle}
                   </div>
