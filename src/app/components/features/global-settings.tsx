@@ -1,4 +1,4 @@
-import { CircleNotch, Eye, EyeSlash, Gear, Key, Palette } from '@phosphor-icons/react';
+import { CircleNotch, Eye, EyeSlash, Gear, Key, Palette, Warning } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { apiClient } from '@/lib/api/client';
@@ -66,12 +66,20 @@ function ApiKeysSection(): React.JSX.Element {
   const [isSavingAnthropic, setIsSavingAnthropic] = useState(false);
   const [isSavingGithub, setIsSavingGithub] = useState(false);
 
+  // Error states for user feedback
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [anthropicError, setAnthropicError] = useState<string | null>(null);
+  const [githubError, setGithubError] = useState<string | null>(null);
+
   // Load saved keys on mount
   useEffect(() => {
     const loadAnthropicKey = async () => {
       const result = await apiClient.apiKeys.get('anthropic');
       if (result.ok && result.data.keyInfo) {
         setSavedAnthropicKey(result.data.keyInfo.maskedKey);
+      } else if (!result.ok) {
+        console.error('Failed to load Anthropic key:', result.error);
+        setLoadError('Failed to load saved API keys. Please refresh the page.');
       }
     };
     loadAnthropicKey();
@@ -80,6 +88,9 @@ function ApiKeysSection(): React.JSX.Element {
       const result = await apiClient.github.getTokenInfo();
       if (result.ok && result.data.tokenInfo) {
         setSavedGithubPat(result.data.tokenInfo.maskedToken);
+      } else if (!result.ok) {
+        console.error('Failed to load GitHub token:', result.error);
+        setLoadError('Failed to load saved API keys. Please refresh the page.');
       }
     };
     loadGitHubToken();
@@ -88,15 +99,18 @@ function ApiKeysSection(): React.JSX.Element {
   const handleSaveAnthropicKey = async () => {
     if (!anthropicKey.trim()) return;
     setIsSavingAnthropic(true);
+    setAnthropicError(null);
     try {
       const result = await apiClient.apiKeys.save('anthropic', anthropicKey);
       if (result.ok) {
         setSavedAnthropicKey(result.data.keyInfo.maskedKey);
         setAnthropicKey('');
       } else {
+        setAnthropicError(result.error.message || 'Failed to save API key');
         console.error('Failed to save Anthropic API key:', result.error);
       }
     } catch (error) {
+      setAnthropicError('Network error. Please check your connection.');
       console.error('Failed to save Anthropic API key:', error);
     } finally {
       setIsSavingAnthropic(false);
@@ -106,19 +120,22 @@ function ApiKeysSection(): React.JSX.Element {
   const handleSaveGithubPat = async () => {
     if (!githubPat.trim()) return;
     if (!isValidPATFormat(githubPat)) {
-      alert('Invalid GitHub PAT format. Must start with ghp_ or github_pat_');
+      setGithubError('Invalid format. Must start with ghp_ or github_pat_');
       return;
     }
     setIsSavingGithub(true);
+    setGithubError(null);
     try {
       const result = await apiClient.github.saveToken(githubPat);
       if (result.ok) {
         setSavedGithubPat(result.data.tokenInfo.maskedToken);
         setGithubPat('');
       } else {
+        setGithubError(result.error.message || 'Failed to save token');
         console.error('Failed to save GitHub PAT:', result.error);
       }
     } catch (error) {
+      setGithubError('Network error. Please check your connection.');
       console.error('Failed to save GitHub PAT:', error);
     } finally {
       setIsSavingGithub(false);
@@ -126,19 +143,33 @@ function ApiKeysSection(): React.JSX.Element {
   };
 
   const handleClearAnthropicKey = async () => {
+    setAnthropicError(null);
     try {
-      await apiClient.apiKeys.delete('anthropic');
-      setSavedAnthropicKey(null);
+      const result = await apiClient.apiKeys.delete('anthropic');
+      if (result.ok) {
+        setSavedAnthropicKey(null);
+      } else {
+        setAnthropicError('Failed to delete API key. Please try again.');
+        console.error('Failed to delete Anthropic API key:', result.error);
+      }
     } catch (error) {
+      setAnthropicError('Network error. Please try again.');
       console.error('Failed to delete Anthropic API key:', error);
     }
   };
 
   const handleClearGithubPat = async () => {
+    setGithubError(null);
     try {
-      await apiClient.github.deleteToken();
-      setSavedGithubPat(null);
+      const result = await apiClient.github.deleteToken();
+      if (result.ok) {
+        setSavedGithubPat(null);
+      } else {
+        setGithubError('Failed to delete token. Please try again.');
+        console.error('Failed to delete GitHub PAT:', result.error);
+      }
     } catch (error) {
+      setGithubError('Network error. Please try again.');
       console.error('Failed to delete GitHub PAT:', error);
     }
   };
@@ -151,6 +182,14 @@ function ApiKeysSection(): React.JSX.Element {
           Configure API keys for external services. Keys are encrypted and stored locally.
         </p>
       </div>
+
+      {/* Load error banner */}
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <Warning className="h-4 w-4 flex-shrink-0" />
+          {loadError}
+        </div>
+      )}
 
       {/* Anthropic API Key */}
       <div className="rounded-lg border border-border bg-surface p-4">
@@ -181,7 +220,10 @@ function ApiKeysSection(): React.JSX.Element {
               <input
                 type={showAnthropicKey ? 'text' : 'password'}
                 value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
+                onChange={(e) => {
+                  setAnthropicKey(e.target.value);
+                  setAnthropicError(null);
+                }}
                 placeholder="sk-ant-..."
                 className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
               />
@@ -193,7 +235,10 @@ function ApiKeysSection(): React.JSX.Element {
                 {showAnthropicKey ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button onClick={handleSaveAnthropicKey} disabled={isSavingAnthropic || !anthropicKey.trim()}>
+            <Button
+              onClick={handleSaveAnthropicKey}
+              disabled={isSavingAnthropic || !anthropicKey.trim()}
+            >
               {isSavingAnthropic ? (
                 <>
                   <CircleNotch className="h-4 w-4 animate-spin" />
@@ -204,6 +249,12 @@ function ApiKeysSection(): React.JSX.Element {
               )}
             </Button>
           </div>
+        )}
+        {anthropicError && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-danger">
+            <Warning className="h-3.5 w-3.5" />
+            {anthropicError}
+          </p>
         )}
       </div>
 
@@ -228,7 +279,10 @@ function ApiKeysSection(): React.JSX.Element {
               <input
                 type={showGithubPat ? 'text' : 'password'}
                 value={githubPat}
-                onChange={(e) => setGithubPat(e.target.value)}
+                onChange={(e) => {
+                  setGithubPat(e.target.value);
+                  setGithubError(null);
+                }}
                 placeholder="ghp_... or github_pat_..."
                 className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
               />
@@ -251,6 +305,12 @@ function ApiKeysSection(): React.JSX.Element {
               )}
             </Button>
           </div>
+        )}
+        {githubError && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-danger">
+            <Warning className="h-3.5 w-3.5" />
+            {githubError}
+          </p>
         )}
       </div>
     </div>
