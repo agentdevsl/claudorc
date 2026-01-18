@@ -7,7 +7,7 @@ import { ProjectSettings } from '@/app/components/features/project-settings';
 import { ThemeToggle } from '@/app/components/features/theme-toggle';
 import type { Project, ProjectConfig } from '@/db/schema/projects';
 
-export const Route = createFileRoute('/settings')({
+export const Route = createFileRoute('/settings/')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { project: null as Project | null };

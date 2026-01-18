@@ -1,0 +1,133 @@
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CaretDown, Plus } from '@phosphor-icons/react';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
+import { cn } from '@/lib/utils/cn';
+import { COLUMN_WIDTH } from './constants';
+import { columnVariants, indicatorVariants } from './styles';
+
+interface KanbanColumnProps {
+  /** Column identifier */
+  id: TaskColumn;
+  /** Display title */
+  title: string;
+  /** Tasks in this column */
+  tasks: Task[];
+  /** Whether column is collapsed */
+  isCollapsed: boolean;
+  /** Whether column is a valid drop target */
+  isDropTarget: boolean;
+  /** Callback to toggle collapse */
+  onCollapse: (collapsed: boolean) => void;
+  /** Callback to add new task */
+  onAddTask: () => void;
+  /** Card renderer */
+  children: React.ReactNode;
+}
+
+export function KanbanColumn({
+  id,
+  title,
+  tasks,
+  isCollapsed,
+  isDropTarget,
+  onCollapse,
+  onAddTask,
+  children,
+}: KanbanColumnProps): React.JSX.Element {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column-${id}`,
+  });
+
+  const columnState = isDropTarget || isOver ? 'dropTarget' : isCollapsed ? 'collapsed' : 'default';
+
+  return (
+    <section
+      ref={setNodeRef}
+      className={cn(columnVariants({ state: columnState }), 'max-h-[calc(100vh-180px)] shrink-0')}
+      style={{
+        width: isCollapsed ? undefined : COLUMN_WIDTH,
+        minWidth: isCollapsed ? undefined : COLUMN_WIDTH,
+      }}
+      aria-label={`${title} column with ${tasks.length} tasks`}
+    >
+      {/* Header */}
+      <div
+        className={cn(
+          'flex items-center justify-between px-3.5 py-3 border-b border-border shrink-0',
+          isCollapsed && 'flex-col py-3 px-2 gap-3'
+        )}
+      >
+        <div className={cn('flex items-center gap-2.5', isCollapsed && 'flex-col')}>
+          <button
+            type="button"
+            onClick={() => onCollapse(!isCollapsed)}
+            className="w-6 h-6 rounded flex items-center justify-center text-fg-muted hover:bg-surface-muted hover:text-fg transition-colors"
+            aria-label={isCollapsed ? `Expand ${title} column` : `Collapse ${title} column`}
+          >
+            <CaretDown
+              className={cn(
+                'w-3.5 h-3.5 transition-transform duration-150',
+                isCollapsed && '-rotate-90'
+              )}
+            />
+          </button>
+
+          {!isCollapsed && (
+            <>
+              <div className={indicatorVariants({ column: id })} />
+              <span className="text-sm font-semibold text-fg">{title}</span>
+              <span className="bg-surface-muted text-fg-muted text-xs font-medium px-1.5 py-0.5 rounded-full">
+                {tasks.length}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Collapsed vertical title */}
+        {isCollapsed && (
+          <div className="flex-1 flex items-center justify-center">
+            <span
+              className="text-sm font-semibold text-fg whitespace-nowrap"
+              style={{
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+              }}
+            >
+              {title}
+            </span>
+            <span
+              className="ml-1 bg-surface-muted text-fg-muted text-xs font-medium px-1.5 py-0.5 rounded-full"
+              style={{
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+              }}
+            >
+              {tasks.length}
+            </span>
+          </div>
+        )}
+
+        {!isCollapsed && (
+          <button
+            type="button"
+            onClick={onAddTask}
+            className="w-6 h-6 rounded flex items-center justify-center text-fg-muted hover:bg-surface-muted hover:text-fg transition-colors"
+            aria-label={`Add task to ${title}`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      {!isCollapsed && (
+        <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2.5">
+          <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {children}
+          </SortableContext>
+        </div>
+      )}
+    </section>
+  );
+}

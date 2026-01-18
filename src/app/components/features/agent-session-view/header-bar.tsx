@@ -1,0 +1,151 @@
+import { Pause, Play, Square, Timer } from '@phosphor-icons/react';
+import { cva } from 'class-variance-authority';
+import { useEffect, useState } from 'react';
+import { Button } from '@/app/components/ui/button';
+
+export type AgentStatus = 'idle' | 'starting' | 'running' | 'paused' | 'error' | 'completed';
+
+interface HeaderBarProps {
+  sessionId: string;
+  status: AgentStatus;
+  startTime?: number;
+  onPause: () => void;
+  onResume: () => void;
+  onStop: () => void;
+}
+
+const statusBadgeVariants = cva(
+  'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium',
+  {
+    variants: {
+      status: {
+        idle: 'bg-surface-subtle text-fg-muted',
+        starting: 'bg-accent/15 text-accent',
+        running: 'bg-success/15 text-success',
+        paused: 'bg-warning/15 text-warning',
+        error: 'bg-danger/15 text-danger',
+        completed: 'bg-accent/15 text-accent',
+      },
+    },
+    defaultVariants: {
+      status: 'idle',
+    },
+  }
+);
+
+const statusDotVariants = cva('h-2 w-2 rounded-full', {
+  variants: {
+    status: {
+      idle: 'bg-fg-muted',
+      starting: 'bg-accent animate-pulse',
+      running: 'bg-success animate-pulse',
+      paused: 'bg-warning',
+      error: 'bg-danger',
+      completed: 'bg-accent',
+    },
+  },
+  defaultVariants: {
+    status: 'idle',
+  },
+});
+
+const statusLabels: Record<AgentStatus, string> = {
+  idle: 'Idle',
+  starting: 'Starting',
+  running: 'Running',
+  paused: 'Paused',
+  error: 'Error',
+  completed: 'Completed',
+};
+
+function formatElapsedTime(startTime: number): string {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+export function HeaderBar({
+  sessionId,
+  status,
+  startTime,
+  onPause,
+  onResume,
+  onStop,
+}: HeaderBarProps): React.JSX.Element {
+  const [elapsedTime, setElapsedTime] = useState<string>('0:00');
+
+  // Update elapsed time every second when running
+  useEffect(() => {
+    if (!startTime || status !== 'running') {
+      return;
+    }
+
+    setElapsedTime(formatElapsedTime(startTime));
+
+    const interval = window.setInterval(() => {
+      setElapsedTime(formatElapsedTime(startTime));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [startTime, status]);
+
+  const isActive = status === 'running' || status === 'paused' || status === 'starting';
+  const isPaused = status === 'paused';
+  const isRunning = status === 'running';
+
+  return (
+    <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-3">
+      {/* Left side - Session info */}
+      <div className="flex items-center gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">Session</p>
+          <h1 className="text-base font-semibold text-fg truncate max-w-xs" title={sessionId}>
+            {sessionId.slice(0, 8)}...
+          </h1>
+        </div>
+
+        {/* Status badge */}
+        <div className={statusBadgeVariants({ status })}>
+          <span className={statusDotVariants({ status })} />
+          {statusLabels[status]}
+        </div>
+
+        {/* Elapsed timer */}
+        {startTime && isActive && (
+          <div className="flex items-center gap-1.5 text-sm text-fg-muted">
+            <Timer className="h-4 w-4" />
+            <span className="font-mono tabular-nums">{elapsedTime}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Right side - Controls */}
+      <div className="flex items-center gap-2">
+        {isRunning && (
+          <Button variant="outline" size="sm" onClick={onPause}>
+            <Pause className="h-4 w-4" weight="fill" />
+            Pause
+          </Button>
+        )}
+        {isPaused && (
+          <Button variant="outline" size="sm" onClick={onResume}>
+            <Play className="h-4 w-4" weight="fill" />
+            Resume
+          </Button>
+        )}
+        {isActive && (
+          <Button variant="destructive" size="sm" onClick={onStop}>
+            <Square className="h-4 w-4" weight="fill" />
+            Stop
+          </Button>
+        )}
+      </div>
+    </header>
+  );
+}

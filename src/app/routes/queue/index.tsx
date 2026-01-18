@@ -6,7 +6,7 @@ import { QueueStatus } from '@/app/components/features/queue-status';
 import { QueueWaitingState } from '@/app/components/features/queue-waiting-state';
 import type { QueuePosition } from '@/services/agent.service';
 
-export const Route = createFileRoute('/queue')({
+export const Route = createFileRoute('/queue/')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { queued: [] as QueuePosition[] };

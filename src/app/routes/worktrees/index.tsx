@@ -5,7 +5,7 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorktreeManagement } from '@/app/components/features/worktree-management';
 import type { WorktreeStatusInfo } from '@/services/worktree.service';
 
-export const Route = createFileRoute('/worktrees')({
+export const Route = createFileRoute('/worktrees/')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { project: null, worktrees: [] as WorktreeStatusInfo[] };

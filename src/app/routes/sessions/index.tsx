@@ -5,7 +5,7 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 import { SessionHistory } from '@/app/components/features/session-history';
 import type { SessionWithPresence } from '@/services/session.service';
 
-export const Route = createFileRoute('/sessions')({
+export const Route = createFileRoute('/sessions/')({
   loader: async ({ context }) => {
     if (!context.services) {
       return { sessions: [] as SessionWithPresence[] };
