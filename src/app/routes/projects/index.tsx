@@ -15,8 +15,8 @@ import type { Result } from '@/lib/utils/result';
  */
 function AgentPaneLogo(): React.JSX.Element {
   return (
-    <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#12161c] to-[#0a0d11] shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_24px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
-      <div className="absolute inset-0 animate-pulse rounded-2xl bg-gradient-radial from-done/15 to-transparent" />
+    <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] dark:from-[#12161c] dark:to-[#0a0d11] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_24px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
+      <div className="absolute inset-0 animate-pulse rounded-2xl bg-gradient-radial from-done/10 to-transparent dark:from-done/15" />
       <svg
         className="relative z-10 h-16 w-16 drop-shadow-[0_0_12px_rgba(163,113,247,0.4)]"
         viewBox="0 0 32 32"
@@ -33,8 +33,24 @@ function AgentPaneLogo(): React.JSX.Element {
         {/* Connection lines */}
         <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" strokeOpacity="0.4" strokeWidth="1" />
         <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" strokeOpacity="0.4" strokeWidth="1" />
-        <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" strokeOpacity="0.4" strokeWidth="1" />
-        <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" strokeOpacity="0.4" strokeWidth="1" />
+        <line
+          x1="14"
+          y1="14"
+          x2="26"
+          y2="16"
+          stroke="#3fb950"
+          strokeOpacity="0.4"
+          strokeWidth="1"
+        />
+        <line
+          x1="14"
+          y1="14"
+          x2="20"
+          y2="26"
+          stroke="#f778ba"
+          strokeOpacity="0.4"
+          strokeWidth="1"
+        />
         <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" strokeOpacity="0.4" strokeWidth="1" />
         {/* Outer nodes */}
         <circle
@@ -157,9 +173,17 @@ function ProjectsPage(): React.JSX.Element {
 
   const handleValidatePath = async (
     _path: string
-  ): Promise<Result<{ isValid: boolean; exists: boolean; isGitRepo: boolean; hasClaudeConfig: boolean }, unknown>> => {
+  ): Promise<
+    Result<
+      { isValid: boolean; exists: boolean; isGitRepo: boolean; hasClaudeConfig: boolean },
+      unknown
+    >
+  > => {
     // TODO: Add API endpoint for path validation
-    return { ok: true, value: { isValid: true, exists: false, isGitRepo: false, hasClaudeConfig: false } };
+    return {
+      ok: true,
+      value: { isValid: true, exists: false, isGitRepo: false, hasClaudeConfig: false },
+    };
   };
 
   const handleClone = async (
@@ -167,7 +191,10 @@ function ProjectsPage(): React.JSX.Element {
     _destination: string
   ): Promise<Result<{ path: string }, unknown>> => {
     // TODO: Add API endpoint for cloning
-    return { ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' } };
+    return {
+      ok: false,
+      error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' },
+    };
   };
 
   if (isLoading) {

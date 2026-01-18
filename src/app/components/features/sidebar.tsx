@@ -1,8 +1,14 @@
 import { Clock, Gear, GitBranch, Hourglass, Kanban, Plus, Robot } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { useServices } from '@/app/services/service-context';
-import type { ProjectSummary } from '@/services/project.service';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
+
+// Simplified project summary for sidebar display
+type SidebarProject = {
+  project: ProjectListItem;
+  taskCounts: { total: number };
+  runningAgents: { id: string }[];
+};
 
 interface SidebarProps {
   projectId?: string;
@@ -37,19 +43,24 @@ const globalNavItems: readonly NavItem[] = [
 ] as const;
 
 export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
-  const { projectService } = useServices();
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projects, setProjects] = useState<SidebarProject[]>([]);
 
-  // Fetch projects on mount
+  // Fetch projects from API on mount
   useEffect(() => {
     const loadProjects = async () => {
-      const result = await projectService.listWithSummaries({ limit: 10 });
+      const result = await apiClient.projects.list({ limit: 10 });
       if (result.ok) {
-        setProjects(result.value);
+        // Convert API response to sidebar format
+        const sidebarProjects: SidebarProject[] = result.data.items.map((project) => ({
+          project,
+          taskCounts: { total: 0 },
+          runningAgents: [],
+        }));
+        setProjects(sidebarProjects);
       }
     };
     void loadProjects();
-  }, [projectService]);
+  }, []);
 
   return (
     <aside
@@ -61,8 +72,8 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
         to="/"
         className="flex items-center gap-2.5 border-b border-border px-4 py-4 transition-colors hover:bg-surface-subtle"
       >
-        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#12161c] to-[#0a0d11] shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_16px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
-          <div className="absolute inset-0 animate-pulse rounded-xl bg-gradient-radial from-done/15 to-transparent" />
+        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.05)] dark:from-[#12161c] dark:to-[#0a0d11] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_16px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
+          <div className="absolute inset-0 animate-pulse rounded-xl bg-gradient-radial from-done/10 to-transparent dark:from-done/15" />
           <svg
             className="relative z-10 h-7 w-7 drop-shadow-[0_0_8px_rgba(163,113,247,0.4)]"
             viewBox="0 0 32 32"
