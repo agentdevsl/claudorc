@@ -2,11 +2,11 @@ import type { AppError, createError } from '@/lib/errors/base';
 import { ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
 import { ProjectService } from '@/services/project.service';
+import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
 import type { Database } from '@/types/database';
-import type { DurableStreamsServer } from '@/services/session.service';
 
 /**
  * Application services configuration.
@@ -51,9 +51,18 @@ export function createServices(context: {
       baseUrl: 'http://localhost:3000',
     });
 
-    const projectService = new ProjectService(context.db, { prune: (projectId: string) => worktreeService.prune(projectId) }, runner);
+    const projectService = new ProjectService(
+      context.db,
+      { prune: (projectId: string) => worktreeService.prune(projectId) },
+      runner
+    );
 
-    const agentService = new AgentService(context.db, { create: (input) => worktreeService.create(input) }, { moveColumn: (id, column) => taskService.moveColumn(id, column) }, sessionService);
+    const agentService = new AgentService(
+      context.db,
+      { create: (input) => worktreeService.create(input) },
+      { moveColumn: (id, column) => taskService.moveColumn(id, column) },
+      sessionService
+    );
 
     console.log('[Services] All services initialized successfully');
 

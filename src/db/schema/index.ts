@@ -8,4 +8,5 @@ export * from './projects';
 export * from './relations';
 export * from './sessions';
 export * from './tasks';
+export * from './templates';
 export * from './worktrees';

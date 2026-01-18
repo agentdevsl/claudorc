@@ -9,8 +9,8 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
 import { ApiKeyService } from '../services/api-key.service.js';
-import { GitHubTokenService } from './github-token.service.js';
 import type { Database } from '../types/database.js';
+import { GitHubTokenService } from './github-token.service.js';
 
 declare const Bun: {
   SQLite: new (path: string) => unknown;
@@ -221,7 +221,10 @@ async function handleHealthCheck(): Promise<Response> {
     checks.github = {
       status: 'error',
     };
-    console.debug('[Health] GitHub token check failed:', error instanceof Error ? error.message : 'Unknown error');
+    console.debug(
+      '[Health] GitHub token check failed:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
   }
 
   const allOk = checks.database.status === 'ok';
