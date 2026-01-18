@@ -1,4 +1,19 @@
-import path from 'node:path';
+// Browser-compatible path utilities
+const pathUtils = {
+  resolve: (...parts: string[]): string => {
+    // Simple path resolution for browser
+    const combined = parts.join('/').replace(/\/+/g, '/');
+    return combined.startsWith('/') ? combined : `/${combined}`;
+  },
+  join: (...parts: string[]): string => {
+    return parts.join('/').replace(/\/+/g, '/');
+  },
+  basename: (filePath: string): string => {
+    // Get the last part of a path
+    const parts = filePath.replace(/\/+$/, '').split('/');
+    return parts[parts.length - 1] || '';
+  },
+};
 import { and, desc, eq } from 'drizzle-orm';
 import { agents } from '../db/schema/agents.js';
 import type { Project, ProjectConfig } from '../db/schema/projects.js';
@@ -91,7 +106,7 @@ export class ProjectService {
   }
 
   async create(input: CreateProjectInput): Promise<Result<Project, ProjectError>> {
-    const resolved = path.resolve(input.path);
+    const resolved = pathUtils.resolve(input.path);
     const validation = await this.validatePath(resolved);
     if (!validation.ok) {
       return validation;
@@ -389,6 +404,7 @@ export class ProjectService {
 
   /**
    * Clone a repository from a URL to a local path
+   * Note: In browser environment, this returns the expected path but doesn't actually clone
    */
   async cloneRepository(
     url: string,
@@ -396,8 +412,21 @@ export class ProjectService {
   ): Promise<Result<{ path: string; name: string }, ProjectError>> {
     // Extract repo name from URL
     const repoName = url.split('/').pop()?.replace('.git', '') ?? 'repo';
-    const resolved = path.resolve(destinationDir.replace('~', process.env.HOME ?? ''));
-    const targetPath = path.join(resolved, repoName);
+
+    // Handle ~ expansion for browser (use /Users/user as fallback)
+    const expandedDir = destinationDir.replace(/^~/, '/Users/user');
+    const resolved = pathUtils.resolve(expandedDir);
+    const targetPath = pathUtils.join(resolved, repoName);
+
+    // Check if we're in a browser environment (no shell access)
+    if (typeof window !== 'undefined' && !this.runner) {
+      // In browser-only mode, we can't actually clone
+      // Return the path info so the user can clone manually
+      return ok({
+        path: targetPath,
+        name: repoName,
+      });
+    }
 
     try {
       // Check if destination directory exists, create if not
@@ -428,8 +457,8 @@ export class ProjectService {
   }
 
   async validatePath(projectPath: string): Promise<Result<PathValidation, ProjectError>> {
-    const normalized = path.resolve(projectPath);
-    const name = path.basename(normalized);
+    const normalized = pathUtils.resolve(projectPath);
+    const name = pathUtils.basename(normalized);
 
     try {
       await this.runner.exec('git rev-parse --git-dir', normalized);
