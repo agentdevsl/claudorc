@@ -7,7 +7,17 @@ import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
 import type { Database } from '@/types/database';
+import type { DurableStreamsServer } from '@/services/session.service';
 import { createRuntimeContext } from './runtime';
+
+// Mock streams for client-side only mode
+const createMockStreams = (): DurableStreamsServer => ({
+  createStream: async () => undefined,
+  publish: async () => undefined,
+  subscribe: async function* () {
+    yield { type: 'connected', data: {} };
+  },
+});
 
 export type Services = {
   db: Database;
@@ -37,13 +47,14 @@ export function createServices(context: { db?: PGlite; streams?: unknown }): Ser
   );
   const taskService = new TaskService(runtime.value.db, worktreeService);
 
+  // Use mock streams if real streams aren't available (client-side only mode)
+  const streams = runtime.value.streams ?? createMockStreams();
   if (!runtime.value.streams) {
-    console.error('[Services] Streams not configured during service initialization');
-    return err(createError('SERVICES_STREAMS_MISSING', 'Streams not configured', 500));
+    console.warn('[Services] Using mock streams - real-time features disabled');
   }
 
-  const sessionService = new SessionService(runtime.value.db, runtime.value.streams, {
-    baseUrl: process.env.APP_URL ?? 'http://localhost:5173',
+  const sessionService = new SessionService(runtime.value.db, streams, {
+    baseUrl: (typeof process !== 'undefined' ? process.env?.APP_URL : undefined) ?? 'http://localhost:5173',
   });
   const agentService = new AgentService(
     runtime.value.db,

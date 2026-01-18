@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import * as schema from './schema';
 
-const envDataDir = process.env.PGLITE_DATA_DIR;
+const envDataDir = typeof process !== 'undefined' ? process.env?.PGLITE_DATA_DIR : undefined;
 const pgliteDataDir = envDataDir === undefined ? 'idb://agentpane' : envDataDir || undefined;
 export const pglite = new PGlite(pgliteDataDir);
 
