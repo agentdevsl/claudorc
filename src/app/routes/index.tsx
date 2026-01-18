@@ -128,23 +128,39 @@ function Dashboard(): React.JSX.Element {
   useEffect(() => {
     // Check Anthropic key via API (stored in SQLite)
     const checkAnthropicKey = async () => {
-      const result = await apiClient.apiKeys.get('anthropic');
-      setIsSettingsConfigured(result.ok && result.data.keyInfo !== null);
+      try {
+        const result = await apiClient.apiKeys.get('anthropic');
+        setIsSettingsConfigured(result.ok && result.data.keyInfo !== null);
+      } catch (error) {
+        console.error('Failed to check Anthropic API key:', error);
+        setIsSettingsConfigured(false);
+      }
     };
     checkAnthropicKey();
 
     // Check GitHub token via API (stored in SQLite)
     const checkGitHub = async () => {
-      const result = await apiClient.github.getTokenInfo();
-      setIsGitHubConfigured(result.ok && result.data.tokenInfo?.isValid === true);
+      try {
+        const result = await apiClient.github.getTokenInfo();
+        setIsGitHubConfigured(result.ok && result.data.tokenInfo?.isValid === true);
+      } catch (error) {
+        console.error('Failed to check GitHub token:', error);
+        setIsGitHubConfigured(false);
+      }
     };
     checkGitHub();
 
     // Discover local git repos
     const discoverLocalRepos = async () => {
-      const result = await apiClient.filesystem.discoverRepos();
-      if (result.ok) {
-        setLocalRepos(result.data.repos.map((r) => ({ name: r.name, path: r.path })));
+      try {
+        const result = await apiClient.filesystem.discoverRepos();
+        if (result.ok) {
+          setLocalRepos(result.data.repos.map((r) => ({ name: r.name, path: r.path })));
+        } else {
+          console.warn('Failed to discover local repos:', result.error);
+        }
+      } catch (error) {
+        console.error('Failed to discover local repos:', error);
       }
     };
     discoverLocalRepos();
@@ -153,19 +169,26 @@ function Dashboard(): React.JSX.Element {
   // Fetch projects from API on mount
   useEffect(() => {
     const fetchProjects = async () => {
-      const result = await apiClient.projects.list({ limit: 24 });
-      if (result.ok) {
-        // Convert API response to client project summaries
-        const summaries: ClientProjectSummary[] = result.data.items.map((project) => ({
-          project,
-          status: 'idle' as const,
-          taskCounts: { total: 0, completed: 0 },
-          runningAgents: [],
-          lastActivityAt: project.updatedAt,
-        }));
-        setProjectSummaries(summaries);
+      try {
+        const result = await apiClient.projects.list({ limit: 24 });
+        if (result.ok) {
+          // Convert API response to client project summaries
+          const summaries: ClientProjectSummary[] = result.data.items.map((project) => ({
+            project,
+            status: 'idle' as const,
+            taskCounts: { total: 0, completed: 0 },
+            runningAgents: [],
+            lastActivityAt: project.updatedAt,
+          }));
+          setProjectSummaries(summaries);
+        } else {
+          console.error('Failed to fetch projects:', result.error);
+        }
+      } catch (error) {
+        console.error('Failed to fetch projects:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     fetchProjects();
   }, []);
@@ -175,35 +198,47 @@ function Dashboard(): React.JSX.Element {
     path: string;
     description?: string;
   }): Promise<Result<void, { code: string; message: string }>> => {
-    const result = await apiClient.projects.create({
-      name: data.name,
-      path: data.path,
-      description: data.description,
-    });
+    try {
+      const result = await apiClient.projects.create({
+        name: data.name,
+        path: data.path,
+        description: data.description,
+      });
 
-    if (!result.ok) {
+      if (!result.ok) {
+        console.error('Failed to create project:', result.error);
+        return {
+          ok: false,
+          error: {
+            code: result.error.code,
+            message: result.error.message,
+          },
+        };
+      }
+
+      const listResult = await apiClient.projects.list({ limit: 24 });
+      if (listResult.ok) {
+        const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
+          project,
+          status: 'idle' as const,
+          taskCounts: { total: 0, completed: 0 },
+          runningAgents: [],
+          lastActivityAt: project.updatedAt,
+        }));
+        setProjectSummaries(summaries);
+      }
+
+      return { ok: true, value: undefined };
+    } catch (error) {
+      console.error('Unexpected error creating project:', error);
       return {
         ok: false,
         error: {
-          code: result.error.code,
-          message: result.error.message,
+          code: 'UNEXPECTED_ERROR',
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
         },
       };
     }
-
-    const listResult = await apiClient.projects.list({ limit: 24 });
-    if (listResult.ok) {
-      const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
-        project,
-        status: 'idle' as const,
-        taskCounts: { total: 0, completed: 0 },
-        runningAgents: [],
-        lastActivityAt: project.updatedAt,
-      }));
-      setProjectSummaries(summaries);
-    }
-
-    return { ok: true, value: undefined };
   };
 
   const handleValidatePath = async (
@@ -225,14 +260,23 @@ function Dashboard(): React.JSX.Element {
     url: string,
     destination: string
   ): Promise<Result<{ path: string }, unknown>> => {
-    const result = await apiClient.github.clone(url, destination);
-    if (result.ok) {
-      return { ok: true, value: { path: result.data.path } };
+    try {
+      const result = await apiClient.github.clone(url, destination);
+      if (result.ok) {
+        return { ok: true, value: { path: result.data.path } };
+      }
+      console.error('Failed to clone repository:', result.error);
+      return {
+        ok: false,
+        error: result.error,
+      };
+    } catch (error) {
+      console.error('Unexpected error cloning repository:', error);
+      return {
+        ok: false,
+        error: { code: 'UNEXPECTED_ERROR', message: String(error) },
+      };
     }
-    return {
-      ok: false,
-      error: result.error,
-    };
   };
 
   const handleCreateFromTemplate = async (params: {
@@ -244,34 +288,51 @@ function Dashboard(): React.JSX.Element {
     isPrivate?: boolean;
     clonePath: string;
   }): Promise<Result<{ path: string }, unknown>> => {
-    const result = await apiClient.github.createFromTemplate(params);
-    if (result.ok) {
-      return { ok: true, value: { path: result.data.path } };
+    try {
+      const result = await apiClient.github.createFromTemplate(params);
+      if (result.ok) {
+        return { ok: true, value: { path: result.data.path } };
+      }
+      console.error('Failed to create from template:', result.error);
+      return {
+        ok: false,
+        error: result.error,
+      };
+    } catch (error) {
+      console.error('Unexpected error creating from template:', error);
+      return {
+        ok: false,
+        error: { code: 'UNEXPECTED_ERROR', message: String(error) },
+      };
     }
-    return {
-      ok: false,
-      error: result.error,
-    };
   };
 
   const handleFetchOrgs = async (): Promise<GitHubOrg[]> => {
-    // Fetch orgs via API (uses token from SQLite)
-    const result = await apiClient.github.listOrgs();
-    if (result.ok) {
-      return result.data.orgs;
+    try {
+      const result = await apiClient.github.listOrgs();
+      if (result.ok) {
+        return result.data.orgs;
+      }
+      console.error('Failed to fetch GitHub orgs:', result.error);
+      return [];
+    } catch (error) {
+      console.error('Unexpected error fetching GitHub orgs:', error);
+      return [];
     }
-    console.error('Failed to fetch GitHub orgs:', result.error);
-    return [];
   };
 
   const handleFetchReposForOwner = async (owner: string): Promise<GitHubRepo[]> => {
-    // Fetch repos for a specific owner via API
-    const result = await apiClient.github.listReposForOwner(owner);
-    if (result.ok) {
-      return result.data.repos;
+    try {
+      const result = await apiClient.github.listReposForOwner(owner);
+      if (result.ok) {
+        return result.data.repos;
+      }
+      console.error(`Failed to fetch repos for ${owner}:`, result.error);
+      return [];
+    } catch (error) {
+      console.error(`Unexpected error fetching repos for ${owner}:`, error);
+      return [];
     }
-    console.error('Failed to fetch repos for owner:', result.error);
-    return [];
   };
 
   if (isLoading) {
