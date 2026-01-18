@@ -8,6 +8,7 @@ import { AddProjectCard, ProjectCard } from '@/app/components/features/project-c
 import { Button } from '@/app/components/ui/button';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
+import type { GitHubOrg, GitHubRepo } from '@/services/github-token.service';
 
 // Simplified project summary for client-side rendering
 type ClientProjectSummary = {
@@ -120,14 +121,33 @@ function Dashboard(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
   const [isSettingsConfigured, setIsSettingsConfigured] = useState(false);
+  const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
+  const [localRepos, setLocalRepos] = useState<{ name: string; path: string }[]>([]);
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
+    // Check Anthropic key via API (stored in SQLite)
     const checkAnthropicKey = async () => {
       const result = await apiClient.apiKeys.get('anthropic');
       setIsSettingsConfigured(result.ok && result.data.keyInfo !== null);
     };
     checkAnthropicKey();
+
+    // Check GitHub token via API (stored in SQLite)
+    const checkGitHub = async () => {
+      const result = await apiClient.github.getTokenInfo();
+      setIsGitHubConfigured(result.ok && result.data.tokenInfo?.isValid === true);
+    };
+    checkGitHub();
+
+    // Discover local git repos
+    const discoverLocalRepos = async () => {
+      const result = await apiClient.filesystem.discoverRepos();
+      if (result.ok) {
+        setLocalRepos(result.data.repos.map((r) => ({ name: r.name, path: r.path })));
+      }
+    };
+    discoverLocalRepos();
   }, []);
 
   // Fetch projects from API on mount
@@ -154,27 +174,36 @@ function Dashboard(): React.JSX.Element {
     name: string;
     path: string;
     description?: string;
-  }): Promise<void> => {
+  }): Promise<Result<void, { code: string; message: string }>> => {
     const result = await apiClient.projects.create({
       name: data.name,
       path: data.path,
       description: data.description,
     });
 
-    if (result.ok) {
-      // Refetch projects to get complete data
-      const listResult = await apiClient.projects.list({ limit: 24 });
-      if (listResult.ok) {
-        const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
-          project,
-          status: 'idle' as const,
-          taskCounts: { total: 0, completed: 0 },
-          runningAgents: [],
-          lastActivityAt: project.updatedAt,
-        }));
-        setProjectSummaries(summaries);
-      }
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+        },
+      };
     }
+
+    const listResult = await apiClient.projects.list({ limit: 24 });
+    if (listResult.ok) {
+      const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
+        project,
+        status: 'idle' as const,
+        taskCounts: { total: 0, completed: 0 },
+        runningAgents: [],
+        lastActivityAt: project.updatedAt,
+      }));
+      setProjectSummaries(summaries);
+    }
+
+    return { ok: true, value: undefined };
   };
 
   const handleValidatePath = async (
@@ -193,14 +222,56 @@ function Dashboard(): React.JSX.Element {
   };
 
   const handleClone = async (
-    _url: string,
-    _destination: string
+    url: string,
+    destination: string
   ): Promise<Result<{ path: string }, unknown>> => {
-    // TODO: Add API endpoint for cloning
+    const result = await apiClient.github.clone(url, destination);
+    if (result.ok) {
+      return { ok: true, value: { path: result.data.path } };
+    }
     return {
       ok: false,
-      error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' },
+      error: result.error,
     };
+  };
+
+  const handleCreateFromTemplate = async (params: {
+    templateOwner: string;
+    templateRepo: string;
+    name: string;
+    owner?: string;
+    description?: string;
+    isPrivate?: boolean;
+    clonePath: string;
+  }): Promise<Result<{ path: string }, unknown>> => {
+    const result = await apiClient.github.createFromTemplate(params);
+    if (result.ok) {
+      return { ok: true, value: { path: result.data.path } };
+    }
+    return {
+      ok: false,
+      error: result.error,
+    };
+  };
+
+  const handleFetchOrgs = async (): Promise<GitHubOrg[]> => {
+    // Fetch orgs via API (uses token from SQLite)
+    const result = await apiClient.github.listOrgs();
+    if (result.ok) {
+      return result.data.orgs;
+    }
+    console.error('Failed to fetch GitHub orgs:', result.error);
+    return [];
+  };
+
+  const handleFetchReposForOwner = async (owner: string): Promise<GitHubRepo[]> => {
+    // Fetch repos for a specific owner via API
+    const result = await apiClient.github.listReposForOwner(owner);
+    if (result.ok) {
+      return result.data.repos;
+    }
+    console.error('Failed to fetch repos for owner:', result.error);
+    return [];
   };
 
   if (isLoading) {
@@ -299,6 +370,11 @@ function Dashboard(): React.JSX.Element {
         onSubmit={handleCreateProject}
         onValidatePath={handleValidatePath}
         onClone={handleClone}
+        onCreateFromTemplate={handleCreateFromTemplate}
+        onFetchOrgs={handleFetchOrgs}
+        onFetchReposForOwner={handleFetchReposForOwner}
+        isGitHubConfigured={isGitHubConfigured}
+        recentRepos={localRepos}
       />
     </LayoutShell>
   );
