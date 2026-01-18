@@ -7,7 +7,9 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "bun run dev:api & vite",
+    "dev:vite": "vite",
+    "dev:api": "bun src/server/api.ts",
     "build": "vite build && tsc --noEmit",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",

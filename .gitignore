@@ -123,3 +123,4 @@ Thumbs.db
 # Encryption key (server-side token encryption)
 data/.keyfile
 data/encryption.key
+data/agentpane.db

@@ -60,7 +60,11 @@ type SourceType = 'local' | 'clone';
 interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { name: string; path: string; description?: string }) => Promise<void>;
+  onSubmit: (data: {
+    name: string;
+    path: string;
+    description?: string;
+  }) => Promise<Result<void, { code: string; message: string }>>;
   onValidatePath: (path: string) => Promise<Result<PathValidation, unknown>>;
   onClone?: (url: string, destination: string) => Promise<Result<{ path: string }, unknown>>;
   onCreateFromTemplate?: (params: {
@@ -394,15 +398,9 @@ function GitHubRepoList({
                 )}
                 data-testid={`owner-filter-${org.login}`}
               >
-                <img
-                  src={org.avatar_url}
-                  alt={org.login}
-                  className="h-4 w-4 rounded-full"
-                />
+                <img src={org.avatar_url} alt={org.login} className="h-4 w-4 rounded-full" />
                 {org.login}
-                {org.type === 'user' && (
-                  <span className="text-fg-subtle">(you)</span>
-                )}
+                {org.type === 'user' && <span className="text-fg-subtle">(you)</span>}
               </button>
             ))}
           </div>
@@ -609,6 +607,9 @@ export function NewProjectDialog({
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState('');
 
+  // Submit error state (for duplicate path etc.)
+  const [submitError, setSubmitError] = useState('');
+
   // GitHub orgs state
   const [githubOrgs, setGithubOrgs] = useState<GitHubOrg[]>([]);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
@@ -646,6 +647,7 @@ export function NewProjectDialog({
       setSkills(defaultSkills);
       setIsCloning(false);
       setCloneError('');
+      setSubmitError('');
       // Reset GitHub state
       setGithubOrgs([]);
       setIsLoadingOrgs(false);
@@ -767,6 +769,8 @@ export function NewProjectDialog({
 
   // Handle form submission
   const handleSubmit = async (): Promise<void> => {
+    setSubmitError('');
+
     if (sourceType === 'clone') {
       setIsCloning(true);
       setCloneError('');
@@ -789,12 +793,17 @@ export function NewProjectDialog({
           return;
         }
 
-        await onSubmit({
+        const submitResult = await onSubmit({
           name: newRepoName.trim(),
           path: templateResult.value.path,
           description: description.trim() || undefined,
         });
         setIsCloning(false);
+
+        if (!submitResult.ok) {
+          setSubmitError(submitResult.error.message);
+          return;
+        }
       } else if (onClone) {
         // Regular clone
         const cloneResult = await onClone(cloneUrl, clonePath);
@@ -805,26 +814,37 @@ export function NewProjectDialog({
           return;
         }
 
-        await onSubmit({
+        const submitResult = await onSubmit({
           name: cloneUrl.split('/').pop()?.replace('.git', '') ?? 'project',
           path: cloneResult.value.path,
           description: description.trim() || undefined,
         });
         setIsCloning(false);
+
+        if (!submitResult.ok) {
+          setSubmitError(submitResult.error.message);
+          return;
+        }
       }
     } else {
-      await onSubmit({
+      const submitResult = await onSubmit({
         name: name.trim(),
         path: path.trim(),
         description: description.trim() || undefined,
       });
+
+      if (!submitResult.ok) {
+        setSubmitError(submitResult.error.message);
+        return;
+      }
     }
     onOpenChange(false);
   };
 
   // Check if form is submittable
   const canSubmitTemplate = isTemplateSelected && newRepoName.trim() && clonePath.trim();
-  const canSubmitClone = !isTemplateSelected && cloneUrl.trim() && validateCloneUrl(cloneUrl) && clonePath.trim();
+  const canSubmitClone =
+    !isTemplateSelected && cloneUrl.trim() && validateCloneUrl(cloneUrl) && clonePath.trim();
   const canSubmit =
     sourceType === 'local'
       ? name.trim() && pathStatus === 'valid'
@@ -1197,6 +1217,17 @@ export function NewProjectDialog({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Submit error display */}
+        {submitError && (
+          <div
+            className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-warning/40 bg-warning-muted p-3"
+            data-testid="submit-error"
+          >
+            <WarningCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" weight="fill" />
+            <div className="text-sm text-warning">{submitError}</div>
+          </div>
+        )}
 
         <DialogFooter className="mt-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

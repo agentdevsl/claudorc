@@ -5,15 +5,10 @@
  */
 import { Octokit } from 'octokit';
 import { githubTokens } from '../db/schema/github.js';
-import {
-  decryptToken,
-  encryptToken,
-  isValidPATFormat,
-  maskToken,
-} from './crypto.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+import { decryptToken, encryptToken, isValidPATFormat, maskToken } from './crypto.js';
 
 export type GitHubTokenError =
   | { code: 'INVALID_FORMAT'; message: string }
@@ -299,16 +294,20 @@ export class GitHubTokenService {
       const isAuthenticatedUser = user.login === owner;
 
       const repos = isAuthenticatedUser
-        ? (await octokit.rest.repos.listForAuthenticatedUser({
-            sort: 'updated',
-            per_page: 100,
-            affiliation: 'owner',
-          })).data
-        : (await octokit.rest.repos.listForOrg({
-            org: owner,
-            sort: 'updated',
-            per_page: 100,
-          })).data;
+        ? (
+            await octokit.rest.repos.listForAuthenticatedUser({
+              sort: 'updated',
+              per_page: 100,
+              affiliation: 'owner',
+            })
+          ).data
+        : (
+            await octokit.rest.repos.listForOrg({
+              org: owner,
+              sort: 'updated',
+              per_page: 100,
+            })
+          ).data;
 
       return ok(
         repos.map((repo) => ({
