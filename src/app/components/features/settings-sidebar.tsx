@@ -88,9 +88,8 @@ export function SettingsSidebar(): React.JSX.Element {
             className="relative z-10 h-7 w-7 drop-shadow-[0_0_8px_rgba(163,113,247,0.4)]"
             viewBox="0 0 32 32"
             fill="none"
-            aria-labelledby="agentpane-logo-settings"
+            aria-hidden="true"
           >
-            <title id="agentpane-logo-settings">AgentPane Logo</title>
             <defs>
               <radialGradient id="coreGradSettings" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#fff" />

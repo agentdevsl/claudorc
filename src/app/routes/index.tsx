@@ -1,15 +1,22 @@
 import { Funnel, Plus } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
 import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
-import type { RouterContext } from '@/app/router';
-import { useServices } from '@/app/services/service-context';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
-import type { PathValidation, ProjectSummary } from '@/services/project.service';
+
+// Simplified project summary for client-side rendering
+type ClientProjectSummary = {
+  project: ProjectListItem;
+  status: 'active' | 'idle';
+  taskCounts: { total: number; completed: number };
+  runningAgents: { id: string; name: string; currentTaskId?: string; currentTaskTitle?: string }[];
+  lastActivityAt?: Date | null;
+};
 
 /**
  * Animated AgentPane logo icon for the welcome screen
@@ -104,64 +111,90 @@ function AgentPaneLogo(): React.JSX.Element {
 }
 
 export const Route = createFileRoute('/')({
-  loader: async ({ context }: { context: RouterContext }) => {
-    if (!context.services) {
-      return { projectSummaries: [], runningAgents: 0 };
-    }
-
-    const summariesResult = await context.services.projectService.listWithSummaries({
-      limit: 24,
-    });
-    const runningAgentsResult = await context.services.agentService.getRunningCountAll();
-
-    return {
-      projectSummaries: summariesResult.ok ? summariesResult.value : [],
-      runningAgents: runningAgentsResult.ok ? runningAgentsResult.value : 0,
-    };
-  },
   component: Dashboard,
 });
 
 function Dashboard(): React.JSX.Element {
-  const { projectService } = useServices();
-  const loaderData = Route.useLoaderData() as
-    | { projectSummaries: ProjectSummary[]; runningAgents: number }
-    | undefined;
-  const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(
-    loaderData?.projectSummaries ?? []
-  );
+  const [projectSummaries, setProjectSummaries] = useState<ClientProjectSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [isSettingsConfigured, setIsSettingsConfigured] = useState(false);
+
+  // Check if global settings are configured (API key is required, GitHub PAT is optional)
+  useEffect(() => {
+    const anthropicKeyConfigured = localStorage.getItem('anthropic_api_key_masked') !== null;
+    setIsSettingsConfigured(anthropicKeyConfigured);
+  }, []);
+
+  // Fetch projects from API on mount
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const result = await apiClient.projects.list({ limit: 24 });
+      if (result.ok) {
+        // Convert API response to client project summaries
+        const summaries: ClientProjectSummary[] = result.data.items.map((project) => ({
+          project,
+          status: 'idle' as const,
+          taskCounts: { total: 0, completed: 0 },
+          runningAgents: [],
+          lastActivityAt: project.updatedAt,
+        }));
+        setProjectSummaries(summaries);
+      }
+      setIsLoading(false);
+    };
+    fetchProjects();
+  }, []);
 
   const handleCreateProject = async (data: {
     name: string;
     path: string;
     description?: string;
   }): Promise<void> => {
-    const result = await projectService.create({
+    const result = await apiClient.projects.create({
       name: data.name,
       path: data.path,
       description: data.description,
     });
 
     if (result.ok) {
-      // Refetch summaries to get complete data
-      const summariesResult = await projectService.listWithSummaries({ limit: 24 });
-      if (summariesResult.ok) {
-        setProjectSummaries(summariesResult.value);
+      // Refetch projects to get complete data
+      const listResult = await apiClient.projects.list({ limit: 24 });
+      if (listResult.ok) {
+        const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
+          project,
+          status: 'idle' as const,
+          taskCounts: { total: 0, completed: 0 },
+          runningAgents: [],
+          lastActivityAt: project.updatedAt,
+        }));
+        setProjectSummaries(summaries);
       }
     }
   };
 
-  const handleValidatePath = async (path: string): Promise<Result<PathValidation, unknown>> => {
-    return projectService.validatePath(path);
+  const handleValidatePath = async (_path: string): Promise<Result<{ isValid: boolean; exists: boolean; isGitRepo: boolean; hasClaudeConfig: boolean }, unknown>> => {
+    // TODO: Add API endpoint for path validation
+    return { ok: true, value: { isValid: true, exists: false, isGitRepo: false, hasClaudeConfig: false } };
   };
 
   const handleClone = async (
-    url: string,
-    destination: string
+    _url: string,
+    _destination: string
   ): Promise<Result<{ path: string }, unknown>> => {
-    return projectService.cloneRepository(url, destination);
+    // TODO: Add API endpoint for cloning
+    return { ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' } };
   };
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Projects' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading projects...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell
@@ -190,20 +223,31 @@ function Dashboard(): React.JSX.Element {
               subtitle="Let's get you started with your first project"
               steps={[
                 { label: 'Install AgentPane', completed: true },
-                { label: 'Configure Global Settings', completed: false },
+                { label: 'Configure Global Settings', completed: isSettingsConfigured },
                 { label: 'Create your first project', completed: false },
                 { label: 'Run your first agent', completed: false },
               ]}
-              primaryAction={{
-                label: 'Configure Settings',
-                onClick: () => {
-                  window.location.href = '/settings';
-                },
-              }}
-              secondaryAction={{
-                label: 'Skip for now',
-                onClick: () => setShowNewProject(true),
-              }}
+              primaryAction={
+                isSettingsConfigured
+                  ? {
+                      label: 'Create Project',
+                      onClick: () => setShowNewProject(true),
+                    }
+                  : {
+                      label: 'Configure Settings',
+                      onClick: () => {
+                        window.location.href = '/settings';
+                      },
+                    }
+              }
+              secondaryAction={
+                isSettingsConfigured
+                  ? undefined
+                  : {
+                      label: 'Skip for now',
+                      onClick: () => setShowNewProject(true),
+                    }
+              }
             />
           </div>
         ) : (
