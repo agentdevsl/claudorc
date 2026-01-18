@@ -59,4 +59,11 @@ export default defineConfig({
     exclude: ['@anthropic-ai/claude-agent-sdk', '@electric-sql/pglite'],
   },
   assetsInclude: ['**/*.wasm', '**/*.data'],
+  // Force full page reload on PGlite changes to avoid WASM caching issues
+  build: {
+    target: 'esnext',
+  },
+  worker: {
+    format: 'es',
+  },
 });

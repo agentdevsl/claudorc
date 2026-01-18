@@ -20,18 +20,27 @@ export function LayoutShell({
   children,
 }: LayoutShellProps): React.JSX.Element {
   return (
-    <div className="flex min-h-screen bg-canvas text-fg">
+    <div className="flex min-h-screen bg-canvas text-fg" data-testid="layout-shell">
       <div className="hidden md:block">
         <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
       <div className="flex flex-1 flex-col">
         {breadcrumbs ? (
-          <header className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+          <header
+            className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
+            data-testid="layout-header"
+          >
             <Breadcrumbs items={breadcrumbs} />
-            {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+            {actions ? (
+              <div className="flex items-center gap-2" data-testid="header-actions">
+                {actions}
+              </div>
+            ) : null}
           </header>
         ) : null}
-        <main className="flex-1">{children}</main>
+        <main className="flex-1" data-testid="layout-main">
+          {children}
+        </main>
       </div>
     </div>
   );

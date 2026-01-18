@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS "sessions" (
   "title" text,
   "url" text NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL,
   "closed_at" timestamp
 );
 
@@ -165,6 +166,10 @@ CREATE TABLE IF NOT EXISTS "repository_configs" (
 -- Add missing columns to existing tables (safe to run multiple times)
 DO $$ BEGIN
   ALTER TABLE "tasks" ADD COLUMN "queued_at" timestamp;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "sessions" ADD COLUMN "updated_at" timestamp DEFAULT now() NOT NULL;
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 `;
 

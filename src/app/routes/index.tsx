@@ -33,7 +33,7 @@ function Dashboard(): React.JSX.Element {
   const { projectService } = useServices();
   const loaderData = Route.useLoaderData();
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(
-    loaderData.projectSummaries ?? []
+    (loaderData as { projectSummaries?: ProjectSummary[] }).projectSummaries ?? []
   );
   const [showNewProject, setShowNewProject] = useState(false);
 
