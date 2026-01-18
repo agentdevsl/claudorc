@@ -15,7 +15,7 @@ function serverOnlyStubs(): Plugin {
   return {
     name: 'server-only-stubs',
     enforce: 'pre',
-    resolveId(source, importer) {
+    resolveId(source, _importer) {
       // Match imports of server-only tools by their file path patterns
       const serverModules = ['bash-tool', 'file-tools', 'search-tools'];
       const normalized = source.replace(/\.(js|ts)$/, '');
