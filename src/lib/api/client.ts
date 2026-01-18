@@ -2,7 +2,11 @@
  * Browser-side API client for fetching data from server endpoints.
  * Used by route loaders and components to access data via REST API.
  */
+import type { GitHubOrg, GitHubRepo, TokenInfo } from '@/services/github-token.service';
 import type { ApiResponse } from './response';
+
+// API server base URL (separate Bun server for database access)
+const API_BASE = 'http://localhost:3001';
 
 type FetchOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -13,6 +17,29 @@ type FetchOptions = {
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
   try {
     const response = await fetch(path, {
+      method: options.method ?? 'GET',
+      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: options.signal,
+    });
+
+    const json = await response.json();
+    return json as ApiResponse<T>;
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: error instanceof Error ? error.message : 'Network request failed',
+      },
+    };
+  }
+}
+
+// Fetch from API server (port 3001)
+async function apiServerFetch<T>(path: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',
       headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
       body: options.body ? JSON.stringify(options.body) : undefined,
@@ -53,14 +80,14 @@ export type ProjectListResponse = {
 export const apiClient = {
   projects: {
     list: (params?: { limit?: number }) =>
-      apiFetch<ProjectListResponse>(
+      apiServerFetch<ProjectListResponse>(
         `/api/projects${params?.limit ? `?limit=${params.limit}` : ''}`
       ),
 
-    get: (id: string) => apiFetch<ProjectListItem>(`/api/projects/${id}`),
+    get: (id: string) => apiServerFetch<ProjectListItem>(`/api/projects/${id}`),
 
     create: (data: { name: string; path: string; description?: string }) =>
-      apiFetch<ProjectListItem>('/api/projects', { method: 'POST', body: data }),
+      apiServerFetch<ProjectListItem>('/api/projects', { method: 'POST', body: data }),
   },
 
   agents: {
@@ -115,5 +142,55 @@ export const apiClient = {
         `/api/worktrees${query ? `?${query}` : ''}`
       );
     },
+  },
+
+  filesystem: {
+    discoverRepos: () =>
+      apiServerFetch<{ repos: { name: string; path: string; lastModified: string }[] }>(
+        '/api/filesystem/discover-repos'
+      ),
+  },
+
+  github: {
+    listOrgs: () => apiServerFetch<{ orgs: GitHubOrg[] }>('/api/github/orgs'),
+
+    listReposForOwner: (owner: string) =>
+      apiServerFetch<{ repos: GitHubRepo[] }>(`/api/github/repos/${encodeURIComponent(owner)}`),
+
+    listRepos: () => apiServerFetch<{ repos: GitHubRepo[] }>('/api/github/repos'),
+
+    clone: (url: string, destination: string) =>
+      apiServerFetch<{ path: string }>('/api/github/clone', {
+        method: 'POST',
+        body: { url, destination },
+      }),
+
+    getTokenInfo: () => apiServerFetch<{ tokenInfo: TokenInfo | null }>('/api/github/token'),
+
+    saveToken: (token: string) =>
+      apiServerFetch<{ tokenInfo: TokenInfo }>('/api/github/token', {
+        method: 'POST',
+        body: { token },
+      }),
+
+    deleteToken: () =>
+      apiServerFetch<null>('/api/github/token', { method: 'DELETE' }),
+
+    revalidateToken: () =>
+      apiServerFetch<{ isValid: boolean }>('/api/github/revalidate', { method: 'POST' }),
+
+    createFromTemplate: (params: {
+      templateOwner: string;
+      templateRepo: string;
+      name: string;
+      owner?: string;
+      description?: string;
+      isPrivate?: boolean;
+      clonePath: string;
+    }) =>
+      apiServerFetch<{ path: string; repoFullName: string; cloneUrl: string }>(
+        '/api/github/create-from-template',
+        { method: 'POST', body: params }
+      ),
   },
 };

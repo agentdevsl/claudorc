@@ -1,3 +1,8 @@
+/**
+ * Server-side GitHub Token Service
+ *
+ * Uses file-based encryption key storage instead of localStorage.
+ */
 import { Octokit } from 'octokit';
 import { githubTokens } from '../db/schema/github.js';
 import {
@@ -5,7 +10,7 @@ import {
   encryptToken,
   isValidPATFormat,
   maskToken,
-} from '../lib/crypto/token-encryption.js';
+} from './crypto.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
@@ -128,7 +133,6 @@ export class GitHubTokenService {
 
   /**
    * Get the decrypted token for API use
-   * Returns null if no token is saved
    */
   async getDecryptedToken(): Promise<string | null> {
     try {
@@ -237,111 +241,7 @@ export class GitHubTokenService {
   }
 
   /**
-   * Get repository info
-   */
-  async getRepository(owner: string, repo: string): Promise<Result<GitHubRepo, GitHubTokenError>> {
-    const octokit = await this.getOctokit();
-    if (!octokit) {
-      return err({
-        code: 'NOT_FOUND',
-        message: 'No GitHub token configured',
-      });
-    }
-
-    try {
-      const { data } = await octokit.rest.repos.get({ owner, repo });
-      return ok({
-        id: data.id,
-        name: data.name,
-        full_name: data.full_name,
-        private: data.private,
-        owner: {
-          login: data.owner.login,
-          avatar_url: data.owner.avatar_url,
-        },
-        default_branch: data.default_branch,
-        description: data.description,
-        clone_url: data.clone_url,
-        updated_at: data.updated_at ?? '',
-        stargazers_count: data.stargazers_count,
-        is_template: data.is_template ?? false,
-      });
-    } catch (error) {
-      return this.handleOctokitError(error);
-    }
-  }
-
-  /**
-   * List repository branches
-   */
-  async listBranches(
-    owner: string,
-    repo: string
-  ): Promise<Result<GitHubBranch[], GitHubTokenError>> {
-    const octokit = await this.getOctokit();
-    if (!octokit) {
-      return err({
-        code: 'NOT_FOUND',
-        message: 'No GitHub token configured',
-      });
-    }
-
-    try {
-      const { data } = await octokit.rest.repos.listBranches({ owner, repo });
-      return ok(
-        data.map((branch) => ({
-          name: branch.name,
-          protected: branch.protected,
-        }))
-      );
-    } catch (error) {
-      return this.handleOctokitError(error);
-    }
-  }
-
-  /**
-   * List the authenticated user's repositories
-   * Sorted by most recently updated, limited to 50 repos
-   */
-  async listUserRepos(): Promise<Result<GitHubRepo[], GitHubTokenError>> {
-    const octokit = await this.getOctokit();
-    if (!octokit) {
-      return err({
-        code: 'NOT_FOUND',
-        message: 'No GitHub token configured',
-      });
-    }
-
-    try {
-      const { data } = await octokit.rest.repos.listForAuthenticatedUser({
-        sort: 'updated',
-        per_page: 50,
-      });
-      return ok(
-        data.map((repo) => ({
-          id: repo.id,
-          name: repo.name,
-          full_name: repo.full_name,
-          private: repo.private,
-          owner: {
-            login: repo.owner.login,
-            avatar_url: repo.owner.avatar_url,
-          },
-          default_branch: repo.default_branch,
-          description: repo.description,
-          clone_url: repo.clone_url,
-          updated_at: repo.updated_at ?? '',
-          stargazers_count: repo.stargazers_count,
-          is_template: repo.is_template ?? false,
-        }))
-      );
-    } catch (error) {
-      return this.handleOctokitError(error);
-    }
-  }
-
-  /**
-   * List the authenticated user's organizations (plus their own account)
+   * List the authenticated user's organizations plus their own account
    */
   async listUserOrgs(): Promise<Result<GitHubOrg[], GitHubTokenError>> {
     const octokit = await this.getOctokit();
@@ -353,27 +253,29 @@ export class GitHubTokenService {
     }
 
     try {
-      // Get the authenticated user first
+      // Get user info for their personal account
       const { data: user } = await octokit.rest.users.getAuthenticated();
 
-      // Get user's organizations
+      // Get organizations
       const { data: orgs } = await octokit.rest.orgs.listForAuthenticatedUser({
         per_page: 100,
       });
 
-      // Return user account first, then orgs
-      return ok([
+      // Combine user's personal account + orgs
+      const result: GitHubOrg[] = [
         {
           login: user.login,
           avatar_url: user.avatar_url,
-          type: 'user' as const,
+          type: 'user',
         },
         ...orgs.map((org) => ({
           login: org.login,
           avatar_url: org.avatar_url,
           type: 'org' as const,
         })),
-      ]);
+      ];
+
+      return ok(result);
     } catch (error) {
       return this.handleOctokitError(error);
     }
@@ -392,7 +294,7 @@ export class GitHubTokenService {
     }
 
     try {
-      // Check if it's the authenticated user or an org
+      // Check if this is the authenticated user
       const { data: user } = await octokit.rest.users.getAuthenticated();
       const isAuthenticatedUser = user.login === owner;
 
@@ -427,6 +329,95 @@ export class GitHubTokenService {
         }))
       );
     } catch (error) {
+      return this.handleOctokitError(error);
+    }
+  }
+
+  /**
+   * List the authenticated user's repositories (all, for backward compatibility)
+   */
+  async listUserRepos(): Promise<Result<GitHubRepo[], GitHubTokenError>> {
+    const octokit = await this.getOctokit();
+    if (!octokit) {
+      return err({
+        code: 'NOT_FOUND',
+        message: 'No GitHub token configured',
+      });
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+        sort: 'updated',
+        per_page: 100,
+      });
+
+      return ok(
+        data.map((repo) => ({
+          id: repo.id,
+          name: repo.name,
+          full_name: repo.full_name,
+          private: repo.private,
+          owner: {
+            login: repo.owner.login,
+            avatar_url: repo.owner.avatar_url,
+          },
+          default_branch: repo.default_branch,
+          description: repo.description,
+          clone_url: repo.clone_url,
+          updated_at: repo.updated_at ?? '',
+          stargazers_count: repo.stargazers_count,
+          is_template: repo.is_template ?? false,
+        }))
+      );
+    } catch (error) {
+      return this.handleOctokitError(error);
+    }
+  }
+
+  /**
+   * Create a new repository from a template
+   */
+  async createRepoFromTemplate(params: {
+    templateOwner: string;
+    templateRepo: string;
+    name: string;
+    owner?: string; // If not provided, creates in authenticated user's account
+    description?: string;
+    isPrivate?: boolean;
+  }): Promise<Result<{ cloneUrl: string; fullName: string }, GitHubTokenError>> {
+    const octokit = await this.getOctokit();
+    if (!octokit) {
+      return err({
+        code: 'NOT_FOUND',
+        message: 'No GitHub token configured',
+      });
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.createUsingTemplate({
+        template_owner: params.templateOwner,
+        template_repo: params.templateRepo,
+        name: params.name,
+        owner: params.owner,
+        description: params.description,
+        private: params.isPrivate ?? false,
+        include_all_branches: false,
+      });
+
+      return ok({
+        cloneUrl: data.clone_url ?? '',
+        fullName: data.full_name,
+      });
+    } catch (error) {
+      if (error instanceof Error && 'status' in error) {
+        const status = (error as { status: number }).status;
+        if (status === 422) {
+          return err({
+            code: 'VALIDATION_FAILED',
+            message: 'Repository name already exists or is invalid',
+          });
+        }
+      }
       return this.handleOctokitError(error);
     }
   }
@@ -481,9 +472,4 @@ export type GitHubRepo = {
   updated_at: string;
   stargazers_count: number;
   is_template: boolean;
-};
-
-export type GitHubBranch = {
-  name: string;
-  protected: boolean;
 };

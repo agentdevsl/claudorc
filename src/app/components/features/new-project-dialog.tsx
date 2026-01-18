@@ -2,6 +2,7 @@ import {
   Book,
   CheckCircle,
   Code,
+  CopySimple,
   FolderSimple,
   GitBranch,
   GithubLogo,
@@ -62,7 +63,17 @@ interface NewProjectDialogProps {
   onSubmit: (data: { name: string; path: string; description?: string }) => Promise<void>;
   onValidatePath: (path: string) => Promise<Result<PathValidation, unknown>>;
   onClone?: (url: string, destination: string) => Promise<Result<{ path: string }, unknown>>;
-  onFetchUserRepos?: () => Promise<GitHubRepo[]>;
+  onCreateFromTemplate?: (params: {
+    templateOwner: string;
+    templateRepo: string;
+    name: string;
+    owner?: string;
+    description?: string;
+    isPrivate?: boolean;
+    clonePath: string;
+  }) => Promise<Result<{ path: string }, unknown>>;
+  onFetchOrgs?: () => Promise<GitHubOrg[]>;
+  onFetchReposForOwner?: (owner: string) => Promise<GitHubRepo[]>;
   isGitHubConfigured?: boolean;
   recentRepos?: RecentRepo[];
   initialPath?: string;
@@ -176,31 +187,61 @@ interface RecentRepoListProps {
 }
 
 function RecentRepoList({ repos, onSelect }: RecentRepoListProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+
   if (repos.length === 0) return null;
 
+  const filteredRepos = repos.filter(
+    (repo) =>
+      repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      repo.path.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="space-y-1" data-testid="recent-repos-list">
-      {repos.map((repo) => (
-        <button
-          key={repo.path}
-          type="button"
-          onClick={() => onSelect(repo.path)}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-[var(--radius)] border border-transparent p-2.5',
-            'text-left transition-all duration-fast ease-out',
-            'hover:border-border hover:bg-surface-subtle'
-          )}
-          data-testid={`recent-repo-${repo.name}`}
-        >
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--radius)] bg-surface-muted text-fg-muted">
-            <Book className="h-4 w-4" />
+    <div className="space-y-2" data-testid="recent-repos-list">
+      {/* Search input */}
+      <div className="relative">
+        <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search local repositories..."
+          className="w-full rounded-[var(--radius)] border border-border bg-surface-subtle py-2 pl-10 pr-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          data-testid="local-repo-search"
+        />
+      </div>
+
+      {/* Repo list */}
+      <div className="max-h-[240px] space-y-1 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface-subtle p-1">
+        {filteredRepos.length === 0 ? (
+          <div className="py-4 text-center text-sm text-fg-muted">
+            No repositories match your search.
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-fg">{repo.name}</div>
-            <div className="truncate font-mono text-xs text-fg-subtle">{repo.path}</div>
-          </div>
-        </button>
-      ))}
+        ) : (
+          filteredRepos.map((repo) => (
+            <button
+              key={repo.path}
+              type="button"
+              onClick={() => onSelect(repo.path)}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-[var(--radius-sm)] border border-transparent p-2.5',
+                'text-left transition-all duration-fast ease-out',
+                'hover:border-border hover:bg-surface-muted'
+              )}
+              data-testid={`recent-repo-${repo.name}`}
+            >
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--radius)] bg-surface-muted text-fg-muted">
+                <Book className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-fg">{repo.name}</div>
+                <div className="truncate font-mono text-xs text-fg-subtle">{repo.path}</div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -249,52 +290,195 @@ function Divider({ text }: { text: string }) {
   );
 }
 
+// Organization type for the selector
+type GitHubOrg = {
+  login: string;
+  avatar_url: string;
+  type: 'user' | 'org';
+};
+
 // Sub-component: GitHubRepoList
 interface GitHubRepoListProps {
-  repos: GitHubRepo[];
-  isLoading: boolean;
-  searchTerm: string;
-  onSearchChange: (term: string) => void;
+  orgs: GitHubOrg[];
+  isLoadingOrgs: boolean;
+  onFetchReposForOwner: (owner: string) => Promise<GitHubRepo[]>;
   onSelect: (repo: GitHubRepo) => void;
   selectedRepoId?: number;
 }
 
 function GitHubRepoList({
-  repos,
-  isLoading,
-  searchTerm,
-  onSearchChange,
+  orgs,
+  isLoadingOrgs,
+  onFetchReposForOwner,
   onSelect,
   selectedRepoId,
 }: GitHubRepoListProps) {
-  const filteredRepos = repos.filter(
-    (repo) =>
+  const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showTemplatesOnly, setShowTemplatesOnly] = useState(false);
+  const [showPrivateOnly, setShowPrivateOnly] = useState(false);
+
+  // Fetch repos when owner changes
+  useEffect(() => {
+    if (!selectedOwner) {
+      setRepos([]);
+      return;
+    }
+
+    const fetchRepos = async () => {
+      setIsLoadingRepos(true);
+      try {
+        const fetchedRepos = await onFetchReposForOwner(selectedOwner);
+        setRepos(fetchedRepos);
+      } catch {
+        setRepos([]);
+      } finally {
+        setIsLoadingRepos(false);
+      }
+    };
+
+    void fetchRepos();
+  }, [selectedOwner, onFetchReposForOwner]);
+
+  // Count for filter labels
+  const templateCount = repos.filter((repo) => repo.is_template).length;
+  const privateCount = repos.filter((repo) => repo.private).length;
+
+  // Filter repos by search term and filters
+  const filteredRepos = repos.filter((repo) => {
+    // Apply template filter
+    if (showTemplatesOnly && !repo.is_template) {
+      return false;
+    }
+    // Apply private filter
+    if (showPrivateOnly && !repo.private) {
+      return false;
+    }
+    // Then apply search filter
+    return (
       repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       repo.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (repo.description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
-  );
+    );
+  });
 
   return (
     <div className="space-y-3" data-testid="github-repo-list">
-      <label
-        className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-        htmlFor="repo-search"
-      >
-        Search your repositories
-      </label>
-      <div className="relative">
-        <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-        <TextInput
-          id="repo-search"
-          value={searchTerm}
-          placeholder="Filter repositories..."
-          className="pl-10"
-          onChange={(e) => onSearchChange(e.target.value)}
-          data-testid="repo-search-input"
-        />
+      {/* Organization/Owner Selector */}
+      <div className="space-y-2">
+        <label
+          className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+          htmlFor="owner-filter"
+        >
+          Select Organization / Account
+        </label>
+        {isLoadingOrgs ? (
+          <div className="flex items-center gap-2 py-2">
+            <Spinner className="h-4 w-4 animate-spin text-fg-muted" />
+            <span className="text-sm text-fg-muted">Loading organizations...</span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {orgs.map((org) => (
+              <button
+                key={org.login}
+                type="button"
+                onClick={() => setSelectedOwner(org.login)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  selectedOwner === org.login
+                    ? 'bg-accent text-fg-on-emphasis'
+                    : 'bg-surface-subtle text-fg-muted hover:bg-surface-muted hover:text-fg'
+                )}
+                data-testid={`owner-filter-${org.login}`}
+              >
+                <img
+                  src={org.avatar_url}
+                  alt={org.login}
+                  className="h-4 w-4 rounded-full"
+                />
+                {org.login}
+                {org.type === 'user' && (
+                  <span className="text-fg-subtle">(you)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
+      {/* Repository Search and Filters (only shown when an org is selected) */}
+      {selectedOwner && (
+        <>
+          <div>
+            <label
+              className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+              htmlFor="repo-search"
+            >
+              Search repositories
+            </label>
+            <div className="relative mt-2">
+              <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+              <TextInput
+                id="repo-search"
+                value={searchTerm}
+                placeholder="Filter repositories..."
+                className="pl-10"
+                onChange={(e) => setSearchTerm(e.target.value)}
+                data-testid="repo-search-input"
+              />
+            </div>
+          </div>
+
+          {/* Filter chips */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-fg-subtle">Filter:</span>
+            <button
+              type="button"
+              onClick={() => setShowTemplatesOnly(!showTemplatesOnly)}
+              disabled={templateCount === 0}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                showTemplatesOnly
+                  ? 'bg-accent text-fg-on-emphasis'
+                  : templateCount > 0
+                    ? 'bg-surface-subtle text-fg-muted hover:bg-surface-muted hover:text-fg'
+                    : 'bg-surface-subtle text-fg-subtle cursor-not-allowed opacity-50'
+              )}
+              data-testid="template-filter-toggle"
+            >
+              <CopySimple className="h-3.5 w-3.5" />
+              Templates ({templateCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPrivateOnly(!showPrivateOnly)}
+              disabled={privateCount === 0}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                showPrivateOnly
+                  ? 'bg-accent text-fg-on-emphasis'
+                  : privateCount > 0
+                    ? 'bg-surface-subtle text-fg-muted hover:bg-surface-muted hover:text-fg'
+                    : 'bg-surface-subtle text-fg-subtle cursor-not-allowed opacity-50'
+              )}
+              data-testid="private-filter-toggle"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Private ({privateCount})
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Repository List */}
+      {!selectedOwner ? (
+        <div className="py-8 text-center text-sm text-fg-muted">
+          Select an organization or account above to view repositories.
+        </div>
+      ) : isLoadingRepos ? (
         <div className="flex items-center justify-center py-8">
           <Spinner className="h-6 w-6 animate-spin text-fg-muted" />
           <span className="ml-2 text-sm text-fg-muted">Loading repositories...</span>
@@ -336,6 +520,12 @@ function GitHubRepoList({
                     <Star className="h-3 w-3" />
                     {repo.stargazers_count}
                   </div>
+                  {repo.is_template && (
+                    <span className="flex items-center gap-0.5 rounded-full bg-accent/20 px-1.5 py-0.5 text-xs text-accent">
+                      <CopySimple className="h-2.5 w-2.5" weight="fill" />
+                      Template
+                    </span>
+                  )}
                   {repo.private && (
                     <span className="flex items-center gap-0.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs text-fg-subtle">
                       <Lock className="h-2.5 w-2.5" weight="fill" />
@@ -376,12 +566,8 @@ const defaultSkills: SkillConfig[] = [
   },
 ];
 
-// Mock recent repos for demo
-const mockRecentRepos: RecentRepo[] = [
-  { name: 'claude-code', path: '~/git/claude-code' },
-  { name: 'tanstack-db', path: '~/git/tanstack-db' },
-  { name: 'my-saas-app', path: '~/projects/my-saas-app' },
-];
+// Recent repos - passed in from parent component when available
+// TODO: Implement recent repos discovery via API
 
 export function NewProjectDialog({
   open,
@@ -389,9 +575,11 @@ export function NewProjectDialog({
   onSubmit,
   onValidatePath,
   onClone,
-  onFetchUserRepos,
+  onCreateFromTemplate,
+  onFetchOrgs,
+  onFetchReposForOwner,
   isGitHubConfigured = false,
-  recentRepos = mockRecentRepos,
+  recentRepos = [],
   initialPath = '',
   initialSource = 'local',
 }: NewProjectDialogProps): React.JSX.Element {
@@ -402,6 +590,11 @@ export function NewProjectDialog({
   const [description, setDescription] = useState('');
   const [cloneUrl, setCloneUrl] = useState('');
   const [clonePath, setClonePath] = useState('~/git/');
+
+  // Template-specific state
+  const [newRepoName, setNewRepoName] = useState('');
+  const [newRepoOwner, setNewRepoOwner] = useState<string | undefined>(undefined);
+  const [newRepoPrivate, setNewRepoPrivate] = useState(false);
 
   // Validation state
   const [pathStatus, setPathStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
@@ -416,13 +609,12 @@ export function NewProjectDialog({
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState('');
 
-  // GitHub repos state
-  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
-  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
-  const [repoSearchTerm, setRepoSearchTerm] = useState('');
+  // GitHub orgs state
+  const [githubOrgs, setGithubOrgs] = useState<GitHubOrg[]>([]);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [showManualUrl, setShowManualUrl] = useState(false);
-  const [hasFetchedRepos, setHasFetchedRepos] = useState(false);
+  const [hasFetchedOrgs, setHasFetchedOrgs] = useState(false);
 
   // Handle Escape key explicitly for reliable dialog closing
   useEffect(() => {
@@ -455,38 +647,54 @@ export function NewProjectDialog({
       setIsCloning(false);
       setCloneError('');
       // Reset GitHub state
-      setGithubRepos([]);
-      setIsLoadingRepos(false);
-      setRepoSearchTerm('');
+      setGithubOrgs([]);
+      setIsLoadingOrgs(false);
       setSelectedRepo(null);
       setShowManualUrl(false);
-      setHasFetchedRepos(false);
+      setHasFetchedOrgs(false);
+      // Reset template state
+      setNewRepoName('');
+      setNewRepoOwner(undefined);
+      setNewRepoPrivate(false);
     }
   }, [open, initialPath, initialSource]);
 
-  // Fetch GitHub repos when clone tab is selected
-  const fetchGitHubRepos = useCallback(async () => {
-    if (!onFetchUserRepos || !isGitHubConfigured || hasFetchedRepos) return;
+  // Fetch GitHub orgs when clone tab is selected
+  const fetchGitHubOrgs = useCallback(async () => {
+    if (!onFetchOrgs || !isGitHubConfigured || hasFetchedOrgs) return;
 
-    setIsLoadingRepos(true);
+    setIsLoadingOrgs(true);
     try {
-      const repos = await onFetchUserRepos();
-      setGithubRepos(repos);
-      setHasFetchedRepos(true);
+      const orgs = await onFetchOrgs();
+      setGithubOrgs(orgs);
+      setHasFetchedOrgs(true);
     } catch {
       // Silently fail - user can still use manual URL entry
-      setGithubRepos([]);
+      setGithubOrgs([]);
     } finally {
-      setIsLoadingRepos(false);
+      setIsLoadingOrgs(false);
     }
-  }, [onFetchUserRepos, isGitHubConfigured, hasFetchedRepos]);
+  }, [onFetchOrgs, isGitHubConfigured, hasFetchedOrgs]);
 
-  // Fetch repos when switching to clone tab
+  // Fetch orgs when switching to clone tab
   useEffect(() => {
-    if (sourceType === 'clone' && isGitHubConfigured && !hasFetchedRepos) {
-      void fetchGitHubRepos();
+    if (sourceType === 'clone' && isGitHubConfigured && !hasFetchedOrgs) {
+      void fetchGitHubOrgs();
     }
-  }, [sourceType, isGitHubConfigured, hasFetchedRepos, fetchGitHubRepos]);
+  }, [sourceType, isGitHubConfigured, hasFetchedOrgs, fetchGitHubOrgs]);
+
+  // Callback to fetch repos for a specific owner
+  const handleFetchReposForOwner = useCallback(
+    async (owner: string): Promise<GitHubRepo[]> => {
+      if (!onFetchReposForOwner) return [];
+      try {
+        return await onFetchReposForOwner(owner);
+      } catch {
+        return [];
+      }
+    },
+    [onFetchReposForOwner]
+  );
 
   // Handle selecting a GitHub repo
   const handleSelectGitHubRepo = (repo: GitHubRepo): void => {
@@ -554,27 +762,56 @@ export function NewProjectDialog({
     );
   };
 
+  // Check if selected repo is a template
+  const isTemplateSelected = selectedRepo?.is_template ?? false;
+
   // Handle form submission
   const handleSubmit = async (): Promise<void> => {
-    if (sourceType === 'clone' && onClone) {
+    if (sourceType === 'clone') {
       setIsCloning(true);
       setCloneError('');
 
-      const cloneResult = await onClone(cloneUrl, clonePath);
+      // Handle template repo differently
+      if (isTemplateSelected && onCreateFromTemplate && selectedRepo) {
+        const templateResult = await onCreateFromTemplate({
+          templateOwner: selectedRepo.owner.login,
+          templateRepo: selectedRepo.name,
+          name: newRepoName.trim(),
+          owner: newRepoOwner,
+          description: description.trim() || undefined,
+          isPrivate: newRepoPrivate,
+          clonePath,
+        });
 
-      if (!cloneResult.ok) {
+        if (!templateResult.ok) {
+          setIsCloning(false);
+          setCloneError('Failed to create repository from template. The name may already exist.');
+          return;
+        }
+
+        await onSubmit({
+          name: newRepoName.trim(),
+          path: templateResult.value.path,
+          description: description.trim() || undefined,
+        });
         setIsCloning(false);
-        setCloneError('Failed to clone repository. Please check the URL and try again.');
-        return;
-      }
+      } else if (onClone) {
+        // Regular clone
+        const cloneResult = await onClone(cloneUrl, clonePath);
 
-      // After successful clone, create project with cloned path
-      await onSubmit({
-        name: cloneUrl.split('/').pop()?.replace('.git', '') ?? 'project',
-        path: cloneResult.value.path,
-        description: description.trim() || undefined,
-      });
-      setIsCloning(false);
+        if (!cloneResult.ok) {
+          setIsCloning(false);
+          setCloneError('Failed to clone repository. Please check the URL and try again.');
+          return;
+        }
+
+        await onSubmit({
+          name: cloneUrl.split('/').pop()?.replace('.git', '') ?? 'project',
+          path: cloneResult.value.path,
+          description: description.trim() || undefined,
+        });
+        setIsCloning(false);
+      }
     } else {
       await onSubmit({
         name: name.trim(),
@@ -586,10 +823,12 @@ export function NewProjectDialog({
   };
 
   // Check if form is submittable
+  const canSubmitTemplate = isTemplateSelected && newRepoName.trim() && clonePath.trim();
+  const canSubmitClone = !isTemplateSelected && cloneUrl.trim() && validateCloneUrl(cloneUrl) && clonePath.trim();
   const canSubmit =
     sourceType === 'local'
       ? name.trim() && pathStatus === 'valid'
-      : cloneUrl.trim() && validateCloneUrl(cloneUrl) && clonePath.trim();
+      : canSubmitTemplate || canSubmitClone;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -767,24 +1006,90 @@ export function NewProjectDialog({
             {isGitHubConfigured && !showManualUrl && (
               <>
                 <GitHubRepoList
-                  repos={githubRepos}
-                  isLoading={isLoadingRepos}
-                  searchTerm={repoSearchTerm}
-                  onSearchChange={setRepoSearchTerm}
+                  orgs={githubOrgs}
+                  isLoadingOrgs={isLoadingOrgs}
+                  onFetchReposForOwner={handleFetchReposForOwner}
                   onSelect={handleSelectGitHubRepo}
                   selectedRepoId={selectedRepo?.id}
                 />
 
-                <Divider text="or enter URL manually" />
+                {/* Template-specific fields (shown when a template is selected) */}
+                {isTemplateSelected && selectedRepo && (
+                  <div className="space-y-4 rounded-lg border border-accent/30 bg-accent-muted/30 p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-accent">
+                      <CopySimple className="h-4 w-4" weight="fill" />
+                      Creating new repository from template: {selectedRepo.name}
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowManualUrl(true)}
-                  className="w-full text-center text-sm text-fg-muted hover:text-fg transition-colors"
-                  data-testid="show-manual-url-button"
-                >
-                  Enter a repository URL manually
-                </button>
+                    <div className="space-y-2">
+                      <label
+                        className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+                        htmlFor="new-repo-name"
+                      >
+                        New Repository Name
+                      </label>
+                      <TextInput
+                        id="new-repo-name"
+                        value={newRepoName}
+                        placeholder="my-new-project"
+                        onChange={(e) => setNewRepoName(e.target.value)}
+                        data-testid="new-repo-name-input"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+                        htmlFor="new-repo-owner"
+                      >
+                        Owner
+                      </label>
+                      <select
+                        id="new-repo-owner"
+                        value={newRepoOwner ?? ''}
+                        onChange={(e) => setNewRepoOwner(e.target.value || undefined)}
+                        className="w-full rounded-[var(--radius)] border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        data-testid="new-repo-owner-select"
+                      >
+                        <option value="">Your account</option>
+                        {githubOrgs
+                          .filter((org) => org.type === 'org')
+                          .map((org) => (
+                            <option key={org.login} value={org.login}>
+                              {org.login}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-fg-muted">
+                      <input
+                        type="checkbox"
+                        checked={newRepoPrivate}
+                        onChange={(e) => setNewRepoPrivate(e.target.checked)}
+                        className="rounded border-border"
+                        data-testid="new-repo-private-checkbox"
+                      />
+                      <Lock className="h-3.5 w-3.5" />
+                      Make repository private
+                    </label>
+                  </div>
+                )}
+
+                {!isTemplateSelected && (
+                  <>
+                    <Divider text="or enter URL manually" />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowManualUrl(true)}
+                      className="w-full text-center text-sm text-fg-muted hover:text-fg transition-colors"
+                      data-testid="show-manual-url-button"
+                    >
+                      Enter a repository URL manually
+                    </button>
+                  </>
+                )}
               </>
             )}
 

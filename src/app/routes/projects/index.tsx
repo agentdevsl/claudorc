@@ -1,6 +1,6 @@
-import { Funnel, Plus } from '@phosphor-icons/react';
+import { MagnifyingGlass, Plus, SortAscending } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
@@ -8,7 +8,7 @@ import { AddProjectCard, ProjectCard } from '@/app/components/features/project-c
 import { Button } from '@/app/components/ui/button';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
-import type { GitHubRepo } from '@/services/github-token.service';
+import type { GitHubOrg, GitHubRepo } from '@/services/github-token.service';
 
 /**
  * Animated AgentPane logo icon for the welcome screen
@@ -115,19 +115,68 @@ export const Route = createFileRoute('/projects/')({
   component: ProjectsPage,
 });
 
+type SortOption = 'recent' | 'name' | 'created';
+
 function ProjectsPage(): React.JSX.Element {
   const [projectSummaries, setProjectSummaries] = useState<ClientProjectSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
   const [isSettingsConfigured, setIsSettingsConfigured] = useState(false);
   const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
+  const [localRepos, setLocalRepos] = useState<{ name: string; path: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('recent');
+
+  // Filter and sort projects
+  const filteredProjects = useMemo(() => {
+    let result = [...projectSummaries];
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.project.name.toLowerCase().includes(query) ||
+          s.project.path.toLowerCase().includes(query) ||
+          s.project.description?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.project.name.localeCompare(b.project.name);
+        case 'created':
+          return new Date(b.project.createdAt ?? 0).getTime() - new Date(a.project.createdAt ?? 0).getTime();
+        default:
+          return new Date(b.project.updatedAt ?? 0).getTime() - new Date(a.project.updatedAt ?? 0).getTime();
+      }
+    });
+
+    return result;
+  }, [projectSummaries, searchQuery, sortBy]);
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
     const anthropicKeyConfigured = localStorage.getItem('anthropic_api_key_masked') !== null;
-    const githubConfigured = localStorage.getItem('github_pat_masked') !== null;
     setIsSettingsConfigured(anthropicKeyConfigured);
-    setIsGitHubConfigured(githubConfigured);
+
+    // Check GitHub token via API (stored in SQLite)
+    const checkGitHub = async () => {
+      const result = await apiClient.github.getTokenInfo();
+      setIsGitHubConfigured(result.ok && result.data.tokenInfo?.isValid === true);
+    };
+    checkGitHub();
+
+    // Discover local git repos
+    const discoverLocalRepos = async () => {
+      const result = await apiClient.filesystem.discoverRepos();
+      if (result.ok) {
+        setLocalRepos(result.data.repos.map((r) => ({ name: r.name, path: r.path })));
+      }
+    };
+    discoverLocalRepos();
   }, []);
 
   // Fetch projects from API on mount
@@ -191,60 +240,56 @@ function ProjectsPage(): React.JSX.Element {
   };
 
   const handleClone = async (
-    _url: string,
-    _destination: string
+    url: string,
+    destination: string
   ): Promise<Result<{ path: string }, unknown>> => {
-    // TODO: Add API endpoint for cloning
+    const result = await apiClient.github.clone(url, destination);
+    if (result.ok) {
+      return { ok: true, value: { path: result.data.path } };
+    }
     return {
       ok: false,
-      error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' },
+      error: result.error,
     };
   };
 
-  const handleFetchUserRepos = async (): Promise<GitHubRepo[]> => {
-    // TODO: Add API endpoint for fetching user repos via GitHubTokenService.listUserRepos()
-    // For now, return mock data to demonstrate the UI
-    const mockRepos: GitHubRepo[] = [
-      {
-        id: 1,
-        name: 'claudorc',
-        full_name: 'simon-lynch/claudorc',
-        private: true,
-        owner: { login: 'simon-lynch', avatar_url: '' },
-        default_branch: 'main',
-        description: 'AgentPane - AI Agent Management Platform',
-        clone_url: 'https://github.com/simon-lynch/claudorc.git',
-        updated_at: new Date().toISOString(),
-        stargazers_count: 5,
-      },
-      {
-        id: 2,
-        name: 'tanstack-router',
-        full_name: 'TanStack/router',
-        private: false,
-        owner: { login: 'TanStack', avatar_url: '' },
-        default_branch: 'main',
-        description: 'Type-safe router with built-in caching',
-        clone_url: 'https://github.com/TanStack/router.git',
-        updated_at: new Date(Date.now() - 86400000).toISOString(),
-        stargazers_count: 8200,
-      },
-      {
-        id: 3,
-        name: 'claude-code',
-        full_name: 'anthropics/claude-code',
-        private: false,
-        owner: { login: 'anthropics', avatar_url: '' },
-        default_branch: 'main',
-        description: 'Claude CLI for software development',
-        clone_url: 'https://github.com/anthropics/claude-code.git',
-        updated_at: new Date(Date.now() - 172800000).toISOString(),
-        stargazers_count: 15000,
-      },
-    ];
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return mockRepos;
+  const handleCreateFromTemplate = async (params: {
+    templateOwner: string;
+    templateRepo: string;
+    name: string;
+    owner?: string;
+    description?: string;
+    isPrivate?: boolean;
+    clonePath: string;
+  }): Promise<Result<{ path: string }, unknown>> => {
+    const result = await apiClient.github.createFromTemplate(params);
+    if (result.ok) {
+      return { ok: true, value: { path: result.data.path } };
+    }
+    return {
+      ok: false,
+      error: result.error,
+    };
+  };
+
+  const handleFetchOrgs = async (): Promise<GitHubOrg[]> => {
+    // Fetch orgs via API (uses token from SQLite)
+    const result = await apiClient.github.listOrgs();
+    if (result.ok) {
+      return result.data.orgs;
+    }
+    console.error('Failed to fetch GitHub orgs:', result.error);
+    return [];
+  };
+
+  const handleFetchReposForOwner = async (owner: string): Promise<GitHubRepo[]> => {
+    // Fetch repos for a specific owner via API
+    const result = await apiClient.github.listReposForOwner(owner);
+    if (result.ok) {
+      return result.data.repos;
+    }
+    console.error('Failed to fetch repos for owner:', result.error);
+    return [];
   };
 
   if (isLoading) {
@@ -262,10 +307,34 @@ function ProjectsPage(): React.JSX.Element {
       breadcrumbs={[{ label: 'Projects' }]}
       actions={
         <div className="flex items-center gap-3">
-          <Button variant="outline">
-            <Funnel className="h-4 w-4" />
-            Filter
-          </Button>
+          {/* Search input */}
+          <div className="relative">
+            <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search projects..."
+              className="w-48 rounded-md border border-border bg-surface py-1.5 pl-9 pr-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              data-testid="project-search"
+            />
+          </div>
+
+          {/* Sort dropdown */}
+          <div className="relative">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="appearance-none rounded-md border border-border bg-surface py-1.5 pl-3 pr-8 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              data-testid="project-sort"
+            >
+              <option value="recent">Recently Updated</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="created">Date Created</option>
+            </select>
+            <SortAscending className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+          </div>
+
           <Button data-testid="create-project-button" onClick={() => setShowNewProject(true)}>
             <Plus className="h-4 w-4" />
             New Project
@@ -311,12 +380,24 @@ function ProjectsPage(): React.JSX.Element {
               }
             />
           </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+            <MagnifyingGlass className="h-12 w-12 text-fg-subtle mb-4" />
+            <p className="text-fg-muted">No projects match "{searchQuery}"</p>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="mt-2 text-sm text-accent hover:text-accent/80"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <div
             className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             data-testid="project-list"
           >
-            {projectSummaries.map((summary) => (
+            {filteredProjects.map((summary) => (
               <ProjectCard
                 key={summary.project.id}
                 project={summary.project}
@@ -343,8 +424,11 @@ function ProjectsPage(): React.JSX.Element {
         onSubmit={handleCreateProject}
         onValidatePath={handleValidatePath}
         onClone={handleClone}
-        onFetchUserRepos={handleFetchUserRepos}
+        onCreateFromTemplate={handleCreateFromTemplate}
+        onFetchOrgs={handleFetchOrgs}
+        onFetchReposForOwner={handleFetchReposForOwner}
         isGitHubConfigured={isGitHubConfigured}
+        recentRepos={localRepos}
       />
     </LayoutShell>
   );

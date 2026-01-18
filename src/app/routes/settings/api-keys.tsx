@@ -1,7 +1,8 @@
-import { Check, CircleNotch, Eye, EyeSlash, Key, Trash, Warning } from '@phosphor-icons/react';
+import { Check, CircleNotch, Eye, EyeSlash, GithubLogo, Key, Trash, Warning } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { apiClient } from '@/lib/api/client';
 import { encryptToken, isValidPATFormat, maskToken } from '@/lib/crypto/token-encryption';
 
 export const Route = createFileRoute('/settings/api-keys')({
@@ -18,13 +19,24 @@ function ApiKeysSettingsPage(): React.JSX.Element {
   const [githubPat, setGithubPat] = useState('');
   const [showGithubPat, setShowGithubPat] = useState(false);
   const [savedGithubPat, setSavedGithubPat] = useState<string | null>(null);
+  const [githubLogin, setGithubLogin] = useState<string | null>(null);
   const [isSavingGithub, setIsSavingGithub] = useState(false);
   const [githubError, setGithubError] = useState<string | null>(null);
 
   // Load saved keys on mount
   useEffect(() => {
+    // Anthropic key from localStorage (for now)
     setSavedAnthropicKey(localStorage.getItem('anthropic_api_key_masked'));
-    setSavedGithubPat(localStorage.getItem('github_pat_masked'));
+
+    // GitHub token from API (SQLite database)
+    const loadGitHubToken = async () => {
+      const result = await apiClient.github.getTokenInfo();
+      if (result.ok && result.data.tokenInfo) {
+        setSavedGithubPat(result.data.tokenInfo.maskedToken);
+        setGithubLogin(result.data.tokenInfo.githubLogin);
+      }
+    };
+    loadGitHubToken();
   }, []);
 
   const handleSaveAnthropicKey = async () => {
@@ -71,10 +83,16 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     setIsSavingGithub(true);
 
     try {
-      const encrypted = await encryptToken(githubPat);
-      localStorage.setItem('github_pat', encrypted);
-      localStorage.setItem('github_pat_masked', maskToken(githubPat));
-      setSavedGithubPat(maskToken(githubPat));
+      // Save to SQLite via API (validates with GitHub first)
+      const result = await apiClient.github.saveToken(githubPat);
+
+      if (!result.ok) {
+        setGithubError(result.error.message);
+        return;
+      }
+
+      setSavedGithubPat(result.data.tokenInfo.maskedToken);
+      setGithubLogin(result.data.tokenInfo.githubLogin);
       setGithubPat('');
     } catch (error) {
       setGithubError('Failed to save PAT');
@@ -84,10 +102,14 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     }
   };
 
-  const handleClearGithubPat = () => {
-    localStorage.removeItem('github_pat');
-    localStorage.removeItem('github_pat_masked');
-    setSavedGithubPat(null);
+  const handleClearGithubPat = async () => {
+    try {
+      await apiClient.github.deleteToken();
+      setSavedGithubPat(null);
+      setGithubLogin(null);
+    } catch (error) {
+      console.error('Failed to delete GitHub PAT:', error);
+    }
   };
 
   return (
@@ -156,7 +178,12 @@ function ApiKeysSettingsPage(): React.JSX.Element {
                       className="text-accent hover:underline"
                     >
                       console.anthropic.com
-                    </a>
+                    </a>{' '}
+                    or use{' '}
+                    <code className="rounded bg-surface-subtle px-1.5 py-0.5 text-xs font-mono">
+                      claude setup-token
+                    </code>{' '}
+                    from the terminal.
                   </p>
                   <div className="relative">
                     <input
@@ -221,7 +248,7 @@ function ApiKeysSettingsPage(): React.JSX.Element {
             <div className="flex-1">
               <h2 className="font-semibold text-fg">GitHub Personal Access Token</h2>
               <p className="text-xs text-fg-muted">
-                Optional. Used for cloning private repos without GitHub App
+                Optional. Used for accessing private repos and organization data
               </p>
             </div>
             {savedGithubPat && (
@@ -232,16 +259,46 @@ function ApiKeysSettingsPage(): React.JSX.Element {
             )}
           </div>
 
-          <div className="p-5">
+          <div className="p-5 space-y-4">
+            {/* Required permissions - always shown */}
+            <div className="rounded-md border border-border bg-surface-subtle p-3">
+              <p className="mb-2 text-xs font-medium text-fg">Required Permissions:</p>
+              <ul className="space-y-1 text-xs text-fg-muted">
+                <li className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
+                  <strong>Repository access:</strong> All repositories (or select specific ones)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
+                  <strong>Contents:</strong> Read-only (for cloning and reading files)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
+                  <strong>Metadata:</strong> Read-only (for listing repositories)
+                </li>
+              </ul>
+              <p className="mt-2 text-xs text-fg-subtle">
+                For organization repos, also enable access to those organizations.
+              </p>
+            </div>
+
             {savedGithubPat ? (
-              <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-md bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
-                  {savedGithubPat}
-                </code>
-                <Button variant="outline" size="sm" onClick={handleClearGithubPat}>
-                  <Trash className="h-4 w-4" />
-                  Remove
-                </Button>
+              <div className="space-y-3">
+                {githubLogin && (
+                  <div className="flex items-center gap-2 text-sm text-fg-muted">
+                    <GithubLogo className="h-4 w-4" />
+                    Authenticated as <span className="font-medium text-fg">{githubLogin}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <code className="flex-1 rounded-md bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
+                    {savedGithubPat}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={handleClearGithubPat}>
+                    <Trash className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -256,7 +313,7 @@ function ApiKeysSettingsPage(): React.JSX.Element {
                     >
                       fine-grained PAT
                     </a>{' '}
-                    with repo access
+                    with the permissions listed above.
                   </p>
                   <div className="relative">
                     <input

@@ -119,3 +119,6 @@ configstore/
 
 .DS_Store
 Thumbs.db
+
+# Encryption key (server-side token encryption)
+data/.keyfile
