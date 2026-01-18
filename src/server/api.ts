@@ -48,7 +48,10 @@ async function handleListProjects(url: URL): Promise<Response> {
     });
   } catch (error) {
     console.error('[Projects] List error:', error);
-    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to list projects' } }, 500);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list projects' } },
+      500
+    );
   }
 }
 
@@ -83,7 +86,10 @@ async function handleCreateProject(request: Request): Promise<Response> {
   const body = (await request.json()) as { name: string; path: string; description?: string };
 
   if (!body.name || !body.path) {
-    return json({ ok: false, error: { code: 'MISSING_PARAMS', message: 'Name and path are required' } }, 400);
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'Name and path are required' } },
+      400
+    );
   }
 
   try {
@@ -93,7 +99,13 @@ async function handleCreateProject(request: Request): Promise<Response> {
     });
 
     if (existing) {
-      return json({ ok: false, error: { code: 'DUPLICATE', message: 'A project with this path already exists' } }, 400);
+      return json(
+        {
+          ok: false,
+          error: { code: 'DUPLICATE', message: 'A project with this path already exists' },
+        },
+        400
+      );
     }
 
     const [created] = await db
@@ -118,7 +130,10 @@ async function handleCreateProject(request: Request): Promise<Response> {
     });
   } catch (error) {
     console.error('[Projects] Create error:', error);
-    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to create project' } }, 500);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create project' } },
+      500
+    );
   }
 }
 
@@ -134,6 +149,62 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
+}
+
+// ============ Health Check Handler ============
+
+async function handleHealthCheck(): Promise<Response> {
+  const startTime = Date.now();
+  const checks: {
+    database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
+  } = {
+    database: { status: 'error' },
+    github: { status: 'not_configured' },
+  };
+
+  // Check database connectivity
+  try {
+    const dbStart = Date.now();
+    const result = await db.query.projects.findFirst();
+    checks.database = {
+      status: 'ok',
+      latencyMs: Date.now() - dbStart,
+    };
+    // Suppress unused variable warning - we just need to verify the query works
+    void result;
+  } catch (error) {
+    checks.database = {
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Database query failed',
+    };
+  }
+
+  // Check GitHub token status
+  try {
+    const tokenResult = await githubService.getTokenInfo();
+    if (tokenResult.ok && tokenResult.value) {
+      checks.github = {
+        status: tokenResult.value.isValid ? 'ok' : 'error',
+        login: tokenResult.value.githubLogin,
+      };
+    }
+  } catch {
+    checks.github = { status: 'error' };
+  }
+
+  const allOk = checks.database.status === 'ok';
+
+  return json({
+    ok: allOk,
+    data: {
+      status: allOk ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      checks,
+      responseTimeMs: Date.now() - startTime,
+    },
   });
 }
 
@@ -155,10 +226,13 @@ async function handleGitHubReposForOwner(owner: string): Promise<Response> {
 }
 
 async function handleGitHubClone(request: Request): Promise<Response> {
-  const body = await request.json() as { url: string; destination: string };
+  const body = (await request.json()) as { url: string; destination: string };
 
   if (!body.url || !body.destination) {
-    return json({ ok: false, error: { code: 'MISSING_PARAMS', message: 'URL and destination are required' } }, 400);
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'URL and destination are required' } },
+      400
+    );
   }
 
   // Expand ~ to home directory
@@ -174,10 +248,16 @@ async function handleGitHubClone(request: Request): Promise<Response> {
 
     // Check if target folder already exists - fail if it does
     if (existsSync(fullPath)) {
-      return json({
-        ok: false,
-        error: { code: 'FOLDER_EXISTS', message: `Folder "${repoName}" already exists at ${destination}` }
-      }, 400);
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'FOLDER_EXISTS',
+            message: `Folder "${repoName}" already exists at ${destination}`,
+          },
+        },
+        400
+      );
     }
 
     // Create parent destination directory if needed
@@ -207,19 +287,28 @@ async function handleGitHubClone(request: Request): Promise<Response> {
     if (exitCode !== 0) {
       const stderr = await new Response(proc.stderr).text();
       console.error('[Clone] Failed:', stderr);
-      return json({
-        ok: false,
-        error: { code: 'CLONE_FAILED', message: 'Failed to clone repository' }
-      }, 500);
+      return json(
+        {
+          ok: false,
+          error: { code: 'CLONE_FAILED', message: 'Failed to clone repository' },
+        },
+        500
+      );
     }
 
     return json({ ok: true, data: { path: fullPath } });
   } catch (error) {
     console.error('[Clone] Error:', error);
-    return json({
-      ok: false,
-      error: { code: 'CLONE_ERROR', message: error instanceof Error ? error.message : 'Clone failed' }
-    }, 500);
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'CLONE_ERROR',
+          message: error instanceof Error ? error.message : 'Clone failed',
+        },
+      },
+      500
+    );
   }
 }
 
@@ -240,7 +329,7 @@ async function handleGitHubTokenInfo(): Promise<Response> {
 }
 
 async function handleGitHubSaveToken(request: Request): Promise<Response> {
-  const body = await request.json() as { token: string };
+  const body = (await request.json()) as { token: string };
   if (!body.token) {
     return json({ ok: false, error: { code: 'MISSING_TOKEN', message: 'Token is required' } }, 400);
   }
@@ -362,7 +451,7 @@ async function waitForRepoReady(repoFullName: string, maxAttempts = 15): Promise
     }
 
     // Wait 2 seconds between attempts
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   return false;
@@ -370,7 +459,7 @@ async function waitForRepoReady(repoFullName: string, maxAttempts = 15): Promise
 
 // Create repo from template and clone it
 async function handleCreateFromTemplate(request: Request): Promise<Response> {
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     templateOwner: string;
     templateRepo: string;
     name: string;
@@ -381,10 +470,16 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
   };
 
   if (!body.templateOwner || !body.templateRepo || !body.name || !body.clonePath) {
-    return json({
-      ok: false,
-      error: { code: 'MISSING_PARAMS', message: 'templateOwner, templateRepo, name, and clonePath are required' }
-    }, 400);
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'MISSING_PARAMS',
+          message: 'templateOwner, templateRepo, name, and clonePath are required',
+        },
+      },
+      400
+    );
   }
 
   // Step 1: Create the repo from template
@@ -407,10 +502,17 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
 
   if (!isReady) {
     console.error('[Template] Repo not ready after max attempts');
-    return json({
-      ok: false,
-      error: { code: 'REPO_NOT_READY', message: 'Repository was created but files are still being copied. Please try cloning manually.' }
-    }, 500);
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'REPO_NOT_READY',
+          message:
+            'Repository was created but files are still being copied. Please try cloning manually.',
+        },
+      },
+      500
+    );
   }
 
   // Step 3: Clone the newly created repo
@@ -422,10 +524,16 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
     const { existsSync, mkdirSync } = await import('node:fs');
 
     if (existsSync(fullPath)) {
-      return json({
-        ok: false,
-        error: { code: 'FOLDER_EXISTS', message: `Folder "${body.name}" already exists at ${destination}` }
-      }, 400);
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'FOLDER_EXISTS',
+            message: `Folder "${body.name}" already exists at ${destination}`,
+          },
+        },
+        400
+      );
     }
 
     if (!existsSync(destination)) {
@@ -449,10 +557,13 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
     if (exitCode !== 0) {
       const stderr = await new Response(proc.stderr).text();
       console.error('[Clone from template] Failed:', stderr);
-      return json({
-        ok: false,
-        error: { code: 'CLONE_FAILED', message: 'Repository created but failed to clone' }
-      }, 500);
+      return json(
+        {
+          ok: false,
+          error: { code: 'CLONE_FAILED', message: 'Repository created but failed to clone' },
+        },
+        500
+      );
     }
 
     return json({
@@ -461,14 +572,20 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
         path: fullPath,
         repoFullName: createResult.value.fullName,
         cloneUrl: createResult.value.cloneUrl,
-      }
+      },
     });
   } catch (error) {
     console.error('[Clone from template] Error:', error);
-    return json({
-      ok: false,
-      error: { code: 'CLONE_ERROR', message: error instanceof Error ? error.message : 'Clone failed' }
-    }, 500);
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'CLONE_ERROR',
+          message: error instanceof Error ? error.message : 'Clone failed',
+        },
+      },
+      500
+    );
   }
 }
 
@@ -536,7 +653,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
   // Health check
   if (path === '/api/health') {
-    return json({ ok: true, timestamp: new Date().toISOString() });
+    return handleHealthCheck();
   }
 
   return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404);

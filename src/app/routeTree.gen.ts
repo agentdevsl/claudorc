@@ -17,6 +17,7 @@ import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
 import { Route as SettingsGithubRouteImport } from './routes/settings/github'
@@ -27,6 +28,7 @@ import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessio
 import { Route as ApiTasksRouteImport } from './routes/api/tasks'
 import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
+import { Route as ApiGithubRouteImport } from './routes/api/github'
 import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
@@ -96,6 +98,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSystemRoute = SettingsSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsProjectsRoute = SettingsProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -144,6 +151,11 @@ const ApiSessionsRoute = ApiSessionsRouteImport.update({
 const ApiProjectsRoute = ApiProjectsRouteImport.update({
   id: '/api/projects',
   path: '/api/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGithubRoute = ApiGithubRouteImport.update({
+  id: '/api/github',
+  path: '/api/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentsRoute = ApiAgentsRouteImport.update({
@@ -294,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/api/agents': typeof ApiAgentsRouteWithChildren
+  '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
@@ -304,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/agents/': typeof AgentsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -341,6 +355,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/api/agents': typeof ApiAgentsRouteWithChildren
+  '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
@@ -351,6 +366,7 @@ export interface FileRoutesByTo {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/agents': typeof AgentsIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/queue': typeof QueueIndexRoute
@@ -390,6 +406,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/api/agents': typeof ApiAgentsRouteWithChildren
+  '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
@@ -400,6 +417,7 @@ export interface FileRoutesById {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/system': typeof SettingsSystemRoute
   '/agents/': typeof AgentsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -440,6 +458,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/agents/$agentId'
     | '/api/agents'
+    | '/api/github'
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
@@ -450,6 +469,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/system'
     | '/agents/'
     | '/projects/'
     | '/queue/'
@@ -487,6 +507,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agents/$agentId'
     | '/api/agents'
+    | '/api/github'
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
@@ -497,6 +518,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/system'
     | '/agents'
     | '/projects'
     | '/queue'
@@ -535,6 +557,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/agents/$agentId'
     | '/api/agents'
+    | '/api/github'
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
@@ -545,6 +568,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/system'
     | '/agents/'
     | '/projects/'
     | '/queue/'
@@ -584,6 +608,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRouteWithChildren
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   ApiAgentsRoute: typeof ApiAgentsRouteWithChildren
+  ApiGithubRoute: typeof ApiGithubRoute
   ApiProjectsRoute: typeof ApiProjectsRouteWithChildren
   ApiSessionsRoute: typeof ApiSessionsRouteWithChildren
   ApiTasksRoute: typeof ApiTasksRouteWithChildren
@@ -660,6 +685,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/system': {
+      id: '/settings/system'
+      path: '/system'
+      fullPath: '/settings/system'
+      preLoaderRoute: typeof SettingsSystemRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/projects': {
       id: '/settings/projects'
       path: '/projects'
@@ -728,6 +760,13 @@ declare module '@tanstack/react-router' {
       path: '/api/projects'
       fullPath: '/api/projects'
       preLoaderRoute: typeof ApiProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/github': {
+      id: '/api/github'
+      path: '/api/github'
+      fullPath: '/api/github'
+      preLoaderRoute: typeof ApiGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agents': {
@@ -936,6 +975,7 @@ interface SettingsRouteChildren {
   SettingsGithubRoute: typeof SettingsGithubRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
   SettingsProjectsRoute: typeof SettingsProjectsRoute
+  SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
@@ -946,6 +986,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsGithubRoute: SettingsGithubRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
   SettingsProjectsRoute: SettingsProjectsRoute,
+  SettingsSystemRoute: SettingsSystemRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 
@@ -1076,6 +1117,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRouteWithChildren,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   ApiAgentsRoute: ApiAgentsRouteWithChildren,
+  ApiGithubRoute: ApiGithubRoute,
   ApiProjectsRoute: ApiProjectsRouteWithChildren,
   ApiSessionsRoute: ApiSessionsRouteWithChildren,
   ApiTasksRoute: ApiTasksRouteWithChildren,

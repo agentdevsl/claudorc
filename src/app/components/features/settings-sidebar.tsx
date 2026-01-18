@@ -1,4 +1,4 @@
-import { Folder, Gear, GithubLogo, Key, Robot, Swatches } from '@phosphor-icons/react';
+import { Folder, Gear, GithubLogo, Heartbeat, Key, Robot, Swatches } from '@phosphor-icons/react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
@@ -54,6 +54,7 @@ function useSettingsSections(): SettingsSection[] {
         },
         { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
         { id: 'preferences', label: 'Defaults', to: '/settings/preferences', icon: Gear },
+        { id: 'system', label: 'System Health', to: '/settings/system', icon: Heartbeat },
       ],
     },
     {
@@ -82,7 +83,7 @@ export function SettingsSidebar(): React.JSX.Element {
         to="/"
         className="flex items-center gap-2.5 border-b border-border px-4 py-5 transition-colors hover:bg-surface-subtle"
       >
-        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.05)] dark:from-[#12161c] dark:to-[#0a0d11] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_16px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
+        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-surface-subtle shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_-1px_0_0_rgba(0,0,0,0.3)_inset,0_4px_16px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]">
           <div className="absolute inset-0 animate-pulse rounded-xl bg-gradient-radial from-done/10 to-transparent dark:from-done/15" />
           <svg
             className="relative z-10 h-7 w-7 drop-shadow-[0_0_8px_rgba(163,113,247,0.4)]"

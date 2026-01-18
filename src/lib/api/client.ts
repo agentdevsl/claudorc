@@ -37,7 +37,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<Ap
 }
 
 // Fetch from API server (port 3001)
-async function apiServerFetch<T>(path: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
+async function apiServerFetch<T>(
+  path: string,
+  options: FetchOptions = {}
+): Promise<ApiResponse<T>> {
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',
@@ -173,8 +176,7 @@ export const apiClient = {
         body: { token },
       }),
 
-    deleteToken: () =>
-      apiServerFetch<null>('/api/github/token', { method: 'DELETE' }),
+    deleteToken: () => apiServerFetch<null>('/api/github/token', { method: 'DELETE' }),
 
     revalidateToken: () =>
       apiServerFetch<{ isValid: boolean }>('/api/github/revalidate', { method: 'POST' }),
@@ -192,5 +194,19 @@ export const apiClient = {
         '/api/github/create-from-template',
         { method: 'POST', body: params }
       ),
+  },
+
+  system: {
+    health: () =>
+      apiServerFetch<{
+        status: 'healthy' | 'degraded';
+        timestamp: string;
+        uptime: number;
+        checks: {
+          database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+          github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
+        };
+        responseTimeMs: number;
+      }>('/api/health'),
   },
 };
