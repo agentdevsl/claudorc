@@ -123,8 +123,11 @@ function Dashboard(): React.JSX.Element {
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
-    const anthropicKeyConfigured = localStorage.getItem('anthropic_api_key_masked') !== null;
-    setIsSettingsConfigured(anthropicKeyConfigured);
+    const checkAnthropicKey = async () => {
+      const result = await apiClient.apiKeys.get('anthropic');
+      setIsSettingsConfigured(result.ok && result.data.keyInfo !== null);
+    };
+    checkAnthropicKey();
   }, []);
 
   // Fetch projects from API on mount

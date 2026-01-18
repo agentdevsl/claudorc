@@ -9,6 +9,7 @@ import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
+import { ApiKeyService } from '../services/api-key.service.js';
 import { GitHubTokenService } from './github-token.service.js';
 
 // Initialize SQLite database using Bun's native SQLite
@@ -18,6 +19,7 @@ const db = drizzle(sqlite, { schema });
 
 // Initialize services
 const githubService = new GitHubTokenService(db);
+const apiKeyService = new ApiKeyService(db);
 
 // ============ Project Handlers ============
 
@@ -589,6 +591,47 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
   }
 }
 
+// ============ API Key Handlers ============
+
+async function handleGetApiKey(service: string): Promise<Response> {
+  const result = await apiKeyService.getKeyInfo(service);
+
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, 500);
+  }
+
+  return json({ ok: true, data: { keyInfo: result.value } });
+}
+
+async function handleSaveApiKey(service: string, request: Request): Promise<Response> {
+  const body = (await request.json()) as { key: string };
+
+  if (!body.key) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'API key is required' } },
+      400
+    );
+  }
+
+  const result = await apiKeyService.saveKey(service, body.key);
+
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, 400);
+  }
+
+  return json({ ok: true, data: { keyInfo: result.value } });
+}
+
+async function handleDeleteApiKey(service: string): Promise<Response> {
+  const result = await apiKeyService.deleteKey(service);
+
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, 500);
+  }
+
+  return json({ ok: true, data: null });
+}
+
 // Main request handler
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -649,6 +692,22 @@ async function handleRequest(request: Request): Promise<Response> {
   const projectIdMatch = path.match(/^\/api\/projects\/([^/]+)$/);
   if (projectIdMatch && method === 'GET') {
     return handleGetProject(projectIdMatch[1]);
+  }
+
+  // API Key routes
+  // Match /api/keys/:service pattern
+  const apiKeyMatch = path.match(/^\/api\/keys\/([^/]+)$/);
+  if (apiKeyMatch) {
+    const service = apiKeyMatch[1];
+    if (method === 'GET') {
+      return handleGetApiKey(service);
+    }
+    if (method === 'POST') {
+      return handleSaveApiKey(service, request);
+    }
+    if (method === 'DELETE') {
+      return handleDeleteApiKey(service);
+    }
   }
 
   // Health check

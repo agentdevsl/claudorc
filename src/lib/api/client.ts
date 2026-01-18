@@ -209,4 +209,33 @@ export const apiClient = {
         responseTimeMs: number;
       }>('/api/health'),
   },
+
+  apiKeys: {
+    get: (service: string) =>
+      apiServerFetch<{
+        keyInfo: {
+          id: string;
+          service: string;
+          maskedKey: string;
+          isValid: boolean;
+          lastValidatedAt: string | null;
+          createdAt: string;
+        } | null;
+      }>(`/api/keys/${encodeURIComponent(service)}`),
+
+    save: (service: string, key: string) =>
+      apiServerFetch<{
+        keyInfo: {
+          id: string;
+          service: string;
+          maskedKey: string;
+          isValid: boolean;
+          lastValidatedAt: string | null;
+          createdAt: string;
+        };
+      }>(`/api/keys/${encodeURIComponent(service)}`, { method: 'POST', body: { key } }),
+
+    delete: (service: string) =>
+      apiServerFetch<null>(`/api/keys/${encodeURIComponent(service)}`, { method: 'DELETE' }),
+  },
 };

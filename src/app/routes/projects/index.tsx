@@ -165,8 +165,12 @@ function ProjectsPage(): React.JSX.Element {
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
-    const anthropicKeyConfigured = localStorage.getItem('anthropic_api_key_masked') !== null;
-    setIsSettingsConfigured(anthropicKeyConfigured);
+    // Check Anthropic key via API (stored in SQLite)
+    const checkAnthropicKey = async () => {
+      const result = await apiClient.apiKeys.get('anthropic');
+      setIsSettingsConfigured(result.ok && result.data.keyInfo !== null);
+    };
+    checkAnthropicKey();
 
     // Check GitHub token via API (stored in SQLite)
     const checkGitHub = async () => {
@@ -208,26 +212,36 @@ function ProjectsPage(): React.JSX.Element {
     name: string;
     path: string;
     description?: string;
-  }): Promise<void> => {
+  }): Promise<Result<void, { code: string; message: string }>> => {
     const result = await apiClient.projects.create({
       name: data.name,
       path: data.path,
       description: data.description,
     });
 
-    if (result.ok) {
-      const listResult = await apiClient.projects.list({ limit: 24 });
-      if (listResult.ok) {
-        const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
-          project,
-          status: 'idle' as const,
-          taskCounts: { total: 0, completed: 0 },
-          runningAgents: [],
-          lastActivityAt: project.updatedAt,
-        }));
-        setProjectSummaries(summaries);
-      }
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+        },
+      };
     }
+
+    const listResult = await apiClient.projects.list({ limit: 24 });
+    if (listResult.ok) {
+      const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
+        project,
+        status: 'idle' as const,
+        taskCounts: { total: 0, completed: 0 },
+        runningAgents: [],
+        lastActivityAt: project.updatedAt,
+      }));
+      setProjectSummaries(summaries);
+    }
+
+    return { ok: true, value: undefined };
   };
 
   const handleValidatePath = async (

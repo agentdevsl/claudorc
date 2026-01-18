@@ -1,6 +1,7 @@
 import { Folder, Gear, GithubLogo, Heartbeat, Key, Robot, Swatches } from '@phosphor-icons/react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api/client';
 
 type SettingsNavItem = {
   id: string;
@@ -22,13 +23,19 @@ function useSettingsSections(): SettingsSection[] {
   const [hasApiKey, setHasApiKey] = useState(false);
 
   useEffect(() => {
-    // Check GitHub connection status from localStorage
-    const githubToken = localStorage.getItem('github_pat_masked');
-    setGithubConnected(!!githubToken);
+    // Check GitHub connection status via API
+    const checkGitHub = async () => {
+      const result = await apiClient.github.getTokenInfo();
+      setGithubConnected(result.ok && result.data.tokenInfo?.isValid === true);
+    };
+    checkGitHub();
 
-    // Check if Anthropic API key is configured
-    const anthropicKey = localStorage.getItem('anthropic_api_key_masked');
-    setHasApiKey(!!anthropicKey);
+    // Check if Anthropic API key is configured via API
+    const checkAnthropicKey = async () => {
+      const result = await apiClient.apiKeys.get('anthropic');
+      setHasApiKey(result.ok && result.data.keyInfo !== null);
+    };
+    checkAnthropicKey();
   }, []);
 
   return [

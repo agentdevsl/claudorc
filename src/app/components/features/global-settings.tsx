@@ -1,7 +1,8 @@
-import { Eye, EyeSlash, Gear, Key, Palette } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { CircleNotch, Eye, EyeSlash, Gear, Key, Palette } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { encryptToken, isValidPATFormat, maskToken } from '@/lib/crypto/token-encryption';
+import { apiClient } from '@/lib/api/client';
+import { isValidPATFormat } from '@/lib/crypto/token-encryption';
 
 type SettingsSection = 'api-keys' | 'appearance' | 'defaults';
 
@@ -60,23 +61,45 @@ function ApiKeysSection(): React.JSX.Element {
   const [githubPat, setGithubPat] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [showGithubPat, setShowGithubPat] = useState(false);
-  const [savedAnthropicKey, setSavedAnthropicKey] = useState<string | null>(
-    localStorage.getItem('anthropic_api_key_masked')
-  );
-  const [savedGithubPat, setSavedGithubPat] = useState<string | null>(
-    localStorage.getItem('github_pat_masked')
-  );
+  const [savedAnthropicKey, setSavedAnthropicKey] = useState<string | null>(null);
+  const [savedGithubPat, setSavedGithubPat] = useState<string | null>(null);
+  const [isSavingAnthropic, setIsSavingAnthropic] = useState(false);
+  const [isSavingGithub, setIsSavingGithub] = useState(false);
+
+  // Load saved keys on mount
+  useEffect(() => {
+    const loadAnthropicKey = async () => {
+      const result = await apiClient.apiKeys.get('anthropic');
+      if (result.ok && result.data.keyInfo) {
+        setSavedAnthropicKey(result.data.keyInfo.maskedKey);
+      }
+    };
+    loadAnthropicKey();
+
+    const loadGitHubToken = async () => {
+      const result = await apiClient.github.getTokenInfo();
+      if (result.ok && result.data.tokenInfo) {
+        setSavedGithubPat(result.data.tokenInfo.maskedToken);
+      }
+    };
+    loadGitHubToken();
+  }, []);
 
   const handleSaveAnthropicKey = async () => {
     if (!anthropicKey.trim()) return;
+    setIsSavingAnthropic(true);
     try {
-      const encrypted = await encryptToken(anthropicKey);
-      localStorage.setItem('anthropic_api_key', encrypted);
-      localStorage.setItem('anthropic_api_key_masked', maskToken(anthropicKey));
-      setSavedAnthropicKey(maskToken(anthropicKey));
-      setAnthropicKey('');
+      const result = await apiClient.apiKeys.save('anthropic', anthropicKey);
+      if (result.ok) {
+        setSavedAnthropicKey(result.data.keyInfo.maskedKey);
+        setAnthropicKey('');
+      } else {
+        console.error('Failed to save Anthropic API key:', result.error);
+      }
     } catch (error) {
       console.error('Failed to save Anthropic API key:', error);
+    } finally {
+      setIsSavingAnthropic(false);
     }
   };
 
@@ -86,27 +109,38 @@ function ApiKeysSection(): React.JSX.Element {
       alert('Invalid GitHub PAT format. Must start with ghp_ or github_pat_');
       return;
     }
+    setIsSavingGithub(true);
     try {
-      const encrypted = await encryptToken(githubPat);
-      localStorage.setItem('github_pat', encrypted);
-      localStorage.setItem('github_pat_masked', maskToken(githubPat));
-      setSavedGithubPat(maskToken(githubPat));
-      setGithubPat('');
+      const result = await apiClient.github.saveToken(githubPat);
+      if (result.ok) {
+        setSavedGithubPat(result.data.tokenInfo.maskedToken);
+        setGithubPat('');
+      } else {
+        console.error('Failed to save GitHub PAT:', result.error);
+      }
     } catch (error) {
       console.error('Failed to save GitHub PAT:', error);
+    } finally {
+      setIsSavingGithub(false);
     }
   };
 
-  const handleClearAnthropicKey = () => {
-    localStorage.removeItem('anthropic_api_key');
-    localStorage.removeItem('anthropic_api_key_masked');
-    setSavedAnthropicKey(null);
+  const handleClearAnthropicKey = async () => {
+    try {
+      await apiClient.apiKeys.delete('anthropic');
+      setSavedAnthropicKey(null);
+    } catch (error) {
+      console.error('Failed to delete Anthropic API key:', error);
+    }
   };
 
-  const handleClearGithubPat = () => {
-    localStorage.removeItem('github_pat');
-    localStorage.removeItem('github_pat_masked');
-    setSavedGithubPat(null);
+  const handleClearGithubPat = async () => {
+    try {
+      await apiClient.github.deleteToken();
+      setSavedGithubPat(null);
+    } catch (error) {
+      console.error('Failed to delete GitHub PAT:', error);
+    }
   };
 
   return (
@@ -159,8 +193,15 @@ function ApiKeysSection(): React.JSX.Element {
                 {showAnthropicKey ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button onClick={handleSaveAnthropicKey} disabled={!anthropicKey.trim()}>
-              Save
+            <Button onClick={handleSaveAnthropicKey} disabled={isSavingAnthropic || !anthropicKey.trim()}>
+              {isSavingAnthropic ? (
+                <>
+                  <CircleNotch className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
             </Button>
           </div>
         )}
@@ -199,8 +240,15 @@ function ApiKeysSection(): React.JSX.Element {
                 {showGithubPat ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button onClick={handleSaveGithubPat} disabled={!githubPat.trim()}>
-              Save
+            <Button onClick={handleSaveGithubPat} disabled={isSavingGithub || !githubPat.trim()}>
+              {isSavingGithub ? (
+                <>
+                  <CircleNotch className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
             </Button>
           </div>
         )}

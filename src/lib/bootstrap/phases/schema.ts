@@ -149,6 +149,17 @@ CREATE TABLE IF NOT EXISTS "audit_logs" (
   "turn_number" INTEGER,
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "api_keys" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "service" TEXT NOT NULL UNIQUE,
+  "encrypted_key" TEXT NOT NULL,
+  "masked_key" TEXT NOT NULL,
+  "is_valid" INTEGER DEFAULT 1,
+  "last_validated_at" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
 `;
 
 export const validateSchema = async (ctx: BootstrapContext) => {

@@ -1,9 +1,18 @@
-import { Check, CircleNotch, Eye, EyeSlash, GithubLogo, Key, Trash, Warning } from '@phosphor-icons/react';
+import {
+  Check,
+  CircleNotch,
+  Eye,
+  EyeSlash,
+  GithubLogo,
+  Key,
+  Trash,
+  Warning,
+} from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { apiClient } from '@/lib/api/client';
-import { encryptToken, isValidPATFormat, maskToken } from '@/lib/crypto/token-encryption';
+import { isValidPATFormat } from '@/lib/crypto/token-encryption';
 
 export const Route = createFileRoute('/settings/api-keys')({
   component: ApiKeysSettingsPage,
@@ -25,8 +34,14 @@ function ApiKeysSettingsPage(): React.JSX.Element {
 
   // Load saved keys on mount
   useEffect(() => {
-    // Anthropic key from localStorage (for now)
-    setSavedAnthropicKey(localStorage.getItem('anthropic_api_key_masked'));
+    // Anthropic key from SQLite via API
+    const loadAnthropicKey = async () => {
+      const result = await apiClient.apiKeys.get('anthropic');
+      if (result.ok && result.data.keyInfo) {
+        setSavedAnthropicKey(result.data.keyInfo.maskedKey);
+      }
+    };
+    loadAnthropicKey();
 
     // GitHub token from API (SQLite database)
     const loadGitHubToken = async () => {
@@ -42,20 +57,18 @@ function ApiKeysSettingsPage(): React.JSX.Element {
   const handleSaveAnthropicKey = async () => {
     if (!anthropicKey.trim()) return;
 
-    // Validate format
-    if (!anthropicKey.startsWith('sk-ant-')) {
-      setAnthropicError('Invalid key format. Must start with sk-ant-');
-      return;
-    }
-
     setAnthropicError(null);
     setIsSavingAnthropic(true);
 
     try {
-      const encrypted = await encryptToken(anthropicKey);
-      localStorage.setItem('anthropic_api_key', encrypted);
-      localStorage.setItem('anthropic_api_key_masked', maskToken(anthropicKey));
-      setSavedAnthropicKey(maskToken(anthropicKey));
+      const result = await apiClient.apiKeys.save('anthropic', anthropicKey);
+
+      if (!result.ok) {
+        setAnthropicError(result.error.message);
+        return;
+      }
+
+      setSavedAnthropicKey(result.data.keyInfo.maskedKey);
       setAnthropicKey('');
     } catch (error) {
       setAnthropicError('Failed to save key');
@@ -65,10 +78,13 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     }
   };
 
-  const handleClearAnthropicKey = () => {
-    localStorage.removeItem('anthropic_api_key');
-    localStorage.removeItem('anthropic_api_key_masked');
-    setSavedAnthropicKey(null);
+  const handleClearAnthropicKey = async () => {
+    try {
+      await apiClient.apiKeys.delete('anthropic');
+      setSavedAnthropicKey(null);
+    } catch (error) {
+      console.error('Failed to delete Anthropic API key:', error);
+    }
   };
 
   const handleSaveGithubPat = async () => {
