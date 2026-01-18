@@ -4,10 +4,11 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { QueueStatus } from '@/app/components/features/queue-status';
 import { QueueWaitingState } from '@/app/components/features/queue-waiting-state';
+import type { RouterContext } from '@/app/router';
 import type { QueuePosition } from '@/services/agent.service';
 
 export const Route = createFileRoute('/queue/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { queued: [] as QueuePosition[] };
     }
@@ -19,8 +20,8 @@ export const Route = createFileRoute('/queue/')({
 });
 
 function QueuePage(): React.JSX.Element {
-  const loaderData = Route.useLoaderData();
-  const [queued] = useState<QueuePosition[]>(loaderData.queued ?? []);
+  const loaderData = Route.useLoaderData() as { queued: QueuePosition[] } | undefined;
+  const [queued] = useState<QueuePosition[]>(loaderData?.queued ?? []);
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Queue' }]}>

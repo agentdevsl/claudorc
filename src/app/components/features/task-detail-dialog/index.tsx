@@ -115,7 +115,7 @@ export function TaskDetailDialog({
       setPendingChanges({});
       dispatch({ type: 'CANCEL_EDIT' });
     }
-  }, [open, task?.id]);
+  }, [open, task]);
 
   // Merge pending changes with task for display
   const displayTask = useMemo(() => {

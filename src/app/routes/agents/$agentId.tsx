@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { AgentConfigDialog } from '@/app/components/features/agent-config-dialog';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { Button } from '@/app/components/ui/button';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { Agent, AgentConfig } from '@/db/schema/agents';
 
 export const Route = createFileRoute('/agents/$agentId')({
-  loader: async ({ context, params }) => {
+  loader: async ({ context, params }: { context: RouterContext; params: { agentId: string } }) => {
     if (!context.services) {
       return { agent: null as Agent | null };
     }
@@ -22,8 +23,8 @@ export const Route = createFileRoute('/agents/$agentId')({
 function AgentDetailPage(): React.JSX.Element {
   const { agentService } = useServices();
   const { agentId } = Route.useParams();
-  const loaderData = Route.useLoaderData();
-  const [agent, setAgent] = useState<Agent | null>(loaderData.agent ?? null);
+  const loaderData = Route.useLoaderData() as { agent: Agent | null } | undefined;
+  const [agent, setAgent] = useState<Agent | null>(loaderData?.agent ?? null);
   const [showConfig, setShowConfig] = useState(false);
 
   useEffect(() => {

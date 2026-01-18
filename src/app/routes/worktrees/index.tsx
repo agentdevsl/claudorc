@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorktreeManagement } from '@/app/components/features/worktree-management';
+import type { RouterContext } from '@/app/router';
+import type { Project } from '@/db/schema/projects';
 import type { WorktreeStatusInfo } from '@/services/worktree.service';
 
 export const Route = createFileRoute('/worktrees/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { project: null, worktrees: [] as WorktreeStatusInfo[] };
     }
@@ -31,17 +33,19 @@ export const Route = createFileRoute('/worktrees/')({
 
 function WorktreesPage(): React.JSX.Element {
   const { worktreeService } = Route.useRouteContext().services ?? {};
-  const loaderData = Route.useLoaderData();
-  const [worktrees, setWorktrees] = useState<WorktreeStatusInfo[]>(loaderData.worktrees ?? []);
+  const loaderData = Route.useLoaderData() as
+    | { project: Project | null; worktrees: WorktreeStatusInfo[] }
+    | undefined;
+  const [worktrees, setWorktrees] = useState<WorktreeStatusInfo[]>(loaderData?.worktrees ?? []);
 
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Worktrees' }]}
-      projectName={loaderData.project?.name}
-      projectPath={loaderData.project?.path}
+      projectName={loaderData?.project?.name}
+      projectPath={loaderData?.project?.path}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        {loaderData.project ? (
+        {loaderData?.project ? (
           <WorktreeManagement
             worktrees={worktrees}
             onRemove={async (worktreeId) => {

@@ -3,12 +3,19 @@ import { useEffect, useState } from 'react';
 import { AgentSessionView } from '@/app/components/features/agent-session-view';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { AppError } from '@/lib/errors/base';
 import type { SessionWithPresence } from '@/services/session.service';
 
 export const Route = createFileRoute('/sessions/$sessionId')({
-  loader: async ({ context, params }) => {
+  loader: async ({
+    context,
+    params,
+  }: {
+    context: RouterContext;
+    params: { sessionId: string };
+  }) => {
     if (!context.services) {
       return { session: null as SessionWithPresence | null };
     }
@@ -20,11 +27,11 @@ export const Route = createFileRoute('/sessions/$sessionId')({
 });
 
 function SessionPage(): React.JSX.Element {
-  const loaderData = Route.useLoaderData();
+  const loaderData = Route.useLoaderData() as { session: SessionWithPresence | null } | undefined;
   const { sessionService, agentService } = useServices();
   const { sessionId } = Route.useParams();
-  const [session, setSession] = useState<SessionWithPresence | null>(loaderData.session ?? null);
-  const [isLoading, setIsLoading] = useState(!loaderData.session);
+  const [session, setSession] = useState<SessionWithPresence | null>(loaderData?.session ?? null);
+  const [isLoading, setIsLoading] = useState(!loaderData?.session);
   const [error, setError] = useState<AppError | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const userId = 'current-user';

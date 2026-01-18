@@ -5,16 +5,7 @@
  * Covers real-time streaming, agent controls, and session management.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  click,
-  exists,
-  getText,
-  goto,
-  press,
-  screenshot,
-  serverRunning,
-  waitForSelector,
-} from '../setup';
+import { click, exists, goto, screenshot, serverRunning, waitForSelector } from '../setup';
 
 const e2e = serverRunning ? describe : describe.skip;
 

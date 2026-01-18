@@ -10,10 +10,7 @@ import {
   drag,
   exists,
   getAll,
-  getAttribute,
-  getText,
   goto,
-  hover,
   press,
   screenshot,
   serverRunning,
@@ -149,11 +146,6 @@ e2e('Kanban Board E2E', () => {
 
       const backlogCard = await exists('[data-testid="column-backlog"] [data-testid="task-card"]');
       if (backlogCard) {
-        // Get initial counts
-        const backlogBefore = await getAll(
-          '[data-testid="column-backlog"] [data-testid="task-card"]'
-        );
-
         await drag(
           '[data-testid="column-backlog"] [data-testid="task-card"]:first-child',
           '[data-testid="column-in_progress"]'

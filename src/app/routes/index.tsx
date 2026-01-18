@@ -6,6 +6,7 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
 import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { Result } from '@/lib/utils/result';
 import type { PathValidation, ProjectSummary } from '@/services/project.service';
@@ -103,7 +104,7 @@ function AgentPaneLogo(): React.JSX.Element {
 }
 
 export const Route = createFileRoute('/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { projectSummaries: [], runningAgents: 0 };
     }
@@ -123,9 +124,11 @@ export const Route = createFileRoute('/')({
 
 function Dashboard(): React.JSX.Element {
   const { projectService } = useServices();
-  const loaderData = Route.useLoaderData();
+  const loaderData = Route.useLoaderData() as
+    | { projectSummaries: ProjectSummary[]; runningAgents: number }
+    | undefined;
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(
-    (loaderData as { projectSummaries?: ProjectSummary[] }).projectSummaries ?? []
+    loaderData?.projectSummaries ?? []
   );
   const [showNewProject, setShowNewProject] = useState(false);
 

@@ -302,7 +302,7 @@ function SyntaxHighlight({ content, lineType }: SyntaxHighlightProps): React.JSX
           const shouldHighlight = token.type === 'keyword' || token.type === 'type';
           return (
             <span
-              key={index}
+              key={`${token.type}-${index}-${token.value.slice(0, 10)}`}
               className={shouldHighlight ? 'font-semibold' : undefined}
               data-token-type={token.type}
             >
@@ -319,7 +319,11 @@ function SyntaxHighlight({ content, lineType }: SyntaxHighlightProps): React.JSX
   return (
     <>
       {tokens.map((token, index) => (
-        <span key={index} className={getTokenClassName(token.type)} data-token-type={token.type}>
+        <span
+          key={`${token.type}-${index}-${token.value.slice(0, 10)}`}
+          className={getTokenClassName(token.type)}
+          data-token-type={token.type}
+        >
           {token.value}
         </span>
       ))}

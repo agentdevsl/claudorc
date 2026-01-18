@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { click, exists, getText, getUrl, goto, serverRunning, waitForSelector } from './setup';
+import { click, exists, getUrl, goto, serverRunning, waitForSelector } from './setup';
 
 // Skip all tests if server not running - warning shown in setup.ts
 const e2e = serverRunning ? describe : describe.skip;

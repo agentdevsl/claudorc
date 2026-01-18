@@ -192,6 +192,7 @@ export function ShortcutsHelp(): React.JSX.Element {
             </div>
             <DialogPrimitive.Close asChild>
               <button
+                type="button"
                 className={cn(
                   'flex items-center justify-center w-8 h-8 rounded-md',
                   'text-fg-muted hover:text-fg hover:bg-surface-hover',

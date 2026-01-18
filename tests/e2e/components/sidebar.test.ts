@@ -5,16 +5,7 @@
  * history links, and global navigation.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  click,
-  exists,
-  getUrl,
-  goto,
-  hover,
-  screenshot,
-  serverRunning,
-  waitForSelector,
-} from '../setup';
+import { click, exists, getUrl, goto, screenshot, serverRunning, waitForSelector } from '../setup';
 
 const e2e = serverRunning ? describe : describe.skip;
 

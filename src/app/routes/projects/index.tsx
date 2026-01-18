@@ -6,12 +6,13 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
 import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { Result } from '@/lib/utils/result';
 import type { PathValidation, ProjectSummary } from '@/services/project.service';
 
 export const Route = createFileRoute('/projects/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { projectSummaries: [] };
     }

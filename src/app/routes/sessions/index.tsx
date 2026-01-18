@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { SessionHistory } from '@/app/components/features/session-history';
+import type { RouterContext } from '@/app/router';
 import type { SessionWithPresence } from '@/services/session.service';
 
 export const Route = createFileRoute('/sessions/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { sessions: [] as SessionWithPresence[] };
     }
@@ -24,8 +25,8 @@ export const Route = createFileRoute('/sessions/')({
 
 function SessionsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const loaderData = Route.useLoaderData();
-  const [sessions] = useState<SessionWithPresence[]>(loaderData.sessions ?? []);
+  const loaderData = Route.useLoaderData() as { sessions: SessionWithPresence[] } | undefined;
+  const [sessions] = useState<SessionWithPresence[]>(loaderData?.sessions ?? []);
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Sessions' }]}>

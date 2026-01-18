@@ -9,7 +9,6 @@ import {
   click,
   exists,
   fill,
-  getAttribute,
   goto,
   press,
   screenshot,

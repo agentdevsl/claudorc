@@ -84,8 +84,8 @@ export function DiffViewer({ file, showHeader = true }: DiffViewerProps): React.
 
       {/* Diff content - scrollable */}
       <div className="flex-1 overflow-auto bg-canvas">
-        {file.hunks.map((hunk, hunkIndex) => (
-          <DiffHunk key={hunkIndex} hunk={hunk} defaultExpanded={true} />
+        {file.hunks.map((hunk) => (
+          <DiffHunk key={`${hunk.oldStart}-${hunk.newStart}`} hunk={hunk} defaultExpanded={true} />
         ))}
       </div>
     </div>
@@ -194,8 +194,12 @@ export function CollapsibleDiffViewer({
     <div className="flex flex-1 flex-col overflow-hidden" data-testid="collapsible-diff-viewer">
       <DiffFileHeader file={file} />
       <div className="flex-1 overflow-auto bg-canvas">
-        {file.hunks.map((hunk, hunkIndex) => (
-          <DiffHunk key={hunkIndex} hunk={hunk} defaultExpanded={!shouldStartCollapsed} />
+        {file.hunks.map((hunk) => (
+          <DiffHunk
+            key={`${hunk.oldStart}-${hunk.newStart}`}
+            hunk={hunk}
+            defaultExpanded={!shouldStartCollapsed}
+          />
         ))}
       </div>
     </div>

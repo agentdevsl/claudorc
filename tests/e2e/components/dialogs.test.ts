@@ -9,8 +9,6 @@ import {
   click,
   exists,
   fill,
-  getAttribute,
-  getText,
   goto,
   press,
   screenshot,

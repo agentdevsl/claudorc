@@ -35,9 +35,8 @@ export interface RouteMethodHandlerCtx<TParams = Record<string, string>> {
  * Handler function type for route methods.
  * Accepts any function that takes a context-like object and returns a Response.
  */
-// biome-ignore lint/suspicious/noExplicitAny: Allow flexible handler signatures
 export type RouteMethodHandlerFn = (
-  ctx: any
+  ctx: RouteMethodHandlerCtx<Record<string, string>>
 ) => Response | Promise<Response> | undefined | Promise<undefined | Response>;
 
 /**
@@ -60,21 +59,21 @@ export interface RouteServerOptions {
 
 declare module '@tanstack/router-core' {
   interface FilebaseRouteOptionsInterface<
-    TRegister,
-    TParentRoute extends AnyRoute = AnyRoute,
-    TId extends string = string,
-    TPath extends string = string,
-    TSearchValidator = undefined,
-    TParams = object,
-    TLoaderDeps extends Record<string, unknown> = object,
-    TLoaderFn = undefined,
-    TRouterContext = object,
-    TRouteContextFn = unknown,
-    TBeforeLoadFn = unknown,
-    TRemountDepsFn = unknown,
-    TSSR = unknown,
-    TServerMiddlewares = unknown,
-    THandlers = undefined,
+    _TRegister,
+    _TParentRoute extends AnyRoute = AnyRoute,
+    _TId extends string = string,
+    _TPath extends string = string,
+    _TSearchValidator = undefined,
+    _TParams = object,
+    _TLoaderDeps extends Record<string, unknown> = object,
+    _TLoaderFn = undefined,
+    _TRouterContext = object,
+    _TRouteContextFn = unknown,
+    _TBeforeLoadFn = unknown,
+    _TRemountDepsFn = unknown,
+    _TSSR = unknown,
+    _TServerMiddlewares = unknown,
+    _THandlers = undefined,
   > {
     /**
      * Server-side configuration for API routes.

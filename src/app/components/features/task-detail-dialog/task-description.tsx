@@ -48,9 +48,9 @@ export function TaskDescription({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+        <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
           Description
-        </label>
+        </span>
         {!isEditing && (
           <Button variant="ghost" size="sm" onClick={onEdit} className="h-6 px-2">
             <Pencil className="h-3 w-3" />
@@ -118,27 +118,21 @@ export function TaskDescription({
           </div>
         </div>
       ) : (
-        <div
+        <button
+          type="button"
           className={cn(
-            'min-h-[60px] rounded-md border border-transparent p-3 text-sm',
+            'min-h-[60px] w-full text-left rounded-md border border-transparent p-3 text-sm',
             'hover:border-border hover:bg-surface-subtle cursor-pointer transition-colors',
             description ? 'text-fg' : 'text-fg-subtle italic'
           )}
           onClick={onEdit}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              onEdit();
-            }
-          }}
         >
           {description ? (
             <pre className="whitespace-pre-wrap font-sans">{description}</pre>
           ) : (
             'Add a description...'
           )}
-        </div>
+        </button>
       )}
     </div>
   );

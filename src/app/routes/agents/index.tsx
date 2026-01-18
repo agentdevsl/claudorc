@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { Button } from '@/app/components/ui/button';
+import type { RouterContext } from '@/app/router';
 import type { Agent } from '@/db/schema/agents';
 import type { Project } from '@/db/schema/projects';
 
 export const Route = createFileRoute('/agents/')({
-  loader: async ({ context }) => {
+  loader: async ({ context }: { context: RouterContext }) => {
     if (!context.services) {
       return { agents: [] as Agent[], projects: [] as Project[] };
     }
@@ -25,9 +26,9 @@ export const Route = createFileRoute('/agents/')({
 
 function AgentsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const loaderData = Route.useLoaderData();
-  const [agents] = useState<Agent[]>(loaderData.agents ?? []);
-  const projects = loaderData.projects ?? [];
+  const loaderData = Route.useLoaderData() as { agents: Agent[]; projects: Project[] } | undefined;
+  const [agents] = useState<Agent[]>(loaderData?.agents ?? []);
+  const projects = loaderData?.projects ?? [];
 
   const handleNewAgent = () => {
     const firstProject = projects[0];

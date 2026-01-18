@@ -6,12 +6,19 @@ import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { Button } from '@/app/components/ui/button';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { Project } from '@/db/schema/projects';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 
 export const Route = createFileRoute('/projects/$projectId/')({
-  loader: async ({ context, params }) => {
+  loader: async ({
+    context,
+    params,
+  }: {
+    context: RouterContext;
+    params: { projectId: string };
+  }) => {
     if (!context.services) {
       return { project: null, tasks: [] };
     }
@@ -32,9 +39,11 @@ export const Route = createFileRoute('/projects/$projectId/')({
 function ProjectKanban(): React.JSX.Element {
   const { projectService, taskService } = useServices();
   const { projectId } = Route.useParams();
-  const loaderData = Route.useLoaderData();
-  const [project, setProject] = useState<Project | null>(loaderData.project ?? null);
-  const [tasks, setTasks] = useState<Task[]>(loaderData.tasks ?? []);
+  const loaderData = Route.useLoaderData() as
+    | { project: Project | null; tasks: Task[] }
+    | undefined;
+  const [project, setProject] = useState<Project | null>(loaderData?.project ?? null);
+  const [tasks, setTasks] = useState<Task[]>(loaderData?.tasks ?? []);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<Task | null>(null);

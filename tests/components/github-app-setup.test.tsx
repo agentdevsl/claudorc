@@ -140,12 +140,13 @@ describe('GitHubAppSetup', () => {
     });
 
     // Find the delete button (button with trash icon)
-    const deleteButton = screen.getByRole('button', { name: '' });
     // Filter to find the one with className containing 'text-danger'
     const buttons = screen.getAllByRole('button');
     const trashButton = buttons.find((btn) => btn.className.includes('text-danger'));
     expect(trashButton).toBeDefined();
-    fireEvent.click(trashButton!);
+    if (trashButton) {
+      fireEvent.click(trashButton);
+    }
 
     await waitFor(() => {
       expect(deleteToken).toHaveBeenCalled();

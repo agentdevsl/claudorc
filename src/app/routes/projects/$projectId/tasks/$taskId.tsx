@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
+import type { RouterContext } from '@/app/router';
 import { useServices } from '@/app/services/service-context';
 import type { Project } from '@/db/schema/projects';
 import type { Task } from '@/db/schema/tasks';
@@ -11,7 +12,13 @@ export interface LoaderData {
 }
 
 export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
-  loader: async ({ context, params }): Promise<LoaderData> => {
+  loader: async ({
+    context,
+    params,
+  }: {
+    context: RouterContext;
+    params: { projectId: string; taskId: string };
+  }): Promise<LoaderData> => {
     if (!context.services) {
       return { task: null, project: null };
     }

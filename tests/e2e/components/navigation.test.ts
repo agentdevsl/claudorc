@@ -11,7 +11,6 @@ import {
   fill,
   getUrl,
   goto,
-  hover,
   press,
   screenshot,
   serverRunning,
