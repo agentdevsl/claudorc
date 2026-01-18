@@ -46,6 +46,7 @@ export const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>(
           ...style,
         }}
         aria-hidden="true"
+        data-testid="skeleton-card"
         {...props}
       />
     );
@@ -94,8 +95,14 @@ export function SkeletonText({
 
   return (
     <div className={cn('flex flex-col', className)} style={{ gap }}>
-      {widths.map((width, i) => (
-        <Skeleton key={i} variant="text" animation={animation} height={lineHeight} width={width} />
+      {widths.map((width) => (
+        <Skeleton
+          key={`skeleton-text-${width}`}
+          variant="text"
+          animation={animation}
+          height={lineHeight}
+          width={width}
+        />
       ))}
     </div>
   );
@@ -259,9 +266,9 @@ export function SkeletonTable({
       {/* Header row */}
       {showHeader && (
         <div className="flex gap-[var(--space-4)] p-[var(--space-3)] bg-[var(--bg-subtle)] border-b border-[var(--border-default)]">
-          {widths.map((width, i) => (
+          {widths.map((width) => (
             <Skeleton
-              key={i}
+              key={`header-${width}`}
               variant="text"
               animation={animation}
               height={14}
@@ -275,7 +282,7 @@ export function SkeletonTable({
       {/* Data rows */}
       {rowCellWidths.map((cellWidths, rowIndex) => (
         <div
-          key={rowIndex}
+          key={`row-${rowIndex}-${cellWidths.join('-')}`}
           className={cn(
             'flex gap-[var(--space-4)] p-[var(--space-3)]',
             rowIndex < rows - 1 && 'border-b border-[var(--border-muted)]'
@@ -283,7 +290,7 @@ export function SkeletonTable({
         >
           {cellWidths.map((width, colIndex) => (
             <Skeleton
-              key={colIndex}
+              key={`cell-${rowIndex}-${colIndex}-${width}`}
               variant="text"
               animation={animation}
               height={14}

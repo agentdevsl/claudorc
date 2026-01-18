@@ -41,7 +41,10 @@ function AgentsPage(): React.JSX.Element {
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Agents' }]}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+      <div
+        data-testid="agents-page"
+        className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10"
+      >
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-fg-muted">Workspace</p>
@@ -59,7 +62,7 @@ function AgentsPage(): React.JSX.Element {
           </div>
         </header>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div data-testid="agents-list" className="grid gap-4 md:grid-cols-2">
           {agents.length === 0 ? (
             <div className="col-span-full">
               <EmptyState preset="no-agents" />
@@ -70,6 +73,7 @@ function AgentsPage(): React.JSX.Element {
                 key={agent.id}
                 to="/agents/$agentId"
                 params={{ agentId: agent.id }}
+                data-testid="agent-card"
                 className="rounded-lg border border-border bg-surface p-4 transition hover:border-fg-subtle"
               >
                 <div className="flex items-center gap-3">
@@ -80,7 +84,9 @@ function AgentsPage(): React.JSX.Element {
                     <p className="text-sm font-semibold text-fg">{agent.name}</p>
                     <p className="text-xs text-fg-muted capitalize">{agent.type}</p>
                   </div>
-                  <span className="text-xs text-fg-muted capitalize">{agent.status}</span>
+                  <span data-testid="agent-status" className="text-xs text-fg-muted capitalize">
+                    {agent.status}
+                  </span>
                 </div>
               </Link>
             ))

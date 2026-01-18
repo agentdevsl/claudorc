@@ -9,7 +9,7 @@ interface QueueStatusProps {
 
 export function QueueStatus({ queued, onOpenTask }: QueueStatusProps): React.JSX.Element {
   return (
-    <section className="rounded-lg border border-border bg-surface p-6">
+    <section className="rounded-lg border border-border bg-surface p-6" data-testid="queue-status">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-fg">Agent queue</h2>

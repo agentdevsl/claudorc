@@ -19,6 +19,8 @@ export function LayoutShell({
   actions,
   children,
 }: LayoutShellProps): React.JSX.Element {
+  const pageTitle = breadcrumbs?.[breadcrumbs.length - 1]?.label;
+
   return (
     <div className="flex min-h-screen bg-canvas text-fg" data-testid="layout-shell">
       <div className="hidden md:block">
@@ -30,7 +32,24 @@ export function LayoutShell({
             className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
             data-testid="layout-header"
           >
-            <Breadcrumbs items={breadcrumbs} />
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted md:hidden"
+                data-testid="sidebar-toggle"
+              >
+                <span className="sr-only">Toggle sidebar</span>
+                <span className="h-4 w-4">☰</span>
+              </button>
+              <div>
+                <Breadcrumbs items={breadcrumbs} />
+                {pageTitle ? (
+                  <div className="text-sm font-semibold text-fg" data-testid="page-title">
+                    {pageTitle}
+                  </div>
+                ) : null}
+              </div>
+            </div>
             {actions ? (
               <div className="flex items-center gap-2" data-testid="header-actions">
                 {actions}

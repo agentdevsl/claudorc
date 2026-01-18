@@ -15,26 +15,28 @@ interface NavItem {
   readonly to: string;
   readonly icon: typeof Robot;
   readonly badge?: number | 'active';
+  readonly testId?: string;
 }
 
 // Workspace section nav items
 const workspaceNavItems: readonly NavItem[] = [
-  { label: 'Agents', to: '/agents', icon: Robot, badge: 'active' },
+  { label: 'Projects', to: '/projects', icon: Kanban, testId: 'nav-projects' },
+  { label: 'Agents', to: '/agents', icon: Robot, badge: 'active', testId: 'nav-agents' },
 ] as const;
 
 // History section nav items
 const historyNavItems: readonly NavItem[] = [
-  { label: 'Queue', to: '/queue', icon: Hourglass },
-  { label: 'Sessions', to: '/sessions', icon: Clock },
-  { label: 'Worktrees', to: '/worktrees', icon: GitBranch },
+  { label: 'Queue', to: '/queue', icon: Hourglass, testId: 'nav-queue' },
+  { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
+  { label: 'Worktrees', to: '/worktrees', icon: GitBranch, testId: 'nav-worktrees' },
 ] as const;
 
-// Project section nav items
-const projectNavItems: readonly NavItem[] = [
-  { label: 'Settings', to: '/settings', icon: Gear },
+// Global section nav items
+const globalNavItems: readonly NavItem[] = [
+  { label: 'Settings', to: '/settings', icon: Gear, testId: 'nav-settings' },
 ] as const;
 
-export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): React.JSX.Element {
+export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
   const { projectService } = useServices();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
 
@@ -50,7 +52,10 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
   }, [projectService]);
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-border bg-surface">
+    <aside
+      className="flex h-screen w-60 flex-col border-r border-border bg-surface"
+      data-testid="sidebar"
+    >
       {/* Header with logo */}
       <Link
         to="/"
@@ -62,6 +67,7 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
             className="relative z-10 h-7 w-7 drop-shadow-[0_0_8px_rgba(163,113,247,0.4)]"
             viewBox="0 0 32 32"
             fill="none"
+            aria-hidden="true"
           >
             <defs>
               <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
@@ -166,7 +172,7 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
       </Link>
 
       {/* Projects list */}
-      <div className="mx-3 mt-3 flex flex-col gap-1.5">
+      <div className="mx-3 mt-3 flex flex-col gap-1.5" data-testid="project-list">
         {projects.length === 0 ? (
           <Link
             to="/"
@@ -179,12 +185,14 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
           projects.map((summary) => (
             <Link
               key={summary.project.id}
-              to={`/projects/${summary.project.id}`}
+              to="/projects/$projectId"
+              params={{ projectId: summary.project.id }}
               className={`flex items-center gap-2.5 rounded-md border p-2.5 transition-colors ${
                 projectId === summary.project.id
                   ? 'border-accent bg-accent-muted'
                   : 'border-border bg-surface-subtle hover:border-fg-subtle'
               }`}
+              data-testid="project-card"
             >
               <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-success to-accent text-[11px] font-semibold text-white">
                 {summary.project.name.charAt(0).toUpperCase()}
@@ -198,7 +206,7 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
                       {summary.runningAgents.length}
                     </span>
                   )}
-                  <span>{summary.taskCounts.total} tasks</span>
+                  <span data-testid="project-status">{summary.taskCounts.total} tasks</span>
                 </div>
               </div>
             </Link>
@@ -209,16 +217,18 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
       {/* Navigation */}
       <nav className="mt-4 flex-1 overflow-y-auto px-3">
         {/* Workspace section */}
-        <NavSection title="Workspace">
+        <NavSection title="Workspace" testId="nav-section-workspace">
           {workspaceNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
           {/* Tasks - links to selected project's kanban or first project */}
           {(projectId || projects.length > 0) && (
             <Link
-              to={projectId ? `/projects/${projectId}` : `/projects/${projects[0]?.project.id}`}
+              to="/projects/$projectId"
+              params={{ projectId: projectId ?? projects[0]?.project.id ?? '' }}
               activeProps={{ className: 'bg-accent-muted text-accent' }}
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+              data-testid="nav-tasks"
             >
               <Kanban className="h-4 w-4 opacity-80" />
               Tasks
@@ -227,29 +237,36 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
         </NavSection>
 
         {/* History section */}
-        <NavSection title="History">
+        <NavSection title="History" testId="nav-section-history">
           {historyNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>
 
-        {/* Project section */}
-        <NavSection title="Project">
-          {projectNavItems.map((item) => (
+        {/* Global section */}
+        <NavSection title="Global" testId="nav-section-global">
+          {globalNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border px-4 py-3">
+      <div data-testid="sidebar-footer" className="border-t border-border px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-success to-accent text-xs font-medium text-white">
+          <div
+            data-testid="user-avatar"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-success to-accent text-xs font-medium text-white"
+          >
             SL
           </div>
           <div className="flex-1">
-            <div className="text-sm font-medium text-fg">Simon Lynch</div>
-            <div className="text-xs text-fg-muted">Local-first mode</div>
+            <div data-testid="user-name" className="text-sm font-medium text-fg">
+              Simon Lynch
+            </div>
+            <div data-testid="mode-indicator" className="text-xs text-fg-muted">
+              Local-first mode
+            </div>
           </div>
         </div>
       </div>
@@ -259,13 +276,15 @@ export function Sidebar({ projectId, projectName, projectPath }: SidebarProps): 
 
 function NavSection({
   title,
+  testId,
   children,
 }: {
   title: string;
+  testId?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="mb-4">
+    <div className="mb-4" data-testid={testId}>
       <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
         {title}
       </div>
@@ -280,8 +299,12 @@ function NavLink({ item }: { item: NavItem }): React.JSX.Element {
   return (
     <Link
       to={item.to}
-      activeProps={{ className: 'bg-accent-muted text-accent' }}
+      activeProps={{
+        className: 'bg-accent-muted text-accent',
+        'data-active': 'true',
+      }}
       className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+      data-testid={item.testId}
     >
       <Icon className="h-4 w-4 opacity-80" />
       {item.label}

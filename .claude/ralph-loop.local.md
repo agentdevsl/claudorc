@@ -1,9 +1,9 @@
 ---
 active: true
 iteration: 1
-max_iterations: 10
-completion_promise: "gh"
-started_at: "2026-01-17T09:55:43Z"
+max_iterations: 20
+completion_promise: "all"
+started_at: "2026-01-18T04:15:27Z"
 ---
 
-fix gh action actions green successful
+create ui tests for all components using agent-browser ui tests passing

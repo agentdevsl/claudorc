@@ -1,0 +1,339 @@
+import { Eye, EyeSlash, Gear, Key, Palette } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { Button } from '@/app/components/ui/button';
+import { encryptToken, isValidPATFormat, maskToken } from '@/lib/crypto/token-encryption';
+
+type SettingsSection = 'api-keys' | 'appearance' | 'defaults';
+
+interface GlobalSettingsProps {
+  onThemeChange?: (theme: 'light' | 'dark' | 'system') => void;
+}
+
+const SECTIONS: Array<{ id: SettingsSection; label: string; icon: typeof Key }> = [
+  { id: 'api-keys', label: 'API Keys', icon: Key },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'defaults', label: 'Defaults', icon: Gear },
+];
+
+export function GlobalSettings({ onThemeChange }: GlobalSettingsProps): React.JSX.Element {
+  const [activeSection, setActiveSection] = useState<SettingsSection>('api-keys');
+
+  return (
+    <div className="flex gap-6">
+      {/* Settings Sidebar */}
+      <nav className="w-48 shrink-0">
+        <div className="space-y-1">
+          {SECTIONS.map((section) => {
+            const Icon = section.icon;
+            const isActive = activeSection === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-accent-muted text-accent'
+                    : 'text-fg-muted hover:bg-surface-subtle hover:text-fg'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {section.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Settings Content */}
+      <div className="flex-1">
+        {activeSection === 'api-keys' && <ApiKeysSection />}
+        {activeSection === 'appearance' && <AppearanceSection onThemeChange={onThemeChange} />}
+        {activeSection === 'defaults' && <DefaultsSection />}
+      </div>
+    </div>
+  );
+}
+
+function ApiKeysSection(): React.JSX.Element {
+  const [anthropicKey, setAnthropicKey] = useState('');
+  const [githubPat, setGithubPat] = useState('');
+  const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [showGithubPat, setShowGithubPat] = useState(false);
+  const [savedAnthropicKey, setSavedAnthropicKey] = useState<string | null>(
+    localStorage.getItem('anthropic_api_key_masked')
+  );
+  const [savedGithubPat, setSavedGithubPat] = useState<string | null>(
+    localStorage.getItem('github_pat_masked')
+  );
+
+  const handleSaveAnthropicKey = async () => {
+    if (!anthropicKey.trim()) return;
+    try {
+      const encrypted = await encryptToken(anthropicKey);
+      localStorage.setItem('anthropic_api_key', encrypted);
+      localStorage.setItem('anthropic_api_key_masked', maskToken(anthropicKey));
+      setSavedAnthropicKey(maskToken(anthropicKey));
+      setAnthropicKey('');
+    } catch (error) {
+      console.error('Failed to save Anthropic API key:', error);
+    }
+  };
+
+  const handleSaveGithubPat = async () => {
+    if (!githubPat.trim()) return;
+    if (!isValidPATFormat(githubPat)) {
+      alert('Invalid GitHub PAT format. Must start with ghp_ or github_pat_');
+      return;
+    }
+    try {
+      const encrypted = await encryptToken(githubPat);
+      localStorage.setItem('github_pat', encrypted);
+      localStorage.setItem('github_pat_masked', maskToken(githubPat));
+      setSavedGithubPat(maskToken(githubPat));
+      setGithubPat('');
+    } catch (error) {
+      console.error('Failed to save GitHub PAT:', error);
+    }
+  };
+
+  const handleClearAnthropicKey = () => {
+    localStorage.removeItem('anthropic_api_key');
+    localStorage.removeItem('anthropic_api_key_masked');
+    setSavedAnthropicKey(null);
+  };
+
+  const handleClearGithubPat = () => {
+    localStorage.removeItem('github_pat');
+    localStorage.removeItem('github_pat_masked');
+    setSavedGithubPat(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-fg">API Keys</h2>
+        <p className="text-sm text-fg-muted">
+          Configure API keys for external services. Keys are encrypted and stored locally.
+        </p>
+      </div>
+
+      {/* Anthropic API Key */}
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="font-medium text-fg">Anthropic API Key</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          Required for running Claude agents. Get your key from{' '}
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            console.anthropic.com
+          </a>
+        </p>
+        {savedAnthropicKey ? (
+          <div className="mt-3 flex items-center gap-2">
+            <code className="flex-1 rounded bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
+              {savedAnthropicKey}
+            </code>
+            <Button variant="outline" size="sm" onClick={handleClearAnthropicKey}>
+              Clear
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showAnthropicKey ? 'text' : 'password'}
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg"
+              >
+                {showAnthropicKey ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button onClick={handleSaveAnthropicKey} disabled={!anthropicKey.trim()}>
+              Save
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* GitHub PAT */}
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="font-medium text-fg">GitHub Personal Access Token</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          Optional. Used for GitHub integration features like issue sync and PR creation.
+        </p>
+        {savedGithubPat ? (
+          <div className="mt-3 flex items-center gap-2">
+            <code className="flex-1 rounded bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
+              {savedGithubPat}
+            </code>
+            <Button variant="outline" size="sm" onClick={handleClearGithubPat}>
+              Clear
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showGithubPat ? 'text' : 'password'}
+                value={githubPat}
+                onChange={(e) => setGithubPat(e.target.value)}
+                placeholder="ghp_... or github_pat_..."
+                className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGithubPat(!showGithubPat)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg"
+              >
+                {showGithubPat ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button onClick={handleSaveGithubPat} disabled={!githubPat.trim()}>
+              Save
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AppearanceSection({
+  onThemeChange,
+}: {
+  onThemeChange?: (theme: 'light' | 'dark' | 'system') => void;
+}): React.JSX.Element {
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    const stored = localStorage.getItem('theme');
+    return (stored as 'light' | 'dark' | 'system') || 'system';
+  });
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    onThemeChange?.(newTheme);
+
+    // Apply theme to document
+    if (newTheme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', newTheme);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-fg">Appearance</h2>
+        <p className="text-sm text-fg-muted">Customize the look and feel of AgentPane.</p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="font-medium text-fg">Theme</h3>
+        <p className="mt-1 text-sm text-fg-muted">Select your preferred color scheme.</p>
+        <div className="mt-4 flex gap-2">
+          {(['light', 'dark', 'system'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => handleThemeChange(option)}
+              className={`rounded-md px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                theme === option
+                  ? 'bg-accent text-white'
+                  : 'bg-surface-subtle text-fg-muted hover:bg-surface-emphasis hover:text-fg'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DefaultsSection(): React.JSX.Element {
+  const [maxTurns, setMaxTurns] = useState(() => {
+    return localStorage.getItem('default_max_turns') || '50';
+  });
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(() => {
+    return localStorage.getItem('default_max_concurrent_agents') || '3';
+  });
+
+  const handleSaveDefaults = () => {
+    localStorage.setItem('default_max_turns', maxTurns);
+    localStorage.setItem('default_max_concurrent_agents', maxConcurrentAgents);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-fg">Defaults</h2>
+        <p className="text-sm text-fg-muted">
+          Configure default settings for new projects and agents.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="font-medium text-fg">Agent Defaults</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          Default configuration applied to new agent executions.
+        </p>
+
+        <div className="mt-4 space-y-4">
+          <div>
+            <label htmlFor="max-turns" className="block text-sm font-medium text-fg">
+              Maximum Turns
+            </label>
+            <input
+              id="max-turns"
+              type="number"
+              value={maxTurns}
+              onChange={(e) => setMaxTurns(e.target.value)}
+              min={1}
+              max={200}
+              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <p className="mt-1 text-xs text-fg-subtle">
+              Maximum API turns per agent execution (1-200)
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="max-agents" className="block text-sm font-medium text-fg">
+              Max Concurrent Agents
+            </label>
+            <input
+              id="max-agents"
+              type="number"
+              value={maxConcurrentAgents}
+              onChange={(e) => setMaxConcurrentAgents(e.target.value)}
+              min={1}
+              max={10}
+              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <p className="mt-1 text-xs text-fg-subtle">
+              Maximum agents that can run simultaneously per project (1-10)
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Button onClick={handleSaveDefaults}>Save Defaults</Button>
+        </div>
+      </div>
+    </div>
+  );
+}

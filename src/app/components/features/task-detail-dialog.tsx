@@ -249,7 +249,7 @@ function LabelsSection({
   onToggleLabel: (label: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2" data-testid="labels-section">
+    <div className="flex flex-wrap gap-2" data-testid="task-labels-section">
       {AVAILABLE_LABELS.map((label) => {
         const colors = getLabelColors(label);
         const isSelected = selectedLabels.includes(label);

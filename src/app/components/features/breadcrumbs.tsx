@@ -22,7 +22,7 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps): React.JSX.E
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
         const isHomeLink = item.to === '/projects';
-        const isProjectLink = Boolean(item.to && item.to.startsWith('/projects/') && !isHomeLink);
+        const isProjectLink = Boolean(item.to?.startsWith('/projects/') && !isHomeLink);
         const linkTestId = isHomeLink
           ? 'breadcrumb-home'
           : isProjectLink

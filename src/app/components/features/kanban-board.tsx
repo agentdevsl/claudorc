@@ -132,7 +132,7 @@ export function KanbanBoard({
   const hasSelection = selectionCount > 0;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-testid="kanban-board">
       {/* Bulk actions toolbar */}
       {hasSelection && (
         <div className="flex items-center gap-3 border-b border-[var(--border-default)] bg-[var(--bg-subtle)] px-6 py-3">

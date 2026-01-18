@@ -111,14 +111,21 @@ export function HeaderBar({
         </div>
 
         {/* Status badge */}
-        <div className={statusBadgeVariants({ status })}>
+        <div
+          className={statusBadgeVariants({ status })}
+          data-testid="agent-status"
+          data-status={status}
+        >
           <span className={statusDotVariants({ status })} />
           {statusLabels[status]}
         </div>
 
         {/* Elapsed timer */}
         {startTime && isActive && (
-          <div className="flex items-center gap-1.5 text-sm text-fg-muted">
+          <div
+            className="flex items-center gap-1.5 text-sm text-fg-muted"
+            data-testid="turn-counter"
+          >
             <Timer className="h-4 w-4" />
             <span className="font-mono tabular-nums">{elapsedTime}</span>
           </div>
@@ -128,22 +135,24 @@ export function HeaderBar({
       {/* Right side - Controls */}
       <div className="flex items-center gap-2">
         {isRunning && (
-          <Button variant="outline" size="sm" onClick={onPause}>
+          <Button variant="outline" size="sm" onClick={onPause} data-testid="pause-button">
             <Pause className="h-4 w-4" weight="fill" />
             Pause
           </Button>
         )}
         {isPaused && (
-          <Button variant="outline" size="sm" onClick={onResume}>
+          <Button variant="outline" size="sm" onClick={onResume} data-testid="resume-button">
             <Play className="h-4 w-4" weight="fill" />
             Resume
           </Button>
         )}
         {isActive && (
-          <Button variant="destructive" size="sm" onClick={onStop}>
-            <Square className="h-4 w-4" weight="fill" />
-            Stop
-          </Button>
+          <div data-testid="stop-confirmation">
+            <Button variant="destructive" size="sm" onClick={onStop} data-testid="stop-button">
+              <Square className="h-4 w-4" weight="fill" />
+              Stop
+            </Button>
+          </div>
         )}
       </div>
     </header>

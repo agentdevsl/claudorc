@@ -90,7 +90,7 @@ function ProjectKanban(): React.JSX.Element {
       projectPath={project.path}
       breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: project.name }]}
       actions={
-        <Button onClick={() => setShowNewTask(true)}>
+        <Button onClick={() => setShowNewTask(true)} data-testid="add-task-button">
           <Plus className="h-4 w-4" />
           New Task
         </Button>

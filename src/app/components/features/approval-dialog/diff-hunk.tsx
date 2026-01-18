@@ -100,7 +100,7 @@ export function DiffHunk({ hunk, defaultExpanded = true }: DiffHunkProps): React
       {isExpanded && (
         <div className="font-mono text-[13px] leading-6" data-testid="hunk-content">
           {hunk.lines.map((line, lineIndex) => (
-            <DiffLine key={lineIndex} line={line} />
+            <DiffLine key={`${line.type}-${line.lineNumber ?? lineIndex}-${lineIndex}`} line={line} />
           ))}
         </div>
       )}

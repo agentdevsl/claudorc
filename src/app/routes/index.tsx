@@ -94,21 +94,27 @@ function Dashboard(): React.JSX.Element {
               subtitle="Let's get you started with your first project"
               steps={[
                 { label: 'Install AgentPane', completed: true },
+                { label: 'Configure Global Settings', completed: false },
                 { label: 'Create your first project', completed: false },
                 { label: 'Run your first agent', completed: false },
               ]}
               primaryAction={{
-                label: 'Create Project',
-                onClick: () => setShowNewProject(true),
+                label: 'Configure Settings',
+                onClick: () => {
+                  window.location.href = '/settings';
+                },
               }}
               secondaryAction={{
-                label: 'Import existing project',
+                label: 'Skip for now',
                 onClick: () => setShowNewProject(true),
               }}
             />
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div
+            className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            data-testid="project-list"
+          >
             {projectSummaries.map((summary) => (
               <ProjectCard
                 key={summary.project.id}

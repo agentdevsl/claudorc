@@ -119,6 +119,7 @@ export function ProjectCard({
             <h3 className="text-base font-semibold text-fg truncate">{project.name}</h3>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full border ${statusConfig.className}`}
+              data-testid="project-status"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
               {statusConfig.label}

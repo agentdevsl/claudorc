@@ -14,6 +14,7 @@ const pathUtils = {
     return parts[parts.length - 1] || '';
   },
 };
+
 import { and, desc, eq } from 'drizzle-orm';
 import { agents } from '../db/schema/agents.js';
 import type { Project, ProjectConfig } from '../db/schema/projects.js';

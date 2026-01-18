@@ -50,7 +50,7 @@ export function KanbanColumn({
           'border-t-2',
           isOver && 'ring-2 ring-[var(--accent-muted)]'
         )}
-        data-testid="kanban-column"
+        data-testid={`column-${id}`}
         data-column={id}
         data-collapsed="true"
       >
@@ -79,11 +79,14 @@ export function KanbanColumn({
         'border-t-2',
         isOver && 'bg-[var(--accent-muted)] ring-2 ring-[var(--accent-fg)]'
       )}
-      data-testid="kanban-column"
+      data-testid={`column-${id}`}
       data-column={id}
     >
       {/* Column header */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--border-default)] px-3 py-3">
+      <div
+        className="flex flex-shrink-0 items-center justify-between border-b border-[var(--border-default)] px-3 py-3"
+        data-testid="column-header"
+      >
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -96,7 +99,10 @@ export function KanbanColumn({
           <div className="flex items-center gap-2">
             <div className={cn('h-3.5 w-[3px] rounded-sm', indicatorColor)} aria-hidden="true" />
             <h3 className="text-sm font-semibold text-[var(--fg-default)]">{title}</h3>
-            <span className="rounded-full bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--fg-muted)]">
+            <span
+              className="rounded-full bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--fg-muted)]"
+              data-testid="task-count"
+            >
               {tasks.length}
             </span>
           </div>
@@ -107,6 +113,7 @@ export function KanbanColumn({
             onClick={onAddTask}
             className="flex h-6 w-6 items-center justify-center rounded text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-muted)] hover:text-[var(--fg-default)]"
             aria-label={`Add task to ${title}`}
+            data-testid="add-task-button"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -114,12 +121,31 @@ export function KanbanColumn({
       </div>
 
       {/* Column content */}
-      <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
+      <div className="flex-1 space-y-2.5 overflow-y-auto p-3" data-testid="task-list">
         {isLoading ? (
           <div className="space-y-2.5">
             {[1, 2, 3].map((item) => (
-              <Skeleton key={item} className="h-24 w-full rounded-md" />
+              <Skeleton key={item} className="h-24 w-full rounded-md" data-testid="task-skeleton" />
             ))}
+          </div>
+        ) : tasks.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-6 text-center text-xs text-[var(--fg-muted)]"
+            data-testid="empty-column"
+          >
+            <span className="text-[var(--fg-subtle)]" data-testid="empty-column-state">
+              No tasks yet
+            </span>
+            {onAddTask && (
+              <button
+                type="button"
+                onClick={onAddTask}
+                className="rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg-muted)] transition-colors hover:text-[var(--fg-default)]"
+                data-testid="add-task-button"
+              >
+                Add task
+              </button>
+            )}
           </div>
         ) : (
           <SortableContext

@@ -104,7 +104,12 @@ export function StreamLine({ line, showTimestamp = true }: StreamLineProps): Rea
   const Icon = config.icon;
 
   return (
-    <div className={lineContainerVariants({ type: line.type })}>
+    <div
+      className={lineContainerVariants({ type: line.type })}
+      data-testid={
+        line.type === 'tool' ? 'tool-call' : line.type === 'command' ? 'file-change' : undefined
+      }
+    >
       {showTimestamp && (
         <span className="flex-shrink-0 w-16 text-xs text-fg-subtle font-mono tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">
           {formatTimestamp(line.timestamp)}

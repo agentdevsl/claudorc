@@ -32,18 +32,57 @@ export function ProjectSettings({ project, onSave }: ProjectSettingsProps): Reac
   );
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-muted">
-          <Gear className="h-5 w-5 text-fg-muted" />
+    <section
+      className="rounded-lg border border-border bg-surface p-6"
+      data-testid="project-settings"
+    >
+      <div data-testid="github-settings" className="hidden" />
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-muted">
+            <Gear className="h-5 w-5 text-fg-muted" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-fg">Project settings</h2>
+            <p className="text-sm text-fg-muted">Control concurrency and default agent behavior.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-semibold text-fg">Project settings</h2>
-          <p className="text-sm text-fg-muted">Control concurrency and default agent behavior.</p>
-        </div>
+        <Button variant="outline" size="sm" data-testid="agent-config-button">
+          Agent config
+        </Button>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="space-y-2">
+          <label
+            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+            htmlFor="project-name"
+          >
+            Project name
+          </label>
+          <TextInput
+            id="project-name"
+            defaultValue={project.name}
+            data-testid="project-name-input"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label
+            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+            htmlFor="project-path"
+          >
+            Project path
+          </label>
+          <TextInput
+            id="project-path"
+            value={project.path}
+            readOnly
+            data-testid="project-path-display"
+          />
+        </div>
+
         <div className="space-y-2">
           <label
             className="text-xs font-medium uppercase tracking-wide text-fg-muted"
@@ -60,6 +99,7 @@ export function ProjectSettings({ project, onSave }: ProjectSettingsProps): Reac
               value={maxConcurrent}
               onChange={(event) => setMaxConcurrent(Number(event.target.value))}
               className="flex-1"
+              data-testid="max-agents-slider"
             />
             <span className="w-8 text-right text-sm font-medium text-fg tabular-nums">
               {maxConcurrent}
@@ -151,21 +191,43 @@ export function ProjectSettings({ project, onSave }: ProjectSettingsProps): Reac
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <Button
-          onClick={() =>
-            onSave({
-              maxConcurrentAgents: maxConcurrent,
-              config: {
-                ...config,
-                worktreeRoot: config.worktreeRoot,
-                defaultBranch: config.defaultBranch,
-              },
-            })
-          }
+      <div className="mt-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-success" data-testid="save-success">
+            Settings ready
+          </div>
+          <Button
+            onClick={() =>
+              onSave({
+                maxConcurrentAgents: maxConcurrent,
+                config: {
+                  ...config,
+                  worktreeRoot: config.worktreeRoot,
+                  defaultBranch: config.defaultBranch,
+                },
+              })
+            }
+            data-testid="save-settings-button"
+          >
+            Save settings
+          </Button>
+        </div>
+
+        <div
+          className="rounded-md border border-danger/40 bg-danger/10 p-4"
+          data-testid="danger-zone"
         >
-          Save settings
-        </Button>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-fg">Delete project</p>
+              <p className="text-xs text-fg-muted">Remove this project and all related data.</p>
+            </div>
+            <Button variant="destructive" data-testid="delete-project-button">
+              Delete project
+            </Button>
+          </div>
+          <div data-testid="delete-confirmation-dialog" className="hidden" />
+        </div>
       </div>
     </section>
   );

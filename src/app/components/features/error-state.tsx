@@ -210,11 +210,12 @@ function StackTracePanel({ stackTrace, onCopy }: { stackTrace: string; onCopy?: 
   };
 
   // Basic syntax highlighting for stack traces
-  const highlightedTrace = stackTrace.split('\n').map((line, i) => {
+  const highlightedTrace = stackTrace.split('\n').map((line, index) => {
+    const key = `${line}-${index}`;
     // Error line (first line or lines with Error:)
-    if (i === 0 || line.includes('Error:')) {
+    if (index === 0 || line.includes('Error:')) {
       return (
-        <span key={i} className="text-danger-fg">
+        <span key={key} className="text-danger-fg">
           {line}
           {'\n'}
         </span>
@@ -226,7 +227,7 @@ function StackTracePanel({ stackTrace, onCopy }: { stackTrace: string; onCopy?: 
     if (fileMatch) {
       const parts = line.split(fileMatch[0]);
       return (
-        <span key={i}>
+        <span key={key}>
           {parts[0]}
           <span className="text-accent-fg">{fileMatch[1]}</span>
           {fileMatch[3] && (
@@ -241,7 +242,7 @@ function StackTracePanel({ stackTrace, onCopy }: { stackTrace: string; onCopy?: 
     }
 
     return (
-      <span key={i}>
+      <span key={key}>
         {line}
         {'\n'}
       </span>
@@ -486,16 +487,24 @@ export function ErrorState({
           'flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-default p-6 text-center',
           className
         )}
+        data-testid="error-state"
       >
-        <div className="rounded-full border border-border bg-bg-subtle p-3">
+        <div
+          className="rounded-full border border-border bg-bg-subtle p-3"
+          data-testid="error-state-icon"
+        >
           <WarningCircle className="h-6 w-6 text-danger-fg" weight="fill" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-fg">{title}</h3>
-          <p className="text-xs text-fg-muted">{description}</p>
+          <h3 className="text-sm font-semibold text-fg" data-testid="error-state-title">
+            {title}
+          </h3>
+          <p className="text-xs text-fg-muted" data-testid="error-state-description">
+            {description}
+          </p>
         </div>
         {onRetry && (
-          <Button variant="outline" onClick={() => onRetry()}>
+          <Button variant="outline" onClick={() => onRetry()} data-testid="retry-button">
             Retry
           </Button>
         )}

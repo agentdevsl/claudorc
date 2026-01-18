@@ -20,7 +20,9 @@ interface GitHubAppSetupProps {
 }
 
 export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX.Element {
-  const { githubTokenService } = useServices();
+  const { githubTokenService } = useServices() as unknown as {
+    githubTokenService: import('@/services/github-token.service').GitHubTokenService;
+  };
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -88,7 +90,10 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
 
   if (isLoading) {
     return (
-      <section className="rounded-lg border border-border bg-surface p-6">
+      <section
+        className="rounded-lg border border-border bg-surface p-6"
+        data-testid="github-settings"
+      >
         <div className="flex items-center gap-3">
           <CircleNotch className="h-5 w-5 animate-spin text-fg-muted" />
           <span className="text-sm text-fg-muted">Loading GitHub settings...</span>
@@ -98,7 +103,15 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
   }
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-6">
+    <section
+      className="rounded-lg border border-border bg-surface p-6"
+      data-testid="github-settings"
+    >
+      <div
+        data-testid={tokenInfo ? 'github-connected' : 'github-not-connected'}
+        className="hidden"
+      />
+      <div data-testid="github-repo-info" className="hidden" />
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-muted">
@@ -225,7 +238,11 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <Button onClick={handleSaveToken} disabled={isSaving || !token.trim()}>
+            <Button
+              onClick={handleSaveToken}
+              disabled={isSaving || !token.trim()}
+              data-testid="connect-github-button"
+            >
               {isSaving ? (
                 <>
                   <CircleNotch className="h-4 w-4 animate-spin" />

@@ -189,9 +189,15 @@ export function ApprovalDialog({
           className="flex flex-1 flex-col overflow-hidden"
         >
           <TabsList className="mx-6 mt-4 w-fit">
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="files">Files</TabsTrigger>
-            <TabsTrigger value="diff">Diff</TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary">
+              Summary
+            </TabsTrigger>
+            <TabsTrigger value="files" data-testid="tab-files">
+              Files
+            </TabsTrigger>
+            <TabsTrigger value="diff" data-testid="tab-commit">
+              Commit
+            </TabsTrigger>
           </TabsList>
 
           {/* Summary tab */}
@@ -378,7 +384,12 @@ export function ApprovalDialog({
 }
 
 // Re-export sub-components for individual use
-export { ChangesSummary, CompactChangesSummary, InlineChanges } from './changes-summary';
+export {
+  ChangesSummary,
+  CompactChangesSummary,
+  InlineChanges,
+} from './changes-summary';
+
 export { DiffHunk } from './diff-hunk';
 export { DiffLine } from './diff-line';
 export { CollapsibleDiffViewer, DiffViewer, MultiFileDiffViewer } from './diff-viewer';

@@ -253,20 +253,26 @@ export function EmptyState({
       : undefined);
 
   return (
-    <div
-      role="status"
+    <output
       aria-label={displayTitle}
       className={cn(emptyStateVariants({ size }), className)}
+      data-testid="empty-state"
     >
       {/* Icon container with 64px icon */}
-      <div className={iconContainerVariants({ size })}>
+      <div className={iconContainerVariants({ size })} data-testid="empty-state-icon">
         <Icon className={iconVariants({ size })} weight="light" />
       </div>
 
       {/* Title and subtitle */}
       <div className="space-y-1.5">
-        <h2 className={titleVariants({ size })}>{displayTitle}</h2>
-        {displaySubtitle && <p className={subtitleVariants({ size })}>{displaySubtitle}</p>}
+        <h2 className={titleVariants({ size })} data-testid="empty-state-title">
+          {displayTitle}
+        </h2>
+        {displaySubtitle && (
+          <p className={subtitleVariants({ size })} data-testid="empty-state-description">
+            {displaySubtitle}
+          </p>
+        )}
       </div>
 
       {/* Step indicators for multi-step empty states */}
@@ -289,6 +295,7 @@ export function EmptyState({
               variant={finalPrimaryAction.variant ?? 'default'}
               onClick={finalPrimaryAction.onClick}
               className="min-w-32"
+              data-testid="empty-state-action"
             >
               {finalPrimaryAction.icon}
               {finalPrimaryAction.label}
@@ -315,6 +322,6 @@ export function EmptyState({
             ))}
         </div>
       )}
-    </div>
+    </output>
   );
 }

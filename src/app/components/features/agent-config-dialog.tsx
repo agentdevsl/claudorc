@@ -58,7 +58,7 @@ export function AgentConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" data-testid="agent-config-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gear className="h-5 w-5" />
@@ -69,9 +69,15 @@ export function AgentConfigDialog({
 
         <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
           <TabsList>
-            <TabsTrigger value="execution">Execution</TabsTrigger>
-            <TabsTrigger value="tools">Tools</TabsTrigger>
-            <TabsTrigger value="prompt">Prompt</TabsTrigger>
+            <TabsTrigger value="execution" data-testid="tab-general">
+              Execution
+            </TabsTrigger>
+            <TabsTrigger value="tools" data-testid="tab-limits">
+              Tools
+            </TabsTrigger>
+            <TabsTrigger value="prompt" data-testid="tab-sandbox">
+              Prompt
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="execution" className="space-y-4">
@@ -93,6 +99,7 @@ export function AgentConfigDialog({
                     }))
                   }
                   className="flex-1"
+                  data-testid="max-turns-slider"
                 />
                 <span className="w-12 text-right text-sm font-medium text-fg tabular-nums">
                   {config.maxTurns ?? 50}
@@ -173,10 +180,12 @@ export function AgentConfigDialog({
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="cancel-button">
             Cancel
           </Button>
-          <Button onClick={() => void handleSave()}>Save configuration</Button>
+          <Button onClick={() => void handleSave()} data-testid="save-config-button">
+            Save configuration
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

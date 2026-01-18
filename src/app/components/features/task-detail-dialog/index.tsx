@@ -297,7 +297,12 @@ export function TaskDetailDialog({
               }}
               onDelete={handleDelete}
               onViewSession={
-                onViewSession && task.sessionId ? () => onViewSession(task.sessionId!) : undefined
+                onViewSession && task.sessionId
+                  ? () => {
+                      const sessionId = task.sessionId;
+                      if (sessionId) onViewSession(sessionId);
+                    }
+                  : undefined
               }
               onOpenApproval={onOpenApproval ? () => onOpenApproval(task.id) : undefined}
               onMoveColumn={onMoveColumn ? (col) => onMoveColumn(task.id, col) : undefined}

@@ -103,6 +103,7 @@ export function KanbanCard({
       {...listeners}
       data-testid="task-card"
       data-selected={isSelected ? 'true' : undefined}
+      data-queued={task.column === 'in_progress' && !task.agentId ? 'true' : undefined}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >

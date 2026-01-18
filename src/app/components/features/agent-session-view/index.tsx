@@ -51,7 +51,10 @@ function mapAgentStatus(status: string | undefined): AgentStatus {
 // Loading skeleton for initial load
 function SessionLoadingSkeleton(): React.JSX.Element {
   return (
-    <div className="grid min-h-screen grid-cols-[1fr_320px] grid-rows-[auto_auto_1fr_auto] gap-0 bg-canvas">
+    <div
+      className="grid min-h-screen grid-cols-[1fr_320px] grid-rows-[auto_auto_1fr_auto] gap-0 bg-canvas"
+      data-testid="session-skeleton"
+    >
       {/* Header skeleton */}
       <div className="col-span-full border-b border-border bg-surface px-6 py-3">
         <div className="flex items-center justify-between">
@@ -276,6 +279,10 @@ export function AgentSessionView({
   }, [onResume]);
 
   const handleStop = useCallback(async () => {
+    const confirmed = window.confirm('Stop this session?');
+    if (!confirmed) {
+      return;
+    }
     try {
       await onStop();
     } catch (err) {
@@ -315,7 +322,10 @@ export function AgentSessionView({
   // Error state
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas p-8">
+      <div
+        className="flex min-h-screen items-center justify-center bg-canvas p-8"
+        data-testid="error-state"
+      >
         <ErrorState
           title="Session Error"
           description={error.message}
@@ -341,7 +351,10 @@ export function AgentSessionView({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="grid min-h-screen grid-cols-[1fr_320px] grid-rows-[auto_auto_1fr_auto] gap-0 bg-canvas">
+      <div
+        className="grid min-h-screen grid-cols-[1fr_320px] grid-rows-[auto_auto_1fr_auto] gap-0 bg-canvas"
+        data-testid="session-view"
+      >
         {/* Header bar - spans both columns */}
         <div className="col-span-full">
           <HeaderBar

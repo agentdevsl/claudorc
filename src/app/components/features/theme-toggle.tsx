@@ -10,6 +10,7 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ className }: ThemeToggleProps): React.JSX.Element {
   const [theme, setTheme] = useState<ThemeMode>('system');
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem('theme') as ThemeMode | null;
@@ -19,14 +20,29 @@ export function ThemeToggle({ className }: ThemeToggleProps): React.JSX.Element 
   }, []);
 
   useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
+  useEffect(() => {
     const root = document.documentElement;
     window.localStorage.setItem('theme', theme);
 
     if (theme === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.dataset.theme = prefersDark ? 'dark' : 'light';
+      root.classList.toggle('dark', prefersDark);
     } else {
       root.dataset.theme = theme;
+      root.classList.toggle('dark', theme === 'dark');
     }
   }, [theme]);
 
@@ -37,23 +53,48 @@ export function ThemeToggle({ className }: ThemeToggleProps): React.JSX.Element 
   ];
 
   return (
-    <div
-      className={cn('inline-flex rounded-md border border-border bg-surface-muted p-1', className)}
-    >
-      {options.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => setTheme(value)}
-          className={cn(
-            'flex items-center gap-2 rounded-sm px-3 py-1 text-xs font-medium text-fg-muted transition duration-fast ease-out',
-            theme === value ? 'bg-surface text-fg' : 'hover:text-fg'
-          )}
+    <div className={cn('relative inline-flex', className)}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-md border border-border bg-surface-muted px-3 py-2 text-xs font-medium text-fg-muted"
+        onClick={() => setOpen((prev) => !prev)}
+        data-testid="theme-toggle"
+      >
+        {theme === 'light' ? (
+          <Sun className="h-3.5 w-3.5" data-testid="theme-icon-light" />
+        ) : theme === 'dark' ? (
+          <Moon className="h-3.5 w-3.5" data-testid="theme-icon-dark" />
+        ) : (
+          <Laptop className="h-3.5 w-3.5" data-testid="theme-icon-system" />
+        )}
+        <span className="hidden sm:inline">Theme</span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full z-50 mt-2 w-40 rounded-md border border-border bg-surface p-1 shadow-lg"
+          data-testid="theme-menu"
         >
-          <Icon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{label}</span>
-        </button>
-      ))}
+          {options.map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => {
+                setTheme(value);
+                setOpen(false);
+              }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-sm px-3 py-2 text-xs font-medium text-fg-muted transition duration-fast ease-out',
+                theme === value ? 'bg-surface-muted text-fg' : 'hover:bg-surface-subtle'
+              )}
+              data-testid={`theme-${value}`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
