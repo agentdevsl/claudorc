@@ -4,13 +4,13 @@ import { cva, type VariantProps } from 'class-variance-authority';
  * Column container styles
  */
 export const columnVariants = cva(
-  'flex flex-col rounded-md border border-border bg-surface transition-all duration-150',
+  'flex flex-col rounded-md border-2 border-border bg-surface transition-all duration-200',
   {
     variants: {
       state: {
-        default: '',
-        dropTarget: 'border-accent bg-accent-muted',
-        collapsed: 'w-12 min-w-12',
+        default: 'border-transparent',
+        dropTarget: 'bg-primary/5 border-primary/20 shadow-inner',
+        collapsed: 'w-12 min-w-12 border-transparent',
       },
     },
     defaultVariants: {

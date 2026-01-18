@@ -5,6 +5,8 @@ import {
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
+  type DropAnimation,
+  defaultDropAnimationSideEffects,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -53,6 +55,18 @@ function canTransition(from: TaskColumn, to: TaskColumn): boolean {
   if (from === to) return true; // Same column reordering is always valid
   return VALID_TRANSITIONS[from].includes(to);
 }
+
+const dropAnimationConfig: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0.4',
+      },
+    },
+  }),
+  duration: 200,
+  easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+};
 
 /**
  * Enhanced Kanban Board with multi-select, collapse, and workflow validation
@@ -265,7 +279,7 @@ export function KanbanBoard({
         })}
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={dropAnimationConfig}>
         {activeTask && <DragOverlayCard task={activeTask} selectedCount={selectedIds.size} />}
       </DragOverlay>
     </DndContext>

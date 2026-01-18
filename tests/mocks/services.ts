@@ -51,7 +51,14 @@ export function createMockProjectService(
       ok([
         {
           project: defaultProject,
-          taskCounts: { backlog: 0, inProgress: 0, waitingApproval: 0, verified: 0, total: 0 },
+          taskCounts: {
+            backlog: 0,
+            queued: 0,
+            inProgress: 0,
+            waitingApproval: 0,
+            verified: 0,
+            total: 0,
+          },
           runningAgents: [],
           status: 'idle' as const,
           lastActivityAt: null,

@@ -51,12 +51,13 @@ export function DragOverlayCard({ task, selectedCount }: DragOverlayCardProps): 
     <div
       className={cn(
         cardVariants({ state: 'default' }),
-        'shadow-xl cursor-grabbing border-accent',
-        'opacity-90 relative'
+        'shadow-2xl cursor-grabbing border-primary/50 ring-2 ring-primary/20',
+        'opacity-100 relative'
       )}
       style={{
-        transform: `rotate(${DRAG_ROTATION}deg)`,
+        transform: `rotate(${DRAG_ROTATION}deg) scale(1.05)`,
         width: 280,
+        transformOrigin: '50% 50%',
       }}
       role="dialog"
       aria-label="Dragging task"

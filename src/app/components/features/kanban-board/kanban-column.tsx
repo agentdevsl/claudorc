@@ -126,6 +126,20 @@ export function KanbanColumn({
           <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
             {children}
           </SortableContext>
+
+          {/* Empty state */}
+          {tasks.length === 0 && !isDropTarget && !isOver && (
+            <div className="flex h-32 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border/50 text-center">
+              <span className="text-xs font-medium text-fg-muted">No tasks</span>
+              <button
+                type="button"
+                onClick={onAddTask}
+                className="mt-2 text-xs text-primary hover:underline"
+              >
+                Create one
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

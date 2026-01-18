@@ -43,6 +43,7 @@ const mockProject = {
 
 const defaultTaskCounts: TaskCounts = {
   backlog: 5,
+  queued: 0,
   inProgress: 3,
   waitingApproval: 2,
   verified: 10,
@@ -191,6 +192,7 @@ describe('ProjectCard', () => {
     it('handles zero total correctly', () => {
       const zeroTaskCounts: TaskCounts = {
         backlog: 0,
+        queued: 0,
         inProgress: 0,
         waitingApproval: 0,
         verified: 0,

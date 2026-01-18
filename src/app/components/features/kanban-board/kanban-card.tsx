@@ -69,6 +69,17 @@ export function KanbanCard({
     transition,
   };
 
+  // Render ghost placeholder when this card is being dragged
+  if (sortableIsDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="relative rounded-md border-2 border-dashed border-primary/20 bg-primary/5 min-h-[100px] w-full"
+      />
+    );
+  }
+
   const cardState =
     isDragging || sortableIsDragging ? 'dragging' : isSelected ? 'selected' : 'default';
 

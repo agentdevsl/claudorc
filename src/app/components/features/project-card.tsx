@@ -7,6 +7,7 @@ export type ProjectStatus = 'running' | 'idle' | 'needs-approval';
 
 export type TaskCounts = {
   backlog: number;
+  queued: number;
   inProgress: number;
   waitingApproval: number;
   verified: number;
@@ -79,7 +80,7 @@ function MiniKanbanBar({ label, count, total, colorClass }: MiniKanbanBarProps):
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-1.5 text-[11px] uppercase tracking-wide">
-        <span className="text-fg-subtle">{label}</span>
+        <span className={colorClass}>{label}</span>
         <span className={`font-semibold font-mono ${colorClass}`}>{count}</span>
       </div>
       <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
@@ -141,19 +142,25 @@ export function ProjectCard({
             colorClass="text-fg-muted"
           />
           <MiniKanbanBar
-            label="Todo"
-            count={taskCounts.inProgress}
+            label="Queued"
+            count={taskCounts.queued}
             total={taskCounts.total}
-            colorClass="text-accent"
+            colorClass="text-[var(--secondary-fg)]"
           />
           <MiniKanbanBar
-            label="Review"
-            count={taskCounts.waitingApproval}
+            label="In Progress"
+            count={taskCounts.inProgress}
             total={taskCounts.total}
             colorClass="text-attention"
           />
           <MiniKanbanBar
-            label="Done"
+            label="Approval"
+            count={taskCounts.waitingApproval}
+            total={taskCounts.total}
+            colorClass="text-accent"
+          />
+          <MiniKanbanBar
+            label="Verified"
             count={taskCounts.verified}
             total={taskCounts.total}
             colorClass="text-success"
