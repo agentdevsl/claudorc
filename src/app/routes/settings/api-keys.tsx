@@ -382,8 +382,8 @@ function ApiKeysSettingsPage(): React.JSX.Element {
           className="rounded-md border border-accent/30 bg-accent-muted/30 p-4"
         >
           <p className="text-sm text-fg-muted">
-            <strong className="text-accent">Security:</strong> All keys are encrypted using AES-256
-            before storage. Keys never leave your browser and are not sent to any external servers.
+            <strong className="text-accent">Security:</strong> All keys are encrypted using AES-256-GCM
+            and stored locally. Keys never leave your machine and are not sent to external servers.
           </p>
         </div>
       </div>
