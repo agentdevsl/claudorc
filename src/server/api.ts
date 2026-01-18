@@ -417,12 +417,18 @@ async function handleDiscoverLocalRepos(): Promise<Response> {
           }
         } catch (error) {
           // Log skipped entries for debugging
-          console.debug(`[Discover] Skipping ${fullPath}:`, error instanceof Error ? error.message : 'access denied');
+          console.debug(
+            `[Discover] Skipping ${fullPath}:`,
+            error instanceof Error ? error.message : 'access denied'
+          );
         }
       }
     } catch (error) {
       // Log unreadable directories for debugging
-      console.debug(`[Discover] Cannot read ${searchDir}:`, error instanceof Error ? error.message : 'access denied');
+      console.debug(
+        `[Discover] Cannot read ${searchDir}:`,
+        error instanceof Error ? error.message : 'access denied'
+      );
     }
   }
 
