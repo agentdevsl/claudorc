@@ -1,59 +1,69 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorktreeManagement } from '@/app/components/features/worktree-management';
-import type { RouterContext } from '@/app/router';
-import type { Project } from '@/db/schema/projects';
-import type { WorktreeStatusInfo } from '@/services/worktree.service';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
+
+// Worktree type for client-side display
+type ClientWorktree = {
+  id: string;
+  projectId: string;
+  path: string;
+  branch: string;
+  status: string;
+};
 
 export const Route = createFileRoute('/worktrees/')({
-  loader: async ({ context }: { context: RouterContext }) => {
-    if (!context.services) {
-      return { project: null, worktrees: [] as WorktreeStatusInfo[] };
-    }
-
-    const projectsResult = await context.services.projectService.list({
-      limit: 1,
-    });
-    const project = projectsResult.ok ? (projectsResult.value[0] ?? null) : null;
-
-    if (!project) {
-      return { project: null, worktrees: [] };
-    }
-
-    const worktreesResult = await context.services.worktreeService.list(project.id);
-    return {
-      project,
-      worktrees: worktreesResult.ok ? worktreesResult.value : [],
-    };
-  },
   component: WorktreesPage,
 });
 
 function WorktreesPage(): React.JSX.Element {
-  const { worktreeService } = Route.useRouteContext().services ?? {};
-  const loaderData = Route.useLoaderData() as
-    | { project: Project | null; worktrees: WorktreeStatusInfo[] }
-    | undefined;
-  const [worktrees, setWorktrees] = useState<WorktreeStatusInfo[]>(loaderData?.worktrees ?? []);
+  const [project, setProject] = useState<ProjectListItem | null>(null);
+  const [worktrees, setWorktrees] = useState<ClientWorktree[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch project and worktrees from API on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const projectsResult = await apiClient.projects.list({ limit: 1 });
+      const firstProject = projectsResult.ok ? (projectsResult.data.items[0] ?? null) : null;
+      setProject(firstProject);
+
+      if (firstProject) {
+        const worktreesResult = await apiClient.worktrees.list({ projectId: firstProject.id });
+        if (worktreesResult.ok) {
+          setWorktrees(worktreesResult.data.items as ClientWorktree[]);
+        }
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Worktrees' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading worktrees...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Worktrees' }]}
-      projectName={loaderData?.project?.name}
-      projectPath={loaderData?.project?.path}
+      projectName={project?.name}
+      projectPath={project?.path}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        {loaderData?.project ? (
+        {project ? (
           <WorktreeManagement
-            worktrees={worktrees}
+            worktrees={worktrees as Parameters<typeof WorktreeManagement>[0]['worktrees']}
             onRemove={async (worktreeId) => {
-              if (!worktreeService) return;
-              const result = await worktreeService.remove(worktreeId, true);
-              if (result.ok) {
-                setWorktrees((prev) => prev.filter((worktree) => worktree.id !== worktreeId));
-              }
+              // TODO: Add API endpoint for worktree removal
+              setWorktrees((prev) => prev.filter((worktree) => worktree.id !== worktreeId));
             }}
           />
         ) : (

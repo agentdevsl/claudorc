@@ -1,45 +1,66 @@
 import { Funnel, Play, Robot } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { Button } from '@/app/components/ui/button';
-import type { RouterContext } from '@/app/router';
-import type { Agent } from '@/db/schema/agents';
-import type { Project } from '@/db/schema/projects';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
+
+// Agent type for client-side display
+type ClientAgent = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+};
 
 export const Route = createFileRoute('/agents/')({
-  loader: async ({ context }: { context: RouterContext }) => {
-    if (!context.services) {
-      return { agents: [] as Agent[], projects: [] as Project[] };
-    }
-
-    const agentsResult = await context.services.agentService.listAll();
-    const projectsResult = await context.services.projectService.list({ limit: 10 });
-    return {
-      agents: agentsResult.ok ? agentsResult.value : [],
-      projects: projectsResult.ok ? projectsResult.value : [],
-    };
-  },
   component: AgentsPage,
 });
 
 function AgentsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const loaderData = Route.useLoaderData() as { agents: Agent[]; projects: Project[] } | undefined;
-  const [agents] = useState<Agent[]>(loaderData?.agents ?? []);
-  const projects = loaderData?.projects ?? [];
+  const [agents, setAgents] = useState<ClientAgent[]>([]);
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch agents and projects from API on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const [agentsResult, projectsResult] = await Promise.all([
+        apiClient.agents.list(),
+        apiClient.projects.list({ limit: 10 }),
+      ]);
+
+      if (agentsResult.ok) {
+        setAgents(agentsResult.data.items as ClientAgent[]);
+      }
+      if (projectsResult.ok) {
+        setProjects(projectsResult.data.items);
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, []);
 
   const handleNewAgent = () => {
     const firstProject = projects[0];
     if (firstProject) {
-      // Navigate to the first project's kanban where they can start an agent on a task
       navigate({ to: '/projects/$projectId', params: { projectId: firstProject.id } });
     } else {
-      // Navigate to home to create a project first
       navigate({ to: '/' });
     }
   };
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Agents' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading agents...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Agents' }]}>

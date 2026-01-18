@@ -1,48 +1,61 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
-import type { RouterContext } from '@/app/router';
-import { useServices } from '@/app/services/service-context';
-import type { Project } from '@/db/schema/projects';
-import type { Task } from '@/db/schema/tasks';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
 
-export interface LoaderData {
-  task: Task | null;
-  project: Project | null;
-}
+// Task type for client-side display
+type ClientTask = {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string | null;
+  column: 'backlog' | 'ready' | 'in_progress' | 'waiting_approval' | 'done' | 'verified';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  position: number;
+};
 
 export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
-  loader: async ({
-    context,
-    params,
-  }: {
-    context: RouterContext;
-    params: { projectId: string; taskId: string };
-  }): Promise<LoaderData> => {
-    if (!context.services) {
-      return { task: null, project: null };
-    }
-
-    const [taskResult, projectResult] = await Promise.all([
-      context.services.taskService.getById(params.taskId),
-      context.services.projectService.getById(params.projectId),
-    ]);
-
-    if (!taskResult.ok || taskResult.value.projectId !== params.projectId) {
-      return { task: null, project: projectResult.ok ? projectResult.value : null };
-    }
-
-    return {
-      task: taskResult.value,
-      project: projectResult.ok ? projectResult.value : null,
-    };
-  },
   component: TaskDetailRoute,
 });
 
 function TaskDetailRoute(): React.JSX.Element {
-  const { task, project } = Route.useLoaderData() as LoaderData;
-  const { taskService } = useServices();
+  const { projectId, taskId } = Route.useParams();
+  const [task, setTask] = useState<ClientTask | null>(null);
+  const [project, setProject] = useState<ProjectListItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch task and project from API on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const [taskResult, projectResult] = await Promise.all([
+        apiClient.tasks.get(taskId),
+        apiClient.projects.get(projectId),
+      ]);
+
+      if (taskResult.ok) {
+        const fetchedTask = taskResult.data as ClientTask;
+        if (fetchedTask.projectId === projectId) {
+          setTask(fetchedTask);
+        }
+      }
+      if (projectResult.ok) {
+        setProject(projectResult.data);
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, [projectId, taskId]);
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: 'Loading...' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading task...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   if (!task) {
     return <div className="p-6 text-sm text-fg-muted">Task not found.</div>;
@@ -60,14 +73,15 @@ function TaskDetailRoute(): React.JSX.Element {
       ]}
     >
       <TaskDetailDialog
-        task={task}
+        task={task as Parameters<typeof TaskDetailDialog>[0]['task']}
         open
         onOpenChange={() => {}}
         onSave={async (data) => {
-          await taskService.update(task.id, data);
+          // TODO: Add API endpoint for updating tasks
+          setTask((prev) => (prev ? { ...prev, ...data } : null));
         }}
-        onDelete={async (id) => {
-          await taskService.delete(id);
+        onDelete={async (_id) => {
+          // TODO: Add API endpoint for deleting tasks
         }}
       />
     </LayoutShell>

@@ -1,5 +1,5 @@
 import { Funnel, Plus } from '@phosphor-icons/react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
@@ -115,6 +115,7 @@ export const Route = createFileRoute('/')({
 });
 
 function Dashboard(): React.JSX.Element {
+  const navigate = useNavigate();
   const [projectSummaries, setProjectSummaries] = useState<ClientProjectSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -249,7 +250,7 @@ function Dashboard(): React.JSX.Element {
                   : {
                       label: 'Configure Settings',
                       onClick: () => {
-                        window.location.href = '/settings';
+                        navigate({ to: '/settings' });
                       },
                     }
               }

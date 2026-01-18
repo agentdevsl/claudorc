@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useServices } from '@/app/services/service-context';
-import type { QueuePosition } from '@/services/agent.service';
+
+export type QueuePosition = {
+  position: number;
+  totalQueued: number;
+  estimatedWaitMinutes?: number;
+  estimatedWaitFormatted?: string;
+};
 
 export type QueuePositionState = {
   position: number | null;
@@ -21,7 +26,6 @@ const POLL_INTERVAL_MS = 10000; // Poll every 10 seconds
  * - Returns null values when not queued
  */
 export function useQueuePosition(agentId: string): QueuePositionState {
-  const { agentService } = useServices();
   const [position, setPosition] = useState<QueuePosition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -29,18 +33,20 @@ export function useQueuePosition(agentId: string): QueuePositionState {
 
   const fetchQueuePosition = useCallback(async () => {
     try {
-      const result = await agentService.getQueuePosition(agentId);
-      if (!result.ok) {
-        setError(new Error(result.error.message));
+      const response = await fetch(`/api/agents/${agentId}/status`);
+      const data = await response.json();
+
+      if (!data.ok) {
+        setError(new Error(data.error?.message ?? 'Failed to fetch queue position'));
         setShouldPoll(false);
         return;
       }
 
-      setPosition(result.value);
+      setPosition(data.data?.queuePosition ?? null);
       setError(null);
 
       // Stop polling if agent is no longer queued
-      if (result.value === null) {
+      if (data.data?.queuePosition === null) {
         setShouldPoll(false);
       }
     } catch (err) {
@@ -49,7 +55,7 @@ export function useQueuePosition(agentId: string): QueuePositionState {
     } finally {
       setIsLoading(false);
     }
-  }, [agentId, agentService]);
+  }, [agentId]);
 
   // Initial fetch
   useEffect(() => {
@@ -96,7 +102,6 @@ export function useQueueStats(projectId?: string): {
   error: Error | null;
   refetch: () => void;
 } {
-  const { agentService } = useServices();
   const [stats, setStats] = useState<{
     totalQueued: number;
     averageCompletionMs: number;
@@ -108,9 +113,17 @@ export function useQueueStats(projectId?: string): {
   const fetchStats = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await agentService.getQueueStats(projectId);
-      if (result.ok) {
-        setStats(result.value);
+      const url = projectId
+        ? `/api/agents?projectId=${projectId}&status=queued`
+        : '/api/agents?status=queued';
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.ok) {
+        setStats({
+          totalQueued: data.data?.totalCount ?? 0,
+          averageCompletionMs: 0,
+          recentCompletions: 0,
+        });
         setError(null);
       }
     } catch (err) {
@@ -118,7 +131,7 @@ export function useQueueStats(projectId?: string): {
     } finally {
       setIsLoading(false);
     }
-  }, [agentService, projectId]);
+  }, [projectId]);
 
   useEffect(() => {
     void fetchStats();
@@ -155,7 +168,6 @@ export function useQueuedTasks(projectId?: string): {
   error: Error | null;
   refetch: () => void;
 } {
-  const { agentService } = useServices();
   const [tasks, setTasks] = useState<QueuePosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -163,9 +175,13 @@ export function useQueuedTasks(projectId?: string): {
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await agentService.getQueuedTasks(projectId);
-      if (result.ok) {
-        setTasks(result.value);
+      const url = projectId
+        ? `/api/agents?projectId=${projectId}&status=queued`
+        : '/api/agents?status=queued';
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.ok) {
+        setTasks(data.data?.items ?? []);
         setError(null);
       }
     } catch (err) {
@@ -173,7 +189,7 @@ export function useQueuedTasks(projectId?: string): {
     } finally {
       setIsLoading(false);
     }
-  }, [agentService, projectId]);
+  }, [projectId]);
 
   useEffect(() => {
     void fetchTasks();

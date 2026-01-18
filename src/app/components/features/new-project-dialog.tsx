@@ -6,11 +6,14 @@ import {
   GitBranch,
   GithubLogo,
   Lightning,
+  Lock,
+  MagnifyingGlass,
   Spinner,
+  Star,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import {
   Dialog,
@@ -25,6 +28,7 @@ import { TextInput } from '@/app/components/ui/text-input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { cn } from '@/lib/utils/cn';
 import type { Result } from '@/lib/utils/result';
+import type { GitHubRepo } from '@/services/github-token.service';
 import type { PathValidation } from '@/services/project.service';
 
 // Types
@@ -58,6 +62,8 @@ interface NewProjectDialogProps {
   onSubmit: (data: { name: string; path: string; description?: string }) => Promise<void>;
   onValidatePath: (path: string) => Promise<Result<PathValidation, unknown>>;
   onClone?: (url: string, destination: string) => Promise<Result<{ path: string }, unknown>>;
+  onFetchUserRepos?: () => Promise<GitHubRepo[]>;
+  isGitHubConfigured?: boolean;
   recentRepos?: RecentRepo[];
   initialPath?: string;
   initialSource?: SourceType;
@@ -243,6 +249,115 @@ function Divider({ text }: { text: string }) {
   );
 }
 
+// Sub-component: GitHubRepoList
+interface GitHubRepoListProps {
+  repos: GitHubRepo[];
+  isLoading: boolean;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+  onSelect: (repo: GitHubRepo) => void;
+  selectedRepoId?: number;
+}
+
+function GitHubRepoList({
+  repos,
+  isLoading,
+  searchTerm,
+  onSearchChange,
+  onSelect,
+  selectedRepoId,
+}: GitHubRepoListProps) {
+  const filteredRepos = repos.filter(
+    (repo) =>
+      repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      repo.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (repo.description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
+  );
+
+  return (
+    <div className="space-y-3" data-testid="github-repo-list">
+      <label
+        className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+        htmlFor="repo-search"
+      >
+        Search your repositories
+      </label>
+      <div className="relative">
+        <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+        <TextInput
+          id="repo-search"
+          value={searchTerm}
+          placeholder="Filter repositories..."
+          className="pl-10"
+          onChange={(e) => onSearchChange(e.target.value)}
+          data-testid="repo-search-input"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Spinner className="h-6 w-6 animate-spin text-fg-muted" />
+          <span className="ml-2 text-sm text-fg-muted">Loading repositories...</span>
+        </div>
+      ) : filteredRepos.length === 0 ? (
+        <div className="py-8 text-center text-sm text-fg-muted">
+          {searchTerm ? 'No repositories match your search.' : 'No repositories found.'}
+        </div>
+      ) : (
+        <div className="max-h-[240px] space-y-1 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface-subtle p-1">
+          {filteredRepos.map((repo) => (
+            <button
+              key={repo.id}
+              type="button"
+              onClick={() => onSelect(repo)}
+              className={cn(
+                'flex w-full items-start gap-3 rounded-[var(--radius-sm)] p-2.5',
+                'text-left transition-all duration-fast ease-out',
+                selectedRepoId === repo.id
+                  ? 'border border-accent bg-accent-muted'
+                  : 'border border-transparent hover:bg-surface-muted'
+              )}
+              data-testid={`github-repo-${repo.name}`}
+            >
+              <div
+                className={cn(
+                  'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--radius)]',
+                  selectedRepoId === repo.id
+                    ? 'bg-accent text-fg-on-emphasis'
+                    : 'bg-surface-muted text-fg-muted'
+                )}
+              >
+                <Book className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-fg">{repo.name}</span>
+                  <div className="flex items-center gap-1 text-xs text-fg-subtle">
+                    <Star className="h-3 w-3" />
+                    {repo.stargazers_count}
+                  </div>
+                  {repo.private && (
+                    <span className="flex items-center gap-0.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs text-fg-subtle">
+                      <Lock className="h-2.5 w-2.5" weight="fill" />
+                      Private
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 truncate text-xs text-fg-subtle">
+                  {repo.description || 'No description'}
+                </div>
+              </div>
+              {selectedRepoId === repo.id && (
+                <CheckCircle className="h-5 w-5 flex-shrink-0 text-accent" weight="fill" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Default skills configuration
 const defaultSkills: SkillConfig[] = [
   {
@@ -274,6 +389,8 @@ export function NewProjectDialog({
   onSubmit,
   onValidatePath,
   onClone,
+  onFetchUserRepos,
+  isGitHubConfigured = false,
   recentRepos = mockRecentRepos,
   initialPath = '',
   initialSource = 'local',
@@ -299,6 +416,28 @@ export function NewProjectDialog({
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState('');
 
+  // GitHub repos state
+  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [repoSearchTerm, setRepoSearchTerm] = useState('');
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+  const [hasFetchedRepos, setHasFetchedRepos] = useState(false);
+
+  // Handle Escape key explicitly for reliable dialog closing
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onOpenChange(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onOpenChange]);
+
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
@@ -315,8 +454,46 @@ export function NewProjectDialog({
       setSkills(defaultSkills);
       setIsCloning(false);
       setCloneError('');
+      // Reset GitHub state
+      setGithubRepos([]);
+      setIsLoadingRepos(false);
+      setRepoSearchTerm('');
+      setSelectedRepo(null);
+      setShowManualUrl(false);
+      setHasFetchedRepos(false);
     }
   }, [open, initialPath, initialSource]);
+
+  // Fetch GitHub repos when clone tab is selected
+  const fetchGitHubRepos = useCallback(async () => {
+    if (!onFetchUserRepos || !isGitHubConfigured || hasFetchedRepos) return;
+
+    setIsLoadingRepos(true);
+    try {
+      const repos = await onFetchUserRepos();
+      setGithubRepos(repos);
+      setHasFetchedRepos(true);
+    } catch {
+      // Silently fail - user can still use manual URL entry
+      setGithubRepos([]);
+    } finally {
+      setIsLoadingRepos(false);
+    }
+  }, [onFetchUserRepos, isGitHubConfigured, hasFetchedRepos]);
+
+  // Fetch repos when switching to clone tab
+  useEffect(() => {
+    if (sourceType === 'clone' && isGitHubConfigured && !hasFetchedRepos) {
+      void fetchGitHubRepos();
+    }
+  }, [sourceType, isGitHubConfigured, hasFetchedRepos, fetchGitHubRepos]);
+
+  // Handle selecting a GitHub repo
+  const handleSelectGitHubRepo = (repo: GitHubRepo): void => {
+    setSelectedRepo(repo);
+    setCloneUrl(repo.clone_url);
+    setCloneError('');
+  };
 
   // Validate path for local repos
   const validatePath = async (pathToValidate?: string): Promise<void> => {
@@ -586,41 +763,89 @@ export function NewProjectDialog({
 
           {/* Clone Tab */}
           <TabsContent value="clone" className="space-y-4">
-            <div className="space-y-2">
-              <label
-                className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-                htmlFor="clone-url"
-              >
-                Repository URL
-              </label>
-              <div className="relative">
-                <GithubLogo className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
-                <TextInput
-                  id="clone-url"
-                  value={cloneUrl}
-                  placeholder="https://github.com/owner/repo"
-                  className="pl-10"
-                  onChange={(event) => {
-                    setCloneUrl(event.target.value);
-                    setCloneError('');
-                  }}
-                  data-testid="clone-url-input"
+            {/* GitHub Repository Browser (when GitHub is configured) */}
+            {isGitHubConfigured && !showManualUrl && (
+              <>
+                <GitHubRepoList
+                  repos={githubRepos}
+                  isLoading={isLoadingRepos}
+                  searchTerm={repoSearchTerm}
+                  onSearchChange={setRepoSearchTerm}
+                  onSelect={handleSelectGitHubRepo}
+                  selectedRepoId={selectedRepo?.id}
                 />
-                {cloneUrl && (
-                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                    {validateCloneUrl(cloneUrl) ? (
-                      <CheckCircle className="h-4 w-4 text-success" weight="fill" />
-                    ) : (
-                      <WarningCircle className="h-4 w-4 text-danger" weight="fill" />
+
+                <Divider text="or enter URL manually" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowManualUrl(true)}
+                  className="w-full text-center text-sm text-fg-muted hover:text-fg transition-colors"
+                  data-testid="show-manual-url-button"
+                >
+                  Enter a repository URL manually
+                </button>
+              </>
+            )}
+
+            {/* Manual URL Input (when GitHub is not configured, or user chooses to enter manually) */}
+            {(!isGitHubConfigured || showManualUrl) && (
+              <>
+                {showManualUrl && isGitHubConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManualUrl(false);
+                      setCloneUrl(selectedRepo?.clone_url ?? '');
+                    }}
+                    className="text-sm text-accent hover:text-accent/80 transition-colors"
+                    data-testid="back-to-repo-list-button"
+                  >
+                    ← Back to repository list
+                  </button>
+                )}
+
+                <div className="space-y-2">
+                  <label
+                    className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+                    htmlFor="clone-url"
+                  >
+                    Repository URL
+                  </label>
+                  <div className="relative">
+                    <GithubLogo className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+                    <TextInput
+                      id="clone-url"
+                      value={cloneUrl}
+                      placeholder="https://github.com/owner/repo"
+                      className="pl-10"
+                      onChange={(event) => {
+                        setCloneUrl(event.target.value);
+                        setCloneError('');
+                        setSelectedRepo(null);
+                      }}
+                      data-testid="clone-url-input"
+                    />
+                    {cloneUrl && (
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                        {validateCloneUrl(cloneUrl) ? (
+                          <CheckCircle className="h-4 w-4 text-success" weight="fill" />
+                        ) : (
+                          <WarningCircle className="h-4 w-4 text-danger" weight="fill" />
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-              {cloneUrl && !validateCloneUrl(cloneUrl) && (
-                <p className="text-xs text-danger">Please enter a valid GitHub repository URL</p>
-              )}
-            </div>
+                  {cloneUrl && !validateCloneUrl(cloneUrl) && (
+                    <p className="text-xs text-danger">
+                      Please enter a valid GitHub repository URL
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
+            {/* Clone path (always shown) */}
             <div className="space-y-2">
               <label
                 className="text-xs font-medium uppercase tracking-wide text-fg-muted"

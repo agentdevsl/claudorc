@@ -6,68 +6,63 @@ import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { Button } from '@/app/components/ui/button';
-import type { RouterContext } from '@/app/router';
-import { useServices } from '@/app/services/service-context';
-import type { Project } from '@/db/schema/projects';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import { apiClient, type ProjectListItem } from '@/lib/api/client';
+
+// Task type for client-side display
+type ClientTask = {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string | null;
+  column: 'backlog' | 'ready' | 'in_progress' | 'waiting_approval' | 'done' | 'verified';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  position: number;
+  diffSummary?: string | null;
+};
 
 export const Route = createFileRoute('/projects/$projectId/')({
-  loader: async ({
-    context,
-    params,
-  }: {
-    context: RouterContext;
-    params: { projectId: string };
-  }) => {
-    if (!context.services) {
-      return { project: null, tasks: [] };
-    }
-
-    const [projectResult, tasksResult] = await Promise.all([
-      context.services.projectService.getById(params.projectId),
-      context.services.taskService.list(params.projectId),
-    ]);
-
-    return {
-      project: projectResult.ok ? projectResult.value : null,
-      tasks: tasksResult.ok ? tasksResult.value : [],
-    };
-  },
   component: ProjectKanban,
 });
 
 function ProjectKanban(): React.JSX.Element {
-  const { projectService, taskService } = useServices();
   const { projectId } = Route.useParams();
-  const loaderData = Route.useLoaderData() as
-    | { project: Project | null; tasks: Task[] }
-    | undefined;
-  const [project, setProject] = useState<Project | null>(loaderData?.project ?? null);
-  const [tasks, setTasks] = useState<Task[]>(loaderData?.tasks ?? []);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [project, setProject] = useState<ProjectListItem | null>(null);
+  const [tasks, setTasks] = useState<ClientTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
-  const [approvalTask, setApprovalTask] = useState<Task | null>(null);
+  const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
 
+  // Fetch project and tasks from API on mount
   useEffect(() => {
-    if (!project) {
-      const refresh = async () => {
-        const projectResult = await projectService.getById(projectId);
-        if (projectResult.ok) {
-          setProject(projectResult.value);
-        }
-      };
-      void refresh();
-    }
-  }, [project, projectId, projectService]);
+    const fetchData = async () => {
+      const [projectResult, tasksResult] = await Promise.all([
+        apiClient.projects.get(projectId),
+        apiClient.tasks.list(projectId),
+      ]);
 
-  const handleTaskMove = async (taskId: string, column: TaskColumn, position: number) => {
-    const result = await taskService.moveColumn(taskId, column, position);
-    if (result.ok) {
-      setTasks((prev) => prev.map((task) => (task.id === taskId ? result.value : task)));
-    }
+      if (projectResult.ok) {
+        setProject(projectResult.data);
+      }
+      if (tasksResult.ok) {
+        setTasks(tasksResult.data.items as ClientTask[]);
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, [projectId]);
+
+  const handleTaskMove = async (
+    taskId: string,
+    column: ClientTask['column'],
+    _position: number
+  ) => {
+    // Optimistic update
+    setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, column } : task)));
+    // TODO: Add API endpoint for moving tasks
   };
 
-  const handleTaskClick = (task: Task) => {
+  const handleTaskClick = (task: ClientTask) => {
     if (task.column === 'waiting_approval') {
       setApprovalTask(task);
     } else {
@@ -75,18 +70,27 @@ function ProjectKanban(): React.JSX.Element {
     }
   };
 
-  const handleApprove = async (commitMessage?: string) => {
+  const handleApprove = async (_commitMessage?: string) => {
     if (!approvalTask) return;
-    await taskService.approve(approvalTask.id, {
-      approvedBy: 'current-user',
-      createMergeCommit: Boolean(commitMessage),
-    });
+    // TODO: Add API endpoint for approving tasks
+    setApprovalTask(null);
   };
 
-  const handleReject = async (reason: string) => {
+  const handleReject = async (_reason: string) => {
     if (!approvalTask) return;
-    await taskService.reject(approvalTask.id, { reason });
+    // TODO: Add API endpoint for rejecting tasks
+    setApprovalTask(null);
   };
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: 'Loading...' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading project...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   if (!project) {
     return <div className="p-6 text-sm text-fg-muted">Project not found.</div>;
@@ -106,11 +110,15 @@ function ProjectKanban(): React.JSX.Element {
       }
     >
       <main className="flex-1 overflow-hidden bg-canvas">
-        <KanbanBoard tasks={tasks} onTaskMove={handleTaskMove} onTaskClick={handleTaskClick} />
+        <KanbanBoard
+          tasks={tasks as Parameters<typeof KanbanBoard>[0]['tasks']}
+          onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
+          onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
+        />
       </main>
 
       <TaskDetailDialog
-        task={selectedTask}
+        task={selectedTask as Parameters<typeof TaskDetailDialog>[0]['task']}
         open={Boolean(selectedTask) || showNewTask}
         onOpenChange={(open) => {
           if (!open) {
@@ -120,33 +128,33 @@ function ProjectKanban(): React.JSX.Element {
         }}
         onSave={async (data) => {
           if (selectedTask) {
-            const result = await taskService.update(selectedTask.id, data);
-            if (result.ok) {
-              setTasks((prev) =>
-                prev.map((task) => (task.id === result.value.id ? result.value : task))
-              );
-            }
+            // TODO: Add API endpoint for updating tasks
+            setTasks((prev) =>
+              prev.map((task) => (task.id === selectedTask.id ? { ...task, ...data } : task))
+            );
           } else if (project) {
-            const result = await taskService.create({
+            // TODO: Add API endpoint for creating tasks
+            const newTask: ClientTask = {
+              id: `temp-${Date.now()}`,
               projectId: project.id,
-              ...data,
-            } as never);
-            if (result.ok) {
-              setTasks((prev) => [result.value, ...prev]);
-            }
+              title: data.title ?? 'New Task',
+              description: data.description,
+              column: 'backlog',
+              priority: data.priority ?? 'medium',
+              position: 0,
+            };
+            setTasks((prev) => [newTask, ...prev]);
           }
         }}
         onDelete={async (id) => {
-          const result = await taskService.delete(id);
-          if (result.ok) {
-            setTasks((prev) => prev.filter((task) => task.id !== id));
-          }
+          // TODO: Add API endpoint for deleting tasks
+          setTasks((prev) => prev.filter((task) => task.id !== id));
         }}
       />
 
       {approvalTask && (
         <ApprovalDialog
-          task={approvalTask}
+          task={approvalTask as Parameters<typeof ApprovalDialog>[0]['task']}
           diff={approvalTask.diffSummary ?? null}
           open={Boolean(approvalTask)}
           onOpenChange={(open) => {

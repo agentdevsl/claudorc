@@ -1,0 +1,1 @@
+/ralph-loop:ralph-loop use a haiku subagent to run scripts/run-ui-tests.ts, output results in table format, use an opus subagent to fix the issues, rerun the same test --max-iterations 10 --completion-promise all ui tests succesfully completed

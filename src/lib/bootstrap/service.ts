@@ -1,9 +1,6 @@
 import { err, ok } from '../utils/result.js';
 import { initializeCollections } from './phases/collections.js';
 import { validateGitHub } from './phases/github.js';
-import { validateSchema } from './phases/schema.js';
-import { seedDefaults } from './phases/seeding.js';
-import { initializeSQLite } from './phases/sqlite.js';
 import { connectStreams } from './phases/streams.js';
 import type {
   BootstrapContext,
@@ -19,9 +16,18 @@ type PhaseResult = {
   value: unknown;
 };
 
+/**
+ * Client-side initialization phase.
+ * Database runs on server - client uses API endpoints.
+ */
+const initializeClient = async (): Promise<ReturnType<typeof ok>> => {
+  console.log('[Bootstrap] Client mode initialized');
+  return ok(null);
+};
+
 export class BootstrapService {
   private state: BootstrapState = {
-    phase: 'sqlite',
+    phase: 'client',
     progress: 0,
     isComplete: false,
   };
@@ -67,20 +73,19 @@ export class BootstrapService {
   }
 
   private createDefaultPhases(): BootstrapPhaseConfig[] {
+    // Client-side bootstrap - database is on server, accessed via API
     return [
-      { name: 'sqlite', fn: initializeSQLite, timeout: 30000, recoverable: false },
-      { name: 'schema', fn: validateSchema, timeout: 30000, recoverable: false },
+      { name: 'client', fn: initializeClient, timeout: 5000, recoverable: true },
       { name: 'collections', fn: initializeCollections, timeout: 30000, recoverable: true },
       { name: 'streams', fn: connectStreams, timeout: 30000, recoverable: true },
       { name: 'github', fn: validateGitHub, timeout: 10000, recoverable: true },
-      { name: 'seeding', fn: seedDefaults, timeout: 10000, recoverable: true },
     ];
   }
 
   private applyPhaseResult(result: PhaseResult) {
     switch (result.name) {
-      case 'sqlite':
-        this.context.db = result.value as BootstrapContext['db'];
+      case 'client':
+        // Client mode - no database, using API endpoints
         break;
       case 'collections':
         this.context.collections = result.value as BootstrapContext['collections'];

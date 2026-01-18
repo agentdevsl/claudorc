@@ -5,13 +5,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // Run smoke tests first to verify server health before other tests
-    include: ['tests/e2e/smoke.test.ts', 'tests/e2e/**/*.test.ts'],
-    testTimeout: 60000,
-    hookTimeout: 30000,
-    setupFiles: ['./tests/e2e/setup.ts'],
+    include: ['tests/ai-ui-tests/**/*.test.ts'],
+    testTimeout: 120000, // 2 min - AI tests may take longer
+    hookTimeout: 60000,
+    setupFiles: ['./tests/ai-ui-tests/setup.ts'],
     sequence: {
-      concurrent: false,
+      concurrent: false, // Sequential by default, use sessions for parallel
     },
     maxConcurrency: 1,
     maxWorkers: 1,

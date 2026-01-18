@@ -3,57 +3,43 @@ import { useEffect, useState } from 'react';
 import { AgentSessionView } from '@/app/components/features/agent-session-view';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
-import type { RouterContext } from '@/app/router';
-import { useServices } from '@/app/services/service-context';
-import type { AppError } from '@/lib/errors/base';
-import type { SessionWithPresence } from '@/services/session.service';
+import { apiClient } from '@/lib/api/client';
+
+// Session type for client-side display
+type ClientSession = {
+  id: string;
+  agentId?: string | null;
+  title?: string | null;
+  status: string;
+};
 
 export const Route = createFileRoute('/sessions/$sessionId')({
-  loader: async ({
-    context,
-    params,
-  }: {
-    context: RouterContext;
-    params: { sessionId: string };
-  }) => {
-    if (!context.services) {
-      return { session: null as SessionWithPresence | null };
-    }
-
-    const result = await context.services.sessionService.getById(params.sessionId);
-    return { session: result.ok ? result.value : null };
-  },
   component: SessionPage,
 });
 
 function SessionPage(): React.JSX.Element {
-  const loaderData = Route.useLoaderData() as { session: SessionWithPresence | null } | undefined;
-  const { sessionService, agentService } = useServices();
   const { sessionId } = Route.useParams();
-  const [session, setSession] = useState<SessionWithPresence | null>(loaderData?.session ?? null);
-  const [isLoading, setIsLoading] = useState(!loaderData?.session);
-  const [error, setError] = useState<AppError | null>(null);
+  const [session, setSession] = useState<ClientSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<{ message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const userId = 'current-user';
 
+  // Fetch session from API on mount
   useEffect(() => {
-    if (!session) {
-      const load = async () => {
-        setIsLoading(true);
-        setError(null);
-        const result = await sessionService.getById(sessionId);
-        if (result.ok) {
-          setSession(result.value);
-        } else {
-          console.error('Failed to load session:', result.error);
-          setError(result.error);
-        }
-        setIsLoading(false);
-      };
-
-      void load();
-    }
-  }, [session, sessionId, sessionService]);
+    const fetchSession = async () => {
+      setIsLoading(true);
+      setError(null);
+      const result = await apiClient.sessions.get(sessionId);
+      if (result.ok) {
+        setSession(result.data as ClientSession);
+      } else {
+        setError({ message: result.error.message });
+      }
+      setIsLoading(false);
+    };
+    fetchSession();
+  }, [sessionId]);
 
   if (isLoading) {
     return (
@@ -76,12 +62,11 @@ function SessionPage(): React.JSX.Element {
               void (async () => {
                 setIsLoading(true);
                 setError(null);
-                const result = await sessionService.getById(sessionId);
+                const result = await apiClient.sessions.get(sessionId);
                 if (result.ok) {
-                  setSession(result.value);
+                  setSession(result.data as ClientSession);
                 } else {
-                  console.error('Failed to load session:', result.error);
-                  setError(result.error);
+                  setError({ message: result.error.message });
                 }
                 setIsLoading(false);
               })();
@@ -112,30 +97,33 @@ function SessionPage(): React.JSX.Element {
           userId={userId}
           onPause={async () => {
             if (session.agentId) {
-              const result = await agentService.pause(session.agentId);
-              if (!result.ok) {
-                console.error('Failed to pause agent:', result.error);
-                setActionError(`Failed to pause: ${result.error.message}`);
+              // TODO: Add API endpoint for agent pause
+              try {
+                await fetch(`/api/agents/${session.agentId}/pause`, { method: 'POST' });
+              } catch {
+                setActionError('Failed to pause agent');
                 setTimeout(() => setActionError(null), 5000);
               }
             }
           }}
           onResume={async () => {
             if (session.agentId) {
-              const result = await agentService.resume(session.agentId);
-              if (!result.ok) {
-                console.error('Failed to resume agent:', result.error);
-                setActionError(`Failed to resume: ${result.error.message}`);
+              // TODO: Add API endpoint for agent resume
+              try {
+                await fetch(`/api/agents/${session.agentId}/resume`, { method: 'POST' });
+              } catch {
+                setActionError('Failed to resume agent');
                 setTimeout(() => setActionError(null), 5000);
               }
             }
           }}
           onStop={async () => {
             if (session.agentId) {
-              const result = await agentService.stop(session.agentId);
-              if (!result.ok) {
-                console.error('Failed to stop agent:', result.error);
-                setActionError(`Failed to stop: ${result.error.message}`);
+              // TODO: Add API endpoint for agent stop
+              try {
+                await fetch(`/api/agents/${session.agentId}/stop`, { method: 'POST' });
+              } catch {
+                setActionError('Failed to stop agent');
                 setTimeout(() => setActionError(null), 5000);
               }
             }

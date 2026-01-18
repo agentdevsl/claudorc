@@ -107,6 +107,7 @@ sandbox.backend.tf
 .cache/
 .parcel-cache/
 .turbo/
+.tanstack/
 *.tmp
 *.temp
 .copilot/logs

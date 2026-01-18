@@ -1,3 +1,4 @@
+import { Octokit } from 'octokit';
 import { githubTokens } from '../db/schema/github.js';
 import {
   decryptToken,
@@ -186,34 +187,30 @@ export class GitHubTokenService {
   }
 
   /**
+   * Create an Octokit instance from a token
+   */
+  private createOctokit(token: string): Octokit {
+    return new Octokit({ auth: token });
+  }
+
+  /**
+   * Get an Octokit instance for the saved token
+   */
+  async getOctokit(): Promise<Octokit | null> {
+    const token = await this.getDecryptedToken();
+    if (!token) return null;
+    return this.createOctokit(token);
+  }
+
+  /**
    * Validate a token with GitHub API
    */
   private async validateWithGitHub(
     token: string
   ): Promise<Result<ValidatedUser, GitHubTokenError>> {
     try {
-      const response = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return err({
-            code: 'VALIDATION_FAILED',
-            message: 'Invalid token. Please check your token and try again.',
-          });
-        }
-        return err({
-          code: 'VALIDATION_FAILED',
-          message: `GitHub API error: ${response.status} ${response.statusText}`,
-        });
-      }
-
-      const user = await response.json();
+      const octokit = this.createOctokit(token);
+      const { data: user } = await octokit.rest.users.getAuthenticated();
 
       return ok({
         login: user.login,
@@ -222,6 +219,16 @@ export class GitHubTokenService {
         name: user.name,
       });
     } catch (error) {
+      if (
+        error instanceof Error &&
+        'status' in error &&
+        (error as { status: number }).status === 401
+      ) {
+        return err({
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid token. Please check your token and try again.',
+        });
+      }
       return err({
         code: 'VALIDATION_FAILED',
         message: `Failed to validate token: ${error instanceof Error ? error.message : String(error)}`,
@@ -230,15 +237,11 @@ export class GitHubTokenService {
   }
 
   /**
-   * Make an authenticated GitHub API request
+   * Get repository info
    */
-  async fetchGitHub<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<Result<T, GitHubTokenError>> {
-    const token = await this.getDecryptedToken();
-
-    if (!token) {
+  async getRepository(owner: string, repo: string): Promise<Result<GitHubRepo, GitHubTokenError>> {
+    const octokit = await this.getOctokit();
+    if (!octokit) {
       return err({
         code: 'NOT_FOUND',
         message: 'No GitHub token configured',
@@ -246,49 +249,25 @@ export class GitHubTokenService {
     }
 
     try {
-      const response = await fetch(`https://api.github.com${endpoint}`, {
-        ...options,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          ...options.headers,
+      const { data } = await octokit.rest.repos.get({ owner, repo });
+      return ok({
+        id: data.id,
+        name: data.name,
+        full_name: data.full_name,
+        private: data.private,
+        owner: {
+          login: data.owner.login,
+          avatar_url: data.owner.avatar_url,
         },
+        default_branch: data.default_branch,
+        description: data.description,
+        clone_url: data.clone_url,
+        updated_at: data.updated_at ?? '',
+        stargazers_count: data.stargazers_count,
       });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Mark token as invalid
-          await this.db
-            .update(githubTokens)
-            .set({ isValid: false, updatedAt: new Date().toISOString() });
-
-          return err({
-            code: 'VALIDATION_FAILED',
-            message: 'Token is no longer valid',
-          });
-        }
-        return err({
-          code: 'VALIDATION_FAILED',
-          message: `GitHub API error: ${response.status} ${response.statusText}`,
-        });
-      }
-
-      const data = await response.json();
-      return ok(data as T);
     } catch (error) {
-      return err({
-        code: 'VALIDATION_FAILED',
-        message: `GitHub API request failed: ${error instanceof Error ? error.message : String(error)}`,
-      });
+      return this.handleOctokitError(error);
     }
-  }
-
-  /**
-   * Get repository info
-   */
-  async getRepository(owner: string, repo: string): Promise<Result<GitHubRepo, GitHubTokenError>> {
-    return this.fetchGitHub<GitHubRepo>(`/repos/${owner}/${repo}`);
   }
 
   /**
@@ -298,7 +277,92 @@ export class GitHubTokenService {
     owner: string,
     repo: string
   ): Promise<Result<GitHubBranch[], GitHubTokenError>> {
-    return this.fetchGitHub<GitHubBranch[]>(`/repos/${owner}/${repo}/branches`);
+    const octokit = await this.getOctokit();
+    if (!octokit) {
+      return err({
+        code: 'NOT_FOUND',
+        message: 'No GitHub token configured',
+      });
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.listBranches({ owner, repo });
+      return ok(
+        data.map((branch) => ({
+          name: branch.name,
+          protected: branch.protected,
+        }))
+      );
+    } catch (error) {
+      return this.handleOctokitError(error);
+    }
+  }
+
+  /**
+   * List the authenticated user's repositories
+   * Sorted by most recently updated, limited to 50 repos
+   */
+  async listUserRepos(): Promise<Result<GitHubRepo[], GitHubTokenError>> {
+    const octokit = await this.getOctokit();
+    if (!octokit) {
+      return err({
+        code: 'NOT_FOUND',
+        message: 'No GitHub token configured',
+      });
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+        sort: 'updated',
+        per_page: 50,
+      });
+      return ok(
+        data.map((repo) => ({
+          id: repo.id,
+          name: repo.name,
+          full_name: repo.full_name,
+          private: repo.private,
+          owner: {
+            login: repo.owner.login,
+            avatar_url: repo.owner.avatar_url,
+          },
+          default_branch: repo.default_branch,
+          description: repo.description,
+          clone_url: repo.clone_url,
+          updated_at: repo.updated_at ?? '',
+          stargazers_count: repo.stargazers_count,
+        }))
+      );
+    } catch (error) {
+      return this.handleOctokitError(error);
+    }
+  }
+
+  /**
+   * Handle Octokit errors consistently
+   */
+  private async handleOctokitError<T>(error: unknown): Promise<Result<T, GitHubTokenError>> {
+    if (error instanceof Error && 'status' in error) {
+      const status = (error as { status: number }).status;
+      if (status === 401) {
+        // Mark token as invalid
+        await this.db
+          .update(githubTokens)
+          .set({ isValid: false, updatedAt: new Date().toISOString() });
+        return err({
+          code: 'VALIDATION_FAILED',
+          message: 'Token is no longer valid',
+        });
+      }
+      return err({
+        code: 'VALIDATION_FAILED',
+        message: `GitHub API error: ${status}`,
+      });
+    }
+    return err({
+      code: 'VALIDATION_FAILED',
+      message: `GitHub API request failed: ${error instanceof Error ? error.message : String(error)}`,
+    });
   }
 }
 
@@ -314,6 +378,9 @@ export type GitHubRepo = {
   };
   default_branch: string;
   description: string | null;
+  clone_url: string;
+  updated_at: string;
+  stargazers_count: number;
 };
 
 export type GitHubBranch = {

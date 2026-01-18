@@ -671,7 +671,10 @@ export function TaskDetailDialog({
         setTimeout(() => titleInputRef.current?.focus(), 0);
       }
 
-      // Esc = Close dialog (handled by Radix Dialog)
+      // Esc = Close dialog explicitly for reliable behavior
+      if (e.key === 'Escape') {
+        onOpenChange(false);
+      }
 
       // Cmd/Ctrl + S = Save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -682,7 +685,7 @@ export function TaskDetailDialog({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, isEditing, handleSave]);
+  }, [open, isEditing, handleSave, onOpenChange]);
 
   const handleDelete = async () => {
     if (!task) return;

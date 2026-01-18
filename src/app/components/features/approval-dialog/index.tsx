@@ -76,6 +76,20 @@ export function ApprovalDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingAction, setSubmittingAction] = useState<'approve' | 'reject' | null>(null);
 
+  // Handle Escape key explicitly for reliable dialog closing
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onOpenChange(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onOpenChange]);
+
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {

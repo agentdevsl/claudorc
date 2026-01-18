@@ -1,27 +1,45 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { QueueStatus } from '@/app/components/features/queue-status';
 import { QueueWaitingState } from '@/app/components/features/queue-waiting-state';
-import type { RouterContext } from '@/app/router';
-import type { QueuePosition } from '@/services/agent.service';
+
+// Queue position type for client-side display
+type ClientQueuePosition = {
+  taskId: string;
+  position: number;
+  estimatedWaitMinutes?: number;
+};
 
 export const Route = createFileRoute('/queue/')({
-  loader: async ({ context }: { context: RouterContext }) => {
-    if (!context.services) {
-      return { queued: [] as QueuePosition[] };
-    }
-
-    const result = await context.services.agentService.getQueuedTasks();
-    return { queued: result.ok ? result.value : [] };
-  },
   component: QueuePage,
 });
 
 function QueuePage(): React.JSX.Element {
-  const loaderData = Route.useLoaderData() as { queued: QueuePosition[] } | undefined;
-  const [queued] = useState<QueuePosition[]>(loaderData?.queued ?? []);
+  const [queued, setQueued] = useState<ClientQueuePosition[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch queue from API on mount
+  useEffect(() => {
+    const fetchQueue = async () => {
+      // TODO: Add API endpoint for queue status
+      // For now, just show empty state
+      setQueued([]);
+      setIsLoading(false);
+    };
+    fetchQueue();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Queue' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading queue...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Queue' }]}>
@@ -38,7 +56,10 @@ function QueuePage(): React.JSX.Element {
               position={queued[0]?.position ?? 1}
               estimatedWaitMinutes={queued[0]?.estimatedWaitMinutes}
             />
-            <QueueStatus queued={queued} onOpenTask={() => {}} />
+            <QueueStatus
+              queued={queued as Parameters<typeof QueueStatus>[0]['queued']}
+              onOpenTask={() => {}}
+            />
           </>
         )}
       </div>

@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useServices } from '@/app/services/service-context';
 import { SessionErrors } from '@/lib/errors/session-errors';
 import { err, ok, type Result } from '@/lib/utils/result';
-import type { SessionEvent } from '@/services/session.service';
+
+export type SessionEvent = {
+  type: string;
+  data: unknown;
+  timestamp: number;
+};
 
 export type SessionChunk = {
   text: string;
@@ -129,24 +133,45 @@ export function useSession(
   join: () => Promise<Result<void, ReturnType<typeof SessionErrors.CONNECTION_FAILED>>>;
   leave: () => Promise<Result<void, ReturnType<typeof SessionErrors.CONNECTION_FAILED>>>;
 } {
-  const { sessionService } = useServices();
   const [state, setState] = useState<SessionState>(initialState);
 
   const join = useCallback(async () => {
-    const result = await sessionService.join(sessionId, userId);
-    if (!result.ok) {
-      return err(SessionErrors.CONNECTION_FAILED(result.error.message));
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/presence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'join' }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        return err(SessionErrors.CONNECTION_FAILED(data.error?.message ?? 'Join failed'));
+      }
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        SessionErrors.CONNECTION_FAILED(error instanceof Error ? error.message : 'Join failed')
+      );
     }
-    return ok(undefined);
-  }, [sessionId, sessionService, userId]);
+  }, [sessionId, userId]);
 
   const leave = useCallback(async () => {
-    const result = await sessionService.leave(sessionId, userId);
-    if (!result.ok) {
-      return err(SessionErrors.CONNECTION_FAILED(result.error.message));
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/presence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'leave' }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        return err(SessionErrors.CONNECTION_FAILED(data.error?.message ?? 'Leave failed'));
+      }
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        SessionErrors.CONNECTION_FAILED(error instanceof Error ? error.message : 'Leave failed')
+      );
     }
-    return ok(undefined);
-  }, [sessionId, sessionService, userId]);
+  }, [sessionId, userId]);
 
   useEffect(() => {
     void join();
@@ -169,12 +194,22 @@ export function useSession(
   }, [join, leave, sessionId]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void sessionService.updatePresence(sessionId, userId, {});
-    }, 15000);
+    const updatePresence = async () => {
+      try {
+        await fetch(`/api/sessions/${sessionId}/presence`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+      } catch {
+        // Ignore presence update errors
+      }
+    };
+
+    const interval = window.setInterval(updatePresence, 15000);
 
     return () => window.clearInterval(interval);
-  }, [sessionId, sessionService, userId]);
+  }, [sessionId, userId]);
 
   const memoizedState = useMemo(() => state, [state]);
 

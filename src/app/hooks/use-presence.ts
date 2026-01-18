@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useServices } from '@/app/services/service-context';
 
 export type PresenceUser = {
   userId: string;
@@ -14,16 +13,20 @@ export function usePresence(
 ): {
   users: PresenceUser[];
 } {
-  const { sessionService } = useServices();
   const [users, setUsers] = useState<PresenceUser[]>([]);
 
   useEffect(() => {
     let mounted = true;
 
     const refresh = async () => {
-      const result = await sessionService.getActiveUsers(sessionId);
-      if (mounted && result.ok) {
-        setUsers(result.value as PresenceUser[]);
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/presence`);
+        const data = await response.json();
+        if (mounted && data.ok) {
+          setUsers(data.data as PresenceUser[]);
+        }
+      } catch {
+        // API may not be ready
       }
     };
 
@@ -34,15 +37,25 @@ export function usePresence(
       mounted = false;
       window.clearInterval(interval);
     };
-  }, [sessionId, sessionService]);
+  }, [sessionId]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void sessionService.updatePresence(sessionId, userId, {});
-    }, 15000);
+    const updatePresence = async () => {
+      try {
+        await fetch(`/api/sessions/${sessionId}/presence`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+      } catch {
+        // Ignore presence update errors
+      }
+    };
+
+    const interval = window.setInterval(updatePresence, 15000);
 
     return () => window.clearInterval(interval);
-  }, [sessionId, sessionService, userId]);
+  }, [sessionId, userId]);
 
   return { users };
 }

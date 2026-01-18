@@ -2,7 +2,50 @@
 
 ## Overview
 
-Complete specification for the AgentPane application bootstrap process. This document covers the initialization sequence for PGlite database, Drizzle ORM schema validation, TanStack DB collections, Durable Streams client connection, GitHub token validation, and first-run data seeding with comprehensive error recovery.
+Complete specification for the AgentPane application bootstrap process. This document covers the client/server architecture with SQLite database on the server, REST API for data access, and client-side initialization for React components, Durable Streams connection, and GitHub token validation.
+
+---
+
+## Architecture Overview
+
+AgentPane uses a **client/server architecture** where:
+- **Server**: Runs SQLite database with Drizzle ORM, handles all data persistence via REST API endpoints
+- **Client**: React SPA that fetches data via API, manages UI state, and connects to real-time streams
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Browser Client                                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  │
+│  │  React Router   │  │   API Client    │  │  Durable Streams Client     │  │
+│  │  (TanStack)     │  │  (fetch-based)  │  │  (Real-time events)         │  │
+│  └────────┬────────┘  └────────┬────────┘  └──────────────┬──────────────┘  │
+└───────────┼───────────────────┼───────────────────────────┼─────────────────┘
+            │                   │                           │
+            │ ───────────────── │ ───────────────────────── │ ─────────────────
+            │     HTTP/REST     │                           │  SSE (real-time)
+            │ ───────────────── │ ───────────────────────── │ ─────────────────
+            │                   │                           │
+┌───────────┼───────────────────┼───────────────────────────┼─────────────────┐
+│           ▼                   ▼                           ▼                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  │
+│  │  TanStack Start │  │  API Endpoints  │  │  Durable Streams Server     │  │
+│  │  (SSR/Routing)  │  │  (/api/*)       │  │  (/api/streams)             │  │
+│  └────────┬────────┘  └────────┬────────┘  └──────────────┬──────────────┘  │
+│           │                    │                          │                 │
+│           └────────────────────┼──────────────────────────┘                 │
+│                                ▼                                            │
+│                       ┌─────────────────┐                                   │
+│                       │   Drizzle ORM   │                                   │
+│                       │   (better-sqlite3)                                  │
+│                       └────────┬────────┘                                   │
+│                                ▼                                            │
+│                       ┌─────────────────┐                                   │
+│                       │  SQLite Database│                                   │
+│                       │  (server-only)  │                                   │
+│                       └─────────────────┘                                   │
+│                              Server                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -12,10 +55,8 @@ Complete specification for the AgentPane application bootstrap process. This doc
 |-----------|---------|---------|
 | Bun | 1.3.6 | JavaScript runtime |
 | TanStack Start | 1.150.0 | Full-stack React framework |
-| PGlite | 0.3.15 | Embedded PostgreSQL (IndexedDB) |
+| better-sqlite3 | 11.x | SQLite database (server-only) |
 | Drizzle ORM | 0.45.1 | Type-safe SQL query builder |
-| TanStack DB | 0.5.20 | Client-side reactive collections |
-| TanStack React DB | 0.1.64 | React bindings for live queries |
 | Durable Streams | 0.1.5 | Real-time event streaming |
 
 ---
@@ -34,15 +75,16 @@ export type Result<T, E = Error> =
   | { ok: false; error: E };
 
 /**
- * Bootstrap phase identifiers
+ * Bootstrap phase identifiers (client-side only)
+ *
+ * Note: Database initialization happens on the server automatically.
+ * The client bootstrap only handles UI-related initialization.
  */
 export type BootstrapPhase =
-  | 'pglite'
-  | 'schema'
-  | 'collections'
-  | 'streams'
-  | 'github'
-  | 'seeding';
+  | 'client'      // Initialize client-side services
+  | 'collections' // Mark collections as ready (data via API)
+  | 'streams'     // Connect to Durable Streams
+  | 'github';     // Validate GitHub token
 
 /**
  * Bootstrap status for each phase
@@ -71,18 +113,17 @@ export interface BootstrapResult {
 }
 
 /**
- * Bootstrap error categories
+ * Bootstrap error categories (client-side errors only)
+ *
+ * Note: Database errors are handled server-side and returned via API responses.
  */
 export type BootstrapErrorCode =
-  | 'INDEXEDDB_UNAVAILABLE'
-  | 'PGLITE_INIT_FAILED'
-  | 'SCHEMA_MIGRATION_FAILED'
-  | 'SCHEMA_VALIDATION_FAILED'
+  | 'CLIENT_INIT_FAILED'
+  | 'API_UNAVAILABLE'
   | 'COLLECTION_INIT_FAILED'
   | 'STREAMS_CONNECTION_FAILED'
   | 'GITHUB_TOKEN_INVALID'
   | 'GITHUB_TOKEN_EXPIRED'
-  | 'SEEDING_FAILED'
   | 'RECOVERY_FAILED';
 
 /**
@@ -97,11 +138,11 @@ export interface BootstrapError {
 }
 
 /**
- * Bootstrap configuration options
+ * Bootstrap configuration options (client-side)
  */
 export interface BootstrapConfig {
-  /** IndexedDB database name */
-  databaseName: string;
+  /** API base URL */
+  apiBaseUrl: string;
   /** Skip GitHub validation if token not present */
   skipGitHubIfMissing: boolean;
   /** Maximum retries for recoverable errors */
@@ -118,7 +159,7 @@ export interface BootstrapConfig {
  * Default bootstrap configuration
  */
 export const DEFAULT_BOOTSTRAP_CONFIG: BootstrapConfig = {
-  databaseName: 'idb://agentpane',
+  apiBaseUrl: '/api',
   skipGitHubIfMissing: true,
   maxRetries: 3,
   retryDelayMs: 1000,
@@ -163,62 +204,72 @@ export interface BootstrapStatus {
 
 ## Initialization Sequence
 
-The bootstrap process follows a strict sequential order with error handling at each phase.
+The bootstrap process is split between server and client:
+- **Server**: Database initialization happens automatically on server startup
+- **Client**: UI initialization handles API connectivity and real-time streams
 
-### Phase Diagram
+### Server-Side Initialization (Automatic)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Application Bootstrap                         │
+│                    Server Bootstrap (Automatic)                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 1: PGlite Initialization                                  │
-│  ├─ Check IndexedDB availability                                │
-│  ├─ Initialize PGlite with 'idb://agentpane'                    │
-│  └─ Verify connection                                            │
+│  SQLite Database Initialization                                  │
+│  ├─ Create/open database file (data/agentpane.db)               │
+│  ├─ Run Drizzle migrations (drizzle-kit push)                   │
+│  └─ Database ready for API requests                              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 2: Drizzle Schema Validation/Migration                    │
-│  ├─ Check schema version                                         │
-│  ├─ Run pending migrations                                       │
-│  └─ Validate schema integrity                                    │
+│  API Server Ready                                                │
+│  ├─ REST endpoints available (/api/*)                           │
+│  ├─ Durable Streams endpoint ready (/api/streams)               │
+│  └─ Accepting client connections                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Client-Side Bootstrap
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Client Bootstrap                               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 3: TanStack DB Collection Setup                           │
-│  ├─ Initialize agents collection                                 │
-│  ├─ Initialize tasks collection                                  │
-│  ├─ Initialize projects collection                               │
-│  └─ Initialize sessions collection                               │
+│  Phase 1: Client Initialization                                  │
+│  ├─ Verify API connectivity (health check)                       │
+│  ├─ Initialize API client                                        │
+│  └─ Set up error handlers                                        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 4: Durable Streams Connection                             │
-│  ├─ Initialize client                                            │
-│  ├─ Establish connection                                         │
+│  Phase 2: Collections Ready                                      │
+│  ├─ Mark agents collection as ready (data via API)               │
+│  ├─ Mark tasks collection as ready (data via API)                │
+│  ├─ Mark projects collection as ready (data via API)             │
+│  └─ Mark sessions collection as ready (data via API)             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 3: Durable Streams Connection                             │
+│  ├─ Initialize Durable Streams client                            │
+│  ├─ Establish SSE connection to /api/streams                     │
 │  └─ Verify heartbeat                                             │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Phase 5: GitHub Token Validation (Optional)                     │
-│  ├─ Check for stored token                                       │
+│  Phase 4: GitHub Token Validation (Optional)                     │
+│  ├─ Check for stored token in localStorage                       │
 │  ├─ Validate token with GitHub API                               │
-│  └─ Refresh if expired (if refresh token available)              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Phase 6: Default Data Seeding (First Run Only)                  │
-│  ├─ Check if first run                                           │
-│  ├─ Create default project (if none exists)                      │
-│  └─ Set first-run flag                                           │
+│  └─ Skip if not configured (skipGitHubIfMissing)                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -229,409 +280,171 @@ The bootstrap process follows a strict sequential order with error handling at e
 
 ---
 
-## Phase 1: PGlite Initialization
+## Server-Side: Database Initialization
 
-Initialize the PGlite database with IndexedDB persistence for Safari compatibility.
+The server handles all database operations. SQLite (better-sqlite3) runs on the server and is accessed via Drizzle ORM.
 
 ```typescript
-// lib/bootstrap/phases/pglite.ts
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import * as schema from '@/db/schema';
-import { ok, err, type Result } from '@/lib/utils/result';
-import type { PhaseResult, BootstrapError, BootstrapConfig } from '../types';
+// db/index.ts (server-only)
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from './schema';
 
 /**
- * Check if IndexedDB is available
- * Returns false in private browsing mode on Safari
+ * SQLite database connection (server-only)
+ * This file should never be imported in client-side code
  */
-async function checkIndexedDBAvailability(): Promise<boolean> {
-  if (typeof window === 'undefined') {
-    // Server-side, IndexedDB not needed
-    return true;
-  }
+const sqlite = new Database('data/agentpane.db');
+sqlite.pragma('journal_mode = WAL'); // Better concurrent access
 
-  if (!window.indexedDB) {
-    return false;
-  }
+export const db = drizzle(sqlite, { schema });
+export type DbClient = typeof db;
+```
 
-  // Test actual availability (private browsing check)
-  try {
-    const testDb = window.indexedDB.open('__idb_test__');
+### Database Migrations
 
-    return new Promise((resolve) => {
-      testDb.onerror = () => resolve(false);
-      testDb.onsuccess = () => {
-        testDb.result.close();
-        window.indexedDB.deleteDatabase('__idb_test__');
-        resolve(true);
-      };
-    });
-  } catch {
-    return false;
-  }
+Migrations are run via Drizzle Kit on server startup or during deployment:
+
+```bash
+# Push schema changes to database
+bun drizzle-kit push
+
+# Generate migration files (if using migration files)
+bun drizzle-kit generate
+```
+
+---
+
+## Client-Side: API Client
+
+The browser client accesses data through REST API endpoints, not direct database access.
+
+```typescript
+// lib/api/client.ts
+interface ApiResponse<T> {
+  ok: boolean;
+  data?: T;
+  error?: { code: string; message: string };
 }
 
 /**
- * PGlite database instance (singleton)
+ * Generic fetch wrapper for API calls
  */
-let pgliteInstance: PGlite | null = null;
-let drizzleInstance: ReturnType<typeof drizzle> | null = null;
-
-/**
- * Initialize PGlite database
- */
-export async function initializePGlite(
-  config: BootstrapConfig
-): Promise<Result<PhaseResult<{ pglite: PGlite; db: ReturnType<typeof drizzle> }>, BootstrapError>> {
-  const startTime = Date.now();
-
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   try {
-    // Check IndexedDB availability (client-side only)
-    if (typeof window !== 'undefined') {
-      const isAvailable = await checkIndexedDBAvailability();
-
-      if (!isAvailable) {
-        return err({
-          code: 'INDEXEDDB_UNAVAILABLE',
-          message: 'IndexedDB is not available. This may be due to private browsing mode.',
-          phase: 'pglite',
-          recoverable: false,
-          details: {
-            hint: 'Please disable private browsing or use a different browser.',
-            browsers: ['Safari Private Mode', 'Firefox Private Mode (some versions)'],
-          },
-        });
-      }
-    }
-
-    // Initialize PGlite
-    if (config.debug) {
-      console.log('[Bootstrap] Initializing PGlite with:', config.databaseName);
-    }
-
-    pgliteInstance = new PGlite(config.databaseName);
-
-    // Wait for ready state
-    await pgliteInstance.waitReady;
-
-    // Initialize Drizzle ORM
-    drizzleInstance = drizzle(pgliteInstance, { schema });
-
-    // Verify connection with a simple query
-    await pgliteInstance.query('SELECT 1 as health_check');
-
-    const duration = Date.now() - startTime;
-
-    if (config.debug) {
-      console.log(`[Bootstrap] PGlite initialized in ${duration}ms`);
-    }
-
-    return ok({
-      phase: 'pglite',
-      status: 'completed',
-      duration,
-      data: {
-        pglite: pgliteInstance,
-        db: drizzleInstance,
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
       },
     });
-
+    const json = await response.json();
+    return json as ApiResponse<T>;
   } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return err({
-      code: 'PGLITE_INIT_FAILED',
-      message: `Failed to initialize PGlite: ${errorMessage}`,
-      phase: 'pglite',
-      recoverable: true,
-      details: {
-        databaseName: config.databaseName,
-        error: errorMessage,
+    return {
+      ok: false,
+      error: {
+        code: 'FETCH_ERROR',
+        message: error instanceof Error ? error.message : 'Network request failed',
       },
-    });
+    };
   }
 }
 
 /**
- * Get the initialized PGlite instance
+ * Typed API client for all endpoints
  */
-export function getPGlite(): PGlite | null {
-  return pgliteInstance;
-}
-
-/**
- * Get the initialized Drizzle instance
- */
-export function getDb(): ReturnType<typeof drizzle> | null {
-  return drizzleInstance;
-}
-
-/**
- * Export database client for use throughout the application
- */
-export const db = {
-  get instance() {
-    if (!drizzleInstance) {
-      throw new Error('Database not initialized. Call bootstrap.initialize() first.');
-    }
-    return drizzleInstance;
+export const apiClient = {
+  projects: {
+    list: (params?: { limit?: number }) =>
+      apiFetch<ProjectListResponse>(`/api/projects${params?.limit ? `?limit=${params.limit}` : ''}`),
+    get: (id: string) =>
+      apiFetch<Project>(`/api/projects/${id}`),
+    create: (data: CreateProjectInput) =>
+      apiFetch<Project>('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
+  },
+  tasks: {
+    list: (projectId: string) =>
+      apiFetch<TaskListResponse>(`/api/projects/${projectId}/tasks`),
+    get: (projectId: string, taskId: string) =>
+      apiFetch<Task>(`/api/projects/${projectId}/tasks/${taskId}`),
+  },
+  agents: {
+    list: () => apiFetch<AgentListResponse>('/api/agents'),
+    getRunningCount: () => apiFetch<{ count: number }>('/api/agents/running-count'),
+  },
+  sessions: {
+    list: () => apiFetch<SessionListResponse>('/api/sessions'),
+    get: (id: string) => apiFetch<Session>(`/api/sessions/${id}`),
+  },
+  worktrees: {
+    list: () => apiFetch<WorktreeListResponse>('/api/worktrees'),
   },
 };
 ```
 
 ---
 
-## Phase 2: Schema Validation and Migration
+## Phase 2: Collections Ready (Client Mode)
 
-Validate and migrate the Drizzle ORM schema.
-
-```typescript
-// lib/bootstrap/phases/schema.ts
-import { migrate } from 'drizzle-orm/pglite/migrator';
-import { sql } from 'drizzle-orm';
-import { ok, err, type Result } from '@/lib/utils/result';
-import type { PhaseResult, BootstrapError, BootstrapConfig } from '../types';
-import { getDb } from './pglite';
-
-/**
- * Schema version tracking
- */
-interface SchemaVersion {
-  version: number;
-  appliedAt: Date;
-  checksum: string;
-}
-
-/**
- * Validate schema and run migrations
- */
-export async function validateAndMigrateSchema(
-  config: BootstrapConfig
-): Promise<Result<PhaseResult<{ version: number; migrationsApplied: number }>, BootstrapError>> {
-  const startTime = Date.now();
-  const db = getDb();
-
-  if (!db) {
-    return err({
-      code: 'SCHEMA_VALIDATION_FAILED',
-      message: 'Database not initialized',
-      phase: 'schema',
-      recoverable: false,
-    });
-  }
-
-  try {
-    if (config.debug) {
-      console.log('[Bootstrap] Validating schema and running migrations...');
-    }
-
-    // Create migrations table if it doesn't exist
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS __drizzle_migrations (
-        id SERIAL PRIMARY KEY,
-        hash TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    // Get current migration count
-    const beforeMigrations = await db.execute(sql`
-      SELECT COUNT(*) as count FROM __drizzle_migrations
-    `);
-    const beforeCount = Number(beforeMigrations.rows[0]?.count ?? 0);
-
-    // Run migrations
-    // In production, migrations are pre-compiled in the migrations folder
-    await migrate(db, {
-      migrationsFolder: './db/migrations',
-    });
-
-    // Get migration count after
-    const afterMigrations = await db.execute(sql`
-      SELECT COUNT(*) as count FROM __drizzle_migrations
-    `);
-    const afterCount = Number(afterMigrations.rows[0]?.count ?? 0);
-
-    const migrationsApplied = afterCount - beforeCount;
-
-    // Validate schema integrity by checking all required tables exist
-    const requiredTables = [
-      'projects',
-      'tasks',
-      'agents',
-      'agent_runs',
-      'sessions',
-      'worktrees',
-      'audit_logs',
-      'github_installations',
-      'repository_configs',
-    ];
-
-    for (const table of requiredTables) {
-      const result = await db.execute(sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables
-          WHERE table_name = ${table}
-        ) as exists
-      `);
-
-      if (!result.rows[0]?.exists) {
-        return err({
-          code: 'SCHEMA_VALIDATION_FAILED',
-          message: `Required table "${table}" not found after migration`,
-          phase: 'schema',
-          recoverable: false,
-          details: { missingTable: table },
-        });
-      }
-    }
-
-    const duration = Date.now() - startTime;
-
-    if (config.debug) {
-      console.log(`[Bootstrap] Schema validated in ${duration}ms, ${migrationsApplied} migrations applied`);
-    }
-
-    return ok({
-      phase: 'schema',
-      status: 'completed',
-      duration,
-      data: {
-        version: afterCount,
-        migrationsApplied,
-      },
-    });
-
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return err({
-      code: 'SCHEMA_MIGRATION_FAILED',
-      message: `Schema migration failed: ${errorMessage}`,
-      phase: 'schema',
-      recoverable: false,
-      details: {
-        error: errorMessage,
-        hint: 'Database may be corrupted. Consider resetting with bootstrap.reset()',
-      },
-    });
-  }
-}
-```
-
----
-
-## Phase 3: TanStack DB Collection Setup
-
-Initialize TanStack DB collections for client-side reactive state.
+In client mode, collections don't store data locally - they just mark readiness for API-based data fetching.
 
 ```typescript
 // lib/bootstrap/phases/collections.ts
-import { createCollection } from '@tanstack/db';
-import { ok, err, type Result } from '@/lib/utils/result';
-import type { PhaseResult, BootstrapError, BootstrapConfig } from '../types';
-import type { Agent, Task, Project, Session } from '@/db/schema';
+import { ok } from '@/lib/utils/result';
+import type { BootstrapContext } from '../types';
 
 /**
- * Collection instances
+ * Initialize collections for client mode.
+ * In client mode, data is fetched from API endpoints, so this just sets up
+ * an empty collections structure for compatibility.
  */
-export const agentsCollection = createCollection<Agent>({
-  id: 'agents',
-  primaryKey: 'id',
-});
+export const initializeCollections = async (_ctx: BootstrapContext) => {
+  console.log('[Bootstrap] Collections initialized (client mode - data via API)');
 
-export const tasksCollection = createCollection<Task>({
-  id: 'tasks',
-  primaryKey: 'id',
-});
+  // In client mode, collections are managed via API fetch
+  // This phase just marks collections as ready
+  return ok({
+    projects: { ready: true },
+    tasks: { ready: true },
+    agents: { ready: true },
+    sessions: { ready: true },
+  });
+};
+```
 
-export const projectsCollection = createCollection<Project>({
-  id: 'projects',
-  primaryKey: 'id',
-});
+### Data Fetching Pattern
 
-export const sessionsCollection = createCollection<Session>({
-  id: 'sessions',
-  primaryKey: 'id',
-});
+Instead of local collections, React components fetch data using the API client:
 
-/**
- * Collection registry for bulk operations
- */
-export const collections = {
-  agents: agentsCollection,
-  tasks: tasksCollection,
-  projects: projectsCollection,
-  sessions: sessionsCollection,
-} as const;
+```typescript
+// Example: Project list component
+function ProjectList() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-/**
- * Initialize all TanStack DB collections
- */
-export async function initializeCollections(
-  config: BootstrapConfig
-): Promise<Result<PhaseResult<{ collections: typeof collections }>, BootstrapError>> {
-  const startTime = Date.now();
-
-  try {
-    if (config.debug) {
-      console.log('[Bootstrap] Initializing TanStack DB collections...');
-    }
-
-    // Collections are created on module load, but we verify they're ready
-    const collectionNames = Object.keys(collections);
-
-    for (const name of collectionNames) {
-      const collection = collections[name as keyof typeof collections];
-
-      // Verify collection is accessible
-      if (!collection) {
-        return err({
-          code: 'COLLECTION_INIT_FAILED',
-          message: `Collection "${name}" failed to initialize`,
-          phase: 'collections',
-          recoverable: true,
-          details: { collectionName: name },
-        });
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const result = await apiClient.projects.list({ limit: 24 });
+      if (result.ok && result.data) {
+        setProjects(result.data.items);
       }
-    }
+      setIsLoading(false);
+    };
+    fetchProjects();
+  }, []);
 
-    const duration = Date.now() - startTime;
-
-    if (config.debug) {
-      console.log(`[Bootstrap] ${collectionNames.length} collections initialized in ${duration}ms`);
-    }
-
-    return ok({
-      phase: 'collections',
-      status: 'completed',
-      duration,
-      data: { collections },
-    });
-
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return err({
-      code: 'COLLECTION_INIT_FAILED',
-      message: `Failed to initialize collections: ${errorMessage}`,
-      phase: 'collections',
-      recoverable: true,
-      details: { error: errorMessage },
-    });
-  }
+  if (isLoading) return <LoadingSkeleton />;
+  return <ProjectGrid projects={projects} />;
 }
 ```
 
 ---
 
-## Phase 4: Durable Streams Connection
+## Phase 3: Durable Streams Connection
 
-Establish connection to Durable Streams for real-time event streaming.
+Establish SSE (Server-Sent Events) connection to Durable Streams for real-time event streaming.
 
 ```typescript
 // lib/bootstrap/phases/streams.ts
@@ -647,6 +460,9 @@ let streamsClient: DurableStreamsClient | null = null;
 
 /**
  * Initialize Durable Streams client
+ *
+ * Durable Streams uses Server-Sent Events (SSE) for real-time updates,
+ * providing efficient one-way streaming from server to client.
  */
 export async function initializeStreams(
   config: BootstrapConfig
@@ -655,10 +471,10 @@ export async function initializeStreams(
 
   try {
     if (config.debug) {
-      console.log('[Bootstrap] Initializing Durable Streams client...');
+      console.log('[Bootstrap] Initializing Durable Streams client (SSE)...');
     }
 
-    // Initialize client
+    // Initialize client with SSE connection
     streamsClient = new DurableStreamsClient({
       url: '/api/streams',
       schema: sessionSchema,
@@ -686,7 +502,7 @@ export async function initializeStreams(
         reject(error);
       });
 
-      // Initiate connection
+      // Initiate SSE connection
       streamsClient!.connect();
     });
 
@@ -732,9 +548,9 @@ export function getStreamsClient(): DurableStreamsClient | null {
 
 ---
 
-## Phase 5: GitHub Token Validation
+## Phase 4: GitHub Token Validation
 
-Validate GitHub token if configured.
+Validate GitHub token if configured (optional phase).
 
 ```typescript
 // lib/bootstrap/phases/github.ts
@@ -886,170 +702,65 @@ export async function validateGitHubToken(
 
 ---
 
-## Phase 6: Default Data Seeding
+## Server-Side: Data Seeding
 
-Seed default data on first run.
+Data seeding now happens on the server, not the client. This is handled during server startup or via API endpoints.
 
 ```typescript
-// lib/bootstrap/phases/seeding.ts
-import { eq } from 'drizzle-orm';
+// db/seed.ts (server-only)
 import { createId } from '@paralleldrive/cuid2';
-import { ok, err, type Result } from '@/lib/utils/result';
-import type { PhaseResult, BootstrapError, BootstrapConfig } from '../types';
-import { getDb } from './pglite';
-import { projects, agents } from '@/db/schema';
+import { db } from './index';
+import { projects, agents } from './schema';
 
 /**
- * First run flag key in metadata
+ * Seed default data on first run (server-side)
  */
-const FIRST_RUN_KEY = '__agentpane_first_run_complete';
+export async function seedDefaultData() {
+  // Check if any projects exist
+  const existingProjects = await db.select().from(projects).limit(1);
 
-/**
- * Check if this is the first run
- */
-async function isFirstRun(): Promise<boolean> {
-  if (typeof window === 'undefined') {
-    return false;
+  if (existingProjects.length > 0) {
+    console.log('[Seed] Existing projects found, skipping seeding');
+    return;
   }
 
-  return localStorage.getItem(FIRST_RUN_KEY) !== 'true';
-}
+  console.log('[Seed] First run detected, seeding default data...');
 
-/**
- * Mark first run as complete
- */
-function markFirstRunComplete(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(FIRST_RUN_KEY, 'true');
-  }
-}
+  // Create default project
+  const projectId = createId();
 
-/**
- * Seed default data on first run
- */
-export async function seedDefaultData(
-  config: BootstrapConfig
-): Promise<Result<PhaseResult<{ seeded: boolean; projectId?: string }>, BootstrapError>> {
-  const startTime = Date.now();
-  const db = getDb();
+  await db.insert(projects).values({
+    id: projectId,
+    name: 'My First Project',
+    path: process.cwd(),
+    description: 'Welcome to AgentPane! This is your first project.',
+    config: {
+      worktreeRoot: '.worktrees',
+      defaultBranch: 'main',
+      allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+      maxTurns: 50,
+      model: 'claude-sonnet-4-20250514',
+    },
+    maxConcurrentAgents: 3,
+  });
 
-  if (!db) {
-    return err({
-      code: 'SEEDING_FAILED',
-      message: 'Database not initialized',
-      phase: 'seeding',
-      recoverable: false,
-    });
-  }
+  // Create default agent
+  const agentId = createId();
 
-  try {
-    // Check if first run
-    const firstRun = await isFirstRun();
+  await db.insert(agents).values({
+    id: agentId,
+    projectId,
+    name: 'Default Agent',
+    type: 'task',
+    status: 'idle',
+    config: {
+      allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+      maxTurns: 50,
+      model: 'claude-sonnet-4-20250514',
+    },
+  });
 
-    if (!firstRun) {
-      const duration = Date.now() - startTime;
-
-      if (config.debug) {
-        console.log('[Bootstrap] Not first run, skipping seeding');
-      }
-
-      return ok({
-        phase: 'seeding',
-        status: 'skipped',
-        duration,
-        data: { seeded: false },
-      });
-    }
-
-    if (config.debug) {
-      console.log('[Bootstrap] First run detected, seeding default data...');
-    }
-
-    // Check if any projects exist (user may have imported data)
-    const existingProjects = await db.select().from(projects).limit(1);
-
-    if (existingProjects.length > 0) {
-      markFirstRunComplete();
-      const duration = Date.now() - startTime;
-
-      if (config.debug) {
-        console.log('[Bootstrap] Existing projects found, skipping seeding');
-      }
-
-      return ok({
-        phase: 'seeding',
-        status: 'skipped',
-        duration,
-        data: { seeded: false },
-      });
-    }
-
-    // Create default project
-    const projectId = createId();
-    const defaultProjectPath = process.cwd() || '~/projects/my-project';
-
-    await db.insert(projects).values({
-      id: projectId,
-      name: 'My First Project',
-      path: defaultProjectPath,
-      description: 'Welcome to AgentPane! This is your first project.',
-      config: {
-        worktreeRoot: '.worktrees',
-        defaultBranch: 'main',
-        allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
-        maxTurns: 50,
-        model: 'claude-sonnet-4-20250514',
-      },
-      maxConcurrentAgents: 3,
-    });
-
-    // Create default agent
-    const agentId = createId();
-
-    await db.insert(agents).values({
-      id: agentId,
-      projectId,
-      name: 'Default Agent',
-      type: 'task',
-      status: 'idle',
-      config: {
-        allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
-        maxTurns: 50,
-        model: 'claude-sonnet-4-20250514',
-      },
-    });
-
-    // Mark first run complete
-    markFirstRunComplete();
-
-    const duration = Date.now() - startTime;
-
-    if (config.debug) {
-      console.log(`[Bootstrap] Default data seeded in ${duration}ms`);
-    }
-
-    return ok({
-      phase: 'seeding',
-      status: 'completed',
-      duration,
-      data: {
-        seeded: true,
-        projectId,
-      },
-    });
-
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return err({
-      code: 'SEEDING_FAILED',
-      message: `Failed to seed default data: ${errorMessage}`,
-      phase: 'seeding',
-      recoverable: true,
-      details: { error: errorMessage },
-    });
-  }
+  console.log('[Seed] Default data seeded successfully');
 }
 ```
 
@@ -1057,40 +768,35 @@ export async function seedDefaultData(
 
 ## Error Handling
 
-### Error Recovery Strategies
+### Error Recovery Strategies (Client-Side)
 
 ```typescript
 // lib/bootstrap/recovery.ts
 import type { BootstrapError, BootstrapPhase, BootstrapConfig } from './types';
-import { initializePGlite } from './phases/pglite';
-import { validateAndMigrateSchema } from './phases/schema';
 import { initializeCollections } from './phases/collections';
 import { initializeStreams } from './phases/streams';
 import { validateGitHubToken } from './phases/github';
-import { seedDefaultData } from './phases/seeding';
 
 /**
- * Recovery strategies for each error type
+ * Recovery strategies for each error type (client-side only)
  */
 export const recoveryStrategies: Record<
   BootstrapError['code'],
   (config: BootstrapConfig, attempt: number) => Promise<boolean>
 > = {
-  // IndexedDB unavailable - cannot recover automatically
-  INDEXEDDB_UNAVAILABLE: async () => false,
-
-  // PGlite init failed - retry with exponential backoff
-  PGLITE_INIT_FAILED: async (config, attempt) => {
+  // Client init failed - retry with backoff
+  CLIENT_INIT_FAILED: async (config, attempt) => {
     const delay = config.retryDelayMs * Math.pow(2, attempt);
     await sleep(delay);
     return attempt < config.maxRetries;
   },
 
-  // Schema migration failed - cannot recover, needs manual intervention
-  SCHEMA_MIGRATION_FAILED: async () => false,
-
-  // Schema validation failed - cannot recover
-  SCHEMA_VALIDATION_FAILED: async () => false,
+  // API unavailable - retry with backoff
+  API_UNAVAILABLE: async (config, attempt) => {
+    const delay = config.retryDelayMs * Math.pow(2, attempt);
+    await sleep(delay);
+    return attempt < config.maxRetries;
+  },
 
   // Collection init failed - retry
   COLLECTION_INIT_FAILED: async (config, attempt) => {
@@ -1111,29 +817,21 @@ export const recoveryStrategies: Record<
   // GitHub token expired - skip (handled by UI)
   GITHUB_TOKEN_EXPIRED: async () => true,
 
-  // Seeding failed - retry once
-  SEEDING_FAILED: async (config, attempt) => {
-    await sleep(config.retryDelayMs);
-    return attempt < 1;
-  },
-
   // Recovery failed - cannot recover
   RECOVERY_FAILED: async () => false,
 };
 
 /**
- * Phase retry functions
+ * Phase retry functions (client-side only)
  */
 export const phaseRetryFunctions: Record<
   BootstrapPhase,
   (config: BootstrapConfig) => Promise<unknown>
 > = {
-  pglite: initializePGlite,
-  schema: validateAndMigrateSchema,
+  client: initializeClient,
   collections: initializeCollections,
   streams: initializeStreams,
   github: validateGitHubToken,
-  seeding: seedDefaultData,
 };
 
 /**
@@ -1171,38 +869,25 @@ export async function attemptRecovery(
 }
 ```
 
-### Bootstrap Error Types
+### Bootstrap Error Types (Client-Side)
 
 ```typescript
 // lib/errors/bootstrap-errors.ts
 import { createError, type AppError } from './base';
 
 export const BootstrapErrors = {
-  INDEXEDDB_UNAVAILABLE: createError(
-    'INDEXEDDB_UNAVAILABLE',
-    'IndexedDB is not available. This may be due to private browsing mode.',
-    503
-  ),
-
-  PGLITE_INIT_FAILED: (error: string) => createError(
-    'PGLITE_INIT_FAILED',
-    `Failed to initialize database: ${error}`,
+  CLIENT_INIT_FAILED: (error: string) => createError(
+    'CLIENT_INIT_FAILED',
+    `Failed to initialize client: ${error}`,
     500,
     { error }
   ),
 
-  SCHEMA_MIGRATION_FAILED: (error: string) => createError(
-    'SCHEMA_MIGRATION_FAILED',
-    `Database migration failed: ${error}`,
-    500,
-    { error, hint: 'Database may need to be reset' }
-  ),
-
-  SCHEMA_VALIDATION_FAILED: (table: string) => createError(
-    'SCHEMA_VALIDATION_FAILED',
-    `Schema validation failed: missing table "${table}"`,
-    500,
-    { missingTable: table }
+  API_UNAVAILABLE: (error: string) => createError(
+    'API_UNAVAILABLE',
+    `API server is unavailable: ${error}`,
+    502,
+    { error, hint: 'Check server status and network connectivity' }
   ),
 
   COLLECTION_INIT_FAILED: (collection: string) => createError(
@@ -1232,13 +917,6 @@ export const BootstrapErrors = {
     { resetAt }
   ),
 
-  SEEDING_FAILED: (error: string) => createError(
-    'SEEDING_FAILED',
-    `Failed to seed initial data: ${error}`,
-    500,
-    { error }
-  ),
-
   RECOVERY_FAILED: (phase: string, attempts: number) => createError(
     'RECOVERY_FAILED',
     `Bootstrap recovery failed for phase "${phase}" after ${attempts} attempts`,
@@ -1248,15 +926,12 @@ export const BootstrapErrors = {
 } as const;
 
 export type BootstrapError =
-  | typeof BootstrapErrors.INDEXEDDB_UNAVAILABLE
-  | ReturnType<typeof BootstrapErrors.PGLITE_INIT_FAILED>
-  | ReturnType<typeof BootstrapErrors.SCHEMA_MIGRATION_FAILED>
-  | ReturnType<typeof BootstrapErrors.SCHEMA_VALIDATION_FAILED>
+  | ReturnType<typeof BootstrapErrors.CLIENT_INIT_FAILED>
+  | ReturnType<typeof BootstrapErrors.API_UNAVAILABLE>
   | ReturnType<typeof BootstrapErrors.COLLECTION_INIT_FAILED>
   | ReturnType<typeof BootstrapErrors.STREAMS_CONNECTION_FAILED>
   | typeof BootstrapErrors.GITHUB_TOKEN_INVALID
   | ReturnType<typeof BootstrapErrors.GITHUB_TOKEN_EXPIRED>
-  | ReturnType<typeof BootstrapErrors.SEEDING_FAILED>
   | ReturnType<typeof BootstrapErrors.RECOVERY_FAILED>;
 ```
 
@@ -1264,7 +939,7 @@ export type BootstrapError =
 
 ## Implementation Outline
 
-### Bootstrap Service
+### Bootstrap Service (Client-Side)
 
 ```typescript
 // lib/bootstrap/service.ts
@@ -1279,12 +954,10 @@ import {
   type BootstrapError,
   DEFAULT_BOOTSTRAP_CONFIG,
 } from './types';
-import { initializePGlite, getPGlite } from './phases/pglite';
-import { validateAndMigrateSchema } from './phases/schema';
+import { initializeClient } from './phases/client';
 import { initializeCollections } from './phases/collections';
 import { initializeStreams } from './phases/streams';
 import { validateGitHubToken } from './phases/github';
-import { seedDefaultData } from './phases/seeding';
 import { attemptRecovery, phaseRetryFunctions } from './recovery';
 
 /**
@@ -1314,7 +987,7 @@ class BootstrapService implements IBootstrapService {
       return err({
         code: 'RECOVERY_FAILED',
         message: 'Bootstrap already in progress',
-        phase: 'pglite',
+        phase: 'client',
         recoverable: false,
       });
     }
@@ -1328,20 +1001,16 @@ class BootstrapService implements IBootstrapService {
 
     const startTime = Date.now();
 
-    // Execute phases in sequence
+    // Execute phases in sequence (client-side only)
     const phases: Array<{
       name: BootstrapPhase;
       execute: (config: BootstrapConfig) => Promise<Result<PhaseResult, BootstrapError>>;
     }> = [
-      { name: 'pglite', execute: initializePGlite },
-      { name: 'schema', execute: validateAndMigrateSchema },
+      { name: 'client', execute: initializeClient },
       { name: 'collections', execute: initializeCollections },
       { name: 'streams', execute: initializeStreams },
       { name: 'github', execute: validateGitHubToken },
-      { name: 'seeding', execute: seedDefaultData },
     ];
-
-    let isFirstRun = false;
 
     for (const phase of phases) {
       this.status.currentPhase = phase.name;
@@ -1380,11 +1049,6 @@ class BootstrapService implements IBootstrapService {
       if (result.ok) {
         this.phaseResults.push(result.value);
         this.status.completedPhases.push(phase.name);
-
-        // Track first run from seeding phase
-        if (phase.name === 'seeding' && result.value.data?.seeded) {
-          isFirstRun = true;
-        }
       }
     }
 
@@ -1403,7 +1067,7 @@ class BootstrapService implements IBootstrapService {
       success: true,
       duration: totalDuration,
       phases: this.phaseResults,
-      isFirstRun,
+      isFirstRun: false, // First run is now determined server-side
     });
   }
 
@@ -1443,20 +1107,12 @@ class BootstrapService implements IBootstrapService {
   }
 
   /**
-   * Reset and reinitialize
+   * Reset and reinitialize (client-side only)
    */
   async reset(): Promise<Result<BootstrapResult, BootstrapError>> {
-    // Clear stored data
+    // Clear stored data (client-side only, database is server-managed)
     if (typeof window !== 'undefined') {
-      // Remove IndexedDB database
-      await new Promise<void>((resolve, reject) => {
-        const request = window.indexedDB.deleteDatabase('agentpane');
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-
-      // Clear local storage
-      localStorage.removeItem('__agentpane_first_run_complete');
+      // Clear local storage tokens
       localStorage.removeItem('github_token');
     }
 
@@ -1475,18 +1131,12 @@ class BootstrapService implements IBootstrapService {
   }
 
   /**
-   * Check if database is available
+   * Check if API server is available
    */
-  async checkDatabaseAvailability(): Promise<Result<boolean, BootstrapError>> {
-    const pglite = getPGlite();
-
-    if (!pglite) {
-      return ok(false);
-    }
-
+  async checkApiAvailability(): Promise<Result<boolean, BootstrapError>> {
     try {
-      await pglite.query('SELECT 1');
-      return ok(true);
+      const response = await fetch('/api/health');
+      return ok(response.ok);
     } catch {
       return ok(false);
     }

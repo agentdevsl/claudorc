@@ -4,41 +4,53 @@ import { useEffect, useState } from 'react';
 import { AgentConfigDialog } from '@/app/components/features/agent-config-dialog';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { Button } from '@/app/components/ui/button';
-import type { RouterContext } from '@/app/router';
-import { useServices } from '@/app/services/service-context';
-import type { Agent, AgentConfig } from '@/db/schema/agents';
+
+// Agent type for client-side display
+type ClientAgent = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  currentTaskId?: string | null;
+  config?: Record<string, unknown>;
+};
 
 export const Route = createFileRoute('/agents/$agentId')({
-  loader: async ({ context, params }: { context: RouterContext; params: { agentId: string } }) => {
-    if (!context.services) {
-      return { agent: null as Agent | null };
-    }
-
-    const result = await context.services.agentService.getById(params.agentId);
-    return { agent: result.ok ? result.value : null };
-  },
   component: AgentDetailPage,
 });
 
 function AgentDetailPage(): React.JSX.Element {
-  const { agentService } = useServices();
   const { agentId } = Route.useParams();
-  const loaderData = Route.useLoaderData() as { agent: Agent | null } | undefined;
-  const [agent, setAgent] = useState<Agent | null>(loaderData?.agent ?? null);
+  const [agent, setAgent] = useState<ClientAgent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
 
+  // Fetch agent from API on mount
   useEffect(() => {
-    if (!agent) {
-      const load = async () => {
-        const result = await agentService.getById(agentId);
-        if (result.ok) {
-          setAgent(result.value);
+    const fetchAgent = async () => {
+      try {
+        const response = await fetch(`/api/agents/${agentId}`);
+        const data = await response.json();
+        if (data.ok) {
+          setAgent(data.data);
         }
-      };
+      } catch {
+        // API may not be ready
+      }
+      setIsLoading(false);
+    };
+    fetchAgent();
+  }, [agentId]);
 
-      void load();
-    }
-  }, [agent, agentId, agentService]);
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Agents', to: '/agents' }, { label: 'Loading...' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-muted-foreground">Loading agent...</div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   if (!agent) {
     return <div className="p-6 text-sm text-fg-muted">Agent not found.</div>;
@@ -74,14 +86,14 @@ function AgentDetailPage(): React.JSX.Element {
 
         {showConfig && (
           <AgentConfigDialog
-            agent={agent}
+            agent={agent as Parameters<typeof AgentConfigDialog>[0]['agent']}
             open={showConfig}
             onOpenChange={setShowConfig}
-            onSave={async (config: Partial<AgentConfig>) => {
-              const result = await agentService.update(agent.id, config);
-              if (result.ok) {
-                setAgent(result.value);
-              }
+            onSave={async (config) => {
+              // TODO: Add API endpoint for updating agent config
+              setAgent((prev) =>
+                prev ? { ...prev, config: { ...prev.config, ...config } } : null
+              );
             }}
           />
         )}

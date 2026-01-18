@@ -8,6 +8,7 @@ import { AddProjectCard, ProjectCard } from '@/app/components/features/project-c
 import { Button } from '@/app/components/ui/button';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
+import type { GitHubRepo } from '@/services/github-token.service';
 
 /**
  * Animated AgentPane logo icon for the welcome screen
@@ -119,11 +120,14 @@ function ProjectsPage(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
   const [isSettingsConfigured, setIsSettingsConfigured] = useState(false);
+  const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
     const anthropicKeyConfigured = localStorage.getItem('anthropic_api_key_masked') !== null;
+    const githubConfigured = localStorage.getItem('github_pat_masked') !== null;
     setIsSettingsConfigured(anthropicKeyConfigured);
+    setIsGitHubConfigured(githubConfigured);
   }, []);
 
   // Fetch projects from API on mount
@@ -195,6 +199,52 @@ function ProjectsPage(): React.JSX.Element {
       ok: false,
       error: { code: 'NOT_IMPLEMENTED', message: 'Clone not yet implemented via API' },
     };
+  };
+
+  const handleFetchUserRepos = async (): Promise<GitHubRepo[]> => {
+    // TODO: Add API endpoint for fetching user repos via GitHubTokenService.listUserRepos()
+    // For now, return mock data to demonstrate the UI
+    const mockRepos: GitHubRepo[] = [
+      {
+        id: 1,
+        name: 'claudorc',
+        full_name: 'simon-lynch/claudorc',
+        private: true,
+        owner: { login: 'simon-lynch', avatar_url: '' },
+        default_branch: 'main',
+        description: 'AgentPane - AI Agent Management Platform',
+        clone_url: 'https://github.com/simon-lynch/claudorc.git',
+        updated_at: new Date().toISOString(),
+        stargazers_count: 5,
+      },
+      {
+        id: 2,
+        name: 'tanstack-router',
+        full_name: 'TanStack/router',
+        private: false,
+        owner: { login: 'TanStack', avatar_url: '' },
+        default_branch: 'main',
+        description: 'Type-safe router with built-in caching',
+        clone_url: 'https://github.com/TanStack/router.git',
+        updated_at: new Date(Date.now() - 86400000).toISOString(),
+        stargazers_count: 8200,
+      },
+      {
+        id: 3,
+        name: 'claude-code',
+        full_name: 'anthropics/claude-code',
+        private: false,
+        owner: { login: 'anthropics', avatar_url: '' },
+        default_branch: 'main',
+        description: 'Claude CLI for software development',
+        clone_url: 'https://github.com/anthropics/claude-code.git',
+        updated_at: new Date(Date.now() - 172800000).toISOString(),
+        stargazers_count: 15000,
+      },
+    ];
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return mockRepos;
   };
 
   if (isLoading) {
@@ -293,6 +343,8 @@ function ProjectsPage(): React.JSX.Element {
         onSubmit={handleCreateProject}
         onValidatePath={handleValidatePath}
         onClone={handleClone}
+        onFetchUserRepos={handleFetchUserRepos}
+        isGitHubConfigured={isGitHubConfigured}
       />
     </LayoutShell>
   );
