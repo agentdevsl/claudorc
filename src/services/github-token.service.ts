@@ -128,19 +128,22 @@ export class GitHubTokenService {
 
   /**
    * Get the decrypted token for API use
-   * Returns null if no token is saved
+   * Returns null if no token is saved, throws on decryption errors
    */
   async getDecryptedToken(): Promise<string | null> {
-    try {
-      const token = await this.db.query.githubTokens.findFirst();
+    const token = await this.db.query.githubTokens.findFirst();
 
-      if (!token) {
-        return null;
-      }
-
-      return await decryptToken(token.encryptedToken);
-    } catch {
+    if (!token) {
       return null;
+    }
+
+    try {
+      return decryptToken(token.encryptedToken);
+    } catch (error) {
+      console.error('[GitHubTokenService] Failed to decrypt token:', error);
+      throw new Error(
+        'Failed to decrypt GitHub token. The encryption key may have changed or data is corrupted.'
+      );
     }
   }
 

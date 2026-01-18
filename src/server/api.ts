@@ -191,9 +191,17 @@ async function handleHealthCheck(): Promise<Response> {
         status: tokenResult.value.isValid ? 'ok' : 'error',
         login: tokenResult.value.githubLogin,
       };
+    } else if (!tokenResult.ok) {
+      checks.github = {
+        status: 'error',
+        error: tokenResult.error.message,
+      };
     }
-  } catch {
-    checks.github = { status: 'error' };
+  } catch (error) {
+    checks.github = {
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Failed to check GitHub token',
+    };
   }
 
   const allOk = checks.database.status === 'ok';
@@ -407,12 +415,14 @@ async function handleDiscoverLocalRepos(): Promise<Response> {
               lastModified: stat.mtime.toISOString(),
             });
           }
-        } catch {
-          // Skip entries we can't access
+        } catch (error) {
+          // Log skipped entries for debugging
+          console.debug(`[Discover] Skipping ${fullPath}:`, error instanceof Error ? error.message : 'access denied');
         }
       }
-    } catch {
-      // Skip directories we can't read
+    } catch (error) {
+      // Log unreadable directories for debugging
+      console.debug(`[Discover] Cannot read ${searchDir}:`, error instanceof Error ? error.message : 'access denied');
     }
   }
 

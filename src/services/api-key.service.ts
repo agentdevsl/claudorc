@@ -116,20 +116,24 @@ export class ApiKeyService {
 
   /**
    * Get the decrypted API key for a service
+   * Returns null if no key exists, throws on decryption errors
    */
   async getDecryptedKey(service: string): Promise<string | null> {
-    try {
-      const key = await this.db.query.apiKeys.findFirst({
-        where: eq(apiKeys.service, service),
-      });
+    const key = await this.db.query.apiKeys.findFirst({
+      where: eq(apiKeys.service, service),
+    });
 
-      if (!key) {
-        return null;
-      }
-
-      return await decryptToken(key.encryptedKey);
-    } catch {
+    if (!key) {
       return null;
+    }
+
+    try {
+      return decryptToken(key.encryptedKey);
+    } catch (error) {
+      console.error(`[ApiKeyService] Failed to decrypt key for ${service}:`, error);
+      throw new Error(
+        `Failed to decrypt API key for ${service}. The encryption key may have changed or data is corrupted.`
+      );
     }
   }
 
@@ -150,6 +154,7 @@ export class ApiKeyService {
 
   /**
    * Mark a key as invalid (e.g., after API returns 401)
+   * Logs errors but does not throw - this is a best-effort update
    */
   async markInvalid(service: string): Promise<void> {
     try {
@@ -157,8 +162,8 @@ export class ApiKeyService {
         .update(apiKeys)
         .set({ isValid: false, updatedAt: new Date().toISOString() })
         .where(eq(apiKeys.service, service));
-    } catch {
-      // Silently ignore errors
+    } catch (error) {
+      console.error(`[ApiKeyService] Failed to mark key as invalid for ${service}:`, error);
     }
   }
 }
