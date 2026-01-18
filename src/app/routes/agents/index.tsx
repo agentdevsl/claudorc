@@ -1,26 +1,43 @@
 import { Funnel, Play, Robot } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { Button } from '@/app/components/ui/button';
 import type { Agent } from '@/db/schema/agents';
+import type { Project } from '@/db/schema/projects';
 
 export const Route = createFileRoute('/agents/')({
   loader: async ({ context }) => {
     if (!context.services) {
-      return { agents: [] as Agent[] };
+      return { agents: [] as Agent[], projects: [] as Project[] };
     }
 
-    const result = await context.services.agentService.listAll();
-    return { agents: result.ok ? result.value : [] };
+    const agentsResult = await context.services.agentService.listAll();
+    const projectsResult = await context.services.projectService.list({ limit: 10 });
+    return {
+      agents: agentsResult.ok ? agentsResult.value : [],
+      projects: projectsResult.ok ? projectsResult.value : [],
+    };
   },
   component: AgentsPage,
 });
 
 function AgentsPage(): React.JSX.Element {
+  const navigate = useNavigate();
   const loaderData = Route.useLoaderData();
   const [agents] = useState<Agent[]>(loaderData.agents ?? []);
+  const projects = loaderData.projects ?? [];
+
+  const handleNewAgent = () => {
+    if (projects.length > 0) {
+      // Navigate to the first project's kanban where they can start an agent on a task
+      navigate({ to: '/projects/$projectId', params: { projectId: projects[0].id } });
+    } else {
+      // Navigate to home to create a project first
+      navigate({ to: '/' });
+    }
+  };
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Agents' }]}>
@@ -35,7 +52,7 @@ function AgentsPage(): React.JSX.Element {
               <Funnel className="h-4 w-4" />
               Filters
             </Button>
-            <Button>
+            <Button onClick={handleNewAgent}>
               <Play className="h-4 w-4" />
               New Agent
             </Button>

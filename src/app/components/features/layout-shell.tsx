@@ -4,6 +4,7 @@ import { Sidebar } from '@/app/components/features/sidebar';
 
 interface LayoutShellProps {
   breadcrumbs?: BreadcrumbItem[];
+  projectId?: string;
   projectName?: string;
   projectPath?: string;
   actions?: ReactNode;
@@ -12,6 +13,7 @@ interface LayoutShellProps {
 
 export function LayoutShell({
   breadcrumbs,
+  projectId,
   projectName,
   projectPath,
   actions,
@@ -20,7 +22,7 @@ export function LayoutShell({
   return (
     <div className="flex min-h-screen bg-canvas text-fg">
       <div className="hidden md:block">
-        <Sidebar projectName={projectName} projectPath={projectPath} />
+        <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
       <div className="flex flex-1 flex-col">
         {breadcrumbs ? (

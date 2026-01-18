@@ -7,11 +7,11 @@
  * Set E2E_BASE_URL env var to enable E2E tests:
  *   E2E_BASE_URL=http://localhost:3000 bun run test:e2e
  */
-import { exec as execCallback } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 
-const exec = promisify(execCallback);
+const execFileAsync = promisify(execFile);
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
@@ -49,7 +49,7 @@ const run = async (args: string[]): Promise<string> => {
   if (!serverRunning) {
     throw new Error(`Server not configured. Set E2E_BASE_URL env var.`);
   }
-  const { stdout } = await exec(`bunx agent-browser ${args.join(' ')}`);
+  const { stdout } = await execFileAsync('bunx', ['agent-browser', ...args]);
   return stdout.trim();
 };
 
@@ -57,7 +57,7 @@ const run = async (args: string[]): Promise<string> => {
  * Open browser to a URL
  */
 export async function open(url: string): Promise<void> {
-  await run(['open', `"${url}"`]);
+  await run(['open', url]);
   browserReady = true;
 }
 
@@ -76,28 +76,28 @@ export async function close(): Promise<void> {
  */
 export async function goto(path: string): Promise<void> {
   const target = path.startsWith('http') ? path : `${BASE_URL}${path}`;
-  await run(['open', `"${target}"`]);
+  await run(['open', target]);
 }
 
 /**
  * Click an element by selector
  */
 export async function click(selector: string): Promise<void> {
-  await run(['click', `"${selector}"`]);
+  await run(['click', selector]);
 }
 
 /**
  * Fill an input field
  */
 export async function fill(selector: string, text: string): Promise<void> {
-  await run(['fill', `"${selector}"`, `"${text}"`]);
+  await run(['fill', selector, text]);
 }
 
 /**
  * Get text content of an element
  */
 export async function getText(selector: string): Promise<string> {
-  return run(['get', 'text', `"${selector}"`]);
+  return run(['get', 'text', selector]);
 }
 
 /**
@@ -107,7 +107,7 @@ export async function waitForSelector(
   selector: string,
   options?: { timeout?: number }
 ): Promise<void> {
-  const args = ['wait', `"${selector}"`];
+  const args = ['wait', selector];
   if (options?.timeout) {
     args.push('--timeout', options.timeout.toString());
   }
@@ -133,7 +133,7 @@ export async function screenshot(name: string): Promise<Buffer> {
  * Drag and drop between elements
  */
 export async function drag(sourceSelector: string, targetSelector: string): Promise<void> {
-  await run(['drag', `"${sourceSelector}"`, `"${targetSelector}"`]);
+  await run(['drag', sourceSelector, targetSelector]);
 }
 
 /**
@@ -141,7 +141,7 @@ export async function drag(sourceSelector: string, targetSelector: string): Prom
  */
 export async function exists(selector: string): Promise<boolean> {
   try {
-    await run(['is', 'visible', `"${selector}"`]);
+    await run(['is', 'visible', selector]);
     return true;
   } catch {
     return false;
@@ -152,7 +152,7 @@ export async function exists(selector: string): Promise<boolean> {
  * Get count of elements matching selector
  */
 export async function getAll(selector: string): Promise<string[]> {
-  const result = await run(['get', 'count', `"${selector}"`]);
+  const result = await run(['get', 'count', selector]);
   const count = Number.parseInt(result || '0', 10);
   return Array.from({ length: Number.isNaN(count) ? 0 : count }, (_, index) => `${index}`);
 }
@@ -161,7 +161,7 @@ export async function getAll(selector: string): Promise<string[]> {
  * Type text character by character
  */
 export async function type(selector: string, text: string): Promise<void> {
-  await run(['type', `"${selector}"`, `"${text}"`]);
+  await run(['type', selector, text]);
 }
 
 /**
@@ -175,14 +175,14 @@ export async function press(key: string): Promise<void> {
  * Hover over an element
  */
 export async function hover(selector: string): Promise<void> {
-  await run(['hover', `"${selector}"`]);
+  await run(['hover', selector]);
 }
 
 /**
  * Get an attribute value from an element
  */
 export async function getAttribute(selector: string, name: string): Promise<string> {
-  return run(['get', 'attribute', `"${selector}"`, name]);
+  return run(['get', 'attribute', selector, name]);
 }
 
 /**

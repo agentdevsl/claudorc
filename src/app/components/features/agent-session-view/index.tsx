@@ -387,14 +387,25 @@ export function AgentSessionView({
   );
 }
 
-export type { ActivityItem, ActivityItemType } from './activity-sidebar';
-export { ActivitySidebar } from './activity-sidebar';
 // Re-export types and components for external use
+export type { ActivityItem, ActivityItemType } from './activity-sidebar';
+export {
+  ActivitySidebar,
+  activityIcons,
+  activityIconVariants,
+  formatRelativeTime,
+} from './activity-sidebar';
+
 export type { AgentStatus } from './header-bar';
 export { HeaderBar } from './header-bar';
+
 export { InputArea } from './input-area';
-export { PresenceBar } from './presence-bar';
+
+export { Avatar, getInitials, getUserGradient, PresenceBar } from './presence-bar';
+
 export { StreamCursor, StreamLine as StreamLineComponent } from './stream-line';
+
 export { StreamPanel } from './stream-panel';
+
 export type { StreamLine, StreamLineType } from './use-stream-parser';
-export { useStreamParser } from './use-stream-parser';
+export { groupConsecutiveLines, useStreamParser } from './use-stream-parser';

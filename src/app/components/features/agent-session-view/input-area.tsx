@@ -1,6 +1,5 @@
 import { PaperPlaneTilt } from '@phosphor-icons/react';
 import { useCallback, useRef, useState } from 'react';
-import { Button } from '@/app/components/ui/button';
 import { cn } from '@/lib/utils/cn';
 
 interface InputAreaProps {
@@ -91,6 +90,8 @@ export function InputArea({
     [handleSubmit, history, historyIndex]
   );
 
+  const canSubmit = value.trim().length > 0 && !disabled;
+
   return (
     <div className="border-t border-border bg-canvas p-4 pr-2">
       <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
@@ -107,33 +108,44 @@ export function InputArea({
           disabled={disabled}
           placeholder={placeholder}
           className={cn(
-            'flex-1 bg-transparent font-mono text-sm text-fg outline-none placeholder:text-fg-muted',
+            'flex-1 bg-transparent font-mono text-sm text-fg outline-none placeholder:text-fg-subtle',
             disabled && 'cursor-not-allowed opacity-60'
           )}
         />
 
         {/* Shortcut hint */}
-        <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border bg-surface-subtle px-2 py-0.5 text-xs text-fg-muted">
+        <kbd className="hidden sm:inline-flex items-center gap-1 rounded bg-surface-subtle px-2 py-1 text-xs font-mono text-fg-subtle">
           Enter
         </kbd>
 
-        {/* Submit button */}
-        <Button
-          size="sm"
+        {/* Submit button - matches wireframe styling */}
+        <button
+          type="button"
           onClick={handleSubmit}
-          disabled={disabled || !value.trim()}
-          className="h-8"
+          disabled={!canSubmit}
+          className={cn(
+            'inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+            canSubmit
+              ? 'bg-accent text-white hover:bg-accent-hover'
+              : 'bg-surface-subtle text-fg-muted cursor-not-allowed opacity-60'
+          )}
         >
+          Send
           <PaperPlaneTilt className="h-4 w-4" weight="fill" />
-          <span className="sr-only">Send</span>
-        </Button>
+        </button>
       </div>
 
-      {/* Command history hint */}
+      {/* Command history hint - shows only when history exists and input is enabled */}
       {history.length > 0 && !disabled && (
-        <p className="mt-2 text-xs text-fg-subtle">
-          Use <kbd className="rounded border border-border px-1">&#8593;</kbd> /{' '}
-          <kbd className="rounded border border-border px-1">&#8595;</kbd> for command history
+        <p className="mt-2 text-xs text-fg-subtle flex items-center gap-1">
+          Use{' '}
+          <kbd className="inline-flex items-center justify-center rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] font-mono">
+            &#8593;
+          </kbd>
+          <kbd className="inline-flex items-center justify-center rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] font-mono">
+            &#8595;
+          </kbd>{' '}
+          to navigate command history ({history.length} command{history.length !== 1 ? 's' : ''})
         </p>
       )}
     </div>

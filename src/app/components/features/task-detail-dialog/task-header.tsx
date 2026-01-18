@@ -10,7 +10,6 @@ const statusBadgeVariants = cva(
     variants: {
       column: {
         backlog: 'bg-surface-muted text-fg-muted',
-        queued: 'bg-purple-500/20 text-purple-400',
         in_progress: 'bg-accent-muted text-accent',
         waiting_approval: 'bg-attention-muted text-attention',
         verified: 'bg-success-muted text-success',
@@ -64,8 +63,6 @@ function getColumnLabel(column: TaskColumn): string {
   switch (column) {
     case 'backlog':
       return 'Backlog';
-    case 'queued':
-      return 'Queued';
     case 'in_progress':
       return 'In Progress';
     case 'waiting_approval':

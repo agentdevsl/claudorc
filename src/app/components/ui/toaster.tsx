@@ -1,77 +1,24 @@
-import { Toast, ToastProvider, ToastViewport } from '@/app/components/ui/toast';
-import { useToast } from '@/app/hooks/use-toast';
-
 /**
- * Toaster component that renders all active toasts.
+ * Toaster component re-export for backwards compatibility.
  *
- * This component should be placed once at the root of your application
- * (typically in _app.tsx, layout.tsx, or __root.tsx).
+ * The main Toaster component is now exported from toast.tsx.
+ * This file provides re-exports for existing imports.
  *
  * @example
  * ```tsx
- * // In your root layout or app component
+ * // Preferred import (from toast.tsx)
+ * import { Toaster, toast } from '@/app/components/ui/toast';
+ *
+ * // Alternative import (for backwards compatibility)
  * import { Toaster } from '@/app/components/ui/toaster';
- *
- * export function App() {
- *   return (
- *     <>
- *       <YourAppContent />
- *       <Toaster />
- *     </>
- *   );
- * }
- * ```
- *
- * @example
- * ```tsx
- * // Using toasts in components
- * import { useToast, toast } from '@/app/hooks/use-toast';
- *
- * function MyComponent() {
- *   const { success, error, warning, info } = useToast();
- *
- *   // Basic usage
- *   success('Saved successfully');
- *   error('Failed to save', 'Check your connection');
- *   warning('Low disk space');
- *   info('New version available');
- *
- *   // With action button
- *   toast.show({
- *     title: 'File deleted',
- *     description: 'This action can be undone',
- *     action: { label: 'Undo', onClick: () => undoDelete() }
- *   });
- *
- *   // Promise pattern
- *   toast.promise(saveData(), {
- *     loading: 'Saving...',
- *     success: 'Saved!',
- *     error: 'Failed to save'
- *   });
- * }
  * ```
  */
-export function Toaster() {
-  const { toasts } = useToast();
 
-  return (
-    <ToastProvider swipeDirection="right">
-      {toasts.map((toastData) => (
-        <Toast
-          key={toastData.id}
-          variant={toastData.variant}
-          title={toastData.title}
-          description={toastData.description}
-          duration={toastData.duration}
-          action={toastData.action}
-          dismissible={toastData.dismissible}
-          showProgress={toastData.showProgress}
-        />
-      ))}
-      <ToastViewport />
-    </ToastProvider>
-  );
-}
-
-export { ToastProvider, ToastViewport } from '@/app/components/ui/toast';
+export type {
+  PromiseMessages,
+  ToastAction,
+  ToastData,
+  ToastOptions,
+  ToastVariant,
+} from '@/app/components/ui/toast';
+export { Toaster, ToastProvider, ToastViewport, toast } from '@/app/components/ui/toast';

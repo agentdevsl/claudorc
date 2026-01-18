@@ -90,7 +90,6 @@ export const indicatorVariants = cva('w-[3px] h-[14px] rounded-sm', {
   variants: {
     column: {
       backlog: 'bg-fg-muted',
-      queued: 'bg-purple-500',
       in_progress: 'bg-attention',
       waiting_approval: 'bg-accent',
       verified: 'bg-success',

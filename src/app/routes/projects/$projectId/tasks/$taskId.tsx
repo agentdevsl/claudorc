@@ -2,35 +2,56 @@ import { createFileRoute } from '@tanstack/react-router';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { useServices } from '@/app/services/service-context';
+import type { Project } from '@/db/schema/projects';
 import type { Task } from '@/db/schema/tasks';
 
+interface LoaderData {
+  task: Task | null;
+  project: Project | null;
+}
+
 export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
-  loader: async ({ context, params }): Promise<{ task: Task | null }> => {
+  loader: async ({ context, params }): Promise<LoaderData> => {
     if (!context.services) {
-      return { task: null };
+      return { task: null, project: null };
     }
 
-    const taskResult = await context.services.taskService.getById(params.taskId);
+    const [taskResult, projectResult] = await Promise.all([
+      context.services.taskService.getById(params.taskId),
+      context.services.projectService.getById(params.projectId),
+    ]);
+
     if (!taskResult.ok || taskResult.value.projectId !== params.projectId) {
-      return { task: null };
+      return { task: null, project: projectResult.ok ? projectResult.value : null };
     }
 
-    return { task: taskResult.value };
+    return {
+      task: taskResult.value,
+      project: projectResult.ok ? projectResult.value : null,
+    };
   },
   component: TaskDetailRoute,
 });
 
 function TaskDetailRoute(): React.JSX.Element {
-  const loaderData = Route.useLoaderData() as { task: Task | null };
+  const { task, project } = Route.useLoaderData() as LoaderData;
   const { taskService } = useServices();
-  const task = loaderData.task;
 
   if (!task) {
     return <div className="p-6 text-sm text-fg-muted">Task not found.</div>;
   }
 
   return (
-    <LayoutShell breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: task.title }]}>
+    <LayoutShell
+      projectId={project?.id}
+      projectName={project?.name}
+      projectPath={project?.path}
+      breadcrumbs={[
+        { label: 'Projects', to: '/projects' },
+        { label: project?.name ?? 'Project', to: `/projects/${project?.id}` },
+        { label: task.title },
+      ]}
+    >
       <TaskDetailDialog
         task={task}
         open

@@ -26,7 +26,9 @@ export const initializePGlite = async () => {
     );
   }
 
-  const pglite = new PGlite('idb://agentpane');
+  const pglite = new PGlite(
+    process.env.E2E_SEED === 'true' ? 'memory://agentpane-e2e' : 'idb://agentpane'
+  );
 
   try {
     await pglite.query('SELECT 1');

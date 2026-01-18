@@ -184,7 +184,11 @@ export const validateSchema = async (ctx: BootstrapContext) => {
 
     if (!result.rows || result.rows.length === 0) {
       return err(
-        createError('BOOTSTRAP_SCHEMA_VALIDATION_FAILED', 'Projects table not found after migration', 500)
+        createError(
+          'BOOTSTRAP_SCHEMA_VALIDATION_FAILED',
+          'Projects table not found after migration',
+          500
+        )
       );
     }
 

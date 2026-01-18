@@ -1,11 +1,14 @@
 import {
   ArrowRight,
   CheckCircle,
+  Code,
+  Gear,
   Info,
   Lightning,
   Terminal,
   WarningCircle,
 } from '@phosphor-icons/react';
+import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
 import type { StreamLine as StreamLineData, StreamLineType } from './use-stream-parser';
 
@@ -13,6 +16,28 @@ interface StreamLineProps {
   line: StreamLineData;
   showTimestamp?: boolean;
 }
+
+// Line container variants for background highlighting
+const lineContainerVariants = cva(
+  'group flex items-start gap-2 py-1 px-1 -mx-1 rounded transition-colors',
+  {
+    variants: {
+      type: {
+        prompt: 'bg-success/5 hover:bg-success/10',
+        command: 'hover:bg-surface-subtle',
+        output: 'hover:bg-surface-subtle',
+        thinking: 'bg-warning/5 hover:bg-warning/10',
+        action: 'bg-accent/5 hover:bg-accent/10',
+        tool: 'bg-done/5 hover:bg-done/10',
+        success: 'bg-success/5 hover:bg-success/10',
+        error: 'bg-danger/5 hover:bg-danger/10',
+      },
+    },
+    defaultVariants: {
+      type: 'output',
+    },
+  }
+);
 
 const lineTypeConfig: Record<
   StreamLineType,
@@ -28,7 +53,7 @@ const lineTypeConfig: Record<
     iconClass: 'text-success',
   },
   command: {
-    icon: ArrowRight,
+    icon: Code,
     textClass: 'text-fg',
     iconClass: 'text-fg-muted',
   },
@@ -46,6 +71,11 @@ const lineTypeConfig: Record<
     icon: ArrowRight,
     textClass: 'text-accent',
     iconClass: 'text-accent',
+  },
+  tool: {
+    icon: Gear,
+    textClass: 'text-done',
+    iconClass: 'text-done',
   },
   success: {
     icon: CheckCircle,
@@ -74,9 +104,9 @@ export function StreamLine({ line, showTimestamp = true }: StreamLineProps): Rea
   const Icon = config.icon;
 
   return (
-    <div className="group flex items-start gap-2 py-0.5 hover:bg-surface-subtle">
+    <div className={lineContainerVariants({ type: line.type })}>
       {showTimestamp && (
-        <span className="flex-shrink-0 w-16 text-xs text-fg-subtle font-mono tabular-nums">
+        <span className="flex-shrink-0 w-16 text-xs text-fg-subtle font-mono tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">
           {formatTimestamp(line.timestamp)}
         </span>
       )}
@@ -89,7 +119,7 @@ export function StreamLine({ line, showTimestamp = true }: StreamLineProps): Rea
         {line.content}
       </span>
       {line.toolName && (
-        <span className="flex-shrink-0 text-xs text-fg-subtle bg-surface-subtle px-1.5 py-0.5 rounded">
+        <span className="flex-shrink-0 text-xs text-done bg-done/10 px-1.5 py-0.5 rounded font-medium">
           {line.toolName}
         </span>
       )}

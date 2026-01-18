@@ -117,6 +117,7 @@ export function formatShortcut(shortcut: Shortcut): string {
   if (shortcut.key === 'Enter') keyDisplay = '↵';
   if (shortcut.key === 'Escape') keyDisplay = 'Esc';
   if (shortcut.key === '.') keyDisplay = '.';
+  if (shortcut.key === '/') keyDisplay = '/';
   if (shortcut.key === '?') keyDisplay = '?';
 
   parts.push(keyDisplay);
@@ -145,6 +146,7 @@ export function getShortcutParts(shortcut: Shortcut): string[] {
   if (shortcut.key === 'Enter') keyDisplay = '↵';
   if (shortcut.key === 'Escape') keyDisplay = 'Esc';
   if (shortcut.key === '.') keyDisplay = '.';
+  if (shortcut.key === '/') keyDisplay = '/';
   if (shortcut.key === '?') keyDisplay = '?';
 
   parts.push(keyDisplay);

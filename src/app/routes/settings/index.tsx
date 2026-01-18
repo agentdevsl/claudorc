@@ -41,6 +41,7 @@ function SettingsPage(): React.JSX.Element {
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Settings' }]}
+      projectId={project.id}
       projectName={project.name}
       projectPath={project.path}
     >
@@ -66,15 +67,7 @@ function SettingsPage(): React.JSX.Element {
           }}
         />
 
-        <GitHubAppSetup
-          connected={Boolean(project.githubOwner && project.githubRepo)}
-          repo={
-            project.githubOwner && project.githubRepo
-              ? `${project.githubOwner}/${project.githubRepo}`
-              : undefined
-          }
-          onConnect={() => {}}
-        />
+        <GitHubAppSetup />
 
         <section className="rounded-lg border border-border bg-surface p-6">
           <h2 className="text-lg font-semibold text-fg">Appearance</h2>

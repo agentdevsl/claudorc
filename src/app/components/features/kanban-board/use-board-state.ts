@@ -1,29 +1,5 @@
-import { useCallback, useState } from 'react';
-import type { TaskColumn } from '@/db/schema/tasks';
-
-const COLLAPSED_STORAGE_KEY = 'kanban-collapsed-columns';
-
-function loadCollapsedColumns(): Set<TaskColumn> {
-  if (typeof window === 'undefined') return new Set();
-  try {
-    const stored = localStorage.getItem(COLLAPSED_STORAGE_KEY);
-    if (stored) {
-      return new Set(JSON.parse(stored) as TaskColumn[]);
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return new Set();
-}
-
-function saveCollapsedColumns(columns: Set<TaskColumn>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...columns]));
-  } catch {
-    // Ignore storage errors
-  }
-}
+import { useCallback, useMemo, useState } from 'react';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
 
 export interface BoardState {
   selectedIds: Set<string>;
@@ -31,51 +7,97 @@ export interface BoardState {
 }
 
 export interface BoardActions {
+  /** Toggle selection for a card (with optional multi-select) */
   selectCard: (taskId: string, multiSelect: boolean) => void;
-  selectRange: (startId: string, endId: string, taskIds: string[]) => void;
-  clearSelection: () => void;
-  toggleColumnCollapse: (column: TaskColumn) => void;
+  /** Set the selected IDs directly */
   setSelectedIds: (ids: Set<string>) => void;
+  /** Toggle selection for a card (legacy method) */
+  toggleSelection: (taskId: string, isMultiSelect: boolean) => void;
+  /** Select all tasks */
+  selectAll: (tasks: Task[]) => void;
+  /** Clear all selections */
+  clearSelection: () => void;
+  /** Check if a task is selected */
+  isSelected: (taskId: string) => boolean;
+  /** Toggle column collapse state */
+  toggleColumnCollapse: (column: TaskColumn) => void;
+  /** Check if a column is collapsed */
+  isColumnCollapsed: (column: TaskColumn) => boolean;
+  /** Get selected tasks from a task list */
+  getSelectedTasks: (tasks: Task[]) => Task[];
 }
 
+const STORAGE_KEY = 'kanban-collapsed-columns';
+
+function loadCollapsedColumns(): Set<TaskColumn> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return new Set(JSON.parse(saved) as TaskColumn[]);
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return new Set();
+}
+
+function saveCollapsedColumns(columns: Set<TaskColumn>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...columns]));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+/**
+ * Hook for managing kanban board state including selection and column collapse.
+ * Returns a tuple [state, actions] for easy destructuring.
+ */
 export function useBoardState(): [BoardState, BoardActions] {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [collapsedColumns, setCollapsedColumns] = useState<Set<TaskColumn>>(() =>
-    loadCollapsedColumns()
-  );
+  const [selectedIds, setSelectedIdsState] = useState<Set<string>>(new Set());
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<TaskColumn>>(loadCollapsedColumns);
+
+  const setSelectedIds = useCallback((ids: Set<string>) => {
+    setSelectedIdsState(ids);
+  }, []);
 
   const selectCard = useCallback((taskId: string, multiSelect: boolean) => {
-    setSelectedIds((prev) => {
+    setSelectedIdsState((prev) => {
       const next = new Set(prev);
       if (multiSelect) {
+        // Multi-select: toggle this item
         if (next.has(taskId)) {
           next.delete(taskId);
         } else {
           next.add(taskId);
         }
       } else {
-        next.clear();
-        next.add(taskId);
+        // Single select: replace selection
+        if (next.size === 1 && next.has(taskId)) {
+          next.clear();
+        } else {
+          next.clear();
+          next.add(taskId);
+        }
       }
       return next;
     });
   }, []);
 
-  const selectRange = useCallback((startId: string, endId: string, taskIds: string[]) => {
-    const startIdx = taskIds.indexOf(startId);
-    const endIdx = taskIds.indexOf(endId);
+  // Alias for selectCard for backward compatibility
+  const toggleSelection = selectCard;
 
-    if (startIdx === -1 || endIdx === -1) return;
-
-    const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
-    const rangeIds = taskIds.slice(from, to + 1);
-
-    setSelectedIds(new Set(rangeIds));
+  const selectAll = useCallback((tasks: Task[]) => {
+    setSelectedIdsState(new Set(tasks.map((t) => t.id)));
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
+    setSelectedIdsState(new Set());
   }, []);
+
+  const isSelected = useCallback((taskId: string) => selectedIds.has(taskId), [selectedIds]);
 
   const toggleColumnCollapse = useCallback((column: TaskColumn) => {
     setCollapsedColumns((prev) => {
@@ -90,8 +112,45 @@ export function useBoardState(): [BoardState, BoardActions] {
     });
   }, []);
 
-  return [
-    { selectedIds, collapsedColumns },
-    { selectCard, selectRange, clearSelection, toggleColumnCollapse, setSelectedIds },
-  ];
+  const isColumnCollapsed = useCallback(
+    (column: TaskColumn) => collapsedColumns.has(column),
+    [collapsedColumns]
+  );
+
+  const getSelectedTasks = useCallback(
+    (tasks: Task[]) => tasks.filter((t) => selectedIds.has(t.id)),
+    [selectedIds]
+  );
+
+  const state: BoardState = useMemo(
+    () => ({ selectedIds, collapsedColumns }),
+    [selectedIds, collapsedColumns]
+  );
+
+  const actions: BoardActions = useMemo(
+    () => ({
+      selectCard,
+      setSelectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      isSelected,
+      toggleColumnCollapse,
+      isColumnCollapsed,
+      getSelectedTasks,
+    }),
+    [
+      selectCard,
+      setSelectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      isSelected,
+      toggleColumnCollapse,
+      isColumnCollapsed,
+      getSelectedTasks,
+    ]
+  );
+
+  return [state, actions];
 }

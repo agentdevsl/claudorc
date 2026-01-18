@@ -8,6 +8,7 @@ export type StreamLineType =
   | 'output' // Command output (muted)
   | 'thinking' // Agent thinking text (yellow, italic)
   | 'action' // Action indicator (blue)
+  | 'tool' // Tool execution (purple)
   | 'success' // Success message (green)
   | 'error'; // Error message (red)
 
@@ -174,7 +175,7 @@ export function useStreamParser(
         if (event.status === 'running') {
           lines.push({
             id: `${event.id}-start`,
-            type: 'action',
+            type: 'tool',
             content: `-> ${event.tool}`,
             timestamp: event.timestamp,
             agentId: event.agentId,

@@ -152,9 +152,10 @@ export function useGlobalShortcuts(props: GlobalShortcutsProps = {}): void {
       });
     }
 
-    // Help modal
+    // Help modal (Cmd+/)
     result.push({
-      key: '?',
+      key: '/',
+      meta: true,
       description: 'Show keyboard shortcuts',
       category: 'navigation',
       action: () => setHelpOpen(true),
@@ -238,7 +239,8 @@ export function GlobalShortcuts(): React.JSX.Element {
         action: () => navigate({ to: '/projects' }),
       },
       {
-        key: '?',
+        key: '/',
+        meta: true,
         description: 'Show keyboard shortcuts',
         category: 'navigation',
         action: () => setHelpOpen(true),

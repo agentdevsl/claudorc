@@ -9,6 +9,11 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 30000,
     setupFiles: ['./tests/e2e/setup.ts'],
+    sequence: {
+      concurrent: false,
+    },
+    maxConcurrency: 1,
+    maxWorkers: 1,
   },
   resolve: {
     alias: {

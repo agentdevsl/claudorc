@@ -61,6 +61,13 @@ function Dashboard(): React.JSX.Element {
     return projectService.validatePath(path);
   };
 
+  const handleClone = async (
+    url: string,
+    destination: string
+  ): Promise<Result<{ path: string }, unknown>> => {
+    return projectService.cloneRepository(url, destination);
+  };
+
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Projects' }]}
@@ -70,7 +77,7 @@ function Dashboard(): React.JSX.Element {
             <Funnel className="h-4 w-4" />
             Filter
           </Button>
-          <Button onClick={() => setShowNewProject(true)}>
+          <Button onClick={() => setShowNewProject(true)} data-testid="new-project-button">
             <Plus className="h-4 w-4" />
             New Project
           </Button>
@@ -79,13 +86,27 @@ function Dashboard(): React.JSX.Element {
     >
       <div className="p-6">
         {projectSummaries.length === 0 ? (
-          <EmptyState
-            preset="no-projects"
-            action={{
-              label: 'Create project',
-              onClick: () => setShowNewProject(true),
-            }}
-          />
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <EmptyState
+              preset="first-run"
+              size="lg"
+              title="Welcome to AgentPane!"
+              subtitle="Let's get you started with your first project"
+              steps={[
+                { label: 'Install AgentPane', completed: true },
+                { label: 'Create your first project', completed: false },
+                { label: 'Run your first agent', completed: false },
+              ]}
+              primaryAction={{
+                label: 'Create Project',
+                onClick: () => setShowNewProject(true),
+              }}
+              secondaryAction={{
+                label: 'Import existing project',
+                onClick: () => setShowNewProject(true),
+              }}
+            />
+          </div>
         ) : (
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projectSummaries.map((summary) => (
@@ -114,6 +135,7 @@ function Dashboard(): React.JSX.Element {
         onOpenChange={setShowNewProject}
         onSubmit={handleCreateProject}
         onValidatePath={handleValidatePath}
+        onClone={handleClone}
       />
     </LayoutShell>
   );

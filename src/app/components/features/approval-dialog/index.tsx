@@ -1,4 +1,12 @@
-import { CheckCircle, GitBranch, X, XCircle } from '@phosphor-icons/react';
+import {
+  CheckCircle,
+  Clock,
+  GitBranch,
+  GitMerge,
+  TestTube,
+  X,
+  XCircle,
+} from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Checkbox } from '@/app/components/ui/checkbox';
@@ -16,7 +24,7 @@ import type { Task } from '@/db/schema/tasks';
 import type { DiffFile, DiffResult, DiffSummary } from '@/lib/types/diff';
 import { cn } from '@/lib/utils/cn';
 import { ChangesSummary } from './changes-summary';
-import { DiffViewer } from './diff-viewer';
+import { DiffViewer, MultiFileDiffViewer } from './diff-viewer';
 import { FileTabs } from './file-tabs';
 
 type TabValue = 'summary' | 'files' | 'diff';
@@ -27,17 +35,28 @@ interface ApprovalDialogProps {
   diffResult?: DiffResult | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onApprove: (commitMessage?: string) => Promise<void>;
+  onApprove: (commitMessage?: string, createMergeCommit?: boolean) => Promise<void>;
   onReject: (reason: string) => Promise<void>;
+  /** Optional metadata about the task completion */
+  completionInfo?: {
+    duration?: string;
+    testsStatus?: 'passed' | 'failed' | 'skipped';
+    agentName?: string;
+  };
 }
 
 /**
  * Full diff review experience with:
  * - Full-width dialog (max-w-4xl)
- * - Summary header with task info
+ * - Task header with metadata (branch, duration, test status)
+ * - Changes summary bar with +additions/-deletions and proportional bar
+ * - File tabs for per-file navigation
  * - Tabs for Summary/Files/Diff views
+ * - Line-by-line diff with hunk headers and line numbers
+ * - Syntax highlighting for code
+ * - Feedback textarea for rejection reason
+ * - Merge commit option checkbox
  * - Footer with Approve/Reject actions
- * - Merge commit message option checkbox
  */
 export function ApprovalDialog({
   task,
@@ -47,6 +66,7 @@ export function ApprovalDialog({
   onOpenChange,
   onApprove,
   onReject,
+  completionInfo,
 }: ApprovalDialogProps): React.JSX.Element {
   const [tab, setTab] = useState<TabValue>('summary');
   const [rejectReason, setRejectReason] = useState('');
@@ -73,7 +93,7 @@ export function ApprovalDialog({
     setIsSubmitting(true);
     setSubmittingAction('approve');
     try {
-      await onApprove(commitMessage.trim() || undefined);
+      await onApprove(commitMessage.trim() || undefined, createMergeCommit);
       onOpenChange(false);
     } finally {
       setIsSubmitting(false);
@@ -115,11 +135,45 @@ export function ApprovalDialog({
             </span>
             <DialogTitle className="flex-1 truncate">{task.title}</DialogTitle>
           </div>
-          <DialogDescription className="flex items-center gap-4">
+          <DialogDescription className="flex flex-wrap items-center gap-4">
+            {/* Branch */}
             <span className="flex items-center gap-1.5 text-sm">
               <GitBranch className="h-4 w-4" weight="bold" />
               {task.branch ?? 'No branch'}
             </span>
+
+            {/* Completion duration */}
+            {completionInfo?.duration && (
+              <span className="flex items-center gap-1.5 text-sm text-fg-muted">
+                <Clock className="h-4 w-4" weight="regular" />
+                Completed in {completionInfo.duration}
+              </span>
+            )}
+
+            {/* Test status */}
+            {completionInfo?.testsStatus && (
+              <span
+                className={cn(
+                  'flex items-center gap-1.5 text-sm',
+                  completionInfo.testsStatus === 'passed' && 'text-[var(--syntax-added)]',
+                  completionInfo.testsStatus === 'failed' && 'text-[var(--syntax-removed)]',
+                  completionInfo.testsStatus === 'skipped' && 'text-fg-muted'
+                )}
+              >
+                <TestTube className="h-4 w-4" weight="regular" />
+                {completionInfo.testsStatus === 'passed' && 'All tests passed'}
+                {completionInfo.testsStatus === 'failed' && 'Tests failed'}
+                {completionInfo.testsStatus === 'skipped' && 'Tests skipped'}
+              </span>
+            )}
+
+            {/* Agent name */}
+            {completionInfo?.agentName && (
+              <span className="flex items-center gap-1.5 text-sm text-fg-muted">
+                <span className="h-4 w-4 rounded-full bg-gradient-to-br from-success to-accent" />
+                {completionInfo.agentName}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -150,12 +204,12 @@ export function ApprovalDialog({
                     <>
                       {effectiveDiffResult.summary.filesChanged} file
                       {effectiveDiffResult.summary.filesChanged !== 1 ? 's' : ''} changed with{' '}
-                      <span className="text-success">
+                      <span className="text-[var(--syntax-added)]">
                         {effectiveDiffResult.summary.additions} addition
                         {effectiveDiffResult.summary.additions !== 1 ? 's' : ''}
                       </span>{' '}
                       and{' '}
-                      <span className="text-danger">
+                      <span className="text-[var(--syntax-removed)]">
                         {effectiveDiffResult.summary.deletions} deletion
                         {effectiveDiffResult.summary.deletions !== 1 ? 's' : ''}
                       </span>
@@ -180,19 +234,19 @@ export function ApprovalDialog({
                         <span
                           className={cn(
                             'h-2 w-2 rounded-full',
-                            file.status === 'added' && 'bg-success',
+                            file.status === 'added' && 'bg-[var(--syntax-added)]',
                             file.status === 'modified' && 'bg-attention',
-                            file.status === 'deleted' && 'bg-danger',
+                            file.status === 'deleted' && 'bg-[var(--syntax-removed)]',
                             file.status === 'renamed' && 'bg-accent'
                           )}
                         />
                         {file.path}
                         <span className="ml-auto flex gap-2">
                           {file.additions > 0 && (
-                            <span className="text-success">+{file.additions}</span>
+                            <span className="text-[var(--syntax-added)]">+{file.additions}</span>
                           )}
                           {file.deletions > 0 && (
-                            <span className="text-danger">-{file.deletions}</span>
+                            <span className="text-[var(--syntax-removed)]">-{file.deletions}</span>
                           )}
                         </span>
                       </li>
@@ -203,7 +257,7 @@ export function ApprovalDialog({
             </div>
           </TabsContent>
 
-          {/* Files tab */}
+          {/* Files tab - per-file navigation */}
           <TabsContent value="files" className="flex flex-1 flex-col overflow-hidden">
             {effectiveDiffResult.files.length > 0 ? (
               <>
@@ -212,7 +266,14 @@ export function ApprovalDialog({
                   activeIndex={activeFileIndex}
                   onSelect={setActiveFileIndex}
                 />
-                <DiffViewer file={activeFile} />
+                <div
+                  id={`diff-panel-${activeFileIndex}`}
+                  role="tabpanel"
+                  aria-labelledby={`file-tab-${activeFileIndex}`}
+                  className="flex-1 overflow-hidden"
+                >
+                  <DiffViewer file={activeFile} showHeader={false} />
+                </div>
               </>
             ) : (
               <div className="flex flex-1 items-center justify-center p-8 text-fg-muted">
@@ -221,21 +282,9 @@ export function ApprovalDialog({
             )}
           </TabsContent>
 
-          {/* Diff tab */}
+          {/* Diff tab - all files in sequence */}
           <TabsContent value="diff" className="flex flex-1 flex-col overflow-hidden">
-            {effectiveDiffResult.files.length > 0 ? (
-              <div className="flex flex-1 flex-col overflow-auto">
-                {effectiveDiffResult.files.map((file: DiffFile) => (
-                  <div key={file.path} className="border-b border-border last:border-b-0">
-                    <DiffViewer file={file} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-1 items-center justify-center p-8 text-fg-muted">
-                <p>No diff available.</p>
-              </div>
-            )}
+            <MultiFileDiffViewer files={effectiveDiffResult.files} />
           </TabsContent>
         </Tabs>
 
@@ -247,9 +296,10 @@ export function ApprovalDialog({
               <Textarea
                 value={commitMessage}
                 onChange={(event) => setCommitMessage(event.target.value)}
-                placeholder="Optional commit message"
+                placeholder="Optional commit message override"
                 rows={3}
                 className="mt-2"
+                data-testid="commit-message-input"
               />
             </div>
             <div className="rounded-lg border border-border bg-surface-subtle p-4">
@@ -257,9 +307,10 @@ export function ApprovalDialog({
               <Textarea
                 value={rejectReason}
                 onChange={(event) => setRejectReason(event.target.value)}
-                placeholder="Explain what to revise"
+                placeholder="Explain what to revise..."
                 rows={3}
                 className="mt-2"
+                data-testid="reject-reason-input"
               />
             </div>
           </div>
@@ -269,22 +320,40 @@ export function ApprovalDialog({
         <DialogFooter className="border-t border-border bg-surface-subtle px-6 py-4">
           <div className="flex w-full items-center justify-between">
             {/* Merge commit option */}
-            <label className="flex cursor-pointer items-center gap-2" htmlFor="merge-commit">
+            <label
+              className="flex cursor-pointer items-center gap-2"
+              htmlFor="merge-commit"
+              data-testid="merge-commit-option"
+            >
               <Checkbox
                 id="merge-commit"
                 checked={createMergeCommit}
                 onCheckedChange={(checked) => setCreateMergeCommit(Boolean(checked))}
+                disabled={isSubmitting}
               />
-              <span className="text-sm text-fg">Create merge commit</span>
+              <span className="flex items-center gap-1.5 text-sm text-fg">
+                <GitMerge className="h-4 w-4 text-fg-muted" weight="regular" />
+                Create merge commit
+              </span>
             </label>
 
             {/* Action buttons */}
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+                data-testid="cancel-button"
+              >
                 <X className="h-4 w-4" />
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={handleReject} disabled={isSubmitting}>
+              <Button
+                variant="destructive"
+                onClick={handleReject}
+                disabled={isSubmitting}
+                data-testid="reject-button"
+              >
                 {submittingAction === 'reject' ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
@@ -292,7 +361,7 @@ export function ApprovalDialog({
                 )}
                 Reject
               </Button>
-              <Button onClick={handleApprove} disabled={isSubmitting}>
+              <Button onClick={handleApprove} disabled={isSubmitting} data-testid="approve-button">
                 {submittingAction === 'approve' ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
@@ -307,3 +376,10 @@ export function ApprovalDialog({
     </Dialog>
   );
 }
+
+// Re-export sub-components for individual use
+export { ChangesSummary, CompactChangesSummary, InlineChanges } from './changes-summary';
+export { DiffHunk } from './diff-hunk';
+export { DiffLine } from './diff-line';
+export { CollapsibleDiffViewer, DiffViewer, MultiFileDiffViewer } from './diff-viewer';
+export { CompactFileTabs, FileTabs } from './file-tabs';

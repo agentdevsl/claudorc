@@ -1,34 +1,37 @@
-import { Plus } from '@phosphor-icons/react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Funnel, Plus } from '@phosphor-icons/react';
+import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
+import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
 import { useServices } from '@/app/services/service-context';
-import type { Project } from '@/db/schema/projects';
 import type { Result } from '@/lib/utils/result';
-import type { PathValidation } from '@/services/project.service';
+import type { PathValidation, ProjectSummary } from '@/services/project.service';
 
 export const Route = createFileRoute('/projects/')({
   loader: async ({ context }) => {
     if (!context.services) {
-      return { projects: [] };
+      return { projectSummaries: [] };
     }
 
-    const projectsResult = await context.services.projectService.list({
+    const summariesResult = await context.services.projectService.listWithSummaries({
       limit: 24,
     });
-    return { projects: projectsResult.ok ? projectsResult.value : [] };
+    return {
+      projectSummaries: summariesResult.ok ? summariesResult.value : [],
+    };
   },
   component: ProjectsPage,
 });
 
 function ProjectsPage(): React.JSX.Element {
   const { projectService } = useServices();
-  const navigate = useNavigate();
   const loaderData = Route.useLoaderData();
-  const [projects, setProjects] = useState<Project[]>(loaderData.projects ?? []);
+  const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(
+    loaderData.projectSummaries ?? []
+  );
   const [showNewProject, setShowNewProject] = useState(false);
 
   const handleCreateProject = async (data: {
@@ -43,7 +46,11 @@ function ProjectsPage(): React.JSX.Element {
     });
 
     if (result.ok) {
-      setProjects((prev) => [result.value, ...prev]);
+      // Refetch summaries to get complete data
+      const summariesResult = await projectService.listWithSummaries({ limit: 24 });
+      if (summariesResult.ok) {
+        setProjectSummaries(summariesResult.value);
+      }
     }
   };
 
@@ -51,47 +58,73 @@ function ProjectsPage(): React.JSX.Element {
     return projectService.validatePath(path);
   };
 
+  const handleClone = async (
+    url: string,
+    destination: string
+  ): Promise<Result<{ path: string }, unknown>> => {
+    return projectService.cloneRepository(url, destination);
+  };
+
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Projects' }]}
       actions={
-        <Button onClick={() => setShowNewProject(true)}>
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline">
+            <Funnel className="h-4 w-4" />
+            Filter
+          </Button>
+          <Button onClick={() => setShowNewProject(true)}>
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       }
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        <div className="grid gap-4 md:grid-cols-2">
-          {projects.length === 0 ? (
-            <div className="col-span-full">
-              <EmptyState
-                preset="no-projects"
-                action={{
-                  label: 'Create project',
-                  onClick: () => setShowNewProject(true),
-                }}
+      <div className="p-6">
+        {projectSummaries.length === 0 ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <EmptyState
+              preset="first-run"
+              size="lg"
+              title="Welcome to AgentPane!"
+              subtitle="Let's get you started with your first project"
+              steps={[
+                { label: 'Install AgentPane', completed: true },
+                { label: 'Create your first project', completed: false },
+                { label: 'Run your first agent', completed: false },
+              ]}
+              primaryAction={{
+                label: 'Create Project',
+                onClick: () => setShowNewProject(true),
+              }}
+              secondaryAction={{
+                label: 'Import existing project',
+                onClick: () => setShowNewProject(true),
+              }}
+            />
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {projectSummaries.map((summary) => (
+              <ProjectCard
+                key={summary.project.id}
+                project={summary.project}
+                status={summary.status}
+                taskCounts={summary.taskCounts}
+                activeAgents={summary.runningAgents.map((agent) => ({
+                  id: agent.id,
+                  name: agent.name,
+                  taskId: agent.currentTaskId ?? '',
+                  taskTitle: agent.currentTaskTitle ?? '',
+                  type: 'runner' as const,
+                }))}
+                lastRunAt={summary.lastActivityAt}
               />
-            </div>
-          ) : (
-            projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                className="rounded-lg border border-border bg-surface p-4 text-left transition hover:border-fg-subtle"
-                onClick={() =>
-                  navigate({
-                    to: '/projects/$projectId',
-                    params: { projectId: project.id },
-                  })
-                }
-              >
-                <p className="text-sm font-semibold text-fg">{project.name}</p>
-                <p className="text-xs text-fg-muted truncate">{project.path}</p>
-              </button>
-            ))
-          )}
-        </div>
+            ))}
+            <AddProjectCard onClick={() => setShowNewProject(true)} />
+          </div>
+        )}
       </div>
 
       <NewProjectDialog
@@ -99,6 +132,7 @@ function ProjectsPage(): React.JSX.Element {
         onOpenChange={setShowNewProject}
         onSubmit={handleCreateProject}
         onValidatePath={handleValidatePath}
+        onClone={handleClone}
       />
     </LayoutShell>
   );

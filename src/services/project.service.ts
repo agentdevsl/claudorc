@@ -27,6 +27,8 @@ export type CreateProjectInput = {
 export type UpdateProjectInput = {
   maxConcurrentAgents?: number;
   configPath?: string;
+  githubOwner?: string;
+  githubRepo?: string;
 };
 
 export type ListProjectsOptions = {
@@ -239,6 +241,15 @@ export class ProjectService {
     if (input.maxConcurrentAgents !== undefined) {
       updates.maxConcurrentAgents = input.maxConcurrentAgents;
     }
+    if (input.configPath !== undefined) {
+      updates.configPath = input.configPath;
+    }
+    if (input.githubOwner !== undefined) {
+      updates.githubOwner = input.githubOwner;
+    }
+    if (input.githubRepo !== undefined) {
+      updates.githubRepo = input.githubRepo;
+    }
 
     const [updated] = await this.db
       .update(projects)
@@ -371,6 +382,46 @@ export class ProjectService {
       return err(
         ProjectErrors.CONFIG_INVALID([
           `GitHub sync failed: ${error instanceof Error ? error.message : String(error)}`,
+        ])
+      );
+    }
+  }
+
+  /**
+   * Clone a repository from a URL to a local path
+   */
+  async cloneRepository(
+    url: string,
+    destinationDir: string
+  ): Promise<Result<{ path: string; name: string }, ProjectError>> {
+    // Extract repo name from URL
+    const repoName = url.split('/').pop()?.replace('.git', '') ?? 'repo';
+    const resolved = path.resolve(destinationDir.replace('~', process.env.HOME ?? ''));
+    const targetPath = path.join(resolved, repoName);
+
+    try {
+      // Check if destination directory exists, create if not
+      await this.runner.exec(`mkdir -p "${resolved}"`, '/tmp');
+
+      // Check if target path already exists
+      try {
+        await this.runner.exec(`test -d "${targetPath}"`, '/tmp');
+        return err(ProjectErrors.PATH_EXISTS);
+      } catch {
+        // Directory doesn't exist, which is good
+      }
+
+      // Clone the repository
+      await this.runner.exec(`git clone "${url}" "${targetPath}"`, resolved);
+
+      return ok({
+        path: targetPath,
+        name: repoName,
+      });
+    } catch (error) {
+      return err(
+        ProjectErrors.CONFIG_INVALID([
+          `Failed to clone repository: ${error instanceof Error ? error.message : String(error)}`,
         ])
       );
     }

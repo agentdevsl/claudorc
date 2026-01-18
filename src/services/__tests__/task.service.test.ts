@@ -52,17 +52,26 @@ describe('TaskService', () => {
     }
   });
 
-  it('rejects invalid column transition', async () => {
+  it('allows any column transition', async () => {
     const db = createDbMock();
     const worktrees = createWorktreeServiceMock();
-    db.query.tasks.findFirst.mockResolvedValue({ id: 't1', column: 'backlog' });
+    db.query.tasks.findFirst
+      .mockResolvedValueOnce({ id: 't1', column: 'backlog', projectId: 'p1' })
+      .mockResolvedValueOnce(null); // For finding last in column
+    db.update.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: 't1', column: 'verified', position: 0 }]),
+        }),
+      }),
+    });
 
     const service = new TaskService(db as never, worktrees as never);
     const result = await service.moveColumn('t1', 'verified');
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe('TASK_INVALID_TRANSITION');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.column).toBe('verified');
     }
   });
 

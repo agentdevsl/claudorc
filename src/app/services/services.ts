@@ -1,13 +1,14 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { createError } from '@/lib/errors/base';
+import type { createError } from '@/lib/errors/base';
 import { err, ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
+import { GitHubTokenService } from '@/services/github-token.service';
 import { ProjectService } from '@/services/project.service';
+import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
 import type { Database } from '@/types/database';
-import type { DurableStreamsServer } from '@/services/session.service';
 import { createRuntimeContext } from './runtime';
 
 // Mock streams for client-side only mode
@@ -26,6 +27,7 @@ export type Services = {
   taskService: TaskService;
   sessionService: SessionService;
   agentService: AgentService;
+  githubTokenService: GitHubTokenService;
 };
 
 export type ServicesResult = Result<Services, ReturnType<typeof createError>>;
@@ -54,7 +56,9 @@ export function createServices(context: { db?: PGlite; streams?: unknown }): Ser
   }
 
   const sessionService = new SessionService(runtime.value.db, streams, {
-    baseUrl: (typeof process !== 'undefined' ? process.env?.APP_URL : undefined) ?? 'http://localhost:5173',
+    baseUrl:
+      (typeof process !== 'undefined' ? process.env?.APP_URL : undefined) ??
+      'http://localhost:5173',
   });
   const agentService = new AgentService(
     runtime.value.db,
@@ -63,6 +67,8 @@ export function createServices(context: { db?: PGlite; streams?: unknown }): Ser
     sessionService
   );
 
+  const githubTokenService = new GitHubTokenService(runtime.value.db);
+
   return ok({
     db: runtime.value.db,
     worktreeService,
@@ -70,5 +76,6 @@ export function createServices(context: { db?: PGlite; streams?: unknown }): Ser
     taskService,
     sessionService,
     agentService,
+    githubTokenService,
   });
 }

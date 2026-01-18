@@ -87,6 +87,11 @@ export function ProjectPicker({
           onKeyDown={handleKeyDown}
           data-testid="project-dropdown"
         >
+          {/* Hidden description for accessibility */}
+          <DialogPrimitive.Description className="sr-only">
+            Search and select a project to open. Use arrow keys to navigate, Enter to select.
+          </DialogPrimitive.Description>
+
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <DialogPrimitive.Title className="text-base font-semibold text-fg">

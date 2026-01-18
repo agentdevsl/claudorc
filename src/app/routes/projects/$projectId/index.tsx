@@ -85,6 +85,7 @@ function ProjectKanban(): React.JSX.Element {
 
   return (
     <LayoutShell
+      projectId={project.id}
       projectName={project.name}
       projectPath={project.path}
       breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: project.name }]}

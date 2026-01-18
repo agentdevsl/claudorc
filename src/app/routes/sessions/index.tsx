@@ -11,8 +11,13 @@ export const Route = createFileRoute('/sessions/')({
       return { sessions: [] as SessionWithPresence[] };
     }
 
-    const result = await context.services.sessionService.list();
-    return { sessions: result.ok ? result.value : [] };
+    try {
+      const result = await context.services.sessionService.list();
+      return { sessions: result.ok ? result.value : [] };
+    } catch {
+      // Database table may not exist yet
+      return { sessions: [] as SessionWithPresence[] };
+    }
   },
   component: SessionsPage,
 });
