@@ -110,6 +110,8 @@ interface EmptyStateProps extends VariantProps<typeof emptyStateVariants> {
     className?: string;
     weight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone';
   }>;
+  /** Custom icon element that replaces the default icon container entirely */
+  customIcon?: React.ReactNode;
   title?: string;
   subtitle?: string;
   primaryAction?: EmptyStateAction;
@@ -215,6 +217,7 @@ function StepIndicator({ step, index }: { step: StepItem; index: number }) {
 export function EmptyState({
   preset,
   icon,
+  customIcon,
   title,
   subtitle,
   primaryAction,
@@ -258,10 +261,14 @@ export function EmptyState({
       className={cn(emptyStateVariants({ size }), className)}
       data-testid="empty-state"
     >
-      {/* Icon container with 64px icon */}
-      <div className={iconContainerVariants({ size })} data-testid="empty-state-icon">
-        <Icon className={iconVariants({ size })} weight="light" />
-      </div>
+      {/* Icon container with 64px icon - or custom icon if provided */}
+      {customIcon ? (
+        <div data-testid="empty-state-icon">{customIcon}</div>
+      ) : (
+        <div className={iconContainerVariants({ size })} data-testid="empty-state-icon">
+          <Icon className={iconVariants({ size })} weight="light" />
+        </div>
+      )}
 
       {/* Title and subtitle */}
       <div className="space-y-1.5">
