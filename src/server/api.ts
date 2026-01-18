@@ -4,18 +4,31 @@
  * Handles API requests that need database access.
  * Runs alongside Vite dev server.
  */
-import { Database } from 'bun:sqlite';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import { GitHubTokenService } from './github-token.service.js';
+import type { Database } from '../types/database.js';
+
+declare const Bun: {
+  SQLite: new (path: string) => unknown;
+  spawn: (
+    cmd: string[],
+    options: { cwd: string; stdout: 'pipe'; stderr: 'pipe' }
+  ) => {
+    exited: Promise<number>;
+    stdout: ReadableStream<Uint8Array>;
+    stderr: ReadableStream<Uint8Array>;
+  };
+  serve: (options: { port: number; fetch: (req: Request) => Response | Promise<Response> }) => void;
+};
 
 // Initialize SQLite database using Bun's native SQLite
 const DB_PATH = './data/agentpane.db';
-const sqlite = new Database(DB_PATH);
-const db = drizzle(sqlite, { schema });
+const sqlite = new Bun.SQLite(DB_PATH);
+const db = drizzle(sqlite, { schema }) as unknown as Database;
 
 // Initialize services
 const githubService = new GitHubTokenService(db);
@@ -119,6 +132,13 @@ async function handleCreateProject(request: Request): Promise<Response> {
       })
       .returning();
 
+    if (!created) {
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create project' } },
+        500
+      );
+    }
+
     return json({
       ok: true,
       data: {
@@ -194,14 +214,14 @@ async function handleHealthCheck(): Promise<Response> {
     } else if (!tokenResult.ok) {
       checks.github = {
         status: 'error',
-        error: tokenResult.error.message,
       };
+      console.debug('[Health] GitHub token error:', tokenResult.error.message);
     }
   } catch (error) {
     checks.github = {
       status: 'error',
-      error: error instanceof Error ? error.message : 'Failed to check GitHub token',
     };
+    console.debug('[Health] GitHub token check failed:', error instanceof Error ? error.message : 'Unknown error');
   }
 
   const allOk = checks.database.status === 'ok';
@@ -444,7 +464,14 @@ async function waitForRepoReady(repoFullName: string, maxAttempts = 15): Promise
   const octokit = await githubService.getOctokit();
   if (!octokit) return false;
 
-  const [owner, repo] = repoFullName.split('/');
+  const parts = repoFullName.split('/');
+  const owner = parts[0];
+  const repo = parts[1];
+
+  if (!owner || !repo) {
+    console.error('[Template] Invalid repo full name:', repoFullName);
+    return false;
+  }
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -515,8 +542,22 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
   }
 
   // Step 2: Wait for the repo to be ready (GitHub needs time to copy template files)
-  console.log(`[Template] Waiting for repo ${createResult.value.fullName} to be ready...`);
-  const isReady = await waitForRepoReady(createResult.value.fullName);
+  const fullName = createResult.value?.fullName;
+  if (!fullName) {
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'INVALID_RESPONSE',
+          message: 'GitHub API response missing fullName',
+        },
+      },
+      500
+    );
+  }
+
+  console.log(`[Template] Waiting for repo ${fullName} to be ready...`);
+  const isReady = await waitForRepoReady(fullName);
 
   if (!isReady) {
     console.error('[Template] Repo not ready after max attempts');
@@ -559,7 +600,20 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
     }
 
     const token = await githubService.getDecryptedToken();
-    let cloneUrl = createResult.value.cloneUrl;
+    let cloneUrl = createResult.value?.cloneUrl;
+    if (!cloneUrl) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_RESPONSE',
+            message: 'GitHub API response missing cloneUrl',
+          },
+        },
+        500
+      );
+    }
+
     if (token && cloneUrl.startsWith('https://github.com/')) {
       cloneUrl = cloneUrl.replace('https://github.com/', `https://${token}@github.com/`);
     }
@@ -674,7 +728,10 @@ async function handleRequest(request: Request): Promise<Response> {
   // Match /api/github/repos/:owner pattern
   const ownerReposMatch = path.match(/^\/api\/github\/repos\/([^/]+)$/);
   if (ownerReposMatch && method === 'GET') {
-    return handleGitHubReposForOwner(ownerReposMatch[1]);
+    const owner = ownerReposMatch[1];
+    if (owner) {
+      return handleGitHubReposForOwner(owner);
+    }
   }
   if (path === '/api/github/repos' && method === 'GET') {
     return handleGitHubRepos();
@@ -707,7 +764,10 @@ async function handleRequest(request: Request): Promise<Response> {
   // Match /api/projects/:id pattern
   const projectIdMatch = path.match(/^\/api\/projects\/([^/]+)$/);
   if (projectIdMatch && method === 'GET') {
-    return handleGetProject(projectIdMatch[1]);
+    const id = projectIdMatch[1];
+    if (id) {
+      return handleGetProject(id);
+    }
   }
 
   // API Key routes
@@ -715,14 +775,16 @@ async function handleRequest(request: Request): Promise<Response> {
   const apiKeyMatch = path.match(/^\/api\/keys\/([^/]+)$/);
   if (apiKeyMatch) {
     const service = apiKeyMatch[1];
-    if (method === 'GET') {
-      return handleGetApiKey(service);
-    }
-    if (method === 'POST') {
-      return handleSaveApiKey(service, request);
-    }
-    if (method === 'DELETE') {
-      return handleDeleteApiKey(service);
+    if (service) {
+      if (method === 'GET') {
+        return handleGetApiKey(service);
+      }
+      if (method === 'POST') {
+        return handleSaveApiKey(service, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteApiKey(service);
+      }
     }
   }
 

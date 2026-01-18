@@ -1,8 +1,9 @@
 import type { AppError } from '../errors/base.js';
 import type { Result } from '../utils/result.js';
+import type { Database as SQLiteDatabase } from 'better-sqlite3';
 
-// Client-side bootstrap phases (database runs on server, accessed via API)
-export type BootstrapPhase = 'client' | 'collections' | 'streams' | 'github';
+// Server-side bootstrap phases (includes database initialization)
+export type BootstrapPhase = 'sqlite' | 'schema' | 'seeding' | 'client' | 'collections' | 'streams' | 'github';
 
 export type BootstrapState = {
   phase: BootstrapPhase;
@@ -12,6 +13,7 @@ export type BootstrapState = {
 };
 
 export type BootstrapContext = {
+  db?: SQLiteDatabase;
   collections?: Record<string, unknown>;
   streams?: unknown;
   githubToken?: string;

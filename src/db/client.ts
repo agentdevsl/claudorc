@@ -43,7 +43,7 @@ const runMigration = (sqlite: SQLiteDatabase): void => {
 const createDatabase = (): SQLiteDatabase | null => {
   // Don't create database in browser - this module should only run on server
   if (isBrowser()) {
-    return null as unknown as SQLiteDatabase;
+    return null;
   }
 
   if (isE2EMode()) {
@@ -72,8 +72,9 @@ const createDatabase = (): SQLiteDatabase | null => {
   return sqlite;
 };
 
-export const sqlite: SQLiteDatabase = createDatabase();
-export const db = drizzle(sqlite, { schema });
+const sqliteInstance = createDatabase();
+export const sqlite: SQLiteDatabase | null = sqliteInstance;
+export const db = sqliteInstance ? drizzle(sqliteInstance, { schema }) : null;
 
 // Export for server-side use with custom data directory
 export const createServerDb = (dataDir: string = './data') => {

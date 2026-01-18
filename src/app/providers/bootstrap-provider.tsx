@@ -4,6 +4,8 @@ import { createServices } from '@/app/services/services';
 import { useBootstrap } from '../../lib/bootstrap/hooks.js';
 import type { BootstrapContext as BootstrapContextType } from '../../lib/bootstrap/types.js';
 import type { AppError } from '../../lib/errors/base.js';
+import type { Database } from '@/types/database';
+import type { DurableStreamsServer } from '@/services/session.service';
 
 const BootstrapContext = createContext<BootstrapContextType | null>(null);
 
@@ -34,7 +36,7 @@ const BootstrapProviderInner = ({
   retry: () => Promise<void>;
   children: React.ReactNode;
 }) => {
-  const servicesResult = useMemo(() => createServices(context), [context]);
+  const servicesResult = useMemo(() => createServices(context as { db: Database; streams: DurableStreamsServer }), [context]);
 
   if (!servicesResult.ok) {
     return <BootstrapErrorUI error={servicesResult.error} onRetry={retry} />;
