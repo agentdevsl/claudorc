@@ -23,7 +23,7 @@ vi.mock('@/services/project.service', () => ({
     delete = projectServiceMocks.delete;
   },
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as ProjectsRoute } from '@/app/routes/api/projects';
 import { Route as ProjectRoute } from '@/app/routes/api/projects/$id';

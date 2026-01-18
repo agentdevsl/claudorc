@@ -1,26 +1,27 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { agents } from './agents';
-import { sessionStatusEnum } from './enums';
+import type { SessionStatus } from './enums';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-export const sessions = pgTable('sessions', {
+export const sessions = sqliteTable('sessions', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
-  taskId: text('task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
+  taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'set null' }),
   agentId: text('agent_id').references(() => agents.id, { onDelete: 'set null' }),
-  status: sessionStatusEnum('status').default('idle').notNull(),
+  status: text('status').$type<SessionStatus>().default('idle').notNull(),
   title: text('title'),
   url: text('url').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  closedAt: timestamp('closed_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  closedAt: text('closed_at'),
 });
 
 export type Session = typeof sessions.$inferSelect;

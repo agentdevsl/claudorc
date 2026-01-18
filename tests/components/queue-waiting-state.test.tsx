@@ -7,15 +7,15 @@ describe('QueueWaitingState', () => {
     render(<QueueWaitingState position={2} estimatedWaitMinutes={6} />);
 
     expect(screen.getByText('Queued for an agent')).toBeInTheDocument();
-    expect(screen.getByText('Position 2 in queue')).toBeInTheDocument();
-    expect(screen.getByText('Estimated wait 6 min')).toBeInTheDocument();
+    expect(screen.getByTestId('queue-position-number')).toHaveTextContent('2');
+    expect(screen.getByTestId('estimated-wait')).toHaveTextContent('Estimated wait 6 min');
   });
 
   it('renders unknown wait time', () => {
     render(<QueueWaitingState position={1} />);
 
     expect(screen.getByText('Queued for an agent')).toBeInTheDocument();
-    expect(screen.getByText('Position 1 in queue')).toBeInTheDocument();
-    expect(screen.queryByText(/Estimated wait/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('queue-position-number')).toHaveTextContent('1');
+    expect(screen.queryByTestId('estimated-wait')).not.toBeInTheDocument();
   });
 });

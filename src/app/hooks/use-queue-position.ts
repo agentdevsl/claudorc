@@ -76,7 +76,8 @@ export function useQueuePosition(agentId: string): QueuePositionState {
       position: position?.position ?? null,
       total: position?.totalQueued ?? 0,
       estimatedWait: position?.estimatedWaitFormatted ?? null,
-      estimatedWaitMs: position?.estimatedWaitMs ?? null,
+      estimatedWaitMs:
+        position?.estimatedWaitMinutes != null ? position.estimatedWaitMinutes * 60 * 1000 : null,
       isLoading,
       error,
     }),

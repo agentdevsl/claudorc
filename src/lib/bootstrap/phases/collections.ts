@@ -1,6 +1,5 @@
 import { createError } from '../../errors/base.js';
 import { err, ok } from '../../utils/result.js';
-// Schema import reserved for future use with typed collections
 import type { BootstrapContext } from '../types.js';
 
 interface Collection {
@@ -31,17 +30,16 @@ export const initializeCollections = async (ctx: BootstrapContext) => {
   };
 
   try {
-    const [projects, tasks, agents, sessions] = await Promise.all([
-      ctx.db.query('select * from projects'),
-      ctx.db.query('select * from tasks'),
-      ctx.db.query('select * from agents'),
-      ctx.db.query('select * from sessions'),
-    ]);
+    // Use better-sqlite3 API (synchronous)
+    const projects = ctx.db.prepare('SELECT * FROM projects').all();
+    const tasks = ctx.db.prepare('SELECT * FROM tasks').all();
+    const agents = ctx.db.prepare('SELECT * FROM agents').all();
+    const sessions = ctx.db.prepare('SELECT * FROM sessions').all();
 
-    collections.projects.insertMany(projects.rows ?? []);
-    collections.tasks.insertMany(tasks.rows ?? []);
-    collections.agents.insertMany(agents.rows ?? []);
-    collections.sessions.insertMany(sessions.rows ?? []);
+    collections.projects.insertMany(projects);
+    collections.tasks.insertMany(tasks);
+    collections.agents.insertMany(agents);
+    collections.sessions.insertMany(sessions);
 
     ctx.collections = collections as unknown as Record<string, unknown>;
 

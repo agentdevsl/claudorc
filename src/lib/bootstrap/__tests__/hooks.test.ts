@@ -68,7 +68,7 @@ describe('useBootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentState = {
-      phase: 'pglite',
+      phase: 'sqlite',
       progress: 0,
       isComplete: false,
     };
@@ -86,7 +86,7 @@ describe('useBootstrap', () => {
     const result = useBootstrap();
 
     expect(result.state).toEqual({
-      phase: 'pglite',
+      phase: 'sqlite',
       progress: 0,
       isComplete: false,
     });
@@ -280,7 +280,7 @@ describe('useBootstrap', () => {
 
       // Verify useState was called with correct initial state
       expect(useState).toHaveBeenCalledWith({
-        phase: 'pglite',
+        phase: 'sqlite',
         progress: 0,
         isComplete: false,
       });
@@ -324,7 +324,7 @@ describe('useBootstrap integration scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentState = {
-      phase: 'pglite',
+      phase: 'sqlite',
       progress: 0,
       isComplete: false,
     };
@@ -394,7 +394,7 @@ describe('useBootstrap integration scenarios', () => {
     const setState = capturedSetState as ((state: BootstrapState) => void) | null;
     if (setState) {
       const phases: BootstrapState['phase'][] = [
-        'pglite',
+        'sqlite',
         'schema',
         'collections',
         'streams',
@@ -452,7 +452,7 @@ describe('useBootstrap integration scenarios', () => {
     const setStateForError = capturedSetState as ((state: BootstrapState) => void) | null;
     if (setStateForError) {
       setStateForError({
-        phase: 'pglite',
+        phase: 'sqlite',
         progress: 0,
         isComplete: false,
         error,
@@ -460,7 +460,7 @@ describe('useBootstrap integration scenarios', () => {
     }
 
     expect(mockSetState).toHaveBeenCalledWith({
-      phase: 'pglite',
+      phase: 'sqlite',
       progress: 0,
       isComplete: false,
       error,
@@ -528,7 +528,7 @@ describe('useBootstrap return value structure', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentState = {
-      phase: 'pglite',
+      phase: 'sqlite',
       progress: 0,
       isComplete: false,
     };

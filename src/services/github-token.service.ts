@@ -27,8 +27,8 @@ export type TokenInfo = {
   maskedToken: string;
   githubLogin: string | null;
   isValid: boolean;
-  lastValidatedAt: Date | null;
-  createdAt: Date;
+  lastValidatedAt: string | null;
+  createdAt: string;
 };
 
 export class GitHubTokenService {
@@ -68,7 +68,7 @@ export class GitHubTokenService {
           githubLogin: validation.value.login,
           githubId: String(validation.value.id),
           isValid: true,
-          lastValidatedAt: new Date(),
+          lastValidatedAt: new Date().toISOString(),
         })
         .returning();
 
@@ -177,9 +177,9 @@ export class GitHubTokenService {
     const isValid = validation.ok;
     await this.db.update(githubTokens).set({
       isValid,
-      lastValidatedAt: new Date(),
+      lastValidatedAt: new Date().toISOString(),
       githubLogin: validation.ok ? validation.value.login : undefined,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     });
 
     return ok(isValid);
@@ -259,7 +259,9 @@ export class GitHubTokenService {
       if (!response.ok) {
         if (response.status === 401) {
           // Mark token as invalid
-          await this.db.update(githubTokens).set({ isValid: false, updatedAt: new Date() });
+          await this.db
+            .update(githubTokens)
+            .set({ isValid: false, updatedAt: new Date().toISOString() });
 
           return err({
             code: 'VALIDATION_FAILED',

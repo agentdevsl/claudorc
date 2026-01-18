@@ -27,7 +27,7 @@ vi.mock('@/services/agent.service', () => ({
     stop = agentServiceMocks.stop;
   },
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as AgentsRoute } from '@/app/routes/api/agents';
 import { Route as AgentRoute } from '@/app/routes/api/agents/$id';

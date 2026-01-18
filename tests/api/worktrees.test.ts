@@ -30,7 +30,7 @@ vi.mock('@/services/worktree.service', () => ({
     prune = worktreeServiceMocks.prune;
   },
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as WorktreeRoute } from '@/app/routes/api/worktrees/$id';
 import { Route as WorktreeCommitRoute } from '@/app/routes/api/worktrees/$id/commit';

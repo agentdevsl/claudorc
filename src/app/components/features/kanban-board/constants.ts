@@ -37,6 +37,13 @@ export const COLUMNS: ColumnConfig[] = [
     indicatorColor: 'bg-[var(--fg-muted)]',
   },
   {
+    id: 'queued',
+    label: 'Queued',
+    title: 'Queued',
+    accentClass: 'border-t-[var(--secondary-fg)]',
+    indicatorColor: 'bg-[var(--secondary-fg)]',
+  },
+  {
     id: 'in_progress',
     label: 'In Progress',
     title: 'In Progress',
@@ -65,6 +72,7 @@ export const COLUMN_ORDER: TaskColumn[] = COLUMNS.map((col) => col.id);
 /** Column config indexed by column ID */
 export const COLUMN_CONFIG: Record<TaskColumn, { title: string; color: string }> = {
   backlog: { title: 'Backlog', color: 'var(--fg-muted)' },
+  queued: { title: 'Queued', color: 'var(--secondary-fg)' },
   in_progress: { title: 'In Progress', color: 'var(--attention-fg)' },
   waiting_approval: { title: 'Waiting Approval', color: 'var(--accent-fg)' },
   verified: { title: 'Verified', color: 'var(--success-fg)' },
@@ -72,7 +80,8 @@ export const COLUMN_CONFIG: Record<TaskColumn, { title: string; color: string }>
 
 /** Valid state transitions for workflow enforcement */
 export const VALID_TRANSITIONS: Record<TaskColumn, TaskColumn[]> = {
-  backlog: ['in_progress'],
+  backlog: ['queued', 'in_progress'],
+  queued: ['backlog', 'in_progress'],
   in_progress: ['backlog', 'waiting_approval'],
   waiting_approval: ['in_progress', 'verified'],
   verified: ['backlog'],

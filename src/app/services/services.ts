@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type Database from 'better-sqlite3';
 import type { createError } from '@/lib/errors/base';
 import { err, ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
@@ -8,7 +8,7 @@ import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
 import { WorktreeService } from '@/services/worktree.service';
-import type { Database } from '@/types/database';
+import type { Database as DrizzleDatabase } from '@/types/database';
 import { createRuntimeContext } from './runtime';
 
 // Mock streams for client-side only mode
@@ -21,7 +21,7 @@ const createMockStreams = (): DurableStreamsServer => ({
 });
 
 export type Services = {
-  db: Database;
+  db: DrizzleDatabase;
   worktreeService: WorktreeService;
   projectService: ProjectService;
   taskService: TaskService;
@@ -32,7 +32,10 @@ export type Services = {
 
 export type ServicesResult = Result<Services, ReturnType<typeof createError>>;
 
-export function createServices(context: { db?: PGlite; streams?: unknown }): ServicesResult {
+export function createServices(context: {
+  db?: Database.Database;
+  streams?: unknown;
+}): ServicesResult {
   const runtime = createRuntimeContext({
     db: context.db,
     streams: context.streams,

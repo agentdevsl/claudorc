@@ -24,20 +24,28 @@ const createInvalidPathResult = (): Result<PathValidation, unknown> => ({
 });
 
 describe('NewProjectDialog', () => {
-  it('renders the dialog with path, name, and description fields', () => {
+  it('renders the dialog with path field and tabs', () => {
     render(
-      <NewProjectDialog open onOpenChange={vi.fn()} onSubmit={vi.fn()} onValidatePath={vi.fn()} />
+      <NewProjectDialog
+        open
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onValidatePath={vi.fn()}
+        recentRepos={[]}
+      />
     );
 
-    expect(screen.getByText('New project')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Add Repository/i })).toBeInTheDocument();
     expect(
-      screen.getByText('Connect a local repository to start using AgentPane.')
+      screen.getByText('Connect a local repository or clone from GitHub to start using AgentPane.')
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Project path')).toBeInTheDocument();
-    expect(screen.getByLabelText('Project name')).toBeInTheDocument();
-    expect(screen.getByLabelText('Description')).toBeInTheDocument();
+    // Check for tabs
+    expect(screen.getByRole('tab', { name: /Local Repository/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Clone from URL/i })).toBeInTheDocument();
+    // Check for path input via data-testid
+    expect(screen.getByTestId('project-path-input')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create project' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Repository' })).toBeInTheDocument();
   });
 
   it('validates path on blur and shows check icon for valid path', async () => {
@@ -50,10 +58,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/my-project');
     await user.tab();
 
@@ -64,6 +73,9 @@ describe('NewProjectDialog', () => {
     await waitFor(() => {
       expect(screen.getByText('Default branch: main')).toBeInTheDocument();
     });
+
+    // Check for success icon via data-testid
+    expect(screen.getByTestId('validation-success')).toBeInTheDocument();
   });
 
   it('validates path on blur and shows warning icon for invalid path', async () => {
@@ -76,10 +88,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/invalid/path');
     await user.tab();
 
@@ -90,6 +103,9 @@ describe('NewProjectDialog', () => {
     await waitFor(() => {
       expect(screen.getByText('Path must point to a valid git repository.')).toBeInTheDocument();
     });
+
+    // Check for error icon via data-testid
+    expect(screen.getByTestId('validation-error')).toBeInTheDocument();
   });
 
   it('shows validating message while validating', async () => {
@@ -106,21 +122,22 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/repo');
     await user.tab();
 
     await waitFor(() => {
-      expect(screen.getByText('Validating...')).toBeInTheDocument();
+      expect(screen.getByText('Validating repository...')).toBeInTheDocument();
     });
 
     resolveValidation?.(createValidPathResult());
 
     await waitFor(() => {
-      expect(screen.queryByText('Validating...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Validating repository...')).not.toBeInTheDocument();
     });
   });
 
@@ -134,10 +151,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/invalid/path');
     await user.tab();
 
@@ -145,10 +163,7 @@ describe('NewProjectDialog', () => {
       expect(onValidatePath).toHaveBeenCalled();
     });
 
-    const nameInput = screen.getByLabelText('Project name');
-    await user.type(nameInput, 'My Project');
-
-    const submitButton = screen.getByRole('button', { name: 'Create project' });
+    const submitButton = screen.getByRole('button', { name: 'Add Repository' });
     expect(submitButton).toBeDisabled();
   });
 
@@ -162,10 +177,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/repo');
     await user.tab();
 
@@ -173,7 +189,12 @@ describe('NewProjectDialog', () => {
       expect(onValidatePath).toHaveBeenCalled();
     });
 
-    const submitButton = screen.getByRole('button', { name: 'Create project' });
+    // Wait for path to be validated - name field only appears after valid path
+    await waitFor(() => {
+      expect(screen.getByTestId('project-name-input')).toBeInTheDocument();
+    });
+
+    const submitButton = screen.getByRole('button', { name: 'Add Repository' });
     expect(submitButton).toBeDisabled();
   });
 
@@ -189,10 +210,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/auto-filled-name');
     await user.tab();
 
@@ -200,7 +222,12 @@ describe('NewProjectDialog', () => {
       expect(onValidatePath).toHaveBeenCalled();
     });
 
-    const nameInput = screen.getByLabelText('Project name');
+    // Wait for name field to appear (only shown after valid path)
+    await waitFor(() => {
+      expect(screen.getByTestId('project-name-input')).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByTestId('project-name-input');
     await waitFor(() => {
       expect(nameInput).toHaveValue('auto-filled-name');
     });
@@ -218,20 +245,34 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const nameInput = screen.getByLabelText('Project name');
-    await user.type(nameInput, 'My Custom Name');
-
-    const pathInput = screen.getByLabelText('Project path');
+    // First validate path to show name field
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/repo');
     await user.tab();
 
     await waitFor(() => {
-      expect(onValidatePath).toHaveBeenCalled();
+      expect(screen.getByTestId('project-name-input')).toBeInTheDocument();
     });
 
+    // Now enter a custom name
+    const nameInput = screen.getByTestId('project-name-input');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'My Custom Name');
+
+    // Modify the path to trigger re-validation
+    await user.clear(pathInput);
+    await user.type(pathInput, '/Users/name/workspace/different-repo');
+    await user.tab();
+
+    await waitFor(() => {
+      expect(onValidatePath).toHaveBeenCalledTimes(2);
+    });
+
+    // Name should retain user's custom value
     expect(nameInput).toHaveValue('My Custom Name');
   });
 
@@ -249,10 +290,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={onOpenChange}
         onSubmit={onSubmit}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/my-project');
     await user.tab();
 
@@ -260,10 +302,15 @@ describe('NewProjectDialog', () => {
       expect(onValidatePath).toHaveBeenCalled();
     });
 
-    const descriptionInput = screen.getByLabelText('Description');
+    // Wait for description field to appear (only shown after valid path)
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Description/i)).toBeInTheDocument();
+    });
+
+    const descriptionInput = screen.getByLabelText(/Description/i);
     await user.type(descriptionInput, 'A test project description');
 
-    const submitButton = screen.getByRole('button', { name: 'Create project' });
+    const submitButton = screen.getByRole('button', { name: 'Add Repository' });
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
     });
@@ -294,10 +341,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={onSubmit}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/my-project');
     await user.tab();
 
@@ -305,7 +353,7 @@ describe('NewProjectDialog', () => {
       expect(onValidatePath).toHaveBeenCalled();
     });
 
-    const submitButton = screen.getByRole('button', { name: 'Create project' });
+    const submitButton = screen.getByRole('button', { name: 'Add Repository' });
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
     });
@@ -331,6 +379,7 @@ describe('NewProjectDialog', () => {
         onOpenChange={onOpenChange}
         onSubmit={vi.fn()}
         onValidatePath={vi.fn()}
+        recentRepos={[]}
       />
     );
 
@@ -348,11 +397,12 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
     const user = userEvent.setup();
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/repo');
 
     rerender(
@@ -361,6 +411,7 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
@@ -370,10 +421,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const newPathInput = screen.getByLabelText('Project path');
+    const newPathInput = screen.getByTestId('project-path-input');
     expect(newPathInput).toHaveValue('');
   });
 
@@ -387,10 +439,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.click(pathInput);
     await user.tab();
 
@@ -407,10 +460,11 @@ describe('NewProjectDialog', () => {
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         onValidatePath={onValidatePath}
+        recentRepos={[]}
       />
     );
 
-    const pathInput = screen.getByLabelText('Project path');
+    const pathInput = screen.getByTestId('project-path-input');
     await user.type(pathInput, '/Users/name/workspace/repo');
     await user.tab();
 
@@ -422,6 +476,106 @@ describe('NewProjectDialog', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Default branch: main')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Tab switching', () => {
+    it('switches to Clone tab when clicked', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NewProjectDialog
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          onValidatePath={vi.fn()}
+          recentRepos={[]}
+        />
+      );
+
+      // Click the Clone tab
+      const cloneTab = screen.getByRole('tab', { name: /Clone from URL/i });
+      await user.click(cloneTab);
+
+      // Check that Clone tab content is visible
+      expect(screen.getByTestId('clone-url-input')).toBeInTheDocument();
+      expect(screen.getByTestId('clone-path-input')).toBeInTheDocument();
+    });
+
+    it('validates clone URL format', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NewProjectDialog
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          onValidatePath={vi.fn()}
+          recentRepos={[]}
+        />
+      );
+
+      // Switch to Clone tab
+      const cloneTab = screen.getByRole('tab', { name: /Clone from URL/i });
+      await user.click(cloneTab);
+
+      const cloneUrlInput = screen.getByTestId('clone-url-input');
+      await user.type(cloneUrlInput, 'invalid-url');
+
+      await waitFor(() => {
+        expect(screen.getByText('Please enter a valid GitHub repository URL')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Recent repos', () => {
+    it('shows recent repos when provided', () => {
+      const recentRepos = [
+        { name: 'test-repo', path: '/Users/name/git/test-repo' },
+        { name: 'another-repo', path: '/Users/name/git/another-repo' },
+      ];
+
+      render(
+        <NewProjectDialog
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          onValidatePath={vi.fn()}
+          recentRepos={recentRepos}
+        />
+      );
+
+      expect(screen.getByTestId('recent-repos-list')).toBeInTheDocument();
+      expect(screen.getByTestId('recent-repo-test-repo')).toBeInTheDocument();
+      expect(screen.getByTestId('recent-repo-another-repo')).toBeInTheDocument();
+    });
+
+    it('selects recent repo and validates path', async () => {
+      const user = userEvent.setup();
+      const onValidatePath = vi
+        .fn()
+        .mockResolvedValue(createValidPathResult({ name: 'test-repo' }));
+      const recentRepos = [{ name: 'test-repo', path: '/Users/name/git/test-repo' }];
+
+      render(
+        <NewProjectDialog
+          open
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          onValidatePath={onValidatePath}
+          recentRepos={recentRepos}
+        />
+      );
+
+      const recentRepoButton = screen.getByTestId('recent-repo-test-repo');
+      await user.click(recentRepoButton);
+
+      await waitFor(() => {
+        expect(onValidatePath).toHaveBeenCalledWith('/Users/name/git/test-repo');
+      });
+
+      const pathInput = screen.getByTestId('project-path-input');
+      expect(pathInput).toHaveValue('/Users/name/git/test-repo');
     });
   });
 });

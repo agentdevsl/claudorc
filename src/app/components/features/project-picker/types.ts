@@ -31,7 +31,7 @@ export interface ProjectPickerItem {
   icon: ProjectIcon;
   isActive: boolean;
   stats: ProjectStats;
-  lastAccessedAt: Date;
+  lastAccessedAt: Date | string;
 }
 
 /**
@@ -79,7 +79,7 @@ export function mapProjectToPickerItem(
     totalTasks?: number;
     backlogTasks?: number;
     inProgressTasks?: number;
-    lastAccessedAt?: Date;
+    lastAccessedAt?: Date | string;
   } = {}
 ): ProjectPickerItem {
   // Derive icon color from project name hash for consistency

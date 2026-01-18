@@ -6,8 +6,10 @@ describe('EmptyState', () => {
   it('renders preset content', () => {
     render(<EmptyState preset="no-projects" />);
 
-    expect(screen.getByText('No projects yet')).toBeInTheDocument();
-    expect(screen.getByText('Create a project to start managing tasks')).toBeInTheDocument();
+    expect(screen.getByText('No Projects')).toBeInTheDocument();
+    expect(
+      screen.getByText('Create a project to start organizing your tasks and agents')
+    ).toBeInTheDocument();
   });
 
   it('renders custom title and subtitle', () => {

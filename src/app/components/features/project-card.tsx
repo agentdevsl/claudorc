@@ -27,7 +27,7 @@ export interface ProjectCardProps {
   taskCounts: TaskCounts;
   activeAgents: ActiveAgent[];
   successRate?: number;
-  lastRunAt?: Date | null;
+  lastRunAt?: Date | string | null;
 }
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; className: string }> = {
@@ -52,14 +52,15 @@ const AVATAR_COLORS = [
   'bg-attention-muted text-attention',
 ] as const;
 
-function getAvatarColor(projectId: string): string {
+export function getAvatarColor(projectId: string): string {
   const hash = projectId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return AVATAR_COLORS[hash % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
 }
 
-function getInitials(name: string): string {
+export function getInitials(name: string): string {
   return name
     .split(' ')
+    .filter((word) => word.length > 0)
     .slice(0, 2)
     .map((word) => word[0])
     .join('')
@@ -246,9 +247,10 @@ export function ProjectCard({
   );
 }
 
-function formatRelativeTime(date: Date): string {
+export function formatRelativeTime(date: Date | string): string {
   const now = Date.now();
-  const diff = now - date.getTime();
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const diff = now - dateObj.getTime();
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor(diff / (1000 * 60));
 

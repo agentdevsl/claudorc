@@ -1,7 +1,7 @@
+import { createId } from '@paralleldrive/cuid2';
 import { createError } from '../../errors/base.js';
 import { err, ok } from '../../utils/result.js';
 import type { BootstrapContext } from '../types.js';
-// Schema import reserved for future typed seeding operations
 
 export const seedDefaults = async (ctx: BootstrapContext) => {
   if (!ctx.db) {
@@ -9,32 +9,41 @@ export const seedDefaults = async (ctx: BootstrapContext) => {
   }
 
   try {
-    const existingProjects = await ctx.db.query('select id from projects limit 1');
-    if (existingProjects.rows && existingProjects.rows.length > 0) {
+    // Use better-sqlite3 API (synchronous)
+    const existingProjects = ctx.db.prepare('SELECT id FROM projects LIMIT 1').all();
+    if (existingProjects.length > 0) {
       return ok(undefined);
     }
 
-    const result = await ctx.db.query(
-      `insert into projects (name, path, description) values ($1, $2, $3) returning id`,
-      ['Default Project', process.cwd(), 'Default project created on first run']
-    );
+    const projectId = createId();
+    const now = new Date().toISOString();
 
-    const projectId = (result.rows?.[0] as { id?: string } | undefined)?.id;
-    if (!projectId) {
-      return err(createError('BOOTSTRAP_SEED_FAILED', 'Failed to seed project', 500));
-    }
-
-    await ctx.db.query(
-      `insert into agents (project_id, name, type, status, config)
-       values ($1, $2, $3, $4, $5)`,
-      [
+    ctx.db
+      .prepare(`
+      INSERT INTO projects (id, name, path, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+      .run(
         projectId,
-        'Default Agent',
-        'task',
-        'idle',
-        JSON.stringify({ allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'], maxTurns: 50 }),
-      ]
-    );
+        'Default Project',
+        process.cwd(),
+        'Default project created on first run',
+        now,
+        now
+      );
+
+    const agentId = createId();
+    const agentConfig = JSON.stringify({
+      allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+      maxTurns: 50,
+    });
+
+    ctx.db
+      .prepare(`
+      INSERT INTO agents (id, project_id, name, type, status, config, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+      .run(agentId, projectId, 'Default Agent', 'task', 'idle', agentConfig, now, now);
 
     return ok(undefined);
   } catch (error) {

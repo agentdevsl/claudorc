@@ -53,6 +53,8 @@ async function startServer(): Promise<Subprocess> {
       ...process.env,
       PORT,
       NODE_ENV: 'test',
+      VITE_E2E_SEED: 'true',
+      PGLITE_DATA_DIR: 'memory://agentpane-e2e',
     },
     stdout: 'ignore',
     stderr: 'ignore',

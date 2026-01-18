@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { githubInstallations } from './github.js';
 
 export type ProjectConfig = {
@@ -14,21 +15,21 @@ export type ProjectConfig = {
   temperature?: number;
 };
 
-export const projects = pgTable('projects', {
+export const projects = sqliteTable('projects', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
   name: text('name').notNull(),
   path: text('path').notNull().unique(),
   description: text('description'),
-  config: jsonb('config').$type<ProjectConfig>(),
+  config: text('config', { mode: 'json' }).$type<ProjectConfig>(),
   maxConcurrentAgents: integer('max_concurrent_agents').default(3),
   githubOwner: text('github_owner'),
   githubRepo: text('github_repo'),
   githubInstallationId: text('github_installation_id').references(() => githubInstallations.id),
   configPath: text('config_path').default('.claude'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
 
 export type Project = typeof projects.$inferSelect;

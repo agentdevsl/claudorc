@@ -1,11 +1,11 @@
-import type { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import type Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '@/db/schema/index.js';
 import { createError } from '@/lib/errors/base';
 import { err, ok, type Result } from '@/lib/utils/result';
 import type { DurableStreamsServer } from '@/services/session.service';
 import type { CommandRunner } from '@/services/worktree.service';
-import type { Database } from '@/types/database';
+import type { Database as DrizzleDatabase } from '@/types/database';
 
 type BunShellOutput = {
   stdout: Uint8Array | string;
@@ -27,7 +27,7 @@ type ShellErrorOutput = {
 };
 
 export type RuntimeContext = {
-  db: Database;
+  db: DrizzleDatabase;
   runner: CommandRunner;
   streams?: DurableStreamsServer;
 };
@@ -35,7 +35,7 @@ export type RuntimeContext = {
 export type RuntimeResult = Result<RuntimeContext, ReturnType<typeof createError>>;
 
 type RuntimeOptions = {
-  db?: PGlite;
+  db?: Database.Database;
   streams?: unknown;
 };
 
@@ -104,7 +104,7 @@ export function createRuntimeContext(options: RuntimeOptions): RuntimeResult {
     return err(createError('SERVICES_DB_MISSING', 'Database not available', 500));
   }
 
-  const database: Database = drizzle(options.db, { schema });
+  const database: DrizzleDatabase = drizzle(options.db, { schema });
   return ok({
     db: database,
     runner: createRunner(),

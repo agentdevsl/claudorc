@@ -3,8 +3,7 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { clearTestDatabase, closeTestDatabase, setupTestDatabase } from './helpers/database';
 
 vi.stubEnv('ANTHROPIC_API_KEY', 'test-api-key');
-vi.stubEnv('DATABASE_URL', 'memory://');
-vi.stubEnv('PGLITE_DATA_DIR', '');
+vi.stubEnv('NODE_ENV', 'test');
 
 beforeAll(async () => {
   await setupTestDatabase();

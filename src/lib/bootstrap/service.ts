@@ -1,9 +1,9 @@
 import { err, ok } from '../utils/result.js';
 import { initializeCollections } from './phases/collections.js';
 import { validateGitHub } from './phases/github.js';
-import { initializePGlite } from './phases/pglite.js';
 import { validateSchema } from './phases/schema.js';
 import { seedDefaults } from './phases/seeding.js';
+import { initializeSQLite } from './phases/sqlite.js';
 import { connectStreams } from './phases/streams.js';
 import type {
   BootstrapContext,
@@ -21,7 +21,7 @@ type PhaseResult = {
 
 export class BootstrapService {
   private state: BootstrapState = {
-    phase: 'pglite',
+    phase: 'sqlite',
     progress: 0,
     isComplete: false,
   };
@@ -68,7 +68,7 @@ export class BootstrapService {
 
   private createDefaultPhases(): BootstrapPhaseConfig[] {
     return [
-      { name: 'pglite', fn: initializePGlite, timeout: 30000, recoverable: false },
+      { name: 'sqlite', fn: initializeSQLite, timeout: 30000, recoverable: false },
       { name: 'schema', fn: validateSchema, timeout: 30000, recoverable: false },
       { name: 'collections', fn: initializeCollections, timeout: 30000, recoverable: true },
       { name: 'streams', fn: connectStreams, timeout: 30000, recoverable: true },
@@ -79,7 +79,7 @@ export class BootstrapService {
 
   private applyPhaseResult(result: PhaseResult) {
     switch (result.name) {
-      case 'pglite':
+      case 'sqlite':
         this.context.db = result.value as BootstrapContext['db'];
         break;
       case 'collections':

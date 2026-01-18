@@ -1,12 +1,13 @@
 import { createId } from '@paralleldrive/cuid2';
-import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { agentRuns } from './agent-runs';
 import { agents } from './agents';
-import { toolStatusEnum } from './enums';
+import type { ToolStatus } from './enums';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-export const auditLogs = pgTable('audit_logs', {
+export const auditLogs = sqliteTable('audit_logs', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -15,13 +16,13 @@ export const auditLogs = pgTable('audit_logs', {
   taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   tool: text('tool').notNull(),
-  status: toolStatusEnum('status').notNull(),
-  input: jsonb('input'),
-  output: jsonb('output'),
+  status: text('status').$type<ToolStatus>().notNull(),
+  input: text('input', { mode: 'json' }),
+  output: text('output', { mode: 'json' }),
   errorMessage: text('error_message'),
   durationMs: integer('duration_ms'),
   turnNumber: integer('turn_number'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 });
 
 export type AuditLog = typeof auditLogs.$inferSelect;

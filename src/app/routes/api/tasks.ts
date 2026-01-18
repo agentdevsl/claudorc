@@ -37,6 +37,7 @@ export const Route = createFileRoute('/api/tasks')({
           },
           {
             backlog: 0,
+            queued: 0,
             in_progress: 0,
             waiting_approval: 0,
             verified: 0,

@@ -5,7 +5,7 @@ import { useServices } from '@/app/services/service-context';
 import type { Project } from '@/db/schema/projects';
 import type { Task } from '@/db/schema/tasks';
 
-interface LoaderData {
+export interface LoaderData {
   task: Task | null;
   project: Project | null;
 }

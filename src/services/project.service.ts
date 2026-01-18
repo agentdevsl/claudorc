@@ -79,7 +79,7 @@ export type ProjectSummary = {
     currentTaskTitle?: string;
   }>;
   status: 'running' | 'idle' | 'needs-approval';
-  lastActivityAt: Date | null;
+  lastActivityAt: string | null;
 };
 
 export type CommandRunner = {
@@ -102,8 +102,8 @@ export class ProjectService {
     private runner: CommandRunner
   ) {}
 
-  private updateTimestamp(): Date {
-    return new Date();
+  private updateTimestamp(): string {
+    return new Date().toISOString();
   }
 
   async create(input: CreateProjectInput): Promise<Result<Project, ProjectError>> {
@@ -235,10 +235,12 @@ export class ProjectService {
         status = 'needs-approval';
       }
 
-      // Get last activity date
-      const lastTask = projectTasks.sort(
-        (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)
-      )[0];
+      // Get last activity date (updatedAt is an ISO string from SQLite)
+      const lastTask = projectTasks.sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bTime - aTime;
+      })[0];
 
       summaries.push({
         project,

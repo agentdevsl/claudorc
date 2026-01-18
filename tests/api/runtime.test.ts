@@ -6,7 +6,7 @@ const streamProviderMocks = vi.hoisted(() => ({
   getStreamProvider: vi.fn(),
 }));
 
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 vi.mock('@/lib/streams/provider', () => ({
   hasStreamProvider: streamProviderMocks.hasStreamProvider,
   getStreamProvider: streamProviderMocks.getStreamProvider,

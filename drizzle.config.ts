@@ -3,8 +3,10 @@ import type { Config } from 'drizzle-kit';
 export default {
   schema: './src/db/schema/index.ts',
   out: './src/db/migrations',
-  dialect: 'postgresql',
+  dialect: 'sqlite',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'idb://agentpane',
+    url: process.env.SQLITE_DATA_DIR
+      ? `${process.env.SQLITE_DATA_DIR}/agentpane.db`
+      : './data/agentpane.db',
   },
 } satisfies Config;

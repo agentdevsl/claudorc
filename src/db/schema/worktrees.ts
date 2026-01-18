@@ -1,29 +1,30 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { worktreeStatusEnum } from './enums';
+import { sql } from 'drizzle-orm';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { WorktreeStatus } from './enums';
 
 export type { WorktreeStatus } from './enums';
 
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-export const worktrees = pgTable('worktrees', {
+export const worktrees = sqliteTable('worktrees', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
-  taskId: text('task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
+  taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'set null' }),
   branch: text('branch').notNull(),
   path: text('path').notNull(),
   baseBranch: text('base_branch').default('main').notNull(),
-  status: worktreeStatusEnum('status').default('creating').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  mergedAt: timestamp('merged_at'),
-  removedAt: timestamp('removed_at'),
+  status: text('status').$type<WorktreeStatus>().default('creating').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  mergedAt: text('merged_at'),
+  removedAt: text('removed_at'),
 });
 
 export type Worktree = typeof worktrees.$inferSelect;

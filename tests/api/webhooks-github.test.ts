@@ -5,7 +5,7 @@ vi.mock('@/services/worktree.service', () => ({ WorktreeService: class {} }));
 vi.mock('@/services/session.service', () => ({ SessionService: class {} }));
 vi.mock('@/services/agent.service', () => ({ AgentService: class {} }));
 vi.mock('@/services/project.service', () => ({ ProjectService: class {} }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as GitHubWebhookRoute } from '@/app/routes/api/webhooks/github';
 

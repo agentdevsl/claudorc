@@ -38,12 +38,12 @@ describe('TaskDetailDialog', () => {
       />
     );
 
-    expect(screen.getByText('Edit task')).toBeInTheDocument();
-    expect(screen.getByLabelText('Title')).toHaveValue('My task');
-    expect(screen.getByLabelText('Description')).toHaveValue('Task description');
+    expect(screen.getByText('Edit Task')).toBeInTheDocument();
+    expect(screen.getByTestId('task-title-input')).toHaveValue('My task');
+    expect(screen.getByTestId('task-description-input')).toHaveValue('Task description');
   });
 
-  it('renders "New task" title when task is null', () => {
+  it('renders "New Task" title when task is null', () => {
     render(
       <TaskDetailDialog
         task={null}
@@ -54,7 +54,7 @@ describe('TaskDetailDialog', () => {
       />
     );
 
-    expect(screen.getByText('New task')).toBeInTheDocument();
+    expect(screen.getByText('New Task')).toBeInTheDocument();
     expect(screen.getByText('Add details for the new task.')).toBeInTheDocument();
   });
 
@@ -70,17 +70,20 @@ describe('TaskDetailDialog', () => {
       />
     );
 
-    const titleInput = screen.getByLabelText('Title');
-    const descriptionInput = screen.getByLabelText('Description');
+    const titleInput = screen.getByTestId('task-title-input');
+    const descriptionInput = screen.getByTestId('task-description-input');
 
     fireEvent.change(titleInput, { target: { value: 'Updated title' } });
     fireEvent.change(descriptionInput, { target: { value: 'Updated description' } });
-    fireEvent.click(screen.getByText('Save'));
+    fireEvent.click(screen.getByTestId('save-task-button'));
 
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith({
         title: 'Updated title',
         description: 'Updated description',
+        labels: [],
+        agentId: null,
+        priority: undefined,
       });
     });
   });
@@ -117,7 +120,7 @@ describe('TaskDetailDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Save'));
+    fireEvent.click(screen.getByTestId('save-task-button'));
 
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);

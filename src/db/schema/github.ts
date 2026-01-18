@@ -1,11 +1,12 @@
 import { createId } from '@paralleldrive/cuid2';
-import { boolean, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /**
  * Stores encrypted GitHub Personal Access Tokens
  * Tokens are encrypted using AES-GCM before storage
  */
-export const githubTokens = pgTable('github_tokens', {
+export const githubTokens = sqliteTable('github_tokens', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -17,15 +18,15 @@ export const githubTokens = pgTable('github_tokens', {
   // Associated GitHub user info (from validation)
   githubLogin: text('github_login'),
   githubId: text('github_id'),
-  // Status
-  isValid: boolean('is_valid').default(true),
-  lastValidatedAt: timestamp('last_validated_at'),
+  // Status (SQLite uses 0/1 for boolean)
+  isValid: integer('is_valid', { mode: 'boolean' }).default(true),
+  lastValidatedAt: text('last_validated_at'),
   // Timestamps
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
 
-export const githubInstallations = pgTable('github_installations', {
+export const githubInstallations = sqliteTable('github_installations', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -33,11 +34,11 @@ export const githubInstallations = pgTable('github_installations', {
   accountLogin: text('account_login').notNull(),
   accountType: text('account_type').notNull(),
   status: text('status').default('active').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
 
-export const repositoryConfigs = pgTable('repository_configs', {
+export const repositoryConfigs = sqliteTable('repository_configs', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -46,10 +47,10 @@ export const repositoryConfigs = pgTable('repository_configs', {
     .references(() => githubInstallations.id, { onDelete: 'cascade' }),
   owner: text('owner').notNull(),
   repo: text('repo').notNull(),
-  config: jsonb('config').$type<Record<string, unknown>>(),
-  syncedAt: timestamp('synced_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  config: text('config', { mode: 'json' }).$type<Record<string, unknown>>(),
+  syncedAt: text('synced_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
 
 export type GitHubToken = typeof githubTokens.$inferSelect;

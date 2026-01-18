@@ -39,9 +39,9 @@ describe('ApprovalDialog', () => {
       />
     );
 
-    expect(screen.getByText('Review changes')).toBeInTheDocument();
     expect(screen.getByText('Ship it')).toBeInTheDocument();
     expect(screen.getByText('Approve & merge')).toBeInTheDocument();
+    expect(screen.getByText('Reject')).toBeInTheDocument();
   });
 
   it('calls onApprove', () => {

@@ -1,24 +1,30 @@
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
+import Database, { type Database as SQLiteDatabase } from 'better-sqlite3';
+import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../../src/db/schema';
-import type { Database } from '../../src/types/database';
+import { MIGRATION_SQL } from '../../src/lib/bootstrap/phases/schema';
 import { createTestAgent } from '../factories/agent.factory';
 import { createTestProject } from '../factories/project.factory';
 import { createTestTask } from '../factories/task.factory';
 
-let testPglite: PGlite | null = null;
-let testDb: Database | null = null;
+// Use BetterSQLite3Database as the database type for tests
+type TestDatabase = BetterSQLite3Database<typeof schema>;
 
-export async function setupTestDatabase(): Promise<Database> {
+let testSqlite: SQLiteDatabase | null = null;
+let testDb: TestDatabase | null = null;
+
+export async function setupTestDatabase(): Promise<TestDatabase> {
   if (testDb) {
     return testDb;
   }
 
-  testPglite = new PGlite();
-  testDb = drizzle(testPglite, { schema }) as Database;
+  // Use in-memory SQLite for tests
+  testSqlite = new Database(':memory:');
+  testSqlite.pragma('foreign_keys = ON');
 
-  await migrate(testDb, { migrationsFolder: './src/db/migrations' });
+  testDb = drizzle(testSqlite, { schema });
+
+  // Run migrations using inline SQL
+  testSqlite.exec(MIGRATION_SQL);
 
   return testDb;
 }
@@ -28,6 +34,7 @@ export async function clearTestDatabase(): Promise<void> {
     return;
   }
 
+  // Delete in order respecting foreign key constraints
   await testDb.delete(schema.auditLogs);
   await testDb.delete(schema.agentRuns);
   await testDb.delete(schema.sessions);
@@ -40,14 +47,14 @@ export async function clearTestDatabase(): Promise<void> {
 }
 
 export async function closeTestDatabase(): Promise<void> {
-  if (testPglite) {
-    await testPglite.close();
-    testPglite = null;
+  if (testSqlite) {
+    testSqlite.close();
+    testSqlite = null;
     testDb = null;
   }
 }
 
-export function getTestDb(): Database {
+export function getTestDb(): TestDatabase {
   if (!testDb) {
     throw new Error('Test database not initialized');
   }

@@ -122,7 +122,7 @@ export class SessionService {
         title: input.title,
         url,
         status: 'initializing',
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       })
       .returning();
 
@@ -177,7 +177,7 @@ export class SessionService {
   async close(id: string): Promise<Result<SessionWithPresence, SessionError>> {
     const [updated] = await this.db
       .update(sessions)
-      .set({ status: 'closed', closedAt: new Date() })
+      .set({ status: 'closed', closedAt: new Date().toISOString() })
       .where(eq(sessions.id, id))
       .returning();
 

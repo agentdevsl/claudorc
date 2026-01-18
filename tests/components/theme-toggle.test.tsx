@@ -42,8 +42,11 @@ describe('ThemeToggle', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders Light, Dark, and System options', () => {
+  it('renders Light, Dark, and System options when menu is open', () => {
     render(<ThemeToggle />);
+
+    // Open the dropdown menu
+    fireEvent.click(screen.getByTestId('theme-toggle'));
 
     expect(screen.getByText('Light')).toBeInTheDocument();
     expect(screen.getByText('Dark')).toBeInTheDocument();
@@ -53,8 +56,11 @@ describe('ThemeToggle', () => {
   it('updates theme on click', () => {
     render(<ThemeToggle />);
 
+    // Open the dropdown menu
+    fireEvent.click(screen.getByTestId('theme-toggle'));
+
     // Click Dark theme
-    fireEvent.click(screen.getByText('Dark'));
+    fireEvent.click(screen.getByTestId('theme-dark'));
 
     expect(document.documentElement.dataset.theme).toBe('dark');
   });
@@ -62,8 +68,11 @@ describe('ThemeToggle', () => {
   it('persists theme to localStorage', () => {
     render(<ThemeToggle />);
 
+    // Open the dropdown menu
+    fireEvent.click(screen.getByTestId('theme-toggle'));
+
     // Click Light theme
-    fireEvent.click(screen.getByText('Light'));
+    fireEvent.click(screen.getByTestId('theme-light'));
 
     expect(localStorageMock.setItem).toHaveBeenCalledWith('theme', 'light');
   });
@@ -95,18 +104,21 @@ describe('ThemeToggle', () => {
   it('switches between themes correctly', () => {
     render(<ThemeToggle />);
 
-    // Switch to Light
-    fireEvent.click(screen.getByText('Light'));
+    // Open the dropdown menu and switch to Light
+    fireEvent.click(screen.getByTestId('theme-toggle'));
+    fireEvent.click(screen.getByTestId('theme-light'));
     expect(localStorageMock.setItem).toHaveBeenCalledWith('theme', 'light');
     expect(document.documentElement.dataset.theme).toBe('light');
 
-    // Switch to Dark
-    fireEvent.click(screen.getByText('Dark'));
+    // Open menu again and switch to Dark
+    fireEvent.click(screen.getByTestId('theme-toggle'));
+    fireEvent.click(screen.getByTestId('theme-dark'));
     expect(localStorageMock.setItem).toHaveBeenCalledWith('theme', 'dark');
     expect(document.documentElement.dataset.theme).toBe('dark');
 
-    // Switch back to System
-    fireEvent.click(screen.getByText('System'));
+    // Open menu again and switch back to System
+    fireEvent.click(screen.getByTestId('theme-toggle'));
+    fireEvent.click(screen.getByTestId('theme-system'));
     expect(localStorageMock.setItem).toHaveBeenCalledWith('theme', 'system');
   });
 });

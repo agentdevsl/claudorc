@@ -88,8 +88,8 @@ export class TaskService {
         labels,
         column: 'backlog',
         position,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .returning();
 
@@ -146,7 +146,7 @@ export class TaskService {
   async update(id: string, input: UpdateTaskInput): Promise<Result<Task, TaskError>> {
     const [updated] = await this.db
       .update(tasks)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input, updatedAt: new Date().toISOString() })
       .where(eq(tasks.id, id))
       .returning();
 
@@ -201,9 +201,9 @@ export class TaskService {
       .set({
         column,
         position: newPosition,
-        updatedAt: new Date(),
-        ...(column === 'in_progress' ? { startedAt: new Date() } : {}),
-        ...(column === 'verified' ? { completedAt: new Date() } : {}),
+        updatedAt: new Date().toISOString(),
+        ...(column === 'in_progress' ? { startedAt: new Date().toISOString() } : {}),
+        ...(column === 'verified' ? { completedAt: new Date().toISOString() } : {}),
       })
       .where(eq(tasks.id, id))
       .returning();
@@ -218,7 +218,7 @@ export class TaskService {
   async reorder(id: string, position: number): Promise<Result<Task, TaskError>> {
     const [updated] = await this.db
       .update(tasks)
-      .set({ position, updatedAt: new Date() })
+      .set({ position, updatedAt: new Date().toISOString() })
       .where(eq(tasks.id, id))
       .returning();
 
@@ -279,10 +279,10 @@ export class TaskService {
       .update(tasks)
       .set({
         column: 'verified',
-        approvedAt: new Date(),
+        approvedAt: new Date().toISOString(),
         approvedBy: input.approvedBy,
-        completedAt: new Date(),
-        updatedAt: new Date(),
+        completedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         diffSummary: diff.value.stats,
       })
       .where(eq(tasks.id, id))
@@ -322,7 +322,7 @@ export class TaskService {
         column: 'in_progress',
         rejectionCount: (task.rejectionCount ?? 0) + 1,
         rejectionReason: input.reason,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(tasks.id, id))
       .returning();

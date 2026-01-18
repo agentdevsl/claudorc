@@ -30,9 +30,10 @@ function AgentsPage(): React.JSX.Element {
   const projects = loaderData.projects ?? [];
 
   const handleNewAgent = () => {
-    if (projects.length > 0) {
+    const firstProject = projects[0];
+    if (firstProject) {
       // Navigate to the first project's kanban where they can start an agent on a task
-      navigate({ to: '/projects/$projectId', params: { projectId: projects[0].id } });
+      navigate({ to: '/projects/$projectId', params: { projectId: firstProject.id } });
     } else {
       // Navigate to home to create a project first
       navigate({ to: '/' });

@@ -8,7 +8,7 @@ describe('BootstrapService', () => {
   it('runs all phases and returns context', async () => {
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'pglite',
+        name: 'sqlite',
         fn: async () => ok('db'),
         timeout: 100,
         recoverable: false,
@@ -41,7 +41,7 @@ describe('BootstrapService', () => {
 
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'pglite',
+        name: 'sqlite',
         fn: async () => err(fatalError),
         timeout: 100,
         recoverable: false,
@@ -72,7 +72,7 @@ describe('BootstrapService', () => {
 
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'pglite',
+        name: 'sqlite',
         fn: async () => ok('db'),
         timeout: 100,
         recoverable: false,
@@ -105,7 +105,7 @@ describe('BootstrapService', () => {
   it('times out phases', async () => {
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'pglite',
+        name: 'sqlite',
         fn: async () =>
           new Promise((resolve) => {
             setTimeout(() => resolve(ok('db')), 200);
@@ -143,7 +143,7 @@ describe('BootstrapService', () => {
   it('notifies subscribers on state changes', async () => {
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'pglite',
+        name: 'sqlite',
         fn: async () => ok('db'),
         timeout: 100,
         recoverable: false,
@@ -162,17 +162,17 @@ describe('BootstrapService', () => {
 });
 
 describe('bootstrap phases', () => {
-  it('pglite phase returns error if IndexedDB missing', async () => {
-    const { initializePGlite } = await import('../phases/pglite.js');
-    const originalIndexedDb = globalThis.indexedDB;
-    // @ts-expect-error - deleting for test
-    delete globalThis.indexedDB;
+  it('sqlite phase initializes successfully', async () => {
+    const { initializeSQLite } = await import('../phases/sqlite.js');
 
-    const result = await initializePGlite();
+    // SQLite should always succeed since it uses in-memory for tests
+    const result = await initializeSQLite();
 
-    expect(result.ok).toBe(false);
-
-    globalThis.indexedDB = originalIndexedDb;
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Clean up the connection
+      result.value.close();
+    }
   });
 
   it('schema phase returns error when db missing', async () => {

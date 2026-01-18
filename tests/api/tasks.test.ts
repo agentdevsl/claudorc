@@ -30,7 +30,7 @@ vi.mock('@/services/task.service', () => ({
     reject = taskServiceMocks.reject;
   },
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as TasksRoute } from '@/app/routes/api/tasks';
 import { Route as TaskRoute } from '@/app/routes/api/tasks/$id';

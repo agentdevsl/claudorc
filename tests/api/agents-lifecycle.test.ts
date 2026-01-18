@@ -32,7 +32,7 @@ vi.mock('@/services/agent.service', () => ({
     resume = agentServiceMocks.resume;
   },
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, db: {} }));
+vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
 import { Route as AgentPauseRoute } from '@/app/routes/api/agents/$id/pause';
 import { Route as AgentResumeRoute } from '@/app/routes/api/agents/$id/resume';

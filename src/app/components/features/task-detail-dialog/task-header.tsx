@@ -10,6 +10,7 @@ const statusBadgeVariants = cva(
     variants: {
       column: {
         backlog: 'bg-surface-muted text-fg-muted',
+        queued: 'bg-secondary-muted text-secondary',
         in_progress: 'bg-accent-muted text-accent',
         waiting_approval: 'bg-attention-muted text-attention',
         verified: 'bg-success-muted text-success',

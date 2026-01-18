@@ -52,7 +52,7 @@ export type WorktreeStatusInfo = {
   branch: string;
   status: WorktreeStatus;
   path: string;
-  updatedAt: Date | null;
+  updatedAt: string | null;
 };
 
 export type PruneResult = {
@@ -188,7 +188,7 @@ export class WorktreeService {
       if (!envResult.ok) {
         await this.db
           .update(worktrees)
-          .set({ status: 'error', updatedAt: new Date() })
+          .set({ status: 'error', updatedAt: new Date().toISOString() })
           .where(eq(worktrees.id, worktreeId));
         return envResult;
       }
@@ -199,7 +199,7 @@ export class WorktreeService {
       if (!depsResult.ok) {
         await this.db
           .update(worktrees)
-          .set({ status: 'error', updatedAt: new Date() })
+          .set({ status: 'error', updatedAt: new Date().toISOString() })
           .where(eq(worktrees.id, worktreeId));
         return depsResult;
       }
@@ -210,7 +210,7 @@ export class WorktreeService {
       if (!initResult.ok) {
         await this.db
           .update(worktrees)
-          .set({ status: 'error', updatedAt: new Date() })
+          .set({ status: 'error', updatedAt: new Date().toISOString() })
           .where(eq(worktrees.id, worktreeId));
         return initResult;
       }
@@ -218,7 +218,7 @@ export class WorktreeService {
 
     const [updatedWorktree] = await this.db
       .update(worktrees)
-      .set({ status: 'active', updatedAt: new Date() })
+      .set({ status: 'active', updatedAt: new Date().toISOString() })
       .where(eq(worktrees.id, worktreeId))
       .returning();
 
@@ -241,7 +241,7 @@ export class WorktreeService {
 
     await this.db
       .update(worktrees)
-      .set({ status: 'removing', updatedAt: new Date() })
+      .set({ status: 'removing', updatedAt: new Date().toISOString() })
       .where(eq(worktrees.id, worktreeId));
 
     try {
@@ -257,14 +257,18 @@ export class WorktreeService {
 
       await this.db
         .update(worktrees)
-        .set({ status: 'removed', removedAt: new Date(), updatedAt: new Date() })
+        .set({
+          status: 'removed',
+          removedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
         .where(eq(worktrees.id, worktreeId));
 
       return ok(undefined);
     } catch (error) {
       await this.db
         .update(worktrees)
-        .set({ status: 'error', updatedAt: new Date() })
+        .set({ status: 'error', updatedAt: new Date().toISOString() })
         .where(eq(worktrees.id, worktreeId));
 
       return err(WorktreeErrors.REMOVAL_FAILED(worktree.path, String(error)));
@@ -272,11 +276,13 @@ export class WorktreeService {
   }
 
   async prune(projectId: string): WorktreeServiceResult<PruneResult> {
+    // Use ISO string for comparison since SQLite stores dates as TEXT
+    const staleThreshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const stale = await this.db.query.worktrees.findMany({
       where: and(
         eq(worktrees.projectId, projectId),
         eq(worktrees.status, 'active'),
-        lt(worktrees.updatedAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+        lt(worktrees.updatedAt, staleThreshold)
       ),
     });
 
@@ -407,7 +413,7 @@ export class WorktreeService {
 
       await this.db
         .update(worktrees)
-        .set({ updatedAt: new Date() })
+        .set({ updatedAt: new Date().toISOString() })
         .where(eq(worktrees.id, worktreeId));
 
       return ok(sha.stdout.trim());
@@ -430,7 +436,7 @@ export class WorktreeService {
 
     await this.db
       .update(worktrees)
-      .set({ status: 'merging', updatedAt: new Date() })
+      .set({ status: 'merging', updatedAt: new Date().toISOString() })
       .where(eq(worktrees.id, worktreeId));
 
     const commitResult = await this.commit(worktreeId, `Auto-commit before merge to ${target}`);
@@ -463,7 +469,11 @@ export class WorktreeService {
 
       await this.db
         .update(worktrees)
-        .set({ mergedAt: new Date(), updatedAt: new Date(), status: 'active' })
+        .set({
+          mergedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'active',
+        })
         .where(eq(worktrees.id, worktreeId));
 
       return ok(undefined);

@@ -26,6 +26,24 @@ function serverOnlyStubs(): Plugin {
         }
       }
 
+      // Stub better-sqlite3 for browser builds
+      if (source === 'better-sqlite3') {
+        return '\0better-sqlite3-stub';
+      }
+
+      return null;
+    },
+    load(id) {
+      // Provide a stub for better-sqlite3 in the browser
+      if (id === '\0better-sqlite3-stub') {
+        return `
+          export default class Database {
+            constructor() {
+              throw new Error('better-sqlite3 is only available on the server');
+            }
+          }
+        `;
+      }
       return null;
     },
   };
@@ -34,6 +52,8 @@ function serverOnlyStubs(): Plugin {
 export default defineConfig({
   define: {
     'process.env': JSON.stringify({}),
+    // Note: do not include secrets here.
+    'import.meta.env.VITE_E2E_SEED': JSON.stringify(process.env.VITE_E2E_SEED),
   },
   server: {
     port: Number(process.env.PORT) || 3000,
@@ -56,14 +76,18 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@anthropic-ai/claude-agent-sdk', '@electric-sql/pglite'],
+    exclude: ['@anthropic-ai/claude-agent-sdk', 'better-sqlite3'],
   },
-  assetsInclude: ['**/*.wasm', '**/*.data'],
-  // Force full page reload on PGlite changes to avoid WASM caching issues
   build: {
     target: 'esnext',
+    rollupOptions: {
+      external: ['better-sqlite3'],
+    },
   },
   worker: {
     format: 'es',
+  },
+  ssr: {
+    external: ['better-sqlite3'],
   },
 });

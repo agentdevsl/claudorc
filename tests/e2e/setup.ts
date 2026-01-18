@@ -49,7 +49,12 @@ const run = async (args: string[]): Promise<string> => {
   if (!serverRunning) {
     throw new Error(`Server not configured. Set E2E_BASE_URL env var.`);
   }
-  const { stdout } = await execFileAsync('bunx', ['agent-browser', ...args]);
+  const { stdout } = await execFileAsync('bunx', ['agent-browser', ...args], {
+    env: {
+      ...process.env,
+      E2E_BASE_URL: BASE_URL,
+    },
+  });
   return stdout.trim();
 };
 

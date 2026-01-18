@@ -99,7 +99,7 @@ use these skills
 | ------------------ | ---------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
 | Runtime            | Bun              | <https://bun.sh>                                                                                      | 1.3.6            |
 | Framework          | TanStack Start   | @tanstack/react-start (<https://github.com/TanStack/router>)                                          | 1.150.0          |
-| Database           | PGlite           | @electric-sql/pglite (<https://github.com/electric-sql/pglite>)                                       | 0.3.15           |
+| Database           | SQLite           | better-sqlite3 (<https://github.com/WiseLibs/better-sqlite3>) (server-only)                            | 12.6.2           |
 | ORM                | Drizzle          | drizzle-orm + drizzle-kit (<https://github.com/drizzle-team/drizzle-orm>)                             | 0.45.1           |
 | Client State       | TanStack DB      | @tanstack/db + @tanstack/react-db (<https://github.com/TanStack/db>)                                  | 0.5.20 / 0.1.64  |
 | Agent Events       | Durable Streams  | @durable-streams/client + @durable-streams/state (<https://github.com/durable-streams/durable-streams>) | 0.1.5            |
@@ -133,14 +133,14 @@ use these skills
 
 ---
 
-## Architecture: Local-First (Simplified)
+## Architecture: Server-Side SQLite with Real-Time Streaming
 
-This project follows local-first architecture, simplified for single-developer use:
+This project uses server-side SQLite with real-time event streaming to clients:
 
-1. **Data lives on the client** - PGlite runs in the browser (persists to IndexedDB)
-2. **Instant UI** - No loading states, no network latency for data
-3. **Offline-capable** - App works without network
-4. **Real-time agent events** - Durable Streams for agent progress
+1. **Data lives on the server** - SQLite database runs on Bun server
+2. **Fast API access** - TanStack Query/DB for client-side caching
+3. **Real-time updates** - Durable Streams for agent progress and live data
+4. **Simple operations** - Standard REST API patterns
 
 ### Data Flow
 
@@ -148,12 +148,12 @@ This project follows local-first architecture, simplified for single-developer u
 ┌──────────────────────────────────────────────────────────────┐
 │                         Client                                │
 │  ┌──────────┐    ┌────────────┐    ┌──────────────────┐      │
-│  │    UI    │◄───│  TanStack  │◄───│     PGlite       │      │
-│  │  (React) │    │     DB     │    │   (IndexedDB)    │      │
-│  └────┬─────┘    └─────┬──────┘    └──────────────────┘      │
-│       │                │                                      │
-│       │ live queries   │ collections                          │
-│       ▼                ▼                                      │
+│  │    UI    │◄───│  TanStack  │◄───│   API Routes     │      │
+│  │  (React) │    │   Query    │    │   (HTTP/SSE)     │      │
+│  └────┬─────┘    └─────┬──────┘    └────────┬─────────┘      │
+│       │                │                     │                │
+│       │ reactive       │ cache               │ fetch          │
+│       ▼                ▼                     ▼                │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │           Durable Sessions Client                       │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐   │  │
@@ -163,19 +163,25 @@ This project follows local-first architecture, simplified for single-developer u
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
                               │
-                              │ HTTP sync via CDN (Electric)
+                              │ HTTP API + SSE streams
                               ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    Local Server (Bun)                         │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │              Durable Sessions Server                    │  │
-│  │  (persistent, addressable, multi-user sessions)         │  │
+│  │                    SQLite Database                       │  │
+│  │  (better-sqlite3 with WAL mode, server-only)            │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                              ▲                                │
+│                              │ Drizzle ORM                    │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │              API Routes + Services                       │  │
+│  │    (CRUD operations, business logic, validation)        │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                              ▲                                │
 │                              │ publishes events               │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │              Claude Agent SDK                           │  │
-│  │    (agents subscribe to sessions, write results)        │  │
+│  │    (agents run tasks, stream results via Durable)       │  │
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -184,12 +190,12 @@ This project follows local-first architecture, simplified for single-developer u
 
 | Operation        | Where           | How                                           |
 | ---------------- | --------------- | --------------------------------------------- |
-| Read data        | Client          | PGlite → TanStack DB → UI (instant)           |
-| Write data       | Client          | UI → TanStack DB → PGlite (instant)           |
+| Read data        | Client → Server | API Route → SQLite → JSON Response            |
+| Write data       | Client → Server | API Route → Validate → SQLite → Response      |
 | Join session     | Client          | Subscribe to addressable session via URL      |
-| Send input       | Client → Server | Optimistic write → Durable Session sync       |
-| Agent progress   | Server → Client | Durable Session events (real-time)            |
-| Agent runs       | Server          | Agent subscribes to session, writes results   |
+| Send input       | Client → Server | API write → Durable Session sync              |
+| Agent progress   | Server → Client | Durable Session events (real-time SSE)        |
+| Agent runs       | Server          | Agent runs in Bun, writes to SQLite           |
 | Session replay   | Client          | Join existing session, receive full history   |
 
 ---
@@ -295,23 +301,53 @@ export const ServerRoute = createServerFileRoute().methods({
 
 ---
 
-## Drizzle + PGlite Schema
+## Drizzle + SQLite Schema (Server-Only)
+
+### Architecture
+
+SQLite runs exclusively on the server. Browser/client fetches data via API routes.
+
+**Benefits:**
+
+- Simpler implementation (no browser SQLite complexity)
+- Single source of truth on server
+- No IndexedDB/OPFS storage management
+- Easier debugging and data inspection
+
+**Data Flow:**
+
+```text
+Browser → API Route → SQLite → Response → React Query/TanStack DB
+```
+
+### Enum Handling
+
+SQLite doesn't have native enums. Use TEXT columns with validation constants:
+
+```typescript
+// db/schema/enums.ts
+export const TASK_COLUMNS = ['backlog', 'in_progress', 'waiting_approval', 'verified'] as const;
+export type TaskColumn = typeof TASK_COLUMNS[number];
+
+export const AGENT_STATUS = ['idle', 'starting', 'running', 'paused', 'error', 'completed'] as const;
+export type AgentStatus = typeof AGENT_STATUS[number];
+```
 
 ### Domain-Split Schemas
 
 ```typescript
 // db/schema/agents.ts
-import { pgTable, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 
-export const agents = pgTable('agents', {
+export const agents = sqliteTable('agents', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
-  type: text('type', { enum: ['task', 'conversational', 'background'] }).notNull(),
-  config: jsonb('config').$type<AgentConfig>(),
-  status: text('status', { enum: ['idle', 'running', 'paused', 'error'] }).default('idle'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  type: text('type').notNull(),  // validated at application level
+  config: text('config', { mode: 'json' }).$type<AgentConfig>(),
+  status: text('status').default('idle'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
 
 export type Agent = typeof agents.$inferSelect;
@@ -325,17 +361,21 @@ export * from './tasks';
 export * from './sessions';
 ```
 
-### PGlite Client
+### SQLite Client (Server-Only)
 
 ```typescript
 // db/client.ts
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema';
 
-// Use IndexedDB for cross-browser compatibility (Safari doesn't support OPFS)
-const pglite = new PGlite('idb://agentpane');
-export const db = drizzle(pglite, { schema });
+const dataDir = process.env.SQLITE_DATA_DIR || './data';
+const sqlite = new Database(`${dataDir}/agentpane.db`);
+sqlite.pragma('journal_mode = WAL');  // Better concurrency
+sqlite.pragma('foreign_keys = ON');   // Enforce FK constraints
+
+export const db = drizzle(sqlite, { schema });
+export { sqlite };  // Export raw connection for migrations
 ```
 
 ---

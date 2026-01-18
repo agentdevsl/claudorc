@@ -98,6 +98,7 @@ const statusBadgeVariants = cva(
     variants: {
       status: {
         backlog: 'bg-[var(--bg-muted)] text-[var(--fg-muted)]',
+        queued: 'bg-[var(--secondary-muted)] text-[var(--secondary-fg)]',
         in_progress: 'bg-[var(--attention-muted)] text-[var(--attention-fg)]',
         waiting_approval: 'bg-[var(--accent-muted)] text-[var(--accent-fg)]',
         verified: 'bg-[var(--success-muted)] text-[var(--success-fg)]',
@@ -391,7 +392,7 @@ function MetadataGrid({
   filesChanged?: number;
   turns?: number;
 }) {
-  const formatDate = (date: Date | null) => {
+  const formatDate = (date: Date | string | null) => {
     if (!date) return '-';
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',

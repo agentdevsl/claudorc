@@ -1,6 +1,6 @@
 import { createRuntimeContext, type RuntimeContext } from '@/app/services/runtime';
 import { createServices, type Services } from '@/app/services/services';
-import { pglite } from '@/db/client';
+import { sqlite } from '@/db/client';
 import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
 import type { DurableStreamsServer } from '@/services/session.service';
 
@@ -24,7 +24,7 @@ export function getApiStreamsOrThrow(): DurableStreamsServer {
 
 export function getApiRuntime() {
   return createRuntimeContext({
-    db: pglite,
+    db: sqlite,
     streams: getApiStreams(),
   });
 }
@@ -39,7 +39,7 @@ export function getApiRuntimeOrThrow(): RuntimeContext {
 
 export function getApiServices() {
   return createServices({
-    db: pglite,
+    db: sqlite,
     streams: getApiStreams(),
   });
 }

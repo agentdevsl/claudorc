@@ -47,7 +47,16 @@ export type AgentRunResult = {
 export type QueuePosition = {
   taskId: string;
   position: number;
+  totalQueued: number;
   estimatedWaitMinutes: number;
+  estimatedWaitMs: number;
+  estimatedWaitFormatted: string;
+};
+
+export type QueueStats = {
+  totalQueued: number;
+  averageCompletionMs: number;
+  recentCompletions: number;
 };
 
 export type PreToolUseHook = (input: {
@@ -185,7 +194,7 @@ export class AgentService {
 
     const [updated] = await this.db
       .update(agents)
-      .set({ config: mergedConfig, updatedAt: new Date() })
+      .set({ config: mergedConfig, updatedAt: new Date().toISOString() })
       .where(eq(agents.id, id))
       .returning();
 
@@ -291,8 +300,8 @@ export class AgentService {
         sessionId: session.value.id,
         worktreeId: worktree.value.id,
         branch: `agent/${agentId}/${task.id}`,
-        startedAt: new Date(),
-        updatedAt: new Date(),
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(tasks.id, task.id));
 
@@ -303,7 +312,7 @@ export class AgentService {
         currentTaskId: task.id,
         currentSessionId: session.value.id,
         currentTurn: 0,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(agents.id, agentId));
 
@@ -424,7 +433,7 @@ export class AgentService {
         .update(agentRuns)
         .set({
           status: dbStatus,
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           turnsUsed: result.turnCount,
           errorMessage: result.error,
         })
@@ -439,7 +448,7 @@ export class AgentService {
             currentTaskId: null,
             currentSessionId: null,
             currentTurn: result.turnCount,
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(agents.id, agentId));
 
@@ -448,8 +457,8 @@ export class AgentService {
           .update(tasks)
           .set({
             column: 'waiting_approval',
-            completedAt: new Date(),
-            updatedAt: new Date(),
+            completedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
       } else if (result.status === 'turn_limit' || result.status === 'paused') {
@@ -458,7 +467,7 @@ export class AgentService {
           .set({
             status: 'paused',
             currentTurn: result.turnCount,
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(agents.id, agentId));
 
@@ -467,7 +476,7 @@ export class AgentService {
           .update(tasks)
           .set({
             column: 'waiting_approval',
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
       } else if (result.status === 'error') {
@@ -476,7 +485,7 @@ export class AgentService {
           .set({
             status: 'error',
             currentTurn: result.turnCount,
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(agents.id, agentId));
       }
@@ -499,7 +508,7 @@ export class AgentService {
         .update(agentRuns)
         .set({
           status: 'error',
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           errorMessage: errorMessage,
         })
         .where(eq(agentRuns.id, runId));
@@ -509,7 +518,7 @@ export class AgentService {
         .update(agents)
         .set({
           status: recovery.action === 'pause' ? 'paused' : 'error',
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(agents.id, agentId));
 
@@ -540,7 +549,7 @@ export class AgentService {
         status: 'idle',
         currentTaskId: null,
         currentSessionId: null,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(agents.id, agentId));
 
@@ -558,7 +567,7 @@ export class AgentService {
 
     await this.db
       .update(agents)
-      .set({ status: 'paused', updatedAt: new Date() })
+      .set({ status: 'paused', updatedAt: new Date().toISOString() })
       .where(eq(agents.id, agentId));
 
     return ok(undefined);
@@ -575,7 +584,7 @@ export class AgentService {
 
     await this.db
       .update(agents)
-      .set({ status: 'running', updatedAt: new Date() })
+      .set({ status: 'running', updatedAt: new Date().toISOString() })
       .where(eq(agents.id, agentId));
 
     if (agent.currentSessionId) {
@@ -623,7 +632,20 @@ export class AgentService {
     return ok(running.length);
   }
 
-  async getQueuedTasks(): Promise<Result<QueuePosition[], never>> {
+  async getQueuePosition(_agentId: string): Promise<Result<QueuePosition | null, AgentError>> {
+    // Queue functionality is not yet implemented - return null indicating not queued
+    return ok(null);
+  }
+
+  async getQueueStats(_projectId?: string): Promise<Result<QueueStats, never>> {
+    return ok({
+      totalQueued: 0,
+      averageCompletionMs: 0,
+      recentCompletions: 0,
+    });
+  }
+
+  async getQueuedTasks(_projectId?: string): Promise<Result<QueuePosition[], never>> {
     return ok([]);
   }
 

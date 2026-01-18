@@ -1,12 +1,13 @@
 import { createId } from '@paralleldrive/cuid2';
-import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { agents } from './agents';
-import { agentStatusEnum } from './enums';
+import type { AgentStatus } from './enums';
 import { projects } from './projects';
 import { sessions } from './sessions';
 import { tasks } from './tasks';
 
-export const agentRuns = pgTable('agent_runs', {
+export const agentRuns = sqliteTable('agent_runs', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -20,9 +21,9 @@ export const agentRuns = pgTable('agent_runs', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
-  status: agentStatusEnum('status').notNull(),
-  startedAt: timestamp('started_at').defaultNow().notNull(),
-  completedAt: timestamp('completed_at'),
+  status: text('status').$type<AgentStatus>().notNull(),
+  startedAt: text('started_at').default(sql`(datetime('now'))`).notNull(),
+  completedAt: text('completed_at'),
   turnsUsed: integer('turns_used').default(0),
   tokensUsed: integer('tokens_used').default(0),
   errorMessage: text('error_message'),
