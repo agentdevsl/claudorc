@@ -9,7 +9,7 @@
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { afterAll, beforeAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 
@@ -43,19 +43,49 @@ if (!serverRunning) {
 }
 
 /**
- * Run an agent-browser CLI command
+ * Run an agent-browser CLI command with retry logic for transient failures
  */
-const run = async (args: string[]): Promise<string> => {
+const run = async (args: string[], retries = 2): Promise<string> => {
   if (!serverRunning) {
     throw new Error(`Server not configured. Set E2E_BASE_URL env var.`);
   }
-  const { stdout } = await execFileAsync('bunx', ['agent-browser', ...args], {
-    env: {
-      ...process.env,
-      E2E_BASE_URL: BASE_URL,
-    },
-  });
-  return stdout.trim();
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const { stdout } = await execFileAsync('bunx', ['agent-browser', ...args], {
+        env: {
+          ...process.env,
+          E2E_BASE_URL: BASE_URL,
+        },
+        timeout: 30000, // 30 second timeout per command
+      });
+      return stdout.trim();
+    } catch (error) {
+      lastError = error as Error;
+      const errorMessage = lastError.message || '';
+
+      // Retry on browser-not-ready or transient errors
+      const isTransient =
+        errorMessage.includes('Browser not launched') ||
+        errorMessage.includes('Target page, context or browser has been closed') ||
+        errorMessage.includes('Daemon failed to start') ||
+        errorMessage.includes('net::ERR_ABORTED') ||
+        errorMessage.includes('Invalid response');
+
+      if (isTransient && attempt < retries) {
+        // Wait a bit before retrying
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      // Don't retry other errors
+      break;
+    }
+  }
+
+  throw lastError;
 };
 
 /**
@@ -203,16 +233,15 @@ beforeAll(async () => {
     return;
   }
 
-  console.log(`✅ E2E tests enabled - server at ${BASE_URL}`);
-  await open(BASE_URL);
+  console.log(`E2E tests enabled - server at ${BASE_URL}`);
+  // Note: Do not navigate in beforeAll as it can race with the first test's navigation.
+  // Each test is responsible for navigating to its own starting URL.
+  browserReady = true;
 });
 
 afterAll(async () => {
   await close();
 });
 
-beforeEach(async () => {
-  if (serverRunning && browserReady) {
-    await goto(BASE_URL);
-  }
-});
+// Note: Do not auto-navigate in beforeEach as it can interfere with test navigation.
+// Each test navigates to its own page via goto().

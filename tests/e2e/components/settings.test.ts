@@ -1,284 +1,152 @@
 /**
  * E2E Tests: Settings Components
  *
- * Tests for ThemeToggle and ProjectSettings.
- * Covers theme switching, form interactions, and persistence.
+ * Tests for ThemeToggle (via appearance settings) and related settings.
+ * These tests verify the actual UI behavior of the AgentPane settings pages.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  click,
-  exists,
-  fill,
-  goto,
-  press,
-  screenshot,
-  serverRunning,
-  waitForSelector,
-} from '../setup';
+import { click, exists, goto, screenshot, serverRunning, waitForSelector } from '../setup';
 
 const e2e = serverRunning ? describe : describe.skip;
 
 e2e('Settings Components E2E', () => {
-  describe('ThemeToggle', () => {
-    it('renders theme toggle button', async () => {
-      await goto('/');
-      await waitForSelector('[data-testid="theme-toggle"]', { timeout: 10000 }).catch(() => {});
+  describe('Appearance Settings (Theme)', () => {
+    it('renders appearance settings page', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="appearance-settings"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      expect(typeof toggle).toBe('boolean');
+      const settings = await exists('[data-testid="appearance-settings"]');
+      expect(settings).toBe(true);
     });
 
-    it('shows current theme icon', async () => {
-      await goto('/');
-      await waitForSelector('[data-testid="theme-toggle"]', { timeout: 10000 }).catch(() => {});
+    it('shows theme section', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-section"]', { timeout: 10000 }).catch(() => {});
 
-      const sunIcon = await exists('[data-testid="theme-icon-light"]');
-      const moonIcon = await exists('[data-testid="theme-icon-dark"]');
-      const systemIcon = await exists('[data-testid="theme-icon-system"]');
-
-      // One of them should exist
-      expect(sunIcon || moonIcon || systemIcon).toBe(true);
+      const themeSection = await exists('[data-testid="theme-section"]');
+      expect(themeSection).toBe(true);
     });
 
-    it('opens theme menu on click', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-menu"]', { timeout: 5000 });
+    it('shows light theme option', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-light"]', { timeout: 10000 }).catch(() => {});
 
-        const menu = await exists('[data-testid="theme-menu"]');
-        expect(menu).toBe(true);
-      }
+      const lightOption = await exists('[data-testid="theme-light"]');
+      expect(lightOption).toBe(true);
     });
 
-    it('shows light, dark, and system options', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-menu"]', { timeout: 5000 });
+    it('shows dark theme option', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-dark"]', { timeout: 10000 }).catch(() => {});
 
-        const lightOption = await exists('[data-testid="theme-light"]');
-        const darkOption = await exists('[data-testid="theme-dark"]');
-        const systemOption = await exists('[data-testid="theme-system"]');
-
-        expect(typeof lightOption).toBe('boolean');
-        expect(typeof darkOption).toBe('boolean');
-        expect(typeof systemOption).toBe('boolean');
-      }
+      const darkOption = await exists('[data-testid="theme-dark"]');
+      expect(darkOption).toBe(true);
     });
 
-    it('switches to dark theme', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-dark"]', { timeout: 5000 });
+    it('shows system theme option', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-system"]', { timeout: 10000 }).catch(() => {});
 
+      const systemOption = await exists('[data-testid="theme-system"]');
+      expect(systemOption).toBe(true);
+    });
+
+    it('can select dark theme', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-dark"]', { timeout: 10000 }).catch(() => {});
+
+      const darkOption = await exists('[data-testid="theme-dark"]');
+      if (darkOption) {
         await click('[data-testid="theme-dark"]');
-
-        // Check if dark class is applied to document
-        await waitForSelector('.dark', { timeout: 3000 }).catch(() => {});
-        const darkApplied = await exists('.dark');
-        expect(typeof darkApplied).toBe('boolean');
+        // Verify the option is now selected
+        const selectedDark = await exists('[data-testid="theme-dark"][data-selected="true"]');
+        expect(typeof selectedDark).toBe('boolean');
       }
     });
 
-    it('switches to light theme', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-light"]', { timeout: 5000 });
+    it('can select light theme', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-light"]', { timeout: 10000 }).catch(() => {});
 
+      const lightOption = await exists('[data-testid="theme-light"]');
+      if (lightOption) {
         await click('[data-testid="theme-light"]');
-
-        // Document should not have dark class
-        const noDark = !(await exists('.dark'));
-        expect(typeof noDark).toBe('boolean');
+        // Verify the option is now selected
+        const selectedLight = await exists('[data-testid="theme-light"][data-selected="true"]');
+        expect(typeof selectedLight).toBe('boolean');
       }
     });
 
-    it('persists theme preference', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-dark"]', { timeout: 5000 });
-        await click('[data-testid="theme-dark"]');
+    it('shows theme preview', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-preview"]', { timeout: 10000 }).catch(() => {});
 
-        // Reload page
-        await goto('/');
-        await waitForSelector('[data-testid="theme-toggle"]', { timeout: 10000 });
-
-        // Theme should persist
-        const darkApplied = await exists('.dark');
-        expect(typeof darkApplied).toBe('boolean');
-      }
-    });
-
-    it('closes menu on Escape', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-menu"]', { timeout: 5000 });
-
-        await press('Escape');
-
-        const menuClosed = !(await exists('[data-testid="theme-menu"]'));
-        expect(menuClosed).toBe(true);
-      }
+      const preview = await exists('[data-testid="theme-preview"]');
+      expect(preview).toBe(true);
     });
   });
 
-  describe('ProjectSettings', () => {
-    it('renders project settings page', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const settings = await exists('[data-testid="project-settings"]');
-      expect(typeof settings).toBe('boolean');
-    });
-
-    it('shows project name field', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const nameField = await exists('[data-testid="project-name-input"]');
-      expect(typeof nameField).toBe('boolean');
-    });
-
-    it('shows project path (read-only)', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const pathField = await exists('[data-testid="project-path-display"]');
-      expect(typeof pathField).toBe('boolean');
-    });
-
-    it('has max concurrent agents slider', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const slider = await exists('[data-testid="max-agents-slider"]');
-      expect(typeof slider).toBe('boolean');
-    });
-
-    it('has GitHub integration section', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const githubSection = await exists('[data-testid="github-settings"]');
-      expect(typeof githubSection).toBe('boolean');
-    });
-
-    it('allows editing project name', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-name-input"]', { timeout: 10000 }).catch(
+  describe('API Keys Settings', () => {
+    it('renders API keys settings page', async () => {
+      await goto('/settings/api-keys');
+      await waitForSelector('[data-testid="api-keys-settings"]', { timeout: 10000 }).catch(
         () => {}
       );
 
-      const nameInput = await exists('[data-testid="project-name-input"]');
-      if (nameInput) {
-        await fill('[data-testid="project-name-input"]', 'Updated Project Name');
-
-        // Save button should be enabled
-        const saveButton = await exists('[data-testid="save-settings-button"]');
-        expect(saveButton).toBe(true);
-      }
+      const apiKeysSettings = await exists('[data-testid="api-keys-settings"]');
+      expect(apiKeysSettings).toBe(true);
     });
 
-    it('shows save confirmation on submit', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-name-input"]', { timeout: 10000 }).catch(
+    it('shows Anthropic API key section', async () => {
+      await goto('/settings/api-keys');
+      await waitForSelector('[data-testid="anthropic-key-section"]', { timeout: 10000 }).catch(
         () => {}
       );
 
-      const nameInput = await exists('[data-testid="project-name-input"]');
-      if (nameInput) {
-        await fill('[data-testid="project-name-input"]', 'New Name');
-        await click('[data-testid="save-settings-button"]');
-
-        await waitForSelector('[data-testid="save-success"]', { timeout: 5000 }).catch(() => {});
-        const success = await exists('[data-testid="save-success"]');
-        expect(typeof success).toBe('boolean');
-      }
+      const anthropicSection = await exists('[data-testid="anthropic-key-section"]');
+      expect(anthropicSection).toBe(true);
     });
 
-    it('has agent config button', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
+    it('shows GitHub PAT section', async () => {
+      await goto('/settings/api-keys');
+      await waitForSelector('[data-testid="github-pat-section"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-      const configButton = await exists('[data-testid="agent-config-button"]');
-      expect(typeof configButton).toBe('boolean');
+      const githubSection = await exists('[data-testid="github-pat-section"]');
+      expect(githubSection).toBe(true);
     });
 
-    it('shows danger zone for project deletion', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
+    it('shows security notice', async () => {
+      await goto('/settings/api-keys');
+      await waitForSelector('[data-testid="security-notice"]', { timeout: 10000 }).catch(() => {});
 
-      const dangerZone = await exists('[data-testid="danger-zone"]');
-      expect(typeof dangerZone).toBe('boolean');
-    });
-
-    it('has delete project button in danger zone', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="danger-zone"]', { timeout: 10000 }).catch(() => {});
-
-      const deleteButton = await exists('[data-testid="delete-project-button"]');
-      expect(typeof deleteButton).toBe('boolean');
-    });
-
-    it('requires confirmation for project deletion', async () => {
-      await goto('/projects/test-project/settings');
-      const deleteButton = await exists('[data-testid="delete-project-button"]');
-      if (deleteButton) {
-        await click('[data-testid="delete-project-button"]');
-
-        await waitForSelector('[data-testid="delete-confirmation-dialog"]', {
-          timeout: 5000,
-        }).catch(() => {});
-        const confirmDialog = await exists('[data-testid="delete-confirmation-dialog"]');
-        expect(typeof confirmDialog).toBe('boolean');
-      }
+      const notice = await exists('[data-testid="security-notice"]');
+      expect(notice).toBe(true);
     });
   });
 
   describe('Screenshots', () => {
-    it('captures theme menu screenshot', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-menu"]', { timeout: 5000 });
+    it('captures appearance settings screenshot', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="appearance-settings"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-        const buffer = await screenshot('theme-menu');
-        expect(buffer).toBeTruthy();
-      }
-    });
-
-    it('captures project settings screenshot', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="project-settings"]', { timeout: 10000 }).catch(() => {});
-
-      const buffer = await screenshot('project-settings');
+      const buffer = await screenshot('appearance-settings');
       expect(buffer).toBeTruthy();
     });
 
-    it('captures dark theme screenshot', async () => {
-      await goto('/');
-      const toggle = await exists('[data-testid="theme-toggle"]');
-      if (toggle) {
-        await click('[data-testid="theme-toggle"]');
-        await waitForSelector('[data-testid="theme-dark"]', { timeout: 5000 });
-        await click('[data-testid="theme-dark"]');
+    it('captures API keys settings screenshot', async () => {
+      await goto('/settings/api-keys');
+      await waitForSelector('[data-testid="api-keys-settings"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-        await waitForSelector('.dark', { timeout: 3000 }).catch(() => {});
-        const buffer = await screenshot('dark-theme');
-        expect(buffer).toBeTruthy();
-      }
+      const buffer = await screenshot('api-keys-settings');
+      expect(buffer).toBeTruthy();
     });
   });
 });

@@ -123,3 +123,6 @@ Thumbs.db
 # Data directory (database, encryption keys, etc.)
 data/
 data/agentpane.db-wal
+
+# Submodules
+submodule/*

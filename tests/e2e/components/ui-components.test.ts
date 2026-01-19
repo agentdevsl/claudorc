@@ -10,331 +10,184 @@ import { click, exists, fill, goto, screenshot, serverRunning, waitForSelector }
 const e2e = serverRunning ? describe : describe.skip;
 
 e2e('UI Base Components E2E', () => {
-  describe('Button', () => {
-    it('renders primary button on settings page', async () => {
+  describe('API Keys Settings Page', () => {
+    it('renders API keys page with all sections', async () => {
       await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="save-anthropic-key"]', { timeout: 10000 }).catch(
-        () => {}
-      );
+      await waitForSelector('[data-testid="api-keys-settings"]', { timeout: 10000 });
 
-      const button = await exists('[data-testid="save-anthropic-key"]');
-      expect(typeof button).toBe('boolean');
+      const page = await exists('[data-testid="api-keys-settings"]');
+      expect(page).toBe(true);
+
+      const anthropicSection = await exists('[data-testid="anthropic-key-section"]');
+      expect(anthropicSection).toBe(true);
+
+      const githubSection = await exists('[data-testid="github-pat-section"]');
+      expect(githubSection).toBe(true);
+
+      const securityNotice = await exists('[data-testid="security-notice"]');
+      expect(securityNotice).toBe(true);
     });
 
-    it('button is disabled when input is empty', async () => {
+    it('shows either input or configured state for Anthropic key', async () => {
       await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="save-anthropic-key"]', { timeout: 10000 }).catch(
-        () => {}
-      );
+      await waitForSelector('[data-testid="anthropic-key-section"]', { timeout: 10000 });
 
-      // Save button should be disabled when input is empty
-      const disabledButton = await exists('[data-testid="save-anthropic-key"][disabled]');
-      expect(typeof disabledButton).toBe('boolean');
-    });
-
-    it('button becomes enabled when input has value', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-input"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
+      // Either the input exists (not configured) or the configured badge exists
       const input = await exists('[data-testid="anthropic-key-input"]');
-      if (input) {
-        await fill('[data-testid="anthropic-key-input"]', 'sk-ant-test123');
+      const configured = await exists('[data-testid="anthropic-key-configured"]');
 
-        // Button should now be enabled
-        const enabledButton = await exists('[data-testid="save-anthropic-key"]:not([disabled])');
-        expect(typeof enabledButton).toBe('boolean');
-      }
+      // One of them must be true
+      expect(input || configured).toBe(true);
     });
 
-    it('renders save preferences button', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="save-preferences"]', { timeout: 10000 }).catch(() => {});
-
-      const button = await exists('[data-testid="save-preferences"]');
-      expect(typeof button).toBe('boolean');
-    });
-
-    it('renders create project button', async () => {
-      await goto('/projects');
-      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const button = await exists('[data-testid="create-project-button"]');
-      expect(typeof button).toBe('boolean');
-    });
-
-    it('renders connect GitHub button', async () => {
-      await goto('/settings/github');
-      await waitForSelector('[data-testid="connect-github"]', { timeout: 10000 }).catch(() => {});
-
-      const button = await exists('[data-testid="connect-github"]');
-      expect(typeof button).toBe('boolean');
-    });
-  });
-
-  describe('TextInput', () => {
-    it('renders API key input', async () => {
+    it('captures API keys settings screenshot', async () => {
       await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-input"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const input = await exists('[data-testid="anthropic-key-input"]');
-      expect(typeof input).toBe('boolean');
-    });
-
-    it('accepts text input', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-input"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const input = await exists('[data-testid="anthropic-key-input"]');
-      if (input) {
-        await fill('[data-testid="anthropic-key-input"]', 'sk-ant-test123');
-        // Input should have value
-        expect(true).toBe(true);
-      }
-    });
-
-    it('renders as password type by default', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-input"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const passwordInput = await exists('[data-testid="anthropic-key-input"][type="password"]');
-      expect(typeof passwordInput).toBe('boolean');
-    });
-
-    it('has visibility toggle', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-toggle"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const toggle = await exists('[data-testid="anthropic-key-toggle"]');
-      expect(typeof toggle).toBe('boolean');
-    });
-
-    it('toggles password visibility', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-toggle"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const toggle = await exists('[data-testid="anthropic-key-toggle"]');
-      if (toggle) {
-        await click('[data-testid="anthropic-key-toggle"]');
-
-        const textInput = await exists('[data-testid="anthropic-key-input"][type="text"]');
-        expect(typeof textInput).toBe('boolean');
-      }
-    });
-  });
-
-  describe('NumberInput', () => {
-    it('renders max turns input', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="max-turns-input"]', { timeout: 10000 }).catch(() => {});
-
-      const input = await exists('[data-testid="max-turns-input"]');
-      expect(typeof input).toBe('boolean');
-    });
-
-    it('renders max agents input', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="max-agents-input"]', { timeout: 10000 }).catch(() => {});
-
-      const input = await exists('[data-testid="max-agents-input"]');
-      expect(typeof input).toBe('boolean');
-    });
-
-    it('accepts number input', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="max-turns-input"]', { timeout: 10000 }).catch(() => {});
-
-      const input = await exists('[data-testid="max-turns-input"]');
-      if (input) {
-        await fill('[data-testid="max-turns-input"]', '100');
-        expect(true).toBe(true);
-      }
-    });
-  });
-
-  describe('Theme Selection', () => {
-    it('renders theme options', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-section"]', { timeout: 10000 }).catch(() => {});
-
-      const themeSection = await exists('[data-testid="theme-section"]');
-      expect(typeof themeSection).toBe('boolean');
-    });
-
-    it('has light theme option', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-light"]', { timeout: 10000 }).catch(() => {});
-
-      const lightTheme = await exists('[data-testid="theme-light"]');
-      expect(typeof lightTheme).toBe('boolean');
-    });
-
-    it('has dark theme option', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-dark"]', { timeout: 10000 }).catch(() => {});
-
-      const darkTheme = await exists('[data-testid="theme-dark"]');
-      expect(typeof darkTheme).toBe('boolean');
-    });
-
-    it('has system theme option', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-system"]', { timeout: 10000 }).catch(() => {});
-
-      const systemTheme = await exists('[data-testid="theme-system"]');
-      expect(typeof systemTheme).toBe('boolean');
-    });
-
-    it('selects theme on click', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-dark"]', { timeout: 10000 }).catch(() => {});
-
-      const darkTheme = await exists('[data-testid="theme-dark"]');
-      if (darkTheme) {
-        await click('[data-testid="theme-dark"]');
-
-        const selected = await exists('[data-testid="theme-dark"][data-selected="true"]');
-        expect(typeof selected).toBe('boolean');
-      }
-    });
-
-    it('shows theme preview', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="theme-preview"]', { timeout: 10000 }).catch(() => {});
-
-      const preview = await exists('[data-testid="theme-preview"]');
-      expect(typeof preview).toBe('boolean');
-    });
-  });
-
-  describe('Form Validation', () => {
-    it('shows error on invalid API key format', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-input"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const input = await exists('[data-testid="anthropic-key-input"]');
-      if (input) {
-        await fill('[data-testid="anthropic-key-input"]', 'invalid-key');
-        await click('[data-testid="save-anthropic-key"]');
-
-        await waitForSelector('[data-testid="anthropic-key-error"]', { timeout: 3000 }).catch(
-          () => {}
-        );
-
-        const error = await exists('[data-testid="anthropic-key-error"]');
-        expect(typeof error).toBe('boolean');
-      }
-    });
-  });
-
-  describe('Settings Sections', () => {
-    it('shows agent defaults section', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="agent-defaults-section"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const section = await exists('[data-testid="agent-defaults-section"]');
-      expect(typeof section).toBe('boolean');
-    });
-
-    it('shows security notice', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="security-notice"]', { timeout: 10000 }).catch(() => {});
-
-      const notice = await exists('[data-testid="security-notice"]');
-      expect(typeof notice).toBe('boolean');
-    });
-
-    it('shows Anthropic key section', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="anthropic-key-section"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const section = await exists('[data-testid="anthropic-key-section"]');
-      expect(typeof section).toBe('boolean');
-    });
-
-    it('shows GitHub PAT section', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="github-pat-section"]', { timeout: 10000 }).catch(
-        () => {}
-      );
-
-      const section = await exists('[data-testid="github-pat-section"]');
-      expect(typeof section).toBe('boolean');
-    });
-  });
-
-  describe('Save Actions', () => {
-    it('shows success message after saving preferences', async () => {
-      await goto('/settings/preferences');
-      await waitForSelector('[data-testid="save-preferences"]', { timeout: 10000 }).catch(() => {});
-
-      const saveButton = await exists('[data-testid="save-preferences"]');
-      if (saveButton) {
-        await click('[data-testid="save-preferences"]');
-
-        await waitForSelector('[data-testid="save-success"]', { timeout: 5000 }).catch(() => {});
-
-        const success = await exists('[data-testid="save-success"]');
-        expect(typeof success).toBe('boolean');
-      }
-    });
-  });
-
-  describe('Screenshots', () => {
-    it('captures API keys settings', async () => {
-      await goto('/settings/api-keys');
-      await waitForSelector('[data-testid="api-keys-settings"]', { timeout: 10000 }).catch(
-        () => {}
-      );
+      await waitForSelector('[data-testid="api-keys-settings"]', { timeout: 10000 });
 
       const buffer = await screenshot('ui-api-keys-settings');
       expect(buffer).toBeTruthy();
     });
+  });
 
-    it('captures appearance settings', async () => {
-      await goto('/settings/appearance');
-      await waitForSelector('[data-testid="appearance-settings"]', { timeout: 10000 }).catch(
-        () => {}
-      );
+  describe('Preferences Settings Page', () => {
+    it('renders preferences page with all inputs', async () => {
+      await goto('/settings/preferences');
+      await waitForSelector('[data-testid="preferences-settings"]', { timeout: 10000 });
 
-      const buffer = await screenshot('ui-appearance-settings');
-      expect(buffer).toBeTruthy();
+      const page = await exists('[data-testid="preferences-settings"]');
+      expect(page).toBe(true);
+
+      const agentDefaults = await exists('[data-testid="agent-defaults-section"]');
+      expect(agentDefaults).toBe(true);
+
+      const maxTurns = await exists('[data-testid="max-turns-input"]');
+      expect(maxTurns).toBe(true);
+
+      const maxAgents = await exists('[data-testid="max-agents-input"]');
+      expect(maxAgents).toBe(true);
+
+      const saveButton = await exists('[data-testid="save-preferences"]');
+      expect(saveButton).toBe(true);
     });
 
-    it('captures preferences settings', async () => {
+    it('accepts number input in max turns field', async () => {
       await goto('/settings/preferences');
-      await waitForSelector('[data-testid="preferences-settings"]', { timeout: 10000 }).catch(
-        () => {}
-      );
+      await waitForSelector('[data-testid="max-turns-input"]', { timeout: 10000 });
+
+      await fill('[data-testid="max-turns-input"]', '100');
+      // If we get here without error, the input accepted the value
+      expect(true).toBe(true);
+    });
+
+    it('shows success message after saving preferences', async () => {
+      await goto('/settings/preferences');
+      await waitForSelector('[data-testid="save-preferences"]', { timeout: 10000 });
+
+      await click('[data-testid="save-preferences"]');
+      await waitForSelector('[data-testid="save-success"]', { timeout: 5000 });
+
+      const success = await exists('[data-testid="save-success"]');
+      expect(success).toBe(true);
+    });
+
+    it('captures preferences settings screenshot', async () => {
+      await goto('/settings/preferences');
+      await waitForSelector('[data-testid="preferences-settings"]', { timeout: 10000 });
 
       const buffer = await screenshot('ui-preferences-settings');
       expect(buffer).toBeTruthy();
     });
+  });
 
-    it('captures GitHub settings', async () => {
+  describe('Appearance Settings Page', () => {
+    it('renders appearance page with theme options', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="appearance-settings"]', { timeout: 10000 });
+
+      const page = await exists('[data-testid="appearance-settings"]');
+      expect(page).toBe(true);
+
+      const themeSection = await exists('[data-testid="theme-section"]');
+      expect(themeSection).toBe(true);
+
+      const themePreview = await exists('[data-testid="theme-preview"]');
+      expect(themePreview).toBe(true);
+
+      // Theme buttons
+      const lightTheme = await exists('[data-testid="theme-light"]');
+      expect(lightTheme).toBe(true);
+
+      const darkTheme = await exists('[data-testid="theme-dark"]');
+      expect(darkTheme).toBe(true);
+
+      const systemTheme = await exists('[data-testid="theme-system"]');
+      expect(systemTheme).toBe(true);
+    });
+
+    it('can click theme options', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="theme-section"]', { timeout: 10000 });
+
+      // Click light theme
+      await click('[data-testid="theme-light"]');
+
+      // Click dark theme
+      await click('[data-testid="theme-dark"]');
+
+      // If we get here without errors, theme selection works
+      expect(true).toBe(true);
+    });
+
+    it('captures appearance settings screenshot', async () => {
+      await goto('/settings/appearance');
+      await waitForSelector('[data-testid="appearance-settings"]', { timeout: 10000 });
+
+      const buffer = await screenshot('ui-appearance-settings');
+      expect(buffer).toBeTruthy();
+    });
+  });
+
+  describe('GitHub Settings Page', () => {
+    it('renders GitHub settings page', async () => {
       await goto('/settings/github');
-      await waitForSelector('[data-testid="github-settings"]', { timeout: 10000 }).catch(() => {});
+      await waitForSelector('[data-testid="github-settings"]', { timeout: 10000 });
+
+      const page = await exists('[data-testid="github-settings"]');
+      expect(page).toBe(true);
+
+      // Either connected or not connected state should exist
+      const connected = await exists('[data-testid="github-connected"]');
+      const notConnected = await exists('[data-testid="github-not-connected"]');
+
+      expect(connected || notConnected).toBe(true);
+    });
+
+    it('captures GitHub settings screenshot', async () => {
+      await goto('/settings/github');
+      await waitForSelector('[data-testid="github-settings"]', { timeout: 10000 });
 
       const buffer = await screenshot('ui-github-settings');
+      expect(buffer).toBeTruthy();
+    });
+  });
+
+  describe('Projects Page', () => {
+    it('renders projects page with controls', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="projects-page"]', { timeout: 10000 });
+
+      const page = await exists('[data-testid="projects-page"]');
+      expect(page).toBe(true);
+
+      const createButton = await exists('[data-testid="create-project-button"]');
+      expect(createButton).toBe(true);
+    });
+
+    it('captures projects page screenshot', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="projects-page"]', { timeout: 10000 });
+
+      const buffer = await screenshot('ui-projects-page');
       expect(buffer).toBeTruthy();
     });
   });

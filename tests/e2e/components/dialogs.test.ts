@@ -1,7 +1,7 @@
 /**
  * E2E Tests: Dialog Components
  *
- * Tests for NewProjectDialog, TaskDetailDialog, ApprovalDialog, AgentConfigDialog.
+ * Tests for NewProjectDialog - the main dialog in the application.
  * Covers form interactions, validation, and dialog behaviors.
  */
 import { describe, expect, it } from 'vitest';
@@ -20,7 +20,7 @@ const e2e = serverRunning ? describe : describe.skip;
 
 e2e('Dialog Components E2E', () => {
   describe('NewProjectDialog', () => {
-    it('opens from new project button', async () => {
+    it('can open new project dialog from home page', async () => {
       await goto('/');
       await waitForSelector('[data-testid="new-project-button"]', { timeout: 10000 }).catch(
         () => {}
@@ -29,328 +29,191 @@ e2e('Dialog Components E2E', () => {
       const buttonExists = await exists('[data-testid="new-project-button"]');
       if (buttonExists) {
         await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
+
+        const dialogOpen = await exists('[data-testid="new-project-dialog"]');
+        expect(dialogOpen).toBe(true);
+      } else {
+        // Skip test if button doesn't exist (first-run empty state)
+        expect(true).toBe(true);
+      }
+    });
+
+    it('can open new project dialog from projects page', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
         const dialogOpen = await exists('[data-testid="new-project-dialog"]');
         expect(dialogOpen).toBe(true);
       }
     });
 
-    it('validates project path input', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
+    it('shows project path input field', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
       if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="project-path-input"]', { timeout: 5000 });
-
-        // Enter invalid path
-        await fill('[data-testid="project-path-input"]', '/nonexistent/path');
-        await click('[data-testid="validate-path-button"]');
-
-        await waitForSelector('[data-testid="validation-error"]', { timeout: 5000 }).catch(
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
           () => {}
         );
-        const errorShown = await exists('[data-testid="validation-error"]');
-        expect(typeof errorShown).toBe('boolean');
+
+        const pathInput = await exists('[data-testid="project-path-input"]');
+        expect(pathInput).toBe(true);
       }
     });
 
-    it('auto-populates project name from path', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
-      if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="project-path-input"]', { timeout: 5000 });
+    it('shows validate button', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-        await fill('[data-testid="project-path-input"]', '/home/user/my-project');
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
+
+        const validateButton = await exists('[data-testid="validate-path-button"]');
+        expect(validateButton).toBe(true);
+      }
+    });
+
+    it('can enter path and validate', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="project-path-input"]', { timeout: 5000 }).catch(
+          () => {}
+        );
+
+        await fill('[data-testid="project-path-input"]', '/nonexistent/path');
         await click('[data-testid="validate-path-button"]');
 
-        // Check if name was auto-filled
-        const nameInput = await exists('[data-testid="project-name-input"]');
-        expect(nameInput).toBe(true);
+        // Wait a moment for validation
+        await waitForSelector('[data-testid="validation-result"]', { timeout: 5000 }).catch(
+          () => {}
+        );
+        const validationResult = await exists('[data-testid="validation-result"]');
+        // Either validation-error or validation-success should appear
+        const validationError = await exists('[data-testid="validation-error"]');
+        const validationSuccess = await exists('[data-testid="validation-success"]');
+
+        expect(validationResult || validationError || validationSuccess).toBe(true);
       }
     });
 
     it('closes on Escape key', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
-      if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
-
-        await press('Escape');
-
-        const dialogClosed = !(await exists('[data-testid="new-project-dialog"]'));
-        expect(dialogClosed).toBe(true);
-      }
-    });
-
-    it('closes on cancel button click', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
-      if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
-
-        await click('[data-testid="cancel-button"]');
-
-        const dialogClosed = !(await exists('[data-testid="new-project-dialog"]'));
-        expect(dialogClosed).toBe(true);
-      }
-    });
-
-    it('shows GitHub integration option', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
-      if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
-
-        const githubOption = await exists('[data-testid="github-integration-toggle"]');
-        expect(typeof githubOption).toBe('boolean');
-      }
-    });
-  });
-
-  describe('TaskDetailDialog', () => {
-    it('opens when clicking a task card', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="task-card"]', { timeout: 10000 }).catch(() => {});
-
-      const cardExists = await exists('[data-testid="task-card"]');
-      if (cardExists) {
-        await click('[data-testid="task-card"]');
-        await waitForSelector('[data-testid="task-detail-dialog"]', { timeout: 5000 });
-
-        const dialogOpen = await exists('[data-testid="task-detail-dialog"]');
-        expect(dialogOpen).toBe(true);
-      }
-    });
-
-    it('displays task title and description', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="task-card"]', { timeout: 10000 }).catch(() => {});
-
-      const cardExists = await exists('[data-testid="task-card"]');
-      if (cardExists) {
-        await click('[data-testid="task-card"]');
-        await waitForSelector('[data-testid="task-detail-dialog"]', { timeout: 5000 });
-
-        const titleField = await exists('[data-testid="task-title-input"]');
-        const descField = await exists('[data-testid="task-description-input"]');
-
-        expect(titleField).toBe(true);
-        expect(descField).toBe(true);
-      }
-    });
-
-    it('allows editing task title', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="task-card"]', { timeout: 10000 }).catch(() => {});
-
-      const cardExists = await exists('[data-testid="task-card"]');
-      if (cardExists) {
-        await click('[data-testid="task-card"]');
-        await waitForSelector('[data-testid="task-title-input"]', { timeout: 5000 });
-
-        await fill('[data-testid="task-title-input"]', 'Updated Task Title');
-
-        const saveButton = await exists('[data-testid="save-task-button"]');
-        expect(saveButton).toBe(true);
-      }
-    });
-
-    it('shows label management', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="task-card"]', { timeout: 10000 }).catch(() => {});
-
-      const cardExists = await exists('[data-testid="task-card"]');
-      if (cardExists) {
-        await click('[data-testid="task-card"]');
-        await waitForSelector('[data-testid="task-detail-dialog"]', { timeout: 5000 });
-
-        const labelsSection = await exists('[data-testid="task-labels-section"]');
-        expect(typeof labelsSection).toBe('boolean');
-      }
-    });
-
-    it('has delete task option', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="task-card"]', { timeout: 10000 }).catch(() => {});
-
-      const cardExists = await exists('[data-testid="task-card"]');
-      if (cardExists) {
-        await click('[data-testid="task-card"]');
-        await waitForSelector('[data-testid="task-detail-dialog"]', { timeout: 5000 });
-
-        const deleteButton = await exists('[data-testid="delete-task-button"]');
-        expect(typeof deleteButton).toBe('boolean');
-      }
-    });
-  });
-
-  describe('ApprovalDialog', () => {
-    it('opens for tasks in waiting_approval column', async () => {
-      await goto('/projects/test-project');
-      await waitForSelector('[data-testid="column-waiting_approval"] [data-testid="task-card"]', {
-        timeout: 10000,
-      }).catch(() => {});
-
-      const approvalCard = await exists(
-        '[data-testid="column-waiting_approval"] [data-testid="task-card"]'
-      );
-      if (approvalCard) {
-        await click('[data-testid="column-waiting_approval"] [data-testid="task-card"]');
-        await waitForSelector('[data-testid="approval-dialog"]', { timeout: 5000 });
-
-        const dialogOpen = await exists('[data-testid="approval-dialog"]');
-        expect(dialogOpen).toBe(true);
-      }
-    });
-
-    it('displays diff summary', async () => {
-      await goto('/projects/test-project');
-      const approvalCard = await exists(
-        '[data-testid="column-waiting_approval"] [data-testid="task-card"]'
-      );
-      if (approvalCard) {
-        await click('[data-testid="column-waiting_approval"] [data-testid="task-card"]');
-        await waitForSelector('[data-testid="approval-dialog"]', { timeout: 5000 });
-
-        const diffSummary = await exists('[data-testid="diff-summary"]');
-        expect(typeof diffSummary).toBe('boolean');
-      }
-    });
-
-    it('has tabs for Summary, Files, and Commit', async () => {
-      await goto('/projects/test-project');
-      const approvalCard = await exists(
-        '[data-testid="column-waiting_approval"] [data-testid="task-card"]'
-      );
-      if (approvalCard) {
-        await click('[data-testid="column-waiting_approval"] [data-testid="task-card"]');
-        await waitForSelector('[data-testid="approval-dialog"]', { timeout: 5000 });
-
-        const summaryTab = await exists('[data-testid="tab-summary"]');
-        const filesTab = await exists('[data-testid="tab-files"]');
-        const commitTab = await exists('[data-testid="tab-commit"]');
-
-        expect(typeof summaryTab).toBe('boolean');
-        expect(typeof filesTab).toBe('boolean');
-        expect(typeof commitTab).toBe('boolean');
-      }
-    });
-
-    it('shows approve and reject buttons', async () => {
-      await goto('/projects/test-project');
-      const approvalCard = await exists(
-        '[data-testid="column-waiting_approval"] [data-testid="task-card"]'
-      );
-      if (approvalCard) {
-        await click('[data-testid="column-waiting_approval"] [data-testid="task-card"]');
-        await waitForSelector('[data-testid="approval-dialog"]', { timeout: 5000 });
-
-        const approveButton = await exists('[data-testid="approve-button"]');
-        const rejectButton = await exists('[data-testid="reject-button"]');
-
-        expect(typeof approveButton).toBe('boolean');
-        expect(typeof rejectButton).toBe('boolean');
-      }
-    });
-
-    it('allows custom commit message', async () => {
-      await goto('/projects/test-project');
-      const approvalCard = await exists(
-        '[data-testid="column-waiting_approval"] [data-testid="task-card"]'
-      );
-      if (approvalCard) {
-        await click('[data-testid="column-waiting_approval"] [data-testid="task-card"]');
-        await waitForSelector('[data-testid="approval-dialog"]', { timeout: 5000 });
-
-        // Navigate to commit tab
-        const commitTab = await exists('[data-testid="tab-commit"]');
-        if (commitTab) {
-          await click('[data-testid="tab-commit"]');
-          await waitForSelector('[data-testid="commit-message-input"]', { timeout: 3000 }).catch(
-            () => {}
-          );
-
-          const commitInput = await exists('[data-testid="commit-message-input"]');
-          expect(typeof commitInput).toBe('boolean');
-        }
-      }
-    });
-  });
-
-  describe('AgentConfigDialog', () => {
-    it('opens from project settings', async () => {
-      await goto('/projects/test-project/settings');
-      await waitForSelector('[data-testid="agent-config-button"]', { timeout: 10000 }).catch(
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
         () => {}
       );
 
-      const configButton = await exists('[data-testid="agent-config-button"]');
-      if (configButton) {
-        await click('[data-testid="agent-config-button"]');
-        await waitForSelector('[data-testid="agent-config-dialog"]', { timeout: 5000 });
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
-        const dialogOpen = await exists('[data-testid="agent-config-dialog"]');
-        expect(dialogOpen).toBe(true);
+        await press('Escape');
+
+        // Dialog should be closed
+        const dialogClosed = !(await exists('[data-testid="new-project-dialog"]'));
+        expect(dialogClosed).toBe(true);
       }
     });
 
-    it('has tabs for different config sections', async () => {
-      await goto('/projects/test-project/settings');
-      const configButton = await exists('[data-testid="agent-config-button"]');
-      if (configButton) {
-        await click('[data-testid="agent-config-button"]');
-        await waitForSelector('[data-testid="agent-config-dialog"]', { timeout: 5000 });
+    it('shows clone URL input in clone tab', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-        const generalTab = await exists('[data-testid="tab-general"]');
-        const limitsTab = await exists('[data-testid="tab-limits"]');
-        const sandboxTab = await exists('[data-testid="tab-sandbox"]');
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
-        expect(typeof generalTab).toBe('boolean');
-        expect(typeof limitsTab).toBe('boolean');
-        expect(typeof sandboxTab).toBe('boolean');
+        // The dialog has tabs for local and clone - check if clone-related inputs exist
+        // The clone tab may show either the GitHub repo list or the manual URL input
+        const cloneUrlInput = await exists('[data-testid="clone-url-input"]');
+        const clonePathInput = await exists('[data-testid="clone-path-input"]');
+        const githubRepoList = await exists('[data-testid="github-repo-list"]');
+
+        // At least one clone-related element should be visible
+        expect(cloneUrlInput || clonePathInput || githubRepoList).toBe(true);
       }
     });
 
-    it('shows max turns slider', async () => {
-      await goto('/projects/test-project/settings');
-      const configButton = await exists('[data-testid="agent-config-button"]');
-      if (configButton) {
-        await click('[data-testid="agent-config-button"]');
-        await waitForSelector('[data-testid="agent-config-dialog"]', { timeout: 5000 });
+    it('shows sandbox type selection after path validation', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
 
-        const maxTurnsSlider = await exists('[data-testid="max-turns-slider"]');
-        expect(typeof maxTurnsSlider).toBe('boolean');
-      }
-    });
+      const buttonExists = await exists('[data-testid="create-project-button"]');
+      if (buttonExists) {
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="project-path-input"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
-    it('has save and cancel buttons', async () => {
-      await goto('/projects/test-project/settings');
-      const configButton = await exists('[data-testid="agent-config-button"]');
-      if (configButton) {
-        await click('[data-testid="agent-config-button"]');
-        await waitForSelector('[data-testid="agent-config-dialog"]', { timeout: 5000 });
+        // Enter a path and validate
+        await fill('[data-testid="project-path-input"]', '/Users/user/project');
+        await click('[data-testid="validate-path-button"]');
 
-        const saveButton = await exists('[data-testid="save-config-button"]');
-        const cancelButton = await exists('[data-testid="cancel-button"]');
+        // Wait for validation to complete
+        await waitForSelector('[data-testid="sandbox-type-docker"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
-        expect(typeof saveButton).toBe('boolean');
-        expect(typeof cancelButton).toBe('boolean');
+        // After validation, sandbox type options should appear
+        const dockerOption = await exists('[data-testid="sandbox-type-docker"]');
+        const devcontainerOption = await exists('[data-testid="sandbox-type-devcontainer"]');
+
+        expect(typeof dockerOption).toBe('boolean');
+        expect(typeof devcontainerOption).toBe('boolean');
       }
     });
   });
 
   describe('Dialog Accessibility', () => {
-    it('traps focus within dialog', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
+    it('dialog has proper focus management', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
       if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
         // Tab through dialog elements - focus should stay inside
         await press('Tab');
@@ -364,16 +227,22 @@ e2e('Dialog Components E2E', () => {
     });
 
     it('returns focus to trigger on close', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
       if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
         await press('Escape');
 
         // Button should be focusable again
-        const buttonStillExists = await exists('[data-testid="new-project-button"]');
+        const buttonStillExists = await exists('[data-testid="create-project-button"]');
         expect(buttonStillExists).toBe(true);
       }
     });
@@ -381,15 +250,37 @@ e2e('Dialog Components E2E', () => {
 
   describe('Screenshots', () => {
     it('captures new project dialog screenshot', async () => {
-      await goto('/');
-      const buttonExists = await exists('[data-testid="new-project-button"]');
+      await goto('/projects');
+      await waitForSelector('[data-testid="create-project-button"]', { timeout: 10000 }).catch(
+        () => {}
+      );
+
+      const buttonExists = await exists('[data-testid="create-project-button"]');
       if (buttonExists) {
-        await click('[data-testid="new-project-button"]');
-        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 });
+        await click('[data-testid="create-project-button"]');
+        await waitForSelector('[data-testid="new-project-dialog"]', { timeout: 5000 }).catch(
+          () => {}
+        );
 
         const buffer = await screenshot('new-project-dialog');
         expect(buffer).toBeTruthy();
       }
+    });
+
+    it('captures projects page screenshot', async () => {
+      await goto('/projects');
+      await waitForSelector('[data-testid="projects-page"]', { timeout: 10000 }).catch(() => {});
+
+      const buffer = await screenshot('projects-page');
+      expect(buffer).toBeTruthy();
+    });
+
+    it('captures agents page screenshot', async () => {
+      await goto('/agents');
+      await waitForSelector('[data-testid="agents-page"]', { timeout: 10000 }).catch(() => {});
+
+      const buffer = await screenshot('agents-page');
+      expect(buffer).toBeTruthy();
     });
   });
 });

@@ -114,7 +114,10 @@ export function ProjectCard({
   const isNeedsApproval = status === 'needs-approval';
 
   return (
-    <div className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md">
+    <div
+      className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md"
+      data-testid="project-card"
+    >
       {/* Header */}
       <div className="p-4 flex items-start gap-3 border-b border-border-muted">
         <div
