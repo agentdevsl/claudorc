@@ -120,10 +120,6 @@ configstore/
 .DS_Store
 Thumbs.db
 
-# Encryption key (server-side token encryption)
-data/.keyfile
-data/encryption.key
-data/agentpane.db
-data/agentpane.db
-data/agentpane.db-shm
+# Data directory (database, encryption keys, etc.)
+data/
 data/agentpane.db-wal
