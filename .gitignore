@@ -125,3 +125,5 @@ data/.keyfile
 data/encryption.key
 data/agentpane.db
 data/agentpane.db
+data/agentpane.db-shm
+data/agentpane.db-wal
