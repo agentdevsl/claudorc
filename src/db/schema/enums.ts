@@ -23,6 +23,9 @@ export type AgentStatus = (typeof AGENT_STATUS)[number];
 export const AGENT_TYPES = ['task', 'conversational', 'background'] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
+export const TASK_PRIORITIES = ['high', 'medium', 'low'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
 export const WORKTREE_STATUS = [
   'creating',
   'active',

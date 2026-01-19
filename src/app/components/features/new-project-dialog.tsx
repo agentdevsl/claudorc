@@ -789,7 +789,11 @@ export function NewProjectDialog({
 
         if (!templateResult.ok) {
           setIsCloning(false);
-          setCloneError('Failed to create repository from template. The name may already exist.');
+          const err = templateResult.error as { message?: string; code?: string } | undefined;
+          const errorMessage =
+            err?.message ||
+            'Failed to create repository from template. The name may already exist.';
+          setCloneError(errorMessage);
           return;
         }
 
@@ -810,7 +814,10 @@ export function NewProjectDialog({
 
         if (!cloneResult.ok) {
           setIsCloning(false);
-          setCloneError('Failed to clone repository. Please check the URL and try again.');
+          const err = cloneResult.error as { message?: string; code?: string } | undefined;
+          const errorMessage =
+            err?.message || 'Failed to clone repository. Please check the URL and try again.';
+          setCloneError(errorMessage);
           return;
         }
 

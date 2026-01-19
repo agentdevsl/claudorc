@@ -45,7 +45,7 @@ export type CardVariants = VariantProps<typeof cardVariants>;
 /**
  * Priority indicator styles
  */
-export const priorityVariants = cva('w-2 h-2 rounded-full shrink-0', {
+export const priorityVariants = cva('w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10', {
   variants: {
     priority: {
       high: 'bg-danger',

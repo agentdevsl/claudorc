@@ -5,6 +5,7 @@ import { ProjectService } from '@/services/project.service';
 import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
+import { TemplateService } from '@/services/template.service';
 import { WorktreeService } from '@/services/worktree.service';
 import type { Database } from '@/types/database';
 
@@ -17,6 +18,7 @@ export type Services = {
   projectService: ProjectService;
   taskService: TaskService;
   sessionService: SessionService;
+  templateService: TemplateService;
   worktreeService: WorktreeService;
 };
 
@@ -64,6 +66,8 @@ export function createServices(context: {
       sessionService
     );
 
+    const templateService = new TemplateService(context.db);
+
     console.log('[Services] All services initialized successfully');
 
     return ok({
@@ -71,6 +75,7 @@ export function createServices(context: {
       projectService,
       taskService,
       sessionService,
+      templateService,
       worktreeService,
     });
   } catch (error) {

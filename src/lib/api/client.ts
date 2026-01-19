@@ -132,12 +132,12 @@ export const apiClient = {
       searchParams.set('projectId', projectId);
       if (params?.status) searchParams.set('status', params.status);
       if (params?.limit) searchParams.set('limit', String(params.limit));
-      return apiFetch<{ items: unknown[]; totalCount: number }>(
+      return apiServerFetch<{ items: unknown[]; totalCount: number }>(
         `/api/tasks?${searchParams.toString()}`
       );
     },
 
-    get: (id: string) => apiFetch<unknown>(`/api/tasks/${id}`),
+    get: (id: string) => apiServerFetch<unknown>(`/api/tasks/${id}`),
   },
 
   sessions: {

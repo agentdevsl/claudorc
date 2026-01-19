@@ -2,17 +2,15 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
+import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 
-// Task type for client-side display
-type ClientTask = {
-  id: string;
-  projectId: string;
-  title: string;
-  description?: string | null;
-  column: 'backlog' | 'ready' | 'in_progress' | 'waiting_approval' | 'done' | 'verified';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  position: number;
+// Client task type - subset of Task for client-side display
+type ClientTask = Pick<
+  Task,
+  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position'
+> & {
+  priority?: 'low' | 'medium' | 'high' | 'critical';
 };
 
 export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({

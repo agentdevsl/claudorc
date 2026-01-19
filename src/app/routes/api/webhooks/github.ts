@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { GitHubErrors } from '@/lib/errors/github-errors';
@@ -45,6 +46,14 @@ export const Route = createFileRoute('/api/webhooks/github')({
         const payload = await request.text();
         const secret = process.env.GITHUB_WEBHOOK_SECRET ?? '';
 
+        if (!secret) {
+          console.warn(
+            '[GitHub Webhook] GITHUB_WEBHOOK_SECRET is not set. ' +
+              'Webhook signature verification is disabled. ' +
+              'This is insecure in production environments.'
+          );
+        }
+
         if (secret) {
           const isValid = await verifyWebhookSignature(payload, signature, secret);
           if (!isValid) {
@@ -77,16 +86,37 @@ export const Route = createFileRoute('/api/webhooks/github')({
           }
 
           case 'push': {
-            // Code pushed - potentially sync config
+            // Code pushed - potentially sync config and templates
             const repository = body.repository as
               | { owner: { login: string }; name: string }
               | undefined;
             if (repository) {
-              console.log(
-                `[GitHub Webhook] Push to ${repository.owner.login}/${repository.name}: ${deliveryId}`
-              );
-              // Find project by GitHub owner/repo and trigger sync
+              const owner = repository.owner.login;
+              const repo = repository.name;
+              console.log(`[GitHub Webhook] Push to ${owner}/${repo}: ${deliveryId}`);
+
+              // Trigger template syncs for matching repositories
               // This is a background task, so we don't await it
+              try {
+                const { templateService } = getApiServicesOrThrow();
+                const templatesResult = await templateService.findByRepo(owner, repo);
+                if (templatesResult.ok && templatesResult.value.length > 0) {
+                  console.log(
+                    `[GitHub Webhook] Found ${templatesResult.value.length} template(s) to sync for ${owner}/${repo}`
+                  );
+                  // Sync each template (fire and forget)
+                  for (const template of templatesResult.value) {
+                    templateService.sync(template.id).catch((error) => {
+                      console.error(
+                        `[GitHub Webhook] Failed to sync template ${template.id}:`,
+                        error
+                      );
+                    });
+                  }
+                }
+              } catch (error) {
+                console.error('[GitHub Webhook] Error finding templates to sync:', error);
+              }
             }
             break;
           }

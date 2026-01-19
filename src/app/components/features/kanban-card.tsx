@@ -84,7 +84,8 @@ export function KanbanCard({
     }
   };
 
-  const priorityConfig = priority ? PRIORITY_CONFIG[priority] : null;
+  const taskPriority = (task.priority as Priority) ?? priority ?? 'medium';
+  const priorityConfig = PRIORITY_CONFIG[taskPriority];
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: dnd-kit provides role via attributes spread
@@ -141,13 +142,14 @@ export function KanbanCard({
           <DotsSixVertical className="h-4 w-4" />
         </button>
 
-        {priorityConfig && (
-          <div
-            className={cn('mt-1.5 h-2 w-2 flex-shrink-0 rounded-full', priorityConfig.color)}
-            title={`${priorityConfig.label} priority`}
-            data-testid="priority-indicator"
-          />
-        )}
+        <div
+          className={cn(
+            'mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ring-1 ring-black/10',
+            priorityConfig.color
+          )}
+          title={`${priorityConfig.label} priority`}
+          data-testid="priority-indicator"
+        />
 
         <div className="min-w-0 flex-1">
           <p

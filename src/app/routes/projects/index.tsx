@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
-import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
+import {
+  AddProjectCard,
+  ProjectCard,
+  type ProjectStatus,
+  type TaskCounts,
+} from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
@@ -105,8 +110,8 @@ function AgentPaneLogo(): React.JSX.Element {
 // Simplified project summary for client-side rendering
 type ClientProjectSummary = {
   project: ProjectListItem;
-  status: 'active' | 'idle';
-  taskCounts: { total: number; completed: number };
+  status: ProjectStatus;
+  taskCounts: TaskCounts;
   runningAgents: { id: string; name: string; currentTaskId?: string; currentTaskTitle?: string }[];
   lastActivityAt?: Date | null;
 };
@@ -197,7 +202,14 @@ function ProjectsPage(): React.JSX.Element {
         const summaries: ClientProjectSummary[] = result.data.items.map((project) => ({
           project,
           status: 'idle' as const,
-          taskCounts: { total: 0, completed: 0 },
+          taskCounts: {
+            backlog: 0,
+            queued: 0,
+            inProgress: 0,
+            waitingApproval: 0,
+            verified: 0,
+            total: 0,
+          },
           runningAgents: [],
           lastActivityAt: project.updatedAt,
         }));
@@ -234,7 +246,14 @@ function ProjectsPage(): React.JSX.Element {
       const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
         project,
         status: 'idle' as const,
-        taskCounts: { total: 0, completed: 0 },
+        taskCounts: {
+          backlog: 0,
+          queued: 0,
+          inProgress: 0,
+          waitingApproval: 0,
+          verified: 0,
+          total: 0,
+        },
         runningAgents: [],
         lastActivityAt: project.updatedAt,
       }));
@@ -245,17 +264,26 @@ function ProjectsPage(): React.JSX.Element {
   };
 
   const handleValidatePath = async (
-    _path: string
+    pathToValidate: string
   ): Promise<
     Result<
-      { isValid: boolean; exists: boolean; isGitRepo: boolean; hasClaudeConfig: boolean },
+      {
+        name: string;
+        path: string;
+        defaultBranch: string;
+        hasClaudeConfig: boolean;
+        remoteUrl?: string;
+      },
       unknown
     >
   > => {
     // TODO: Add API endpoint for path validation
+    // For now, return a basic validation result
+    const pathParts = pathToValidate.split('/');
+    const name = pathParts[pathParts.length - 1] || 'unknown';
     return {
       ok: true,
-      value: { isValid: true, exists: false, isGitRepo: false, hasClaudeConfig: false },
+      value: { name, path: pathToValidate, defaultBranch: 'main', hasClaudeConfig: false },
     };
   };
 

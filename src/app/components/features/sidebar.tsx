@@ -1,4 +1,14 @@
-import { Clock, Gear, GitBranch, Hourglass, Kanban, Plus, Robot } from '@phosphor-icons/react';
+import {
+  Clock,
+  Files,
+  FolderOpen,
+  Gear,
+  GitBranch,
+  Hourglass,
+  Kanban,
+  Plus,
+  Robot,
+} from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
@@ -35,6 +45,17 @@ const historyNavItems: readonly NavItem[] = [
   { label: 'Queue', to: '/queue', icon: Hourglass, testId: 'nav-queue' },
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
   { label: 'Worktrees', to: '/worktrees', icon: GitBranch, testId: 'nav-worktrees' },
+] as const;
+
+// Templates section nav items
+const templateNavItems: readonly NavItem[] = [
+  { label: 'Org Templates', to: '/templates/org', icon: Files, testId: 'nav-org-templates' },
+  {
+    label: 'Project Templates',
+    to: '/templates/project',
+    icon: FolderOpen,
+    testId: 'nav-project-templates',
+  },
 ] as const;
 
 // Global section nav items
@@ -253,6 +274,13 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
         {/* History section */}
         <NavSection title="History" testId="nav-section-history">
           {historyNavItems.map((item) => (
+            <NavLink key={item.label} item={item} />
+          ))}
+        </NavSection>
+
+        {/* Templates section */}
+        <NavSection title="Templates" testId="nav-section-templates">
+          {templateNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>

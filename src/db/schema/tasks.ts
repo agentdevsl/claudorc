@@ -4,9 +4,9 @@ import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { DiffSummary } from '../../lib/types/diff.js';
 import { agents } from './agents';
-import type { TaskColumn } from './enums';
+import type { TaskColumn, TaskPriority } from './enums';
 
-export type { TaskColumn } from './enums';
+export type { TaskColumn, TaskPriority } from './enums';
 
 import { projects } from './projects';
 import { sessions } from './sessions';
@@ -31,6 +31,7 @@ export const tasks = sqliteTable('tasks', {
   column: text('column').$type<TaskColumn>().default('backlog').notNull(),
   position: integer('position').default(0).notNull(),
   labels: text('labels', { mode: 'json' }).$type<string[]>().default([]),
+  priority: text('priority').$type<TaskPriority>().default('medium'),
   branch: text('branch'),
   diffSummary: text('diff_summary', { mode: 'json' }).$type<DiffSummary>(),
   approvedAt: text('approved_at'),

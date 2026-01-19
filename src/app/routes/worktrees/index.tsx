@@ -4,15 +4,10 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorktreeManagement } from '@/app/components/features/worktree-management';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
+import type { WorktreeStatusInfo } from '@/services/worktree.service';
 
-// Worktree type for client-side display
-type ClientWorktree = {
-  id: string;
-  projectId: string;
-  path: string;
-  branch: string;
-  status: string;
-};
+// Alias for the worktree type used by WorktreeManagement
+type ClientWorktree = WorktreeStatusInfo;
 
 export const Route = createFileRoute('/worktrees/')({
   component: WorktreesPage,

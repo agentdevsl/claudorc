@@ -1,6 +1,8 @@
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { createRuntimeContext, type RuntimeContext } from '@/app/services/runtime';
 import { createServices, type Services } from '@/app/services/services';
 import { sqlite } from '@/db/client';
+import * as schema from '@/db/schema/index.js';
 import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
 import type { DurableStreamsServer } from '@/services/session.service';
 
@@ -24,7 +26,7 @@ export function getApiStreamsOrThrow(): DurableStreamsServer {
 
 export function getApiRuntime() {
   return createRuntimeContext({
-    db: sqlite,
+    db: sqlite ?? undefined,
     streams: getApiStreams(),
   });
 }
@@ -38,8 +40,15 @@ export function getApiRuntimeOrThrow(): RuntimeContext {
 }
 
 export function getApiServices() {
+  if (!sqlite) {
+    return {
+      ok: false as const,
+      error: { code: 'DB_MISSING', message: 'Database not available', status: 500 },
+    };
+  }
+  const db = drizzle(sqlite, { schema });
   return createServices({
-    db: sqlite,
+    db,
     streams: getApiStreams(),
   });
 }

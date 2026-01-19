@@ -4,16 +4,10 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { SessionHistory } from '@/app/components/features/session-history';
 import { apiClient } from '@/lib/api/client';
+import type { SessionWithPresence } from '@/services/session.service';
 
-// Session type for client-side display
-type ClientSession = {
-  id: string;
-  agentId: string;
-  status: string;
-  startedAt: Date | null;
-  endedAt?: Date | null;
-  presence?: { active: boolean };
-};
+// Alias for the session type used by SessionHistory
+type ClientSession = SessionWithPresence;
 
 export const Route = createFileRoute('/sessions/')({
   component: SessionsPage,

@@ -1,7 +1,6 @@
 import { CheckCircle, Clock, Desktop, Warning } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
-import type { Project } from '@/db/schema/projects';
 
 export type ProjectStatus = 'running' | 'idle' | 'needs-approval';
 
@@ -22,8 +21,15 @@ export type ActiveAgent = {
   type: 'runner' | 'reviewer';
 };
 
+// Minimal project data needed for the card display
+export type ProjectCardData = {
+  id: string;
+  name: string;
+  path: string;
+};
+
 export interface ProjectCardProps {
-  project: Project;
+  project: ProjectCardData;
   status: ProjectStatus;
   taskCounts: TaskCounts;
   activeAgents: ActiveAgent[];

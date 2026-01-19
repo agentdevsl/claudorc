@@ -7,6 +7,9 @@ import { createError } from '@/lib/errors/base';
 import { GitHubTokenService } from '@/services/github-token.service';
 
 function getGitHubService() {
+  if (!sqlite) {
+    throw new Error('Database not available');
+  }
   const db = drizzle(sqlite, { schema });
   return new GitHubTokenService(db);
 }

@@ -17,6 +17,8 @@ import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
+import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
@@ -25,6 +27,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
+import { Route as ApiTemplatesRouteImport } from './routes/api/templates'
 import { Route as ApiTasksRouteImport } from './routes/api/tasks'
 import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
@@ -37,6 +40,7 @@ import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects
 import { Route as ApiWorktreesPruneRouteImport } from './routes/api/worktrees/prune'
 import { Route as ApiWorktreesIdRouteImport } from './routes/api/worktrees/$id'
 import { Route as ApiWebhooksGithubRouteImport } from './routes/api/webhooks/github'
+import { Route as ApiTemplatesIdRouteImport } from './routes/api/templates/$id'
 import { Route as ApiTasksIdRouteImport } from './routes/api/tasks/$id'
 import { Route as ApiSessionsIdRouteImport } from './routes/api/sessions/$id'
 import { Route as ApiProjectsIdRouteImport } from './routes/api/projects/$id'
@@ -45,6 +49,7 @@ import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/proje
 import { Route as ApiWorktreesIdMergeRouteImport } from './routes/api/worktrees/$id/merge'
 import { Route as ApiWorktreesIdDiffRouteImport } from './routes/api/worktrees/$id/diff'
 import { Route as ApiWorktreesIdCommitRouteImport } from './routes/api/worktrees/$id/commit'
+import { Route as ApiTemplatesIdSyncRouteImport } from './routes/api/templates/$id/sync'
 import { Route as ApiTasksIdRejectRouteImport } from './routes/api/tasks/$id/reject'
 import { Route as ApiTasksIdMoveRouteImport } from './routes/api/tasks/$id/move'
 import { Route as ApiTasksIdApproveRouteImport } from './routes/api/tasks/$id/approve'
@@ -98,6 +103,16 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesProjectRoute = TemplatesProjectRouteImport.update({
+  id: '/templates/project',
+  path: '/templates/project',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesOrgRoute = TemplatesOrgRouteImport.update({
+  id: '/templates/org',
+  path: '/templates/org',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
   id: '/system',
   path: '/system',
@@ -136,6 +151,11 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
 const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/sessions/$sessionId',
   path: '/sessions/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTemplatesRoute = ApiTemplatesRouteImport.update({
+  id: '/api/templates',
+  path: '/api/templates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTasksRoute = ApiTasksRouteImport.update({
@@ -199,6 +219,11 @@ const ApiWebhooksGithubRoute = ApiWebhooksGithubRouteImport.update({
   path: '/api/webhooks/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTemplatesIdRoute = ApiTemplatesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiTemplatesRoute,
+} as any)
 const ApiTasksIdRoute = ApiTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -239,6 +264,11 @@ const ApiWorktreesIdCommitRoute = ApiWorktreesIdCommitRouteImport.update({
   id: '/commit',
   path: '/commit',
   getParentRoute: () => ApiWorktreesIdRoute,
+} as any)
+const ApiTemplatesIdSyncRoute = ApiTemplatesIdSyncRouteImport.update({
+  id: '/sync',
+  path: '/sync',
+  getParentRoute: () => ApiTemplatesIdRoute,
 } as any)
 const ApiTasksIdRejectRoute = ApiTasksIdRejectRouteImport.update({
   id: '/reject',
@@ -310,6 +340,7 @@ export interface FileRoutesByFullPath {
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
+  '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -318,6 +349,8 @@ export interface FileRoutesByFullPath {
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/templates/org': typeof TemplatesOrgRoute
+  '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -328,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/api/projects/$id': typeof ApiProjectsIdRoute
   '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
+  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
@@ -346,6 +380,7 @@ export interface FileRoutesByFullPath {
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
+  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
   '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
   '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
   '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
@@ -359,6 +394,7 @@ export interface FileRoutesByTo {
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
+  '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -367,6 +403,8 @@ export interface FileRoutesByTo {
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/templates/org': typeof TemplatesOrgRoute
+  '/templates/project': typeof TemplatesProjectRoute
   '/agents': typeof AgentsIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/queue': typeof QueueIndexRoute
@@ -377,6 +415,7 @@ export interface FileRoutesByTo {
   '/api/projects/$id': typeof ApiProjectsIdRoute
   '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
+  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
@@ -395,6 +434,7 @@ export interface FileRoutesByTo {
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
+  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
   '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
   '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
   '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
@@ -410,6 +450,7 @@ export interface FileRoutesById {
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
+  '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -418,6 +459,8 @@ export interface FileRoutesById {
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/templates/org': typeof TemplatesOrgRoute
+  '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -428,6 +471,7 @@ export interface FileRoutesById {
   '/api/projects/$id': typeof ApiProjectsIdRoute
   '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
+  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
@@ -446,6 +490,7 @@ export interface FileRoutesById {
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
+  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
   '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
   '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
   '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
@@ -462,6 +507,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
+    | '/api/templates'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -470,6 +516,8 @@ export interface FileRouteTypes {
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/system'
+    | '/templates/org'
+    | '/templates/project'
     | '/agents/'
     | '/projects/'
     | '/queue/'
@@ -480,6 +528,7 @@ export interface FileRouteTypes {
     | '/api/projects/$id'
     | '/api/sessions/$id'
     | '/api/tasks/$id'
+    | '/api/templates/$id'
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
@@ -498,6 +547,7 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
+    | '/api/templates/$id/sync'
     | '/api/worktrees/$id/commit'
     | '/api/worktrees/$id/diff'
     | '/api/worktrees/$id/merge'
@@ -511,6 +561,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
+    | '/api/templates'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -519,6 +570,8 @@ export interface FileRouteTypes {
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/system'
+    | '/templates/org'
+    | '/templates/project'
     | '/agents'
     | '/projects'
     | '/queue'
@@ -529,6 +582,7 @@ export interface FileRouteTypes {
     | '/api/projects/$id'
     | '/api/sessions/$id'
     | '/api/tasks/$id'
+    | '/api/templates/$id'
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
@@ -547,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
+    | '/api/templates/$id/sync'
     | '/api/worktrees/$id/commit'
     | '/api/worktrees/$id/diff'
     | '/api/worktrees/$id/merge'
@@ -561,6 +616,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/sessions'
     | '/api/tasks'
+    | '/api/templates'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -569,6 +625,8 @@ export interface FileRouteTypes {
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/system'
+    | '/templates/org'
+    | '/templates/project'
     | '/agents/'
     | '/projects/'
     | '/queue/'
@@ -579,6 +637,7 @@ export interface FileRouteTypes {
     | '/api/projects/$id'
     | '/api/sessions/$id'
     | '/api/tasks/$id'
+    | '/api/templates/$id'
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
@@ -597,6 +656,7 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
+    | '/api/templates/$id/sync'
     | '/api/worktrees/$id/commit'
     | '/api/worktrees/$id/diff'
     | '/api/worktrees/$id/merge'
@@ -612,7 +672,10 @@ export interface RootRouteChildren {
   ApiProjectsRoute: typeof ApiProjectsRouteWithChildren
   ApiSessionsRoute: typeof ApiSessionsRouteWithChildren
   ApiTasksRoute: typeof ApiTasksRouteWithChildren
+  ApiTemplatesRoute: typeof ApiTemplatesRouteWithChildren
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
+  TemplatesOrgRoute: typeof TemplatesOrgRoute
+  TemplatesProjectRoute: typeof TemplatesProjectRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   QueueIndexRoute: typeof QueueIndexRoute
@@ -685,6 +748,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates/project': {
+      id: '/templates/project'
+      path: '/templates/project'
+      fullPath: '/templates/project'
+      preLoaderRoute: typeof TemplatesProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/org': {
+      id: '/templates/org'
+      path: '/templates/org'
+      fullPath: '/templates/org'
+      preLoaderRoute: typeof TemplatesOrgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/system': {
       id: '/settings/system'
       path: '/system'
@@ -739,6 +816,13 @@ declare module '@tanstack/react-router' {
       path: '/sessions/$sessionId'
       fullPath: '/sessions/$sessionId'
       preLoaderRoute: typeof SessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/templates': {
+      id: '/api/templates'
+      path: '/api/templates'
+      fullPath: '/api/templates'
+      preLoaderRoute: typeof ApiTemplatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tasks': {
@@ -825,6 +909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/templates/$id': {
+      id: '/api/templates/$id'
+      path: '/$id'
+      fullPath: '/api/templates/$id'
+      preLoaderRoute: typeof ApiTemplatesIdRouteImport
+      parentRoute: typeof ApiTemplatesRoute
+    }
     '/api/tasks/$id': {
       id: '/api/tasks/$id'
       path: '/$id'
@@ -880,6 +971,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/worktrees/$id/commit'
       preLoaderRoute: typeof ApiWorktreesIdCommitRouteImport
       parentRoute: typeof ApiWorktreesIdRoute
+    }
+    '/api/templates/$id/sync': {
+      id: '/api/templates/$id/sync'
+      path: '/sync'
+      fullPath: '/api/templates/$id/sync'
+      preLoaderRoute: typeof ApiTemplatesIdSyncRouteImport
+      parentRoute: typeof ApiTemplatesIdRoute
     }
     '/api/tasks/$id/reject': {
       id: '/api/tasks/$id/reject'
@@ -1096,6 +1194,30 @@ const ApiTasksRouteWithChildren = ApiTasksRoute._addFileChildren(
   ApiTasksRouteChildren,
 )
 
+interface ApiTemplatesIdRouteChildren {
+  ApiTemplatesIdSyncRoute: typeof ApiTemplatesIdSyncRoute
+}
+
+const ApiTemplatesIdRouteChildren: ApiTemplatesIdRouteChildren = {
+  ApiTemplatesIdSyncRoute: ApiTemplatesIdSyncRoute,
+}
+
+const ApiTemplatesIdRouteWithChildren = ApiTemplatesIdRoute._addFileChildren(
+  ApiTemplatesIdRouteChildren,
+)
+
+interface ApiTemplatesRouteChildren {
+  ApiTemplatesIdRoute: typeof ApiTemplatesIdRouteWithChildren
+}
+
+const ApiTemplatesRouteChildren: ApiTemplatesRouteChildren = {
+  ApiTemplatesIdRoute: ApiTemplatesIdRouteWithChildren,
+}
+
+const ApiTemplatesRouteWithChildren = ApiTemplatesRoute._addFileChildren(
+  ApiTemplatesRouteChildren,
+)
+
 interface ApiWorktreesIdRouteChildren {
   ApiWorktreesIdCommitRoute: typeof ApiWorktreesIdCommitRoute
   ApiWorktreesIdDiffRoute: typeof ApiWorktreesIdDiffRoute
@@ -1121,7 +1243,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProjectsRoute: ApiProjectsRouteWithChildren,
   ApiSessionsRoute: ApiSessionsRouteWithChildren,
   ApiTasksRoute: ApiTasksRouteWithChildren,
+  ApiTemplatesRoute: ApiTemplatesRouteWithChildren,
   SessionsSessionIdRoute: SessionsSessionIdRoute,
+  TemplatesOrgRoute: TemplatesOrgRoute,
+  TemplatesProjectRoute: TemplatesProjectRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   QueueIndexRoute: QueueIndexRoute,

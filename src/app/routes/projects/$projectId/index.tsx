@@ -6,18 +6,17 @@ import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
 import { Button } from '@/app/components/ui/button';
+import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
+import type { DiffSummary } from '@/lib/types/diff';
 
-// Task type for client-side display
-type ClientTask = {
-  id: string;
-  projectId: string;
-  title: string;
-  description?: string | null;
-  column: 'backlog' | 'ready' | 'in_progress' | 'waiting_approval' | 'done' | 'verified';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  position: number;
-  diffSummary?: string | null;
+// Client task type - subset of Task for client-side display
+type ClientTask = Pick<
+  Task,
+  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId'
+> & {
+  priority?: 'low' | 'medium' | 'high';
+  diffSummary?: DiffSummary | null;
 };
 
 export const Route = createFileRoute('/projects/$projectId/')({
@@ -138,10 +137,12 @@ function ProjectKanban(): React.JSX.Element {
               id: `temp-${Date.now()}`,
               projectId: project.id,
               title: data.title ?? 'New Task',
-              description: data.description,
+              description: data.description ?? null,
               column: 'backlog',
               priority: data.priority ?? 'medium',
               position: 0,
+              labels: data.labels ?? [],
+              agentId: null,
             };
             setTasks((prev) => [newTask, ...prev]);
           }

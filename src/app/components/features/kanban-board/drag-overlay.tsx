@@ -25,10 +25,10 @@ function getLabelType(label: string): 'bug' | 'feature' | 'enhancement' | 'docs'
 }
 
 /**
- * Extract priority from task metadata
+ * Extract priority from task
  */
-function getPriority(_task: Task): Priority {
-  return 'medium';
+function getPriority(task: Task): Priority {
+  return (task.priority as Priority) ?? 'medium';
 }
 
 /**

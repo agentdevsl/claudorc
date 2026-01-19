@@ -239,7 +239,9 @@ export class TemplateService {
             })
             .where(eq(templates.id, id));
           return err(
-            TemplateErrors.SYNC_FAILED('No GitHub authentication found (need App installation or PAT)')
+            TemplateErrors.SYNC_FAILED(
+              'No GitHub authentication found (need App installation or PAT)'
+            )
           );
         }
 

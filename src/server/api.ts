@@ -11,6 +11,7 @@ import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
 import { MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import { TaskService } from '../services/task.service.js';
 import { TemplateService } from '../services/template.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
@@ -41,6 +42,21 @@ const db = drizzle(sqlite, { schema }) as unknown as Database;
 const githubService = new GitHubTokenService(db);
 const apiKeyService = new ApiKeyService(db);
 const templateService = new TemplateService(db);
+// TaskService with stub worktreeService for basic CRUD (approve/reject/getDiff not used in API)
+const taskService = new TaskService(db, {
+  getDiff: async () => ({
+    ok: false,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Not implemented', status: 501 },
+  }),
+  merge: async () => ({
+    ok: false,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Not implemented', status: 501 },
+  }),
+  remove: async () => ({
+    ok: false,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Not implemented', status: 501 },
+  }),
+});
 
 // ============ Project Handlers ============
 
@@ -742,10 +758,7 @@ async function handleGetTemplate(id: string): Promise<Response> {
     return json({ ok: true, data: result.value });
   } catch (error) {
     console.error('[Templates] Get error:', error);
-    return json(
-      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get template' } },
-      500
-    );
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to get template' } }, 500);
   }
 }
 
@@ -806,6 +819,145 @@ async function handleSyncTemplate(id: string): Promise<Response> {
       { ok: false, error: { code: 'DB_ERROR', message: 'Failed to sync template' } },
       500
     );
+  }
+}
+
+// ============ Task Handlers ============
+
+async function handleListTasks(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+  const column = url.searchParams.get('column') as
+    | 'backlog'
+    | 'queued'
+    | 'in_progress'
+    | 'waiting_approval'
+    | 'verified'
+    | undefined;
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+  const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    const result = await taskService.list(projectId, { column, limit, offset });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        items: result.value,
+        nextCursor: null,
+        hasMore: false,
+        totalCount: result.value.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Tasks] List error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to list tasks' } }, 500);
+  }
+}
+
+async function handleGetTask(id: string): Promise<Response> {
+  try {
+    const result = await taskService.getById(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Tasks] Get error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to get task' } }, 500);
+  }
+}
+
+async function handleCreateTask(request: Request): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      projectId: string;
+      title: string;
+      description?: string;
+      labels?: string[];
+      priority?: 'high' | 'medium' | 'low';
+    };
+
+    if (!body.projectId || !body.title) {
+      return json(
+        {
+          ok: false,
+          error: { code: 'MISSING_PARAMS', message: 'projectId and title are required' },
+        },
+        400
+      );
+    }
+
+    const result = await taskService.create({
+      projectId: body.projectId,
+      title: body.title,
+      description: body.description,
+      labels: body.labels,
+      priority: body.priority,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value }, 201);
+  } catch (error) {
+    console.error('[Tasks] Create error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to create task' } }, 500);
+  }
+}
+
+async function handleUpdateTask(id: string, request: Request): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      title?: string;
+      description?: string;
+      labels?: string[];
+      priority?: 'high' | 'medium' | 'low';
+    };
+
+    const result = await taskService.update(id, {
+      title: body.title,
+      description: body.description,
+      labels: body.labels,
+      priority: body.priority,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Tasks] Update error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to update task' } }, 500);
+  }
+}
+
+async function handleDeleteTask(id: string): Promise<Response> {
+  try {
+    const result = await taskService.delete(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: null });
+  } catch (error) {
+    console.error('[Tasks] Delete error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete task' } }, 500);
   }
 }
 
@@ -946,6 +1098,30 @@ async function handleRequest(request: Request): Promise<Response> {
       }
       if (method === 'DELETE') {
         return handleDeleteTemplate(id);
+      }
+    }
+  }
+
+  // Task routes
+  if (path === '/api/tasks' && method === 'GET') {
+    return handleListTasks(url);
+  }
+  if (path === '/api/tasks' && method === 'POST') {
+    return handleCreateTask(request);
+  }
+  // Match /api/tasks/:id pattern
+  const taskIdMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
+  if (taskIdMatch) {
+    const id = taskIdMatch[1];
+    if (id) {
+      if (method === 'GET') {
+        return handleGetTask(id);
+      }
+      if (method === 'PUT') {
+        return handleUpdateTask(id, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteTask(id);
       }
     }
   }
