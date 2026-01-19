@@ -5,12 +5,15 @@
  * Runs alongside Vite dev server.
  */
 import { Database as BunSQLite } from 'bun:sqlite';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
-import { MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
+import { tasks } from '../db/schema/tasks.js';
+import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import { SandboxConfigService } from '../services/sandbox-config.service.js';
 import { TaskService } from '../services/task.service.js';
 import { TemplateService } from '../services/template.service.js';
 import type { Database } from '../types/database.js';
@@ -36,12 +39,24 @@ const sqlite = new BunSQLite(DB_PATH);
 sqlite.exec(MIGRATION_SQL);
 console.log('[API Server] Schema migrations applied');
 
+// Run sandbox migration (may fail if column already exists)
+try {
+  sqlite.exec(SANDBOX_MIGRATION_SQL);
+  console.log('[API Server] Sandbox migration applied');
+} catch (error) {
+  // Ignore error if column already exists
+  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+    console.warn('[API Server] Sandbox migration skipped (column may already exist)');
+  }
+}
+
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
 // Initialize services
 const githubService = new GitHubTokenService(db);
 const apiKeyService = new ApiKeyService(db);
 const templateService = new TemplateService(db);
+const sandboxConfigService = new SandboxConfigService(db);
 // TaskService with stub worktreeService for basic CRUD (approve/reject/getDiff not used in API)
 const taskService = new TaskService(db, {
   getDiff: async () => ({
@@ -178,6 +193,225 @@ async function handleCreateProject(request: Request): Promise<Response> {
     console.error('[Projects] Create error:', error);
     return json(
       { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create project' } },
+      500
+    );
+  }
+}
+
+async function handleUpdateProject(id: string, request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    name?: string;
+    description?: string;
+    maxConcurrentAgents?: number;
+    config?: Record<string, unknown>;
+  };
+
+  try {
+    // Check if project exists
+    const existing = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!existing) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Build update object with only provided fields
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (body.name !== undefined) {
+      updateData.name = body.name;
+    }
+    if (body.description !== undefined) {
+      updateData.description = body.description;
+    }
+    if (body.maxConcurrentAgents !== undefined) {
+      updateData.maxConcurrentAgents = body.maxConcurrentAgents;
+    }
+    if (body.config !== undefined) {
+      // Merge with existing config
+      updateData.config = { ...(existing.config ?? {}), ...body.config };
+    }
+
+    const [updated] = await db
+      .update(projects)
+      .set(updateData)
+      .where(eq(projects.id, id))
+      .returning();
+
+    if (!updated) {
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update project' } },
+        500
+      );
+    }
+
+    return json({
+      ok: true,
+      data: {
+        id: updated.id,
+        name: updated.name,
+        path: updated.path,
+        description: updated.description,
+        maxConcurrentAgents: updated.maxConcurrentAgents,
+        config: updated.config,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error('[Projects] Update error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update project' } },
+      500
+    );
+  }
+}
+
+async function handleDeleteProject(id: string): Promise<Response> {
+  try {
+    // Check if project exists
+    const existing = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!existing) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Check if project has running agents
+    const runningAgents = await db.query.agents.findMany({
+      where: and(eq(agents.projectId, id), eq(agents.status, 'running')),
+    });
+
+    if (runningAgents.length > 0) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'PROJECT_HAS_RUNNING_AGENTS',
+            message: 'Cannot delete project with running agents. Stop all agents first.',
+          },
+        },
+        409
+      );
+    }
+
+    // Delete associated tasks first (foreign key constraint)
+    await db.delete(tasks).where(eq(tasks.projectId, id));
+
+    // Delete associated agents
+    await db.delete(agents).where(eq(agents.projectId, id));
+
+    // Delete the project
+    await db.delete(projects).where(eq(projects.id, id));
+
+    return json({ ok: true, data: { deleted: true } });
+  } catch (error) {
+    console.error('[Projects] Delete error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete project' } },
+      500
+    );
+  }
+}
+
+async function handleListProjectsWithSummaries(url: URL): Promise<Response> {
+  const limit = parseInt(url.searchParams.get('limit') ?? '24', 10);
+
+  try {
+    const projectList = await db.query.projects.findMany({
+      orderBy: [desc(projects.updatedAt)],
+      limit,
+    });
+
+    const summaries = await Promise.all(
+      projectList.map(async (project) => {
+        // Get task counts by column
+        const projectTasks = await db.query.tasks.findMany({
+          where: eq(tasks.projectId, project.id),
+        });
+
+        const taskCounts = {
+          backlog: projectTasks.filter((t) => t.column === 'backlog').length,
+          queued: projectTasks.filter((t) => t.column === 'queued').length,
+          inProgress: projectTasks.filter((t) => t.column === 'in_progress').length,
+          waitingApproval: projectTasks.filter((t) => t.column === 'waiting_approval').length,
+          verified: projectTasks.filter((t) => t.column === 'verified').length,
+          total: projectTasks.length,
+        };
+
+        // Get running agents for this project
+        const runningAgents = await db.query.agents.findMany({
+          where: and(eq(agents.projectId, project.id), eq(agents.status, 'running')),
+        });
+
+        // Get task titles for running agents
+        const agentData = await Promise.all(
+          runningAgents.map(async (agent) => {
+            let taskTitle: string | undefined;
+            if (agent.currentTaskId) {
+              const task = await db.query.tasks.findFirst({
+                where: eq(tasks.id, agent.currentTaskId),
+              });
+              taskTitle = task?.title;
+            }
+            return {
+              id: agent.id,
+              name: agent.name ?? 'Agent',
+              currentTaskId: agent.currentTaskId,
+              currentTaskTitle: taskTitle,
+            };
+          })
+        );
+
+        // Determine project status
+        let status: 'running' | 'idle' | 'needs-approval' = 'idle';
+        if (runningAgents.length > 0) {
+          status = 'running';
+        } else if (taskCounts.waitingApproval > 0) {
+          status = 'needs-approval';
+        }
+
+        // Get last activity from tasks
+        const lastTask = projectTasks.sort((a, b) => {
+          const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return bTime - aTime;
+        })[0];
+
+        return {
+          project: {
+            id: project.id,
+            name: project.name,
+            path: project.path,
+            description: project.description,
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
+          },
+          taskCounts,
+          runningAgents: agentData,
+          status,
+          lastActivityAt: lastTask?.updatedAt ?? project.updatedAt,
+        };
+      })
+    );
+
+    return json({
+      ok: true,
+      data: {
+        items: summaries,
+        nextCursor: null,
+        hasMore: false,
+        totalCount: summaries.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Projects] List with summaries error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list projects with summaries' } },
       500
     );
   }
@@ -731,6 +965,7 @@ async function handleCreateTemplate(request: Request): Promise<Response> {
       branch: body.branch,
       configPath: body.configPath,
       projectId: body.projectId,
+      projectIds: body.projectIds,
     });
 
     if (!result.ok) {
@@ -770,6 +1005,7 @@ async function handleUpdateTemplate(id: string, request: Request): Promise<Respo
       description: body.description,
       branch: body.branch,
       configPath: body.configPath,
+      projectIds: body.projectIds,
     });
 
     if (!result.ok) {
@@ -1002,6 +1238,154 @@ async function handleDeleteApiKey(service: string): Promise<Response> {
   return json({ ok: true, data: null });
 }
 
+// ============ Sandbox Config Handlers ============
+
+async function handleListSandboxConfigs(url: URL): Promise<Response> {
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+  const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+
+  try {
+    const result = await sandboxConfigService.list({ limit, offset });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        items: result.value,
+        totalCount: result.value.length,
+      },
+    });
+  } catch (error) {
+    console.error('[SandboxConfigs] List error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list sandbox configs' } },
+      500
+    );
+  }
+}
+
+async function handleCreateSandboxConfig(request: Request): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      name: string;
+      description?: string;
+      isDefault?: boolean;
+      baseImage?: string;
+      memoryMb?: number;
+      cpuCores?: number;
+      maxProcesses?: number;
+      timeoutMinutes?: number;
+    };
+
+    if (!body.name) {
+      return json(
+        { ok: false, error: { code: 'MISSING_PARAMS', message: 'Name is required' } },
+        400
+      );
+    }
+
+    const result = await sandboxConfigService.create({
+      name: body.name,
+      description: body.description,
+      isDefault: body.isDefault,
+      baseImage: body.baseImage,
+      memoryMb: body.memoryMb,
+      cpuCores: body.cpuCores,
+      maxProcesses: body.maxProcesses,
+      timeoutMinutes: body.timeoutMinutes,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value }, 201);
+  } catch (error) {
+    console.error('[SandboxConfigs] Create error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create sandbox config' } },
+      500
+    );
+  }
+}
+
+async function handleGetSandboxConfig(id: string): Promise<Response> {
+  try {
+    const result = await sandboxConfigService.getById(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[SandboxConfigs] Get error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get sandbox config' } },
+      500
+    );
+  }
+}
+
+async function handleUpdateSandboxConfig(id: string, request: Request): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      name?: string;
+      description?: string;
+      isDefault?: boolean;
+      baseImage?: string;
+      memoryMb?: number;
+      cpuCores?: number;
+      maxProcesses?: number;
+      timeoutMinutes?: number;
+    };
+
+    const result = await sandboxConfigService.update(id, {
+      name: body.name,
+      description: body.description,
+      isDefault: body.isDefault,
+      baseImage: body.baseImage,
+      memoryMb: body.memoryMb,
+      cpuCores: body.cpuCores,
+      maxProcesses: body.maxProcesses,
+      timeoutMinutes: body.timeoutMinutes,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[SandboxConfigs] Update error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update sandbox config' } },
+      500
+    );
+  }
+}
+
+async function handleDeleteSandboxConfig(id: string): Promise<Response> {
+  try {
+    const result = await sandboxConfigService.delete(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: null });
+  } catch (error) {
+    console.error('[SandboxConfigs] Delete error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete sandbox config' } },
+      500
+    );
+  }
+}
+
 // Main request handler
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -1061,12 +1445,23 @@ async function handleRequest(request: Request): Promise<Response> {
   if (path === '/api/projects' && method === 'POST') {
     return handleCreateProject(request);
   }
+  if (path === '/api/projects/summaries' && method === 'GET') {
+    return handleListProjectsWithSummaries(url);
+  }
   // Match /api/projects/:id pattern
   const projectIdMatch = path.match(/^\/api\/projects\/([^/]+)$/);
-  if (projectIdMatch && method === 'GET') {
+  if (projectIdMatch) {
     const id = projectIdMatch[1];
     if (id) {
-      return handleGetProject(id);
+      if (method === 'GET') {
+        return handleGetProject(id);
+      }
+      if (method === 'PATCH') {
+        return handleUpdateProject(id, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteProject(id);
+      }
     }
   }
 
@@ -1140,6 +1535,30 @@ async function handleRequest(request: Request): Promise<Response> {
       }
       if (method === 'DELETE') {
         return handleDeleteApiKey(service);
+      }
+    }
+  }
+
+  // Sandbox Config routes
+  if (path === '/api/sandbox-configs' && method === 'GET') {
+    return handleListSandboxConfigs(url);
+  }
+  if (path === '/api/sandbox-configs' && method === 'POST') {
+    return handleCreateSandboxConfig(request);
+  }
+  // Match /api/sandbox-configs/:id pattern
+  const sandboxConfigIdMatch = path.match(/^\/api\/sandbox-configs\/([^/]+)$/);
+  if (sandboxConfigIdMatch) {
+    const id = sandboxConfigIdMatch[1];
+    if (id) {
+      if (method === 'GET') {
+        return handleGetSandboxConfig(id);
+      }
+      if (method === 'PATCH') {
+        return handleUpdateSandboxConfig(id, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteSandboxConfig(id);
       }
     }
   }

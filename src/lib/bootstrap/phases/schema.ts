@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS "projects" (
   "github_repo" TEXT,
   "github_installation_id" TEXT,
   "config_path" TEXT DEFAULT '.claude',
+  "sandbox_config_id" TEXT,
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
@@ -181,6 +182,34 @@ CREATE TABLE IF NOT EXISTS "templates" (
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "template_projects" (
+  "template_id" TEXT NOT NULL REFERENCES "templates"("id") ON DELETE CASCADE,
+  "project_id" TEXT NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  PRIMARY KEY ("template_id", "project_id")
+);
+
+CREATE TABLE IF NOT EXISTS "sandbox_configs" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "name" TEXT NOT NULL,
+  "description" TEXT,
+  "is_default" INTEGER DEFAULT 0,
+  "base_image" TEXT NOT NULL DEFAULT 'node:22-slim',
+  "memory_mb" INTEGER NOT NULL DEFAULT 4096,
+  "cpu_cores" REAL NOT NULL DEFAULT 2.0,
+  "max_processes" INTEGER NOT NULL DEFAULT 256,
+  "timeout_minutes" INTEGER NOT NULL DEFAULT 60,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+`;
+
+// Additional migrations for existing databases
+export const SANDBOX_MIGRATION_SQL = `
+-- Add sandbox_config_id to projects if it doesn't exist
+-- This runs separately because SQLite doesn't support IF NOT EXISTS for ALTER TABLE
+ALTER TABLE projects ADD COLUMN sandbox_config_id TEXT;
 `;
 
 export const validateSchema = async (ctx: BootstrapContext) => {

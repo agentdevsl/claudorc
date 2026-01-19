@@ -57,6 +57,8 @@ interface SkillConfig {
 
 type SourceType = 'local' | 'clone';
 
+export type SandboxType = 'docker' | 'devcontainer';
+
 interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +66,7 @@ interface NewProjectDialogProps {
     name: string;
     path: string;
     description?: string;
+    sandboxType?: SandboxType;
   }) => Promise<Result<void, { code: string; message: string }>>;
   onValidatePath: (path: string) => Promise<Result<PathValidation, unknown>>;
   onClone?: (url: string, destination: string) => Promise<Result<{ path: string }, unknown>>;
@@ -82,6 +85,7 @@ interface NewProjectDialogProps {
   recentRepos?: RecentRepo[];
   initialPath?: string;
   initialSource?: SourceType;
+  defaultSandboxType?: SandboxType;
 }
 
 // Variants for RepoInfoCard
@@ -580,12 +584,14 @@ export function NewProjectDialog({
   recentRepos = [],
   initialPath = '',
   initialSource = 'local',
+  defaultSandboxType = 'docker',
 }: NewProjectDialogProps): React.JSX.Element {
   // Form state
   const [sourceType, setSourceType] = useState<SourceType>(initialSource);
   const [name, setName] = useState('');
   const [path, setPath] = useState(initialPath);
   const [description, setDescription] = useState('');
+  const [sandboxType, setSandboxType] = useState<SandboxType>(defaultSandboxType);
   const [cloneUrl, setCloneUrl] = useState('');
   const [clonePath, setClonePath] = useState('~/git/');
 
@@ -801,6 +807,7 @@ export function NewProjectDialog({
           name: newRepoName.trim(),
           path: templateResult.value.path,
           description: description.trim() || undefined,
+          sandboxType,
         });
         setIsCloning(false);
 
@@ -825,6 +832,7 @@ export function NewProjectDialog({
           name: cloneUrl.split('/').pop()?.replace('.git', '') ?? 'project',
           path: cloneResult.value.path,
           description: description.trim() || undefined,
+          sandboxType,
         });
         setIsCloning(false);
 
@@ -838,6 +846,7 @@ export function NewProjectDialog({
         name: name.trim(),
         path: path.trim(),
         description: description.trim() || undefined,
+        sandboxType,
       });
 
       if (!submitResult.ok) {
@@ -1009,6 +1018,51 @@ export function NewProjectDialog({
                   onChange={(event) => setDescription(event.target.value)}
                   rows={3}
                 />
+              </div>
+            )}
+
+            {/* Sandbox Type (only shown after valid path) */}
+            {pathStatus === 'valid' && (
+              <div className="space-y-2">
+                <span className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
+                  Sandbox Type
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSandboxType('docker')}
+                    className={cn(
+                      'flex items-center gap-3 rounded-[var(--radius)] border-2 p-3 text-left transition-colors',
+                      sandboxType === 'docker'
+                        ? 'border-accent bg-accent-muted/30'
+                        : 'border-border hover:border-fg-subtle'
+                    )}
+                    data-testid="sandbox-type-docker"
+                  >
+                    <span className="text-xl">🐳</span>
+                    <div>
+                      <div className="font-medium text-fg text-sm">Docker</div>
+                      <div className="text-xs text-fg-muted">Container isolation</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSandboxType('devcontainer')}
+                    className={cn(
+                      'flex items-center gap-3 rounded-[var(--radius)] border-2 p-3 text-left transition-colors',
+                      sandboxType === 'devcontainer'
+                        ? 'border-accent bg-accent-muted/30'
+                        : 'border-border hover:border-fg-subtle'
+                    )}
+                    data-testid="sandbox-type-devcontainer"
+                  >
+                    <span className="text-xl">📦</span>
+                    <div>
+                      <div className="font-medium text-fg text-sm">DevContainer</div>
+                      <div className="text-xs text-fg-muted">VS Code integration</div>
+                    </div>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1221,6 +1275,49 @@ export function NewProjectDialog({
                 onChange={(event) => setDescription(event.target.value)}
                 rows={3}
               />
+            </div>
+
+            {/* Sandbox Type for clone */}
+            <div className="space-y-2">
+              <span className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
+                Sandbox Type
+              </span>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSandboxType('docker')}
+                  className={cn(
+                    'flex items-center gap-3 rounded-[var(--radius)] border-2 p-3 text-left transition-colors',
+                    sandboxType === 'docker'
+                      ? 'border-accent bg-accent-muted/30'
+                      : 'border-border hover:border-fg-subtle'
+                  )}
+                  data-testid="clone-sandbox-type-docker"
+                >
+                  <span className="text-xl">🐳</span>
+                  <div>
+                    <div className="font-medium text-fg text-sm">Docker</div>
+                    <div className="text-xs text-fg-muted">Container isolation</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSandboxType('devcontainer')}
+                  className={cn(
+                    'flex items-center gap-3 rounded-[var(--radius)] border-2 p-3 text-left transition-colors',
+                    sandboxType === 'devcontainer'
+                      ? 'border-accent bg-accent-muted/30'
+                      : 'border-border hover:border-fg-subtle'
+                  )}
+                  data-testid="clone-sandbox-type-devcontainer"
+                >
+                  <span className="text-xl">📦</span>
+                  <div>
+                    <div className="font-medium text-fg text-sm">DevContainer</div>
+                    <div className="text-xs text-fg-muted">VS Code integration</div>
+                  </div>
+                </button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

@@ -2,6 +2,7 @@ import type { AppError, createError } from '@/lib/errors/base';
 import { ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
 import { ProjectService } from '@/services/project.service';
+import { SandboxConfigService } from '@/services/sandbox-config.service';
 import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
 import { TaskService } from '@/services/task.service';
@@ -16,6 +17,7 @@ import type { Database } from '@/types/database';
 export type Services = {
   agentService: AgentService;
   projectService: ProjectService;
+  sandboxConfigService: SandboxConfigService;
   taskService: TaskService;
   sessionService: SessionService;
   templateService: TemplateService;
@@ -67,12 +69,14 @@ export function createServices(context: {
     );
 
     const templateService = new TemplateService(context.db);
+    const sandboxConfigService = new SandboxConfigService(context.db);
 
     console.log('[Services] All services initialized successfully');
 
     return ok({
       agentService,
       projectService,
+      sandboxConfigService,
       taskService,
       sessionService,
       templateService,

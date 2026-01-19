@@ -79,6 +79,33 @@ export type ProjectListResponse = {
   totalCount: number;
 };
 
+export type ProjectSummaryItem = {
+  project: ProjectListItem;
+  taskCounts: {
+    backlog: number;
+    queued: number;
+    inProgress: number;
+    waitingApproval: number;
+    verified: number;
+    total: number;
+  };
+  runningAgents: Array<{
+    id: string;
+    name: string;
+    currentTaskId: string | null;
+    currentTaskTitle?: string;
+  }>;
+  status: 'running' | 'idle' | 'needs-approval';
+  lastActivityAt: string | null;
+};
+
+export type ProjectSummaryResponse = {
+  items: ProjectSummaryItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+};
+
 // Template types
 export type CreateTemplateInput = {
   name: string;
@@ -87,7 +114,10 @@ export type CreateTemplateInput = {
   githubUrl: string;
   branch?: string;
   configPath?: string;
+  /** @deprecated Use projectIds instead */
   projectId?: string;
+  /** Project IDs to associate with this template (for project-scoped templates) */
+  projectIds?: string[];
 };
 
 export type UpdateTemplateInput = {
@@ -95,6 +125,56 @@ export type UpdateTemplateInput = {
   description?: string;
   branch?: string;
   configPath?: string;
+  /** Update the project associations (replaces existing) */
+  projectIds?: string[];
+};
+
+// Sandbox Config types
+export type SandboxType = 'docker' | 'devcontainer';
+
+export type SandboxConfigItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  type: SandboxType;
+  isDefault: boolean;
+  baseImage: string;
+  memoryMb: number;
+  cpuCores: number;
+  maxProcesses: number;
+  timeoutMinutes: number;
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateSandboxConfigInput = {
+  name: string;
+  description?: string;
+  type?: SandboxType;
+  isDefault?: boolean;
+  baseImage?: string;
+  memoryMb?: number;
+  cpuCores?: number;
+  maxProcesses?: number;
+  timeoutMinutes?: number;
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath?: string;
+};
+
+export type UpdateSandboxConfigInput = {
+  name?: string;
+  description?: string;
+  type?: SandboxType;
+  isDefault?: boolean;
+  baseImage?: string;
+  memoryMb?: number;
+  cpuCores?: number;
+  maxProcesses?: number;
+  timeoutMinutes?: number;
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath?: string;
 };
 
 // API client methods
@@ -105,10 +185,38 @@ export const apiClient = {
         `/api/projects${params?.limit ? `?limit=${params.limit}` : ''}`
       ),
 
+    listWithSummaries: (params?: { limit?: number }) =>
+      apiServerFetch<ProjectSummaryResponse>(
+        `/api/projects/summaries${params?.limit ? `?limit=${params.limit}` : ''}`
+      ),
+
     get: (id: string) => apiServerFetch<ProjectListItem>(`/api/projects/${id}`),
 
-    create: (data: { name: string; path: string; description?: string }) =>
-      apiServerFetch<ProjectListItem>('/api/projects', { method: 'POST', body: data }),
+    create: (data: {
+      name: string;
+      path: string;
+      description?: string;
+      sandboxConfigId?: string;
+    }) => apiServerFetch<ProjectListItem>('/api/projects', { method: 'POST', body: data }),
+
+    update: (
+      id: string,
+      data: {
+        name?: string;
+        description?: string;
+        maxConcurrentAgents?: number;
+        config?: Record<string, unknown>;
+      }
+    ) =>
+      apiServerFetch<ProjectListItem>(`/api/projects/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: data,
+      }),
+
+    delete: (id: string) =>
+      apiServerFetch<{ deleted: boolean }>(`/api/projects/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
   },
 
   agents: {
@@ -285,5 +393,32 @@ export const apiClient = {
 
     sync: (id: string) =>
       apiServerFetch<unknown>(`/api/templates/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+  },
+
+  sandboxConfigs: {
+    list: (options?: { limit?: number; offset?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (options?.limit) searchParams.set('limit', String(options.limit));
+      if (options?.offset) searchParams.set('offset', String(options.offset));
+      const query = searchParams.toString();
+      return apiServerFetch<{ items: SandboxConfigItem[]; totalCount: number }>(
+        `/api/sandbox-configs${query ? `?${query}` : ''}`
+      );
+    },
+
+    create: (input: CreateSandboxConfigInput) =>
+      apiServerFetch<SandboxConfigItem>('/api/sandbox-configs', { method: 'POST', body: input }),
+
+    getById: (id: string) =>
+      apiServerFetch<SandboxConfigItem>(`/api/sandbox-configs/${encodeURIComponent(id)}`),
+
+    update: (id: string, input: UpdateSandboxConfigInput) =>
+      apiServerFetch<SandboxConfigItem>(`/api/sandbox-configs/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: input,
+      }),
+
+    delete: (id: string) =>
+      apiServerFetch<null>(`/api/sandbox-configs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 };

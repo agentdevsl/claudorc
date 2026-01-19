@@ -1,5 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { githubInstallations, githubTokens } from '../db/schema/github.js';
+import { templateProjects } from '../db/schema/template-projects.js';
 import type { NewTemplate, Template, TemplateScope } from '../db/schema/templates.js';
 import { templates } from '../db/schema/templates.js';
 import type { LocalConfig, MergedTemplateConfig } from '../lib/config/template-merge.js';
@@ -20,7 +21,15 @@ export type CreateTemplateInput = {
   githubUrl: string;
   branch?: string;
   configPath?: string;
+  /** @deprecated Use projectIds instead */
   projectId?: string;
+  /** Project IDs to associate with this template (for project-scoped templates) */
+  projectIds?: string[];
+};
+
+/** Template with associated project IDs */
+export type TemplateWithProjects = Template & {
+  projectIds: string[];
 };
 
 export type UpdateTemplateInput = {
@@ -28,6 +37,8 @@ export type UpdateTemplateInput = {
   description?: string;
   branch?: string;
   configPath?: string;
+  /** Update the project associations (replaces existing) */
+  projectIds?: string[];
 };
 
 export type ListTemplatesOptions = {
@@ -58,7 +69,7 @@ export class TemplateService {
     return new Date().toISOString();
   }
 
-  async create(input: CreateTemplateInput): Promise<Result<Template, TemplateError>> {
+  async create(input: CreateTemplateInput): Promise<Result<TemplateWithProjects, TemplateError>> {
     // Parse GitHub URL
     const parsed = parseGitHubUrl(input.githubUrl);
     if (!parsed.ok) {
@@ -67,8 +78,11 @@ export class TemplateService {
 
     const { owner, repo } = parsed.value;
 
-    // Validate project-scoped templates require projectId
-    if (input.scope === 'project' && !input.projectId) {
+    // Normalize projectIds - support both legacy projectId and new projectIds array
+    const projectIds = input.projectIds ?? (input.projectId ? [input.projectId] : []);
+
+    // Validate project-scoped templates require at least one project
+    if (input.scope === 'project' && projectIds.length === 0) {
       return err(TemplateErrors.PROJECT_REQUIRED);
     }
 
@@ -77,8 +91,7 @@ export class TemplateService {
       where: and(
         eq(templates.githubOwner, owner),
         eq(templates.githubRepo, repo),
-        eq(templates.scope, input.scope),
-        input.projectId ? eq(templates.projectId, input.projectId) : undefined
+        eq(templates.scope, input.scope)
       ),
     });
 
@@ -98,7 +111,7 @@ export class TemplateService {
         githubRepo: repo,
         branch: input.branch ?? 'main',
         configPath: input.configPath ?? '.claude',
-        projectId: input.projectId,
+        projectId: projectIds[0], // Keep legacy field for backward compatibility
         status: 'active',
         createdAt: now,
         updatedAt: now,
@@ -109,10 +122,21 @@ export class TemplateService {
       return err(TemplateErrors.NOT_FOUND);
     }
 
-    return ok(template);
+    // Insert project associations into junction table
+    if (projectIds.length > 0) {
+      await this.db.insert(templateProjects).values(
+        projectIds.map((projectId) => ({
+          templateId: template.id,
+          projectId,
+          createdAt: now,
+        }))
+      );
+    }
+
+    return ok({ ...template, projectIds });
   }
 
-  async getById(id: string): Promise<Result<Template, TemplateError>> {
+  async getById(id: string): Promise<Result<TemplateWithProjects, TemplateError>> {
     const template = await this.db.query.templates.findFirst({
       where: eq(templates.id, id),
     });
@@ -121,34 +145,85 @@ export class TemplateService {
       return err(TemplateErrors.NOT_FOUND);
     }
 
-    return ok(template);
+    // Get associated project IDs
+    const associations = await this.db.query.templateProjects.findMany({
+      where: eq(templateProjects.templateId, id),
+    });
+    const projectIds = associations.map((a) => a.projectId);
+
+    return ok({ ...template, projectIds });
   }
 
-  async list(options?: ListTemplatesOptions): Promise<Result<Template[], TemplateError>> {
+  async list(
+    options?: ListTemplatesOptions
+  ): Promise<Result<TemplateWithProjects[], TemplateError>> {
     const limit = options?.limit ?? 50;
     const offset = options?.offset ?? 0;
 
-    const conditions = [];
-
-    if (options?.scope) {
-      conditions.push(eq(templates.scope, options.scope));
-    }
+    let items: Template[];
 
     if (options?.projectId) {
-      conditions.push(eq(templates.projectId, options.projectId));
+      // Find templates associated with this project via junction table
+      const associations = await this.db.query.templateProjects.findMany({
+        where: eq(templateProjects.projectId, options.projectId),
+      });
+      const templateIds = associations.map((a) => a.templateId);
+
+      if (templateIds.length === 0) {
+        // Also check legacy projectId field for backward compatibility
+        const conditions = [eq(templates.projectId, options.projectId)];
+        if (options.scope) {
+          conditions.push(eq(templates.scope, options.scope));
+        }
+        items = await this.db.query.templates.findMany({
+          where: and(...conditions),
+          orderBy: [desc(templates.updatedAt)],
+          limit,
+          offset,
+        });
+      } else {
+        const conditions = [inArray(templates.id, templateIds)];
+        if (options.scope) {
+          conditions.push(eq(templates.scope, options.scope));
+        }
+        items = await this.db.query.templates.findMany({
+          where: and(...conditions),
+          orderBy: [desc(templates.updatedAt)],
+          limit,
+          offset,
+        });
+      }
+    } else {
+      const conditions = [];
+      if (options?.scope) {
+        conditions.push(eq(templates.scope, options.scope));
+      }
+
+      items = await this.db.query.templates.findMany({
+        where: conditions.length > 0 ? and(...conditions) : undefined,
+        orderBy: [desc(templates.updatedAt)],
+        limit,
+        offset,
+      });
     }
 
-    const items = await this.db.query.templates.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      orderBy: [desc(templates.updatedAt)],
-      limit,
-      offset,
-    });
+    // Get associated project IDs for each template
+    const result: TemplateWithProjects[] = await Promise.all(
+      items.map(async (template) => {
+        const associations = await this.db.query.templateProjects.findMany({
+          where: eq(templateProjects.templateId, template.id),
+        });
+        return { ...template, projectIds: associations.map((a) => a.projectId) };
+      })
+    );
 
-    return ok(items);
+    return ok(result);
   }
 
-  async update(id: string, input: UpdateTemplateInput): Promise<Result<Template, TemplateError>> {
+  async update(
+    id: string,
+    input: UpdateTemplateInput
+  ): Promise<Result<TemplateWithProjects, TemplateError>> {
     const updates: Partial<Template> = {
       updatedAt: this.updateTimestamp(),
     };
@@ -176,7 +251,31 @@ export class TemplateService {
       return err(TemplateErrors.NOT_FOUND);
     }
 
-    return ok(updated);
+    // Update project associations if provided
+    if (input.projectIds !== undefined) {
+      // Delete existing associations
+      await this.db.delete(templateProjects).where(eq(templateProjects.templateId, id));
+
+      // Insert new associations
+      if (input.projectIds.length > 0) {
+        const now = this.updateTimestamp();
+        await this.db.insert(templateProjects).values(
+          input.projectIds.map((projectId) => ({
+            templateId: id,
+            projectId,
+            createdAt: now,
+          }))
+        );
+      }
+    }
+
+    // Get updated project associations
+    const associations = await this.db.query.templateProjects.findMany({
+      where: eq(templateProjects.templateId, id),
+    });
+    const projectIds = associations.map((a) => a.projectId);
+
+    return ok({ ...updated, projectIds });
   }
 
   async delete(id: string): Promise<Result<void, TemplateError>> {

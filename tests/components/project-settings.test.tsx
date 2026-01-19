@@ -24,7 +24,8 @@ describe('ProjectSettings', () => {
       maxConcurrentAgents: 3,
     };
 
-    render(<ProjectSettings project={project} onSave={onSave} />);
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(<ProjectSettings project={project} onSave={onSave} onDelete={onDelete} />);
 
     fireEvent.change(screen.getByLabelText('Default branch'), {
       target: { value: 'develop' },

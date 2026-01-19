@@ -20,6 +20,7 @@ import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
 import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
+import { Route as SettingsSandboxRouteImport } from './routes/settings/sandbox'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
 import { Route as SettingsGithubRouteImport } from './routes/settings/github'
@@ -116,6 +117,11 @@ const TemplatesOrgRoute = TemplatesOrgRouteImport.update({
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
   id: '/system',
   path: '/system',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSandboxRoute = SettingsSandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsProjectsRoute = SettingsProjectsRouteImport.update({
@@ -348,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
@@ -402,6 +409,7 @@ export interface FileRoutesByTo {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
@@ -458,6 +466,7 @@ export interface FileRoutesById {
   '/settings/github': typeof SettingsGithubRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
@@ -515,6 +524,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/sandbox'
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
@@ -569,6 +579,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/sandbox'
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
@@ -624,6 +635,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/sandbox'
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
@@ -767,6 +779,13 @@ declare module '@tanstack/react-router' {
       path: '/system'
       fullPath: '/settings/system'
       preLoaderRoute: typeof SettingsSystemRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/sandbox': {
+      id: '/settings/sandbox'
+      path: '/sandbox'
+      fullPath: '/settings/sandbox'
+      preLoaderRoute: typeof SettingsSandboxRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/projects': {
@@ -1073,6 +1092,7 @@ interface SettingsRouteChildren {
   SettingsGithubRoute: typeof SettingsGithubRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
   SettingsProjectsRoute: typeof SettingsProjectsRoute
+  SettingsSandboxRoute: typeof SettingsSandboxRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -1084,6 +1104,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsGithubRoute: SettingsGithubRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
   SettingsProjectsRoute: SettingsProjectsRoute,
+  SettingsSandboxRoute: SettingsSandboxRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

@@ -38,6 +38,7 @@ export type CreateProjectInput = {
   description?: string;
   config?: Partial<ProjectConfig>;
   maxConcurrentAgents?: number;
+  sandboxConfigId?: string;
 };
 
 export type UpdateProjectInput = {
@@ -134,6 +135,7 @@ export class ProjectService {
         path: resolved,
         config: validated.value,
         maxConcurrentAgents: input.maxConcurrentAgents ?? 3,
+        sandboxConfigId: input.sandboxConfigId,
         createdAt: this.updateTimestamp(),
         updatedAt: this.updateTimestamp(),
       })

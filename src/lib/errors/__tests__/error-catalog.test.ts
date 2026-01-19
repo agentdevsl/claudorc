@@ -5,6 +5,7 @@ import {
   createError,
   GitHubErrors,
   ProjectErrors,
+  SandboxConfigErrors,
   SessionErrors,
   TaskErrors,
   ValidationErrors,
@@ -513,6 +514,89 @@ describe('error catalog', () => {
       message: 'Invalid value "paused" for "status"',
       status: 400,
       details: { field: 'status', value: 'paused', allowedValues: ['idle', 'running'] },
+    });
+  });
+
+  it('SandboxConfigErrors.NOT_FOUND', () => {
+    expect(SandboxConfigErrors.NOT_FOUND).toEqual({
+      code: 'SANDBOX_CONFIG_NOT_FOUND',
+      message: 'Sandbox configuration not found',
+      status: 404,
+      details: undefined,
+    });
+  });
+
+  it('SandboxConfigErrors.ALREADY_EXISTS', () => {
+    expect(SandboxConfigErrors.ALREADY_EXISTS).toEqual({
+      code: 'SANDBOX_CONFIG_ALREADY_EXISTS',
+      message: 'A sandbox configuration with this name already exists',
+      status: 409,
+      details: undefined,
+    });
+  });
+
+  it('SandboxConfigErrors.IN_USE', () => {
+    const error = SandboxConfigErrors.IN_USE(3);
+
+    expect(error).toEqual({
+      code: 'SANDBOX_CONFIG_IN_USE',
+      message: 'Cannot delete sandbox configuration - it is used by 3 project(s)',
+      status: 409,
+      details: { projectCount: 3 },
+    });
+  });
+
+  it('SandboxConfigErrors.INVALID_MEMORY', () => {
+    const error = SandboxConfigErrors.INVALID_MEMORY(100);
+
+    expect(error).toEqual({
+      code: 'SANDBOX_CONFIG_INVALID_MEMORY',
+      message: 'Invalid memory value: 100MB. Must be between 512 and 32768',
+      status: 400,
+      details: { value: 100, min: 512, max: 32768 },
+    });
+  });
+
+  it('SandboxConfigErrors.INVALID_CPU', () => {
+    const error = SandboxConfigErrors.INVALID_CPU(0.1);
+
+    expect(error).toEqual({
+      code: 'SANDBOX_CONFIG_INVALID_CPU',
+      message: 'Invalid CPU value: 0.1 cores. Must be between 0.5 and 16',
+      status: 400,
+      details: { value: 0.1, min: 0.5, max: 16 },
+    });
+  });
+
+  it('SandboxConfigErrors.INVALID_PROCESSES', () => {
+    const error = SandboxConfigErrors.INVALID_PROCESSES(10);
+
+    expect(error).toEqual({
+      code: 'SANDBOX_CONFIG_INVALID_PROCESSES',
+      message: 'Invalid max processes value: 10. Must be between 32 and 4096',
+      status: 400,
+      details: { value: 10, min: 32, max: 4096 },
+    });
+  });
+
+  it('SandboxConfigErrors.INVALID_TIMEOUT', () => {
+    const error = SandboxConfigErrors.INVALID_TIMEOUT(0);
+
+    expect(error).toEqual({
+      code: 'SANDBOX_CONFIG_INVALID_TIMEOUT',
+      message: 'Invalid timeout value: 0 minutes. Must be between 1 and 1440',
+      status: 400,
+      details: { value: 0, min: 1, max: 1440 },
+    });
+  });
+
+  it('SandboxConfigErrors.DEFAULT_EXISTS', () => {
+    expect(SandboxConfigErrors.DEFAULT_EXISTS).toEqual({
+      code: 'SANDBOX_CONFIG_DEFAULT_EXISTS',
+      message:
+        'A default sandbox configuration already exists. Remove the default flag from the existing configuration first.',
+      status: 409,
+      details: undefined,
     });
   });
 });

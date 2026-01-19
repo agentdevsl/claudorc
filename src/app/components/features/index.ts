@@ -21,6 +21,9 @@ export { ApprovalDialog } from './approval-dialog';
 // Breadcrumbs
 export { type BreadcrumbItem, Breadcrumbs } from './breadcrumbs';
 
+// Delete Project Dialog
+export { DeleteProjectDialog } from './delete-project-dialog';
+
 // Empty State
 export { EmptyState } from './empty-state';
 

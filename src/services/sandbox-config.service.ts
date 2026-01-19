@@ -1,0 +1,270 @@
+import { and, desc, eq, ne } from 'drizzle-orm';
+import { projects } from '../db/schema/projects.js';
+import type { NewSandboxConfig, SandboxConfig, SandboxType } from '../db/schema/sandbox-configs.js';
+import { sandboxConfigs } from '../db/schema/sandbox-configs.js';
+import type { SandboxConfigError } from '../lib/errors/sandbox-config-errors.js';
+import { SandboxConfigErrors } from '../lib/errors/sandbox-config-errors.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
+import type { Database } from '../types/database.js';
+
+export type CreateSandboxConfigInput = {
+  name: string;
+  description?: string;
+  type?: SandboxType;
+  isDefault?: boolean;
+  baseImage?: string;
+  memoryMb?: number;
+  cpuCores?: number;
+  maxProcesses?: number;
+  timeoutMinutes?: number;
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath?: string;
+};
+
+export type UpdateSandboxConfigInput = {
+  name?: string;
+  description?: string;
+  type?: SandboxType;
+  isDefault?: boolean;
+  baseImage?: string;
+  memoryMb?: number;
+  cpuCores?: number;
+  maxProcesses?: number;
+  timeoutMinutes?: number;
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath?: string;
+};
+
+export type ListSandboxConfigsOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+export class SandboxConfigService {
+  constructor(private db: Database) {}
+
+  private updateTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  private validateResourceLimits(
+    input: Partial<CreateSandboxConfigInput>
+  ): Result<void, SandboxConfigError> {
+    if (input.memoryMb !== undefined) {
+      if (input.memoryMb < 512 || input.memoryMb > 32768) {
+        return err(SandboxConfigErrors.INVALID_MEMORY(input.memoryMb));
+      }
+    }
+
+    if (input.cpuCores !== undefined) {
+      if (input.cpuCores < 0.5 || input.cpuCores > 16) {
+        return err(SandboxConfigErrors.INVALID_CPU(input.cpuCores));
+      }
+    }
+
+    if (input.maxProcesses !== undefined) {
+      if (input.maxProcesses < 32 || input.maxProcesses > 4096) {
+        return err(SandboxConfigErrors.INVALID_PROCESSES(input.maxProcesses));
+      }
+    }
+
+    if (input.timeoutMinutes !== undefined) {
+      if (input.timeoutMinutes < 1 || input.timeoutMinutes > 1440) {
+        return err(SandboxConfigErrors.INVALID_TIMEOUT(input.timeoutMinutes));
+      }
+    }
+
+    return ok(undefined);
+  }
+
+  async create(
+    input: CreateSandboxConfigInput
+  ): Promise<Result<SandboxConfig, SandboxConfigError>> {
+    // Validate resource limits
+    const validation = this.validateResourceLimits(input);
+    if (!validation.ok) {
+      return validation;
+    }
+
+    // Check for existing config with same name
+    const existing = await this.db.query.sandboxConfigs.findFirst({
+      where: eq(sandboxConfigs.name, input.name),
+    });
+
+    if (existing) {
+      return err(SandboxConfigErrors.ALREADY_EXISTS);
+    }
+
+    // If setting as default, check if another default exists
+    if (input.isDefault) {
+      const existingDefault = await this.db.query.sandboxConfigs.findFirst({
+        where: eq(sandboxConfigs.isDefault, true),
+      });
+
+      if (existingDefault) {
+        // Clear the existing default
+        await this.db
+          .update(sandboxConfigs)
+          .set({ isDefault: false, updatedAt: this.updateTimestamp() })
+          .where(eq(sandboxConfigs.id, existingDefault.id));
+      }
+    }
+
+    const now = this.updateTimestamp();
+
+    const [config] = await this.db
+      .insert(sandboxConfigs)
+      .values({
+        name: input.name,
+        description: input.description,
+        type: input.type ?? 'docker',
+        isDefault: input.isDefault ?? false,
+        baseImage: input.baseImage ?? 'node:22-slim',
+        memoryMb: input.memoryMb ?? 4096,
+        cpuCores: input.cpuCores ?? 2.0,
+        maxProcesses: input.maxProcesses ?? 256,
+        timeoutMinutes: input.timeoutMinutes ?? 60,
+        volumeMountPath: input.volumeMountPath,
+        createdAt: now,
+        updatedAt: now,
+      } satisfies NewSandboxConfig)
+      .returning();
+
+    if (!config) {
+      return err(SandboxConfigErrors.NOT_FOUND);
+    }
+
+    return ok(config);
+  }
+
+  async getById(id: string): Promise<Result<SandboxConfig, SandboxConfigError>> {
+    const config = await this.db.query.sandboxConfigs.findFirst({
+      where: eq(sandboxConfigs.id, id),
+    });
+
+    if (!config) {
+      return err(SandboxConfigErrors.NOT_FOUND);
+    }
+
+    return ok(config);
+  }
+
+  async getDefault(): Promise<Result<SandboxConfig | null, SandboxConfigError>> {
+    const config = await this.db.query.sandboxConfigs.findFirst({
+      where: eq(sandboxConfigs.isDefault, true),
+    });
+
+    return ok(config ?? null);
+  }
+
+  async list(
+    options?: ListSandboxConfigsOptions
+  ): Promise<Result<SandboxConfig[], SandboxConfigError>> {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+
+    const items = await this.db.query.sandboxConfigs.findMany({
+      orderBy: [desc(sandboxConfigs.isDefault), desc(sandboxConfigs.updatedAt)],
+      limit,
+      offset,
+    });
+
+    return ok(items);
+  }
+
+  async update(
+    id: string,
+    input: UpdateSandboxConfigInput
+  ): Promise<Result<SandboxConfig, SandboxConfigError>> {
+    // Validate resource limits
+    const validation = this.validateResourceLimits(input);
+    if (!validation.ok) {
+      return validation;
+    }
+
+    // Check if config exists
+    const existing = await this.db.query.sandboxConfigs.findFirst({
+      where: eq(sandboxConfigs.id, id),
+    });
+
+    if (!existing) {
+      return err(SandboxConfigErrors.NOT_FOUND);
+    }
+
+    // Check name uniqueness if changing name
+    if (input.name !== undefined && input.name !== existing.name) {
+      const nameConflict = await this.db.query.sandboxConfigs.findFirst({
+        where: and(eq(sandboxConfigs.name, input.name), ne(sandboxConfigs.id, id)),
+      });
+
+      if (nameConflict) {
+        return err(SandboxConfigErrors.ALREADY_EXISTS);
+      }
+    }
+
+    // If setting as default, clear any existing default
+    if (input.isDefault === true && !existing.isDefault) {
+      const existingDefault = await this.db.query.sandboxConfigs.findFirst({
+        where: and(eq(sandboxConfigs.isDefault, true), ne(sandboxConfigs.id, id)),
+      });
+
+      if (existingDefault) {
+        await this.db
+          .update(sandboxConfigs)
+          .set({ isDefault: false, updatedAt: this.updateTimestamp() })
+          .where(eq(sandboxConfigs.id, existingDefault.id));
+      }
+    }
+
+    const updates: Partial<SandboxConfig> = {
+      updatedAt: this.updateTimestamp(),
+    };
+
+    if (input.name !== undefined) updates.name = input.name;
+    if (input.description !== undefined) updates.description = input.description;
+    if (input.type !== undefined) updates.type = input.type;
+    if (input.isDefault !== undefined) updates.isDefault = input.isDefault;
+    if (input.baseImage !== undefined) updates.baseImage = input.baseImage;
+    if (input.memoryMb !== undefined) updates.memoryMb = input.memoryMb;
+    if (input.cpuCores !== undefined) updates.cpuCores = input.cpuCores;
+    if (input.maxProcesses !== undefined) updates.maxProcesses = input.maxProcesses;
+    if (input.timeoutMinutes !== undefined) updates.timeoutMinutes = input.timeoutMinutes;
+    if (input.volumeMountPath !== undefined) updates.volumeMountPath = input.volumeMountPath;
+
+    const [updated] = await this.db
+      .update(sandboxConfigs)
+      .set(updates)
+      .where(eq(sandboxConfigs.id, id))
+      .returning();
+
+    if (!updated) {
+      return err(SandboxConfigErrors.NOT_FOUND);
+    }
+
+    return ok(updated);
+  }
+
+  async delete(id: string): Promise<Result<void, SandboxConfigError>> {
+    const config = await this.db.query.sandboxConfigs.findFirst({
+      where: eq(sandboxConfigs.id, id),
+    });
+
+    if (!config) {
+      return err(SandboxConfigErrors.NOT_FOUND);
+    }
+
+    // Check if any projects are using this config
+    const projectsUsingConfig = await this.db.query.projects.findMany({
+      where: eq(projects.sandboxConfigId, id),
+    });
+
+    if (projectsUsingConfig.length > 0) {
+      return err(SandboxConfigErrors.IN_USE(projectsUsingConfig.length));
+    }
+
+    await this.db.delete(sandboxConfigs).where(eq(sandboxConfigs.id, id));
+
+    return ok(undefined);
+  }
+}

@@ -61,6 +61,7 @@ export const Route = createFileRoute('/api/projects')({
           description: parsed.value.description,
           config: parsed.value.config,
           maxConcurrentAgents: parsed.value.maxConcurrentAgents,
+          sandboxConfigId: parsed.value.sandboxConfigId,
         });
 
         if (!result.ok) {

@@ -7,7 +7,13 @@ import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
 import type { ProjectStatus, TaskCounts } from '@/app/components/features/project-card';
 import { AddProjectCard, ProjectCard } from '@/app/components/features/project-card';
 import { Button } from '@/app/components/ui/button';
-import { apiClient, type ProjectListItem } from '@/lib/api/client';
+import {
+  apiClient,
+  type ProjectListItem,
+  type ProjectSummaryItem,
+  type SandboxConfigItem,
+  type SandboxType,
+} from '@/lib/api/client';
 import type { Result } from '@/lib/utils/result';
 import type { GitHubOrg, GitHubRepo } from '@/services/github-token.service';
 
@@ -124,6 +130,8 @@ function Dashboard(): React.JSX.Element {
   const [isSettingsConfigured, setIsSettingsConfigured] = useState(false);
   const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
   const [localRepos, setLocalRepos] = useState<{ name: string; path: string }[]>([]);
+  const [defaultSandboxType, setDefaultSandboxType] = useState<SandboxType>('docker');
+  const [sandboxConfigs, setSandboxConfigs] = useState<SandboxConfigItem[]>([]);
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
@@ -165,29 +173,47 @@ function Dashboard(): React.JSX.Element {
       }
     };
     discoverLocalRepos();
+
+    // Fetch sandbox configs to determine default type
+    const fetchSandboxConfigs = async () => {
+      try {
+        const result = await apiClient.sandboxConfigs.list();
+        if (result.ok) {
+          setSandboxConfigs(result.data.items);
+          // Find the default config and set its type
+          const defaultConfig = result.data.items.find((c) => c.isDefault);
+          if (defaultConfig) {
+            setDefaultSandboxType(defaultConfig.type);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch sandbox configs:', error);
+      }
+    };
+    fetchSandboxConfigs();
   }, []);
 
   // Fetch projects from API on mount
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const result = await apiClient.projects.list({ limit: 24 });
+        const result = await apiClient.projects.listWithSummaries({ limit: 24 });
         if (result.ok) {
           // Convert API response to client project summaries
-          const summaries: ClientProjectSummary[] = result.data.items.map((project) => ({
-            project,
-            status: 'idle' as const,
-            taskCounts: {
-              backlog: 0,
-              queued: 0,
-              inProgress: 0,
-              waitingApproval: 0,
-              verified: 0,
-              total: 0,
-            },
-            runningAgents: [],
-            lastActivityAt: project.updatedAt,
-          }));
+          const summaries: ClientProjectSummary[] = result.data.items.map(
+            (item: ProjectSummaryItem) => ({
+              project: item.project,
+              status: item.status,
+              taskCounts: item.taskCounts,
+              runningAgents: item.runningAgents.map((agent) => ({
+                id: agent.id,
+                name: agent.name,
+                currentTaskId: agent.currentTaskId ?? undefined,
+                currentTaskTitle: agent.currentTaskTitle ?? undefined,
+              })),
+              lastActivityAt: item.lastActivityAt ? new Date(item.lastActivityAt) : null,
+            })
+          );
           setProjectSummaries(summaries);
         } else {
           console.error('Failed to fetch projects:', result.error);
@@ -205,12 +231,36 @@ function Dashboard(): React.JSX.Element {
     name: string;
     path: string;
     description?: string;
+    sandboxType?: SandboxType;
   }): Promise<Result<void, { code: string; message: string }>> => {
     try {
+      // Find or create sandbox config for the selected type
+      const selectedType = data.sandboxType ?? defaultSandboxType;
+      let sandboxConfigId: string | undefined;
+
+      // Look for an existing config with the selected type
+      const existingConfig = sandboxConfigs.find((c) => c.type === selectedType);
+      if (existingConfig) {
+        sandboxConfigId = existingConfig.id;
+      } else {
+        // Create a new sandbox config with the selected type
+        const configResult = await apiClient.sandboxConfigs.create({
+          name: `${selectedType === 'docker' ? 'Docker' : 'DevContainer'} Default`,
+          type: selectedType,
+          isDefault: sandboxConfigs.length === 0, // Make default if first config
+        });
+        if (configResult.ok) {
+          sandboxConfigId = configResult.data.id;
+          // Update local state
+          setSandboxConfigs((prev) => [...prev, configResult.data]);
+        }
+      }
+
       const result = await apiClient.projects.create({
         name: data.name,
         path: data.path,
         description: data.description,
+        sandboxConfigId,
       });
 
       if (!result.ok) {
@@ -224,22 +274,22 @@ function Dashboard(): React.JSX.Element {
         };
       }
 
-      const listResult = await apiClient.projects.list({ limit: 24 });
+      const listResult = await apiClient.projects.listWithSummaries({ limit: 24 });
       if (listResult.ok) {
-        const summaries: ClientProjectSummary[] = listResult.data.items.map((project) => ({
-          project,
-          status: 'idle' as const,
-          taskCounts: {
-            backlog: 0,
-            queued: 0,
-            inProgress: 0,
-            waitingApproval: 0,
-            verified: 0,
-            total: 0,
-          },
-          runningAgents: [],
-          lastActivityAt: project.updatedAt,
-        }));
+        const summaries: ClientProjectSummary[] = listResult.data.items.map(
+          (item: ProjectSummaryItem) => ({
+            project: item.project,
+            status: item.status,
+            taskCounts: item.taskCounts,
+            runningAgents: item.runningAgents.map((agent) => ({
+              id: agent.id,
+              name: agent.name,
+              currentTaskId: agent.currentTaskId ?? undefined,
+              currentTaskTitle: agent.currentTaskTitle ?? undefined,
+            })),
+            lastActivityAt: item.lastActivityAt ? new Date(item.lastActivityAt) : null,
+          })
+        );
         setProjectSummaries(summaries);
       }
 
@@ -460,6 +510,7 @@ function Dashboard(): React.JSX.Element {
         onFetchReposForOwner={handleFetchReposForOwner}
         isGitHubConfigured={isGitHubConfigured}
         recentRepos={localRepos}
+        defaultSandboxType={defaultSandboxType}
       />
     </LayoutShell>
   );

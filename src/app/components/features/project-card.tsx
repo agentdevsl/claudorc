@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, Desktop, Warning } from '@phosphor-icons/react';
+import { CheckCircle, Clock, Desktop, GearSix, Warning } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
 
@@ -250,11 +250,22 @@ export function ProjectCard({
             </div>
           )}
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/projects/$projectId" params={{ projectId: project.id }}>
-            {isNeedsApproval ? 'Review' : 'Open'}
+        <div className="flex items-center gap-2">
+          <Link
+            to="/projects/$projectId/settings"
+            params={{ projectId: project.id }}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+            data-testid="project-card-settings"
+          >
+            <GearSix className="h-4 w-4" />
+            <span className="sr-only">Project settings</span>
           </Link>
-        </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/projects/$projectId" params={{ projectId: project.id }}>
+              {isNeedsApproval ? 'Review' : 'Open'}
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

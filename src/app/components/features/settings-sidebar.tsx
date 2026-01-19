@@ -1,4 +1,13 @@
-import { Folder, Gear, GithubLogo, Heartbeat, Key, Robot, Swatches } from '@phosphor-icons/react';
+import {
+  Cube,
+  Folder,
+  Gear,
+  GithubLogo,
+  Heartbeat,
+  Key,
+  Robot,
+  Swatches,
+} from '@phosphor-icons/react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
@@ -60,6 +69,7 @@ function useSettingsSections(): SettingsSection[] {
           badgeVariant: githubConnected ? 'success' : undefined,
         },
         { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
+        { id: 'sandbox', label: 'Sandbox', to: '/settings/sandbox', icon: Cube },
         { id: 'preferences', label: 'Defaults', to: '/settings/preferences', icon: Gear },
         { id: 'system', label: 'System Health', to: '/settings/system', icon: Heartbeat },
       ],

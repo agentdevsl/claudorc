@@ -31,7 +31,10 @@ export type CreateTemplateInput = {
   githubUrl: string;
   branch?: string;
   configPath?: string;
+  /** @deprecated Use projectIds instead */
   projectId?: string;
+  /** Project IDs to associate with this template (for project-scoped templates) */
+  projectIds?: string[];
 };
 
 interface ProjectOption {
@@ -43,8 +46,11 @@ interface AddTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   scope: 'org' | 'project';
+  /** @deprecated Use initialProjectIds instead */
   projectId?: string;
-  /** Available projects for project-scoped templates. Required when scope='project' and projectId is not set. */
+  /** Initial project IDs to pre-select (for project-scoped templates) */
+  initialProjectIds?: string[];
+  /** Available projects for project-scoped templates. Required when scope='project'. */
   projects?: ProjectOption[];
   onSubmit: (data: CreateTemplateInput) => Promise<void>;
   onFetchOrgs?: () => Promise<GitHubOrg[]>;
@@ -282,23 +288,25 @@ export function AddTemplateDialog({
   open,
   onOpenChange,
   scope,
-  projectId: initialProjectId,
+  projectId: legacyProjectId,
+  initialProjectIds = [],
   projects = [],
   onSubmit,
   onFetchOrgs,
   onFetchReposForOwner,
   isGitHubConfigured = false,
 }: AddTemplateDialogProps): React.JSX.Element {
+  // Normalize initial project IDs from both legacy and new prop
+  const normalizedInitialIds =
+    initialProjectIds.length > 0 ? initialProjectIds : legacyProjectId ? [legacyProjectId] : [];
+
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [configPath, setConfigPath] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(initialProjectId);
-
-  // Derive effective project ID - use prop if provided, otherwise use selected
-  const effectiveProjectId = initialProjectId ?? selectedProjectId;
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(normalizedInitialIds);
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -321,11 +329,13 @@ export function AddTemplateDialog({
       ? 'Please enter a valid GitHub repository (e.g., owner/repo or https://github.com/owner/repo)'
       : '';
   const projectError =
-    scope === 'project' && touched.project && !effectiveProjectId ? 'Please select a project' : '';
+    scope === 'project' && touched.project && selectedProjectIds.length === 0
+      ? 'Please select at least one project'
+      : '';
 
-  // For project-scoped templates, require a project selection
-  const needsProjectSelection = scope === 'project' && !initialProjectId;
-  const hasValidProject = !needsProjectSelection || effectiveProjectId;
+  // For project-scoped templates, require at least one project selection
+  const needsProjectSelection = scope === 'project';
+  const hasValidProject = !needsProjectSelection || selectedProjectIds.length > 0;
 
   const canSubmit = name.trim() && isValidGitHubUrl(githubUrl) && hasValidProject && !isSubmitting;
 
@@ -385,7 +395,7 @@ export function AddTemplateDialog({
       setGithubUrl('');
       setBranch('');
       setConfigPath('');
-      setSelectedProjectId(initialProjectId);
+      setSelectedProjectIds(normalizedInitialIds);
       setIsSubmitting(false);
       setError('');
       setTouched({});
@@ -428,7 +438,7 @@ export function AddTemplateDialog({
         githubUrl: normalizedUrl,
         branch: branch.trim() || undefined,
         configPath: configPath.trim() || undefined,
-        projectId: scope === 'project' ? effectiveProjectId : undefined,
+        projectIds: scope === 'project' ? selectedProjectIds : undefined,
       });
 
       handleOpenChange(false);
@@ -539,30 +549,64 @@ export function AddTemplateDialog({
             </>
           )}
 
-          {/* Project selector (only for project-scoped templates without a pre-set projectId) */}
+          {/* Project selector (for project-scoped templates) */}
           {needsProjectSelection && (
             <div className="space-y-2">
-              <label
-                htmlFor="template-project"
-                className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-              >
-                Project <span className="text-danger">*</span>
-              </label>
-              <select
-                id="template-project"
-                value={selectedProjectId ?? ''}
-                onChange={(e) => setSelectedProjectId(e.target.value || undefined)}
-                onBlur={() => handleBlur('project')}
-                className="w-full rounded-[var(--radius)] border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                data-testid="template-project-select"
-              >
-                <option value="">Select a project...</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+              <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                Projects <span className="text-danger">*</span>
+                <span className="ml-1 font-normal text-fg-subtle">(select one or more)</span>
+              </span>
+              {projects.length === 0 ? (
+                <div className="py-2 text-sm text-fg-muted">
+                  No projects available. Create a project first.
+                </div>
+              ) : (
+                <div
+                  className="max-h-[160px] space-y-1 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface-subtle p-2"
+                  data-testid="template-project-list"
+                >
+                  {projects.map((project) => {
+                    const isSelected = selectedProjectIds.includes(project.id);
+                    return (
+                      <label
+                        key={project.id}
+                        className={cn(
+                          'flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] p-2 transition-colors',
+                          isSelected
+                            ? 'bg-accent-muted border border-accent'
+                            : 'border border-transparent hover:bg-surface-muted'
+                        )}
+                        data-testid={`template-project-${project.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedProjectIds((prev) => [...prev, project.id]);
+                            } else {
+                              setSelectedProjectIds((prev) =>
+                                prev.filter((id) => id !== project.id)
+                              );
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                        />
+                        <span className="text-sm text-fg">{project.name}</span>
+                        {isSelected && (
+                          <CheckCircle className="ml-auto h-4 w-4 text-accent" weight="fill" />
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedProjectIds.length > 0 && (
+                <p className="text-xs text-fg-muted">
+                  {selectedProjectIds.length} project{selectedProjectIds.length !== 1 ? 's' : ''}{' '}
+                  selected
+                </p>
+              )}
               {projectError && (
                 <p className="text-xs text-danger" data-testid="project-error">
                   {projectError}

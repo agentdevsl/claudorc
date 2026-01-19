@@ -3,6 +3,7 @@ export * from './base.js';
 export * from './concurrency-errors.js';
 export * from './github-errors.js';
 export * from './project-errors.js';
+export * from './sandbox-config-errors.js';
 export * from './session-errors.js';
 export * from './task-errors.js';
 export * from './template-errors.js';

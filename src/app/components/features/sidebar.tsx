@@ -1,5 +1,6 @@
 import {
   Clock,
+  Cube,
   Files,
   FolderOpen,
   Gear,
@@ -11,14 +12,7 @@ import {
 } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { apiClient, type ProjectListItem } from '@/lib/api/client';
-
-// Simplified project summary for sidebar display
-type SidebarProject = {
-  project: ProjectListItem;
-  taskCounts: { total: number };
-  runningAgents: { id: string }[];
-};
+import { apiClient, type ProjectSummaryItem } from '@/lib/api/client';
 
 interface SidebarProps {
   projectId?: string;
@@ -58,30 +52,36 @@ const templateNavItems: readonly NavItem[] = [
   },
 ] as const;
 
-// Global section nav items
-const globalNavItems: readonly NavItem[] = [
+// Sandbox section nav items
+const sandboxNavItems: readonly NavItem[] = [
+  { label: 'Sandbox Configs', to: '/settings/sandbox', icon: Cube, testId: 'nav-sandbox-configs' },
+] as const;
+
+// Admin section nav items (formerly Global)
+const adminNavItems: readonly NavItem[] = [
   { label: 'Settings', to: '/settings', icon: Gear, testId: 'nav-settings' },
 ] as const;
 
 export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
-  const [projects, setProjects] = useState<SidebarProject[]>([]);
+  const [currentProject, setCurrentProject] = useState<ProjectSummaryItem | null>(null);
 
-  // Fetch projects from API on mount
+  // Fetch current project summary when projectId changes
   useEffect(() => {
-    const loadProjects = async () => {
-      const result = await apiClient.projects.list({ limit: 10 });
+    if (!projectId) {
+      setCurrentProject(null);
+      return;
+    }
+
+    const loadProject = async () => {
+      // Fetch project summaries and find the current one
+      const result = await apiClient.projects.listWithSummaries({ limit: 50 });
       if (result.ok) {
-        // Convert API response to sidebar format
-        const sidebarProjects: SidebarProject[] = result.data.items.map((project) => ({
-          project,
-          taskCounts: { total: 0 },
-          runningAgents: [],
-        }));
-        setProjects(sidebarProjects);
+        const project = result.data.items.find((p) => p.project.id === projectId);
+        setCurrentProject(project ?? null);
       }
     };
-    void loadProjects();
-  }, []);
+    void loadProject();
+  }, [projectId]);
 
   return (
     <aside
@@ -203,49 +203,41 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
         <span className="text-[15px] font-semibold text-fg">AgentPane</span>
       </Link>
 
-      {/* Projects list */}
-      <div
-        className="mx-3 mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto"
-        data-testid="project-list"
-      >
-        {projects.length === 0 ? (
+      {/* Current project or link to browse */}
+      <div className="mx-3 mt-3 flex flex-col gap-1.5" data-testid="project-list">
+        {currentProject ? (
           <Link
-            to="/"
+            to="/projects/$projectId"
+            params={{ projectId: currentProject.project.id }}
+            className="flex items-center gap-2.5 rounded-md border border-accent bg-accent-muted p-2.5 transition-colors"
+            data-testid="project-card"
+          >
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-success to-accent text-[11px] font-semibold text-white">
+              {currentProject.project.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-fg">
+                {currentProject.project.name}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-fg-muted">
+                {currentProject.runningAgents.length > 0 && (
+                  <span className="flex items-center gap-1 text-success">
+                    <Robot className="h-3 w-3" />
+                    {currentProject.runningAgents.length}
+                  </span>
+                )}
+                <span data-testid="project-status">{currentProject.taskCounts.total} tasks</span>
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <Link
+            to="/projects"
             className="flex items-center gap-2.5 rounded-md border border-dashed border-border bg-surface-subtle p-2.5 text-sm text-fg-muted transition-colors hover:border-fg-subtle hover:text-fg"
           >
             <Plus className="h-4 w-4" />
-            <span>Create first project</span>
+            <span>Select a project</span>
           </Link>
-        ) : (
-          projects.map((summary) => (
-            <Link
-              key={summary.project.id}
-              to="/projects/$projectId"
-              params={{ projectId: summary.project.id }}
-              className={`flex items-center gap-2.5 rounded-md border p-2.5 transition-colors ${
-                projectId === summary.project.id
-                  ? 'border-accent bg-accent-muted'
-                  : 'border-border bg-surface-subtle hover:border-fg-subtle'
-              }`}
-              data-testid="project-card"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-success to-accent text-[11px] font-semibold text-white">
-                {summary.project.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-fg">{summary.project.name}</div>
-                <div className="flex items-center gap-2 text-xs text-fg-muted">
-                  {summary.runningAgents.length > 0 && (
-                    <span className="flex items-center gap-1 text-success">
-                      <Robot className="h-3 w-3" />
-                      {summary.runningAgents.length}
-                    </span>
-                  )}
-                  <span data-testid="project-status">{summary.taskCounts.total} tasks</span>
-                </div>
-              </div>
-            </Link>
-          ))
         )}
       </div>
 
@@ -256,11 +248,11 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
           {workspaceNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
-          {/* Tasks - links to selected project's kanban or first project */}
-          {(projectId || projects.length > 0) && (
+          {/* Tasks - links to selected project's kanban */}
+          {currentProject && (
             <Link
               to="/projects/$projectId"
-              params={{ projectId: projectId ?? projects[0]?.project.id ?? '' }}
+              params={{ projectId: currentProject.project.id }}
               activeProps={{ className: 'bg-accent-muted text-accent' }}
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
               data-testid="nav-tasks"
@@ -285,9 +277,16 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
           ))}
         </NavSection>
 
-        {/* Global section */}
-        <NavSection title="Global" testId="nav-section-global">
-          {globalNavItems.map((item) => (
+        {/* Sandbox section */}
+        <NavSection title="Sandbox" testId="nav-section-sandbox">
+          {sandboxNavItems.map((item) => (
+            <NavLink key={item.label} item={item} />
+          ))}
+        </NavSection>
+
+        {/* Admin section */}
+        <NavSection title="Admin" testId="nav-section-admin">
+          {adminNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>

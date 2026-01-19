@@ -21,6 +21,7 @@ export const createProjectSchema = z.object({
   maxConcurrentAgents: z.number().min(1).max(10).optional(),
   githubOwner: z.string().optional(),
   githubRepo: z.string().optional(),
+  sandboxConfigId: cuidSchema.optional(),
 });
 
 export const updateProjectSchema = z.object({
@@ -192,7 +193,10 @@ export const createTemplateSchema = z.object({
   githubUrl: githubUrlSchema,
   branch: z.string().max(100).optional(),
   configPath: z.string().max(500).optional(),
+  /** @deprecated Use projectIds instead */
   projectId: cuidSchema.optional(),
+  /** Project IDs to associate with this template (for project-scoped templates) */
+  projectIds: z.array(cuidSchema).optional(),
 });
 
 export const updateTemplateSchema = z.object({
@@ -200,4 +204,42 @@ export const updateTemplateSchema = z.object({
   description: z.string().max(500).optional(),
   branch: z.string().max(100).optional(),
   configPath: z.string().max(500).optional(),
+  /** Update the project associations (replaces existing) */
+  projectIds: z.array(cuidSchema).optional(),
+});
+
+// Sandbox Config schemas
+export const sandboxTypeSchema = z.enum(['docker', 'devcontainer']);
+
+export const listSandboxConfigsSchema = z.object({
+  limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().min(0).default(0),
+});
+
+export const createSandboxConfigSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  type: sandboxTypeSchema.optional().default('docker'),
+  isDefault: z.boolean().optional().default(false),
+  baseImage: z.string().min(1).max(200).optional().default('node:22-slim'),
+  memoryMb: z.coerce.number().min(512).max(32768).optional().default(4096),
+  cpuCores: z.coerce.number().min(0.5).max(16).optional().default(2.0),
+  maxProcesses: z.coerce.number().min(32).max(4096).optional().default(256),
+  timeoutMinutes: z.coerce.number().min(1).max(1440).optional().default(60),
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath: z.string().max(500).optional(),
+});
+
+export const updateSandboxConfigSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  type: sandboxTypeSchema.optional(),
+  isDefault: z.boolean().optional(),
+  baseImage: z.string().min(1).max(200).optional(),
+  memoryMb: z.coerce.number().min(512).max(32768).optional(),
+  cpuCores: z.coerce.number().min(0.5).max(16).optional(),
+  maxProcesses: z.coerce.number().min(32).max(4096).optional(),
+  timeoutMinutes: z.coerce.number().min(1).max(1440).optional(),
+  /** Volume mount path from local host for docker sandboxes */
+  volumeMountPath: z.string().max(500).optional(),
 });
