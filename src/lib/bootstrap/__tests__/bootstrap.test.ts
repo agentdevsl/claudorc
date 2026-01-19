@@ -8,14 +8,14 @@ describe('BootstrapService', () => {
   it('runs all phases and returns context', async () => {
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'sqlite',
-        fn: async () => ok('db'),
+        name: 'client',
+        fn: async () => ok(null),
         timeout: 100,
         recoverable: false,
       },
       {
-        name: 'schema',
-        fn: async () => ok('schema'),
+        name: 'collections',
+        fn: async () => ok({ projects: { ready: true } }),
         timeout: 100,
         recoverable: false,
       },
@@ -27,7 +27,7 @@ describe('BootstrapService', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toMatchObject({
-        db: 'db',
+        collections: { projects: { ready: true } },
       });
     }
   });
@@ -72,8 +72,14 @@ describe('BootstrapService', () => {
 
     const phases: BootstrapPhaseConfig[] = [
       {
-        name: 'sqlite',
-        fn: async () => ok('db'),
+        name: 'client',
+        fn: async () => ok(null),
+        timeout: 100,
+        recoverable: false,
+      },
+      {
+        name: 'collections',
+        fn: async () => ok({ projects: { ready: true } }),
         timeout: 100,
         recoverable: false,
       },
@@ -97,7 +103,7 @@ describe('BootstrapService', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toMatchObject({
-        db: 'db',
+        collections: { projects: { ready: true } },
       });
     }
   });
@@ -182,11 +188,12 @@ describe('bootstrap phases', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('collections phase returns error when db missing', async () => {
+  it('collections phase returns ok in client mode (no db required)', async () => {
     const { initializeCollections } = await import('../phases/collections.js');
     const result = await initializeCollections({});
 
-    expect(result.ok).toBe(false);
+    // In client mode, collections don't require db - data comes from API
+    expect(result.ok).toBe(true);
   });
 
   it('streams phase returns ok on successful connect', async () => {

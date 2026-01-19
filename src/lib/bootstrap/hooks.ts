@@ -8,7 +8,7 @@ export const useBootstrap = (): {
   retry: () => Promise<void>;
 } => {
   const [state, setState] = useState<BootstrapState>({
-    phase: 'client',
+    phase: 'sqlite',
     progress: 0,
     isComplete: false,
   });

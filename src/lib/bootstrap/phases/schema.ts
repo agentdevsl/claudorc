@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS "tasks" (
   "column" TEXT DEFAULT 'backlog' NOT NULL,
   "position" INTEGER DEFAULT 0 NOT NULL,
   "labels" TEXT DEFAULT '[]',
+  "priority" TEXT DEFAULT 'medium',
   "branch" TEXT,
   "diff_summary" TEXT,
   "approved_at" TEXT,

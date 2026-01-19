@@ -173,12 +173,13 @@ describe('ProjectCard', () => {
   });
 
   describe('MiniKanbanBar', () => {
-    it('renders all four column labels', () => {
+    it('renders all five column labels', () => {
       render(<ProjectCard {...defaultProps} />);
       expect(screen.getByText('Backlog')).toBeInTheDocument();
-      expect(screen.getByText('Todo')).toBeInTheDocument();
-      expect(screen.getByText('Review')).toBeInTheDocument();
-      expect(screen.getByText('Done')).toBeInTheDocument();
+      expect(screen.getByText('Queued')).toBeInTheDocument();
+      expect(screen.getByText('In Progress')).toBeInTheDocument();
+      expect(screen.getByText('Approval')).toBeInTheDocument();
+      expect(screen.getByText('Verified')).toBeInTheDocument();
     });
 
     it('renders correct counts', () => {

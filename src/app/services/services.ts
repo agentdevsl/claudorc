@@ -1,6 +1,7 @@
 import type { AppError, createError } from '@/lib/errors/base';
 import { ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
+import { GitHubTokenService } from '@/services/github-token.service';
 import { ProjectService } from '@/services/project.service';
 import { SandboxConfigService } from '@/services/sandbox-config.service';
 import type { DurableStreamsServer } from '@/services/session.service';
@@ -16,6 +17,7 @@ import type { Database } from '@/types/database';
  */
 export type Services = {
   agentService: AgentService;
+  githubTokenService: GitHubTokenService;
   projectService: ProjectService;
   sandboxConfigService: SandboxConfigService;
   taskService: TaskService;
@@ -70,11 +72,13 @@ export function createServices(context: {
 
     const templateService = new TemplateService(context.db);
     const sandboxConfigService = new SandboxConfigService(context.db);
+    const githubTokenService = new GitHubTokenService(context.db);
 
     console.log('[Services] All services initialized successfully');
 
     return ok({
       agentService,
+      githubTokenService,
       projectService,
       sandboxConfigService,
       taskService,

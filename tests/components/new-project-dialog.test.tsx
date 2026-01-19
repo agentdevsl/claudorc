@@ -278,7 +278,7 @@ describe('NewProjectDialog', () => {
 
   it('calls onSubmit with project data', async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true, value: undefined });
     const onOpenChange = vi.fn();
     const onValidatePath = vi
       .fn()
@@ -322,6 +322,7 @@ describe('NewProjectDialog', () => {
         name: 'my-project',
         path: '/Users/name/workspace/my-project',
         description: 'A test project description',
+        sandboxType: 'docker',
       });
     });
 
@@ -332,7 +333,7 @@ describe('NewProjectDialog', () => {
 
   it('calls onSubmit without description when description is empty', async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true, value: undefined });
     const onValidatePath = vi.fn().mockResolvedValue(createValidPathResult({ name: 'my-project' }));
 
     render(
@@ -365,6 +366,7 @@ describe('NewProjectDialog', () => {
         name: 'my-project',
         path: '/Users/name/workspace/my-project',
         description: undefined,
+        sandboxType: 'docker',
       });
     });
   });

@@ -8,6 +8,7 @@ import {
   SandboxConfigErrors,
   SessionErrors,
   TaskErrors,
+  TemplateErrors,
   ValidationErrors,
   WorktreeErrors,
 } from '../index.js';
@@ -597,6 +598,88 @@ describe('error catalog', () => {
         'A default sandbox configuration already exists. Remove the default flag from the existing configuration first.',
       status: 409,
       details: undefined,
+    });
+  });
+
+  it('TemplateErrors.NOT_FOUND', () => {
+    expect(TemplateErrors.NOT_FOUND).toEqual({
+      code: 'TEMPLATE_NOT_FOUND',
+      message: 'Template not found',
+      status: 404,
+      details: undefined,
+    });
+  });
+
+  it('TemplateErrors.ALREADY_EXISTS', () => {
+    expect(TemplateErrors.ALREADY_EXISTS).toEqual({
+      code: 'TEMPLATE_ALREADY_EXISTS',
+      message: 'A template with this repository already exists',
+      status: 409,
+      details: undefined,
+    });
+  });
+
+  it('TemplateErrors.INVALID_REPO_URL', () => {
+    const error = TemplateErrors.INVALID_REPO_URL('not-a-url');
+
+    expect(error).toEqual({
+      code: 'TEMPLATE_INVALID_REPO_URL',
+      message: 'Invalid GitHub repository URL: not-a-url',
+      status: 400,
+      details: { url: 'not-a-url' },
+    });
+  });
+
+  it('TemplateErrors.SYNC_FAILED', () => {
+    const error = TemplateErrors.SYNC_FAILED('network error');
+
+    expect(error).toEqual({
+      code: 'TEMPLATE_SYNC_FAILED',
+      message: 'Failed to sync template: network error',
+      status: 500,
+      details: { reason: 'network error' },
+    });
+  });
+
+  it('TemplateErrors.FETCH_FAILED', () => {
+    const error = TemplateErrors.FETCH_FAILED('README.md', 'timeout');
+
+    expect(error).toEqual({
+      code: 'TEMPLATE_FETCH_FAILED',
+      message: 'Failed to fetch README.md: timeout',
+      status: 500,
+      details: { path: 'README.md', reason: 'timeout' },
+    });
+  });
+
+  it('TemplateErrors.PARSE_FAILED', () => {
+    const error = TemplateErrors.PARSE_FAILED('package.json', 'invalid JSON');
+
+    expect(error).toEqual({
+      code: 'TEMPLATE_PARSE_FAILED',
+      message: 'Failed to parse package.json: invalid JSON',
+      status: 400,
+      details: { path: 'package.json', reason: 'invalid JSON' },
+    });
+  });
+
+  it('TemplateErrors.PROJECT_REQUIRED', () => {
+    expect(TemplateErrors.PROJECT_REQUIRED).toEqual({
+      code: 'TEMPLATE_PROJECT_REQUIRED',
+      message: 'Project ID is required for project-scoped templates',
+      status: 400,
+      details: undefined,
+    });
+  });
+
+  it('TemplateErrors.INVALID_SCOPE', () => {
+    const error = TemplateErrors.INVALID_SCOPE('unknown');
+
+    expect(error).toEqual({
+      code: 'TEMPLATE_INVALID_SCOPE',
+      message: 'Invalid template scope: unknown',
+      status: 400,
+      details: { scope: 'unknown' },
     });
   });
 });

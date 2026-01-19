@@ -12,20 +12,15 @@ import {
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { TextInput } from '@/app/components/ui/text-input';
-
-type TokenInfo = {
-  maskedToken: string;
-  isValid: boolean;
-  githubLogin?: string;
-  createdAt: string;
-  lastValidatedAt?: string;
-};
+import { useServices } from '@/app/services/service-context';
+import type { TokenInfo } from '@/services/github-token.service';
 
 interface GitHubAppSetupProps {
   onTokenSaved?: () => void;
 }
 
 export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX.Element {
+  const services = useServices();
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -39,16 +34,19 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
     const loadToken = async () => {
       setIsLoading(true);
       try {
-        // TODO: Add API endpoint for GitHub token info
-        // For now, show no token state
-        setTokenInfo(null);
+        if (services?.githubTokenService) {
+          const result = await services.githubTokenService.getTokenInfo();
+          if (result.ok) {
+            setTokenInfo(result.value);
+          }
+        }
       } catch {
         // Ignore errors
       }
       setIsLoading(false);
     };
     void loadToken();
-  }, []);
+  }, [services]);
 
   const handleSaveToken = async () => {
     if (!token.trim()) {
@@ -60,22 +58,17 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
     setIsSaving(true);
 
     try {
-      // TODO: Add API endpoint for saving GitHub token
-      // For now, simulate validation
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const info: TokenInfo = {
-        maskedToken: `${token.slice(0, 8)}...${token.slice(-4)}`,
-        isValid: true,
-        githubLogin: 'user',
-        createdAt: new Date().toISOString(),
-        lastValidatedAt: new Date().toISOString(),
-      };
-
-      setTokenInfo(info);
-      setToken('');
-      setShowForm(false);
-      onTokenSaved?.();
+      if (services?.githubTokenService) {
+        const result = await services.githubTokenService.saveToken(token);
+        if (result.ok) {
+          setTokenInfo(result.value);
+          setToken('');
+          setShowForm(false);
+          onTokenSaved?.();
+        } else {
+          setError(result.error.message);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save token');
     } finally {
@@ -85,8 +78,12 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
 
   const handleDeleteToken = async () => {
     try {
-      // TODO: Add API endpoint for deleting GitHub token
-      setTokenInfo(null);
+      if (services?.githubTokenService) {
+        const result = await services.githubTokenService.deleteToken();
+        if (result.ok) {
+          setTokenInfo(null);
+        }
+      }
     } catch {
       // Ignore errors
     }
@@ -95,8 +92,14 @@ export function GitHubAppSetup({ onTokenSaved }: GitHubAppSetupProps): React.JSX
   const handleRevalidate = async () => {
     setIsLoading(true);
     try {
-      // TODO: Add API endpoint for revalidating GitHub token
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (services?.githubTokenService) {
+        await services.githubTokenService.revalidateToken();
+        // Reload token info to get updated validation status
+        const result = await services.githubTokenService.getTokenInfo();
+        if (result.ok) {
+          setTokenInfo(result.value);
+        }
+      }
     } catch {
       // Ignore errors
     }
