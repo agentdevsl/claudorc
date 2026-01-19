@@ -162,3 +162,42 @@ export const githubWebhookSchema = z.object({
     })
     .optional(),
 });
+
+// Template schemas
+const templateScopeSchema = z.enum(['org', 'project']);
+
+export const listTemplatesSchema = z.object({
+  scope: templateScopeSchema.optional(),
+  projectId: cuidSchema.optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().min(1).max(100).default(50),
+});
+
+// GitHub URL validation - accepts full URLs or owner/repo format
+const githubUrlSchema = z.string().refine(
+  (val) => {
+    // Accept owner/repo format
+    if (/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/.test(val)) return true;
+    // Accept full GitHub URLs
+    if (/github\.com[/:][a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+/.test(val)) return true;
+    return false;
+  },
+  { message: 'Must be a GitHub repository URL or owner/repo format' }
+);
+
+export const createTemplateSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  scope: templateScopeSchema,
+  githubUrl: githubUrlSchema,
+  branch: z.string().max(100).optional(),
+  configPath: z.string().max(500).optional(),
+  projectId: cuidSchema.optional(),
+});
+
+export const updateTemplateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  branch: z.string().max(100).optional(),
+  configPath: z.string().max(500).optional(),
+});

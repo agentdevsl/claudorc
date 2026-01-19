@@ -79,6 +79,24 @@ export type ProjectListResponse = {
   totalCount: number;
 };
 
+// Template types
+export type CreateTemplateInput = {
+  name: string;
+  description?: string;
+  scope: 'org' | 'project';
+  githubUrl: string;
+  branch?: string;
+  configPath?: string;
+  projectId?: string;
+};
+
+export type UpdateTemplateInput = {
+  name?: string;
+  description?: string;
+  branch?: string;
+  configPath?: string;
+};
+
 // API client methods
 export const apiClient = {
   projects: {
@@ -237,5 +255,35 @@ export const apiClient = {
 
     delete: (service: string) =>
       apiServerFetch<null>(`/api/keys/${encodeURIComponent(service)}`, { method: 'DELETE' }),
+  },
+
+  templates: {
+    list: (options?: { scope?: 'org' | 'project'; projectId?: string; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (options?.scope) searchParams.set('scope', options.scope);
+      if (options?.projectId) searchParams.set('projectId', options.projectId);
+      if (options?.limit) searchParams.set('limit', String(options.limit));
+      const query = searchParams.toString();
+      return apiServerFetch<{ items: unknown[]; totalCount: number }>(
+        `/api/templates${query ? `?${query}` : ''}`
+      );
+    },
+
+    create: (input: CreateTemplateInput) =>
+      apiServerFetch<unknown>('/api/templates', { method: 'POST', body: input }),
+
+    getById: (id: string) => apiServerFetch<unknown>(`/api/templates/${encodeURIComponent(id)}`),
+
+    update: (id: string, input: UpdateTemplateInput) =>
+      apiServerFetch<unknown>(`/api/templates/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: input,
+      }),
+
+    delete: (id: string) =>
+      apiServerFetch<null>(`/api/templates/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+    sync: (id: string) =>
+      apiServerFetch<unknown>(`/api/templates/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
   },
 };

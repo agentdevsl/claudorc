@@ -1,0 +1,67 @@
+import { createId } from '@paralleldrive/cuid2';
+import { sql } from 'drizzle-orm';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { projects } from './projects.js';
+
+// Template scope enum
+export const TEMPLATE_SCOPES = ['org', 'project'] as const;
+export type TemplateScope = (typeof TEMPLATE_SCOPES)[number];
+
+// Template status enum
+export const TEMPLATE_STATUSES = ['active', 'syncing', 'error', 'disabled'] as const;
+export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
+
+// Cached content types
+export type CachedSkill = {
+  id: string;
+  name: string;
+  description?: string;
+  content: string;
+};
+
+export type CachedCommand = {
+  name: string;
+  description?: string;
+  content: string;
+};
+
+export type CachedAgent = {
+  name: string;
+  description?: string;
+  content: string;
+};
+
+export const templates = sqliteTable('templates', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  scope: text('scope').notNull().$type<TemplateScope>(),
+
+  // Git repository source
+  githubOwner: text('github_owner').notNull(),
+  githubRepo: text('github_repo').notNull(),
+  branch: text('branch').default('main'),
+  configPath: text('config_path').default('.claude'),
+
+  // For project-scoped templates
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+
+  // Sync state
+  status: text('status').default('active').$type<TemplateStatus>(),
+  lastSyncSha: text('last_sync_sha'),
+  lastSyncedAt: text('last_synced_at'),
+  syncError: text('sync_error'),
+
+  // Cached content (JSON)
+  cachedSkills: text('cached_skills', { mode: 'json' }).$type<CachedSkill[]>(),
+  cachedCommands: text('cached_commands', { mode: 'json' }).$type<CachedCommand[]>(),
+  cachedAgents: text('cached_agents', { mode: 'json' }).$type<CachedAgent[]>(),
+
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+});
+
+export type Template = typeof templates.$inferSelect;
+export type NewTemplate = typeof templates.$inferInsert;

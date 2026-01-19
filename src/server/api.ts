@@ -4,16 +4,18 @@
  * Handles API requests that need database access.
  * Runs alongside Vite dev server.
  */
+import { Database as BunSQLite } from 'bun:sqlite';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
+import { MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import { TemplateService } from '../services/template.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
 
 declare const Bun: {
-  SQLite: new (path: string) => unknown;
   spawn: (
     cmd: string[],
     options: { cwd: string; stdout: 'pipe'; stderr: 'pipe' }
@@ -27,12 +29,18 @@ declare const Bun: {
 
 // Initialize SQLite database using Bun's native SQLite
 const DB_PATH = './data/agentpane.db';
-const sqlite = new Bun.SQLite(DB_PATH);
+const sqlite = new BunSQLite(DB_PATH);
+
+// Run migrations to ensure schema is up to date
+sqlite.exec(MIGRATION_SQL);
+console.log('[API Server] Schema migrations applied');
+
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
 // Initialize services
 const githubService = new GitHubTokenService(db);
 const apiKeyService = new ApiKeyService(db);
+const templateService = new TemplateService(db);
 
 // ============ Project Handlers ============
 
@@ -664,6 +672,143 @@ async function handleCreateFromTemplate(request: Request): Promise<Response> {
   }
 }
 
+// ============ Template Handlers ============
+
+async function handleListTemplates(url: URL): Promise<Response> {
+  const scope = url.searchParams.get('scope') as 'org' | 'project' | undefined;
+  const projectId = url.searchParams.get('projectId') ?? undefined;
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+
+  try {
+    const result = await templateService.list({ scope, projectId, limit });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        items: result.value,
+        nextCursor: null,
+        hasMore: false,
+        totalCount: result.value.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Templates] List error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list templates' } },
+      500
+    );
+  }
+}
+
+async function handleCreateTemplate(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const result = await templateService.create({
+      name: body.name,
+      description: body.description,
+      scope: body.scope,
+      githubUrl: body.githubUrl,
+      branch: body.branch,
+      configPath: body.configPath,
+      projectId: body.projectId,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value }, 201);
+  } catch (error) {
+    console.error('[Templates] Create error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create template' } },
+      500
+    );
+  }
+}
+
+async function handleGetTemplate(id: string): Promise<Response> {
+  try {
+    const result = await templateService.getById(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Templates] Get error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get template' } },
+      500
+    );
+  }
+}
+
+async function handleUpdateTemplate(id: string, request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const result = await templateService.update(id, {
+      name: body.name,
+      description: body.description,
+      branch: body.branch,
+      configPath: body.configPath,
+    });
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Templates] Update error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update template' } },
+      500
+    );
+  }
+}
+
+async function handleDeleteTemplate(id: string): Promise<Response> {
+  try {
+    const result = await templateService.delete(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: null });
+  } catch (error) {
+    console.error('[Templates] Delete error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete template' } },
+      500
+    );
+  }
+}
+
+async function handleSyncTemplate(id: string): Promise<Response> {
+  try {
+    const result = await templateService.sync(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Templates] Sync error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to sync template' } },
+      500
+    );
+  }
+}
+
 // ============ API Key Handlers ============
 
 async function handleGetApiKey(service: string): Promise<Response> {
@@ -770,6 +915,38 @@ async function handleRequest(request: Request): Promise<Response> {
     const id = projectIdMatch[1];
     if (id) {
       return handleGetProject(id);
+    }
+  }
+
+  // Template routes
+  if (path === '/api/templates' && method === 'GET') {
+    return handleListTemplates(url);
+  }
+  if (path === '/api/templates' && method === 'POST') {
+    return handleCreateTemplate(request);
+  }
+  // Match /api/templates/:id/sync pattern (must come before :id)
+  const templateSyncMatch = path.match(/^\/api\/templates\/([^/]+)\/sync$/);
+  if (templateSyncMatch && method === 'POST') {
+    const id = templateSyncMatch[1];
+    if (id) {
+      return handleSyncTemplate(id);
+    }
+  }
+  // Match /api/templates/:id pattern
+  const templateIdMatch = path.match(/^\/api\/templates\/([^/]+)$/);
+  if (templateIdMatch) {
+    const id = templateIdMatch[1];
+    if (id) {
+      if (method === 'GET') {
+        return handleGetTemplate(id);
+      }
+      if (method === 'PATCH') {
+        return handleUpdateTemplate(id, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteTemplate(id);
+      }
     }
   }
 

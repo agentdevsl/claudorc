@@ -16,6 +16,9 @@ export {
   getRateLimitStatus,
   withRateLimitRetry,
 } from './rate-limit.js';
+// Template Sync
+export type { TemplateSyncOptions, TemplateSyncResult } from './template-sync.js';
+export { parseGitHubUrl, syncTemplateFromGitHub } from './template-sync.js';
 export type {
   VerifyWebhookOptions,
   WebhookEvent,

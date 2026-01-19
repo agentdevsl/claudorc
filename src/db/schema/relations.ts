@@ -6,6 +6,7 @@ import { githubInstallations, repositoryConfigs } from './github';
 import { projects } from './projects';
 import { sessions } from './sessions';
 import { tasks } from './tasks';
+import { templates } from './templates';
 import { worktrees } from './worktrees';
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -14,6 +15,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   sessions: many(sessions),
   worktrees: many(worktrees),
   auditLogs: many(auditLogs),
+  templates: many(templates),
 }));
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
@@ -101,5 +103,12 @@ export const repositoryConfigsRelations = relations(repositoryConfigs, ({ one })
   installation: one(githubInstallations, {
     fields: [repositoryConfigs.installationId],
     references: [githubInstallations.id],
+  }),
+}));
+
+export const templatesRelations = relations(templates, ({ one }) => ({
+  project: one(projects, {
+    fields: [templates.projectId],
+    references: [projects.id],
   }),
 }));

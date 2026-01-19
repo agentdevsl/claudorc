@@ -160,6 +160,27 @@ CREATE TABLE IF NOT EXISTS "api_keys" (
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "templates" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "name" TEXT NOT NULL,
+  "description" TEXT,
+  "scope" TEXT NOT NULL,
+  "github_owner" TEXT NOT NULL,
+  "github_repo" TEXT NOT NULL,
+  "branch" TEXT DEFAULT 'main',
+  "config_path" TEXT DEFAULT '.claude',
+  "project_id" TEXT REFERENCES "projects"("id") ON DELETE CASCADE,
+  "status" TEXT DEFAULT 'active',
+  "last_sync_sha" TEXT,
+  "last_synced_at" TEXT,
+  "sync_error" TEXT,
+  "cached_skills" TEXT,
+  "cached_commands" TEXT,
+  "cached_agents" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
 `;
 
 export const validateSchema = async (ctx: BootstrapContext) => {

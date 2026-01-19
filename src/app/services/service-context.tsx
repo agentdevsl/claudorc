@@ -2,7 +2,7 @@ import { createContext, type ReactNode, useContext } from 'react';
 import type { Services } from '@/app/services/services';
 
 type ServiceProviderProps = {
-  services: Services;
+  services: Services | null;
   children: ReactNode;
 };
 
@@ -15,10 +15,11 @@ export const ServiceProvider = ({
   return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
 };
 
-export const useServices = (): Services => {
-  const services = useContext(ServiceContext);
-  if (!services) {
-    throw new Error('useServices must be used within ServiceProvider');
-  }
-  return services;
+/**
+ * Get services from context.
+ * Returns null on client side (data access goes through API endpoints).
+ * Returns Services on server side.
+ */
+export const useServices = (): Services | null => {
+  return useContext(ServiceContext);
 };

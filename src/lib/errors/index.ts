@@ -5,5 +5,6 @@ export * from './github-errors.js';
 export * from './project-errors.js';
 export * from './session-errors.js';
 export * from './task-errors.js';
+export * from './template-errors.js';
 export * from './validation-errors.js';
 export * from './worktree-errors.js';
