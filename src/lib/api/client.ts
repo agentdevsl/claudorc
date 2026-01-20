@@ -2,8 +2,11 @@
  * Browser-side API client for fetching data from server endpoints.
  * Used by route loaders and components to access data via REST API.
  */
+
+import type { PlanSession } from '@/lib/plan-mode/types';
 import type { GitHubOrg, GitHubRepo, TokenInfo } from '@/services/github-token.service';
 import type { ApiResponse } from './response';
+import { API_ERROR_CODES } from './types';
 
 // API server base URL (separate Bun server for database access)
 const API_BASE = 'http://localhost:3001';
@@ -15,22 +18,48 @@ type FetchOptions = {
 };
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
+  let response: Response;
   try {
-    const response = await fetch(path, {
+    response = await fetch(path, {
       method: options.method ?? 'GET',
       headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
     });
-
-    const json = await response.json();
-    return json as ApiResponse<T>;
   } catch (error) {
+    // Network-level errors (connection refused, DNS failure, etc.)
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        ok: false,
+        error: { code: API_ERROR_CODES.REQUEST_ABORTED, message: 'Request was aborted' },
+      };
+    }
+    // TypeError is thrown by fetch for network failures (CORS, connection refused, DNS)
+    if (error instanceof TypeError) {
+      return {
+        ok: false,
+        error: { code: API_ERROR_CODES.NETWORK_ERROR, message: error.message || 'Network request failed' },
+      };
+    }
     return {
       ok: false,
       error: {
-        code: 'FETCH_ERROR',
+        code: API_ERROR_CODES.FETCH_ERROR,
         message: error instanceof Error ? error.message : 'Network request failed',
+      },
+    };
+  }
+
+  try {
+    const json = await response.json();
+    return json as ApiResponse<T>;
+  } catch (parseError) {
+    // JSON parsing failed - include original error for debugging
+    return {
+      ok: false,
+      error: {
+        code: API_ERROR_CODES.PARSE_ERROR,
+        message: `Invalid JSON response (HTTP ${response.status}): ${parseError instanceof Error ? parseError.message : 'unknown parse error'}`,
       },
     };
   }
@@ -41,26 +70,56 @@ async function apiServerFetch<T>(
   path: string,
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',
       headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
     });
-
-    const json = await response.json();
-    return json as ApiResponse<T>;
   } catch (error) {
+    // Network-level errors (connection refused, DNS failure, etc.)
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        ok: false,
+        error: { code: API_ERROR_CODES.REQUEST_ABORTED, message: 'Request was aborted' },
+      };
+    }
+    // TypeError is thrown by fetch for network failures (CORS, connection refused, DNS)
+    if (error instanceof TypeError) {
+      return {
+        ok: false,
+        error: { code: API_ERROR_CODES.NETWORK_ERROR, message: error.message || 'Network request failed' },
+      };
+    }
     return {
       ok: false,
       error: {
-        code: 'FETCH_ERROR',
+        code: API_ERROR_CODES.FETCH_ERROR,
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     };
   }
+
+  try {
+    const json = await response.json();
+    return json as ApiResponse<T>;
+  } catch (parseError) {
+    // JSON parsing failed - include original error for debugging
+    return {
+      ok: false,
+      error: {
+        code: API_ERROR_CODES.PARSE_ERROR,
+        message: `Invalid JSON response (HTTP ${response.status}): ${parseError instanceof Error ? parseError.message : 'unknown parse error'}`,
+      },
+    };
+  }
 }
+
+// Re-export shared types for convenience
+export type { TaskSuggestion, TaskCreationStatus } from './types';
+export { API_ERROR_CODES } from './types';
 
 // Project types
 export type ProjectListItem = {
@@ -246,6 +305,23 @@ export const apiClient = {
     },
 
     get: (id: string) => apiServerFetch<unknown>(`/api/tasks/${id}`),
+
+    /**
+     * Create a new task directly (manual mode)
+     */
+    create: (data: {
+      projectId: string;
+      title: string;
+      description?: string;
+      labels?: string[];
+      priority?: 'high' | 'medium' | 'low';
+      mode?: 'plan' | 'implement';
+    }) =>
+      apiServerFetch<{
+        taskId: string;
+        title: string;
+        projectId: string;
+      }>('/api/tasks', { method: 'POST', body: data }),
   },
 
   sessions: {
@@ -420,5 +496,124 @@ export const apiClient = {
 
     delete: (id: string) =>
       apiServerFetch<null>(`/api/sandbox-configs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
+
+  plans: {
+    /**
+     * Get plan session for a task
+     */
+    get: (taskId: string) =>
+      apiFetch<{ session: PlanSession | null }>(`/api/plans/${encodeURIComponent(taskId)}`),
+
+    /**
+     * Start a new plan session for a task
+     */
+    start: (taskId: string, data: { projectId: string; initialPrompt: string }) =>
+      apiFetch<{ session: PlanSession }>(`/api/plans/${encodeURIComponent(taskId)}/start`, {
+        method: 'POST',
+        body: data,
+      }),
+
+    /**
+     * Answer an interaction question in a plan session
+     */
+    answerInteraction: (
+      taskId: string,
+      data: { interactionId: string; answers: Record<string, string> }
+    ) =>
+      apiFetch<{ session: PlanSession }>(`/api/plans/${encodeURIComponent(taskId)}/answer`, {
+        method: 'POST',
+        body: data,
+      }),
+
+    /**
+     * Cancel a plan session
+     */
+    cancel: (taskId: string) =>
+      apiFetch<{ session: PlanSession }>(`/api/plans/${encodeURIComponent(taskId)}/cancel`, {
+        method: 'POST',
+      }),
+
+    /**
+     * Get the SSE stream URL for a plan session
+     */
+    getStreamUrl: (taskId: string) => `/api/plans/${encodeURIComponent(taskId)}/stream`,
+  },
+
+  taskCreation: {
+    /**
+     * Start a new AI task creation conversation
+     */
+    start: (projectId: string) =>
+      apiServerFetch<{
+        sessionId: string;
+        projectId: string;
+        status: string;
+        createdAt: string;
+      }>('/api/tasks/create-with-ai/start', {
+        method: 'POST',
+        body: { projectId },
+      }),
+
+    /**
+     * Send a message in the conversation
+     */
+    sendMessage: (sessionId: string, message: string) =>
+      apiServerFetch<{
+        sessionId: string;
+        status: string;
+        messageCount: number;
+        hasSuggestion: boolean;
+        suggestion: {
+          title: string;
+          description: string;
+          labels: string[];
+          priority: 'high' | 'medium' | 'low';
+          mode: 'plan' | 'implement';
+        } | null;
+      }>('/api/tasks/create-with-ai/message', {
+        method: 'POST',
+        body: { sessionId, message },
+      }),
+
+    /**
+     * Accept the suggestion and create a task
+     */
+    accept: (
+      sessionId: string,
+      overrides?: Partial<{
+        title: string;
+        description: string;
+        labels: string[];
+        priority: 'high' | 'medium' | 'low';
+        mode: 'plan' | 'implement';
+      }>
+    ) =>
+      apiServerFetch<{
+        taskId: string;
+        sessionId: string;
+        status: string;
+      }>('/api/tasks/create-with-ai/accept', {
+        method: 'POST',
+        body: { sessionId, overrides },
+      }),
+
+    /**
+     * Cancel a task creation session
+     */
+    cancel: (sessionId: string) =>
+      apiServerFetch<{
+        sessionId: string;
+        status: string;
+      }>('/api/tasks/create-with-ai/cancel', {
+        method: 'POST',
+        body: { sessionId },
+      }),
+
+    /**
+     * Get the SSE stream URL for a task creation session
+     */
+    getStreamUrl: (sessionId: string) =>
+      `${API_BASE}/api/tasks/create-with-ai/stream?sessionId=${encodeURIComponent(sessionId)}`,
   },
 };

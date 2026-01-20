@@ -18,6 +18,7 @@ export type CreateTaskInput = {
   description?: string;
   labels?: string[];
   priority?: 'high' | 'medium' | 'low';
+  mode?: 'plan' | 'implement';
 };
 
 export type UpdateTaskInput = {
@@ -64,7 +65,7 @@ export class TaskService {
   ) {}
 
   async create(input: CreateTaskInput): Promise<Result<Task, TaskError>> {
-    const { projectId, title, description, labels = [], priority = 'medium' } = input;
+    const { projectId, title, description, labels = [], priority = 'medium', mode = 'implement' } = input;
 
     const project = await this.db.query.projects.findFirst({
       where: eq(projects.id, projectId),
@@ -89,6 +90,7 @@ export class TaskService {
         description,
         labels,
         priority,
+        mode,
         column: 'backlog',
         position,
         createdAt: new Date().toISOString(),

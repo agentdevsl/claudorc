@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS "tasks" (
   "worktree_id" TEXT,
   "title" TEXT NOT NULL,
   "description" TEXT,
+  "mode" TEXT DEFAULT 'implement',
   "column" TEXT DEFAULT 'backlog' NOT NULL,
   "position" INTEGER DEFAULT 0 NOT NULL,
   "labels" TEXT DEFAULT '[]',

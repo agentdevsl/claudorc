@@ -3,8 +3,10 @@ import { agentRuns } from './agent-runs';
 import { agents } from './agents';
 import { auditLogs } from './audit-logs';
 import { githubInstallations, repositoryConfigs } from './github';
+import { planSessions } from './plan-sessions';
 import { projects } from './projects';
 import { sandboxConfigs } from './sandbox-configs';
+import { sandboxInstances, sandboxTmuxSessions } from './sandboxes';
 import { sessions } from './sessions';
 import { tasks } from './tasks';
 import { templateProjects } from './template-projects';
@@ -19,6 +21,11 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   auditLogs: many(auditLogs),
   templates: many(templates),
   templateProjects: many(templateProjects),
+  planSessions: many(planSessions),
+  sandboxInstance: one(sandboxInstances, {
+    fields: [projects.id],
+    references: [sandboxInstances.projectId],
+  }),
   sandboxConfig: one(sandboxConfigs, {
     fields: [projects.sandboxConfigId],
     references: [sandboxConfigs.id],
@@ -48,6 +55,8 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   agentRuns: many(agentRuns),
   auditLogs: many(auditLogs),
+  planSessions: many(planSessions),
+  tmuxSessions: many(sandboxTmuxSessions),
 }));
 
 export const agentsRelations = relations(agents, ({ one, many }) => ({
@@ -135,5 +144,38 @@ export const templateProjectsRelations = relations(templateProjects, ({ one }) =
   project: one(projects, {
     fields: [templateProjects.projectId],
     references: [projects.id],
+  }),
+}));
+
+// Plan sessions relations
+export const planSessionsRelations = relations(planSessions, ({ one }) => ({
+  task: one(tasks, {
+    fields: [planSessions.taskId],
+    references: [tasks.id],
+  }),
+  project: one(projects, {
+    fields: [planSessions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+// Sandbox instances relations
+export const sandboxInstancesRelations = relations(sandboxInstances, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [sandboxInstances.projectId],
+    references: [projects.id],
+  }),
+  tmuxSessions: many(sandboxTmuxSessions),
+}));
+
+// Sandbox tmux sessions relations
+export const sandboxTmuxSessionsRelations = relations(sandboxTmuxSessions, ({ one }) => ({
+  sandbox: one(sandboxInstances, {
+    fields: [sandboxTmuxSessions.sandboxId],
+    references: [sandboxInstances.id],
+  }),
+  task: one(tasks, {
+    fields: [sandboxTmuxSessions.taskId],
+    references: [tasks.id],
   }),
 }));

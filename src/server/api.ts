@@ -14,9 +14,14 @@ import { tasks } from '../db/schema/tasks.js';
 import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
+import {
+  createTaskCreationService,
+  type TaskCreationService,
+} from '../services/task-creation.service.js';
 import { TaskService } from '../services/task.service.js';
 import { TemplateService } from '../services/template.service.js';
 import type { Database } from '../types/database.js';
+import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from './github-token.service.js';
 
 declare const Bun: {
@@ -72,6 +77,21 @@ const taskService = new TaskService(db, {
     error: { code: 'NOT_IMPLEMENTED', message: 'Not implemented', status: 501 },
   }),
 });
+
+// Mock DurableStreamsService for task creation (SSE handled separately)
+const mockStreamsService: DurableStreamsService = {
+  createStream: async () => undefined,
+  publishTaskCreationStarted: async () => undefined,
+  publishTaskCreationMessage: async () => undefined,
+  publishTaskCreationToken: async () => undefined,
+  publishTaskCreationSuggestion: async () => undefined,
+  publishTaskCreationError: async () => undefined,
+  publishTaskCreationCompleted: async () => undefined,
+  publishTaskCreationCancelled: async () => undefined,
+} as unknown as DurableStreamsService;
+
+// TaskCreationService for AI-powered task creation
+const taskCreationService: TaskCreationService = createTaskCreationService(db, mockStreamsService);
 
 // ============ Project Handlers ============
 
@@ -1124,6 +1144,7 @@ async function handleCreateTask(request: Request): Promise<Response> {
       description?: string;
       labels?: string[];
       priority?: 'high' | 'medium' | 'low';
+      mode?: 'plan' | 'implement';
     };
 
     if (!body.projectId || !body.title) {
@@ -1142,6 +1163,7 @@ async function handleCreateTask(request: Request): Promise<Response> {
       description: body.description,
       labels: body.labels,
       priority: body.priority,
+      mode: body.mode,
     });
 
     if (!result.ok) {
@@ -1386,6 +1408,217 @@ async function handleDeleteSandboxConfig(id: string): Promise<Response> {
   }
 }
 
+// ============ Task Creation with AI Handlers ============
+
+// Store active SSE connections for streaming
+const sseConnections = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+
+async function handleTaskCreationStart(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { projectId } = body as { projectId: string };
+
+    if (!projectId) {
+      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'projectId is required' } }, 400);
+    }
+
+    const result = await taskCreationService.startConversation(projectId);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    return json({ ok: true, data: { sessionId: result.value.id } });
+  } catch (error) {
+    console.error('[TaskCreation] Start error:', error);
+    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to start conversation' } }, 500);
+  }
+}
+
+async function handleTaskCreationMessage(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { sessionId, message } = body as { sessionId: string; message: string };
+
+    if (!sessionId || !message) {
+      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId and message are required' } }, 400);
+    }
+
+    // Send message with token streaming to SSE
+    const controller = sseConnections.get(sessionId);
+    const onToken = controller
+      ? (delta: string, accumulated: string) => {
+          const data = JSON.stringify({ type: 'task-creation:token', data: { delta, accumulated } });
+          controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+        }
+      : undefined;
+
+    const result = await taskCreationService.sendMessage(sessionId, message, onToken);
+
+    if (!result.ok) {
+      // Send error to SSE if connected
+      if (controller) {
+        const errorData = JSON.stringify({ type: 'task-creation:error', data: { error: result.error.message } });
+        controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`));
+      }
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    // Send message completion to SSE
+    if (controller) {
+      const session = result.value;
+      const lastMessage = session.messages[session.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const msgData = JSON.stringify({
+          type: 'task-creation:message',
+          data: { messageId: lastMessage.id, role: lastMessage.role, content: lastMessage.content },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${msgData}\n\n`));
+      }
+      // Send suggestion if available
+      if (session.suggestion) {
+        const suggestionData = JSON.stringify({
+          type: 'task-creation:suggestion',
+          data: { suggestion: session.suggestion },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+      }
+    }
+
+    return json({ ok: true, data: { messageId: 'msg-sent' } });
+  } catch (error) {
+    console.error('[TaskCreation] Message error:', error);
+    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to send message' } }, 500);
+  }
+}
+
+async function handleTaskCreationAccept(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { sessionId, overrides } = body as { sessionId: string; overrides?: Record<string, unknown> };
+
+    if (!sessionId) {
+      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+    }
+
+    const result = await taskCreationService.acceptSuggestion(sessionId, overrides);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    // Send completion to SSE
+    const controller = sseConnections.get(sessionId);
+    if (controller) {
+      const completeData = JSON.stringify({
+        type: 'task-creation:completed',
+        data: { taskId: result.value.taskId },
+      });
+      controller.enqueue(new TextEncoder().encode(`data: ${completeData}\n\n`));
+    }
+
+    return json({ ok: true, data: { taskId: result.value.taskId, sessionId, status: 'completed' } });
+  } catch (error) {
+    console.error('[TaskCreation] Accept error:', error);
+    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to accept suggestion' } }, 500);
+  }
+}
+
+async function handleTaskCreationCancel(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { sessionId } = body as { sessionId: string };
+
+    if (!sessionId) {
+      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+    }
+
+    const result = await taskCreationService.cancel(sessionId);
+
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    // Close SSE connection
+    const controller = sseConnections.get(sessionId);
+    if (controller) {
+      const cancelData = JSON.stringify({ type: 'task-creation:cancelled', data: { sessionId } });
+      controller.enqueue(new TextEncoder().encode(`data: ${cancelData}\n\n`));
+      controller.close();
+      sseConnections.delete(sessionId);
+    }
+
+    return json({ ok: true, data: { sessionId, status: 'cancelled' } });
+  } catch (error) {
+    console.error('[TaskCreation] Cancel error:', error);
+    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to cancel session' } }, 500);
+  }
+}
+
+function handleTaskCreationStream(url: URL): Response {
+  const sessionId = url.searchParams.get('sessionId');
+  console.log('[TaskCreation Stream] Request for sessionId:', sessionId);
+
+  if (!sessionId) {
+    console.log('[TaskCreation Stream] No sessionId provided');
+    return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+  }
+
+  // Verify session exists
+  const session = taskCreationService.getSession(sessionId);
+  console.log('[TaskCreation Stream] Session lookup result:', session ? 'found' : 'not found');
+  if (!session) {
+    console.log('[TaskCreation Stream] Session not found, returning 404');
+    return json({ ok: false, error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
+  }
+
+  // Create SSE stream with keep-alive
+  let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      // Store controller for this session
+      sseConnections.set(sessionId, controller);
+
+      // Send initial connected event (using 'connected' type as expected by the frontend hook)
+      const connectedData = JSON.stringify({ type: 'connected', sessionId });
+      controller.enqueue(new TextEncoder().encode(`data: ${connectedData}\n\n`));
+
+      // Send immediate ping to keep connection alive
+      controller.enqueue(new TextEncoder().encode(`: ping\n\n`));
+
+      // Send keep-alive ping every 5 seconds to prevent connection timeout
+      pingInterval = setInterval(() => {
+        try {
+          controller.enqueue(new TextEncoder().encode(`: ping\n\n`));
+        } catch {
+          // Controller may be closed, clear interval
+          if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+          }
+        }
+      }, 5000);
+    },
+    cancel() {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      sseConnections.delete(sessionId);
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      ...corsHeaders,
+    },
+  });
+}
+
 // Main request handler
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -1561,6 +1794,24 @@ async function handleRequest(request: Request): Promise<Response> {
         return handleDeleteSandboxConfig(id);
       }
     }
+  }
+
+  // Task Creation with AI routes
+  if (path === '/api/tasks/create-with-ai/start' && method === 'POST') {
+    return handleTaskCreationStart(request);
+  }
+  if (path === '/api/tasks/create-with-ai/message' && method === 'POST') {
+    return handleTaskCreationMessage(request);
+  }
+  if (path === '/api/tasks/create-with-ai/accept' && method === 'POST') {
+    return handleTaskCreationAccept(request);
+  }
+  if (path === '/api/tasks/create-with-ai/cancel' && method === 'POST') {
+    return handleTaskCreationCancel(request);
+  }
+  // SSE stream endpoint
+  if (path === '/api/tasks/create-with-ai/stream' && method === 'GET') {
+    return handleTaskCreationStream(url);
   }
 
   // Health check
