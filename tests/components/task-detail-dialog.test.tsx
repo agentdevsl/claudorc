@@ -172,23 +172,20 @@ describe('TaskDetailDialog', () => {
     it.each([
       ['backlog', 'Delete'],
       ['waiting_approval', 'Reject'],
-    ] as const)(
-      'shows appropriate action for %s column',
-      (column: TaskColumn, expectedButton: string) => {
-        render(
-          <TaskDetailDialog
-            task={createTask({ column })}
-            open
-            onOpenChange={vi.fn()}
-            onSave={vi.fn()}
-            onDelete={vi.fn()}
-            onMoveColumn={vi.fn()}
-          />
-        );
+    ] as const)('shows appropriate action for %s column', (column: TaskColumn, expectedButton: string) => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ column })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          onMoveColumn={vi.fn()}
+        />
+      );
 
-        expect(screen.getByText(expectedButton)).toBeInTheDocument();
-      }
-    );
+      expect(screen.getByText(expectedButton)).toBeInTheDocument();
+    });
 
     it('shows "Start Task" button for backlog tasks with onMoveColumn', () => {
       render(

@@ -13,15 +13,15 @@ import { projects } from '../db/schema/projects.js';
 import { tasks } from '../db/schema/tasks.js';
 import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
+import { TaskService } from '../services/task.service.js';
 import {
   createTaskCreationService,
   type TaskCreationService,
 } from '../services/task-creation.service.js';
-import { TaskService } from '../services/task.service.js';
 import { TemplateService } from '../services/template.service.js';
 import type { Database } from '../types/database.js';
-import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from './github-token.service.js';
 
 declare const Bun: {
@@ -1419,7 +1419,10 @@ async function handleTaskCreationStart(request: Request): Promise<Response> {
     const { projectId } = body as { projectId: string };
 
     if (!projectId) {
-      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'projectId is required' } }, 400);
+      return json(
+        { ok: false, error: { code: 'INVALID_INPUT', message: 'projectId is required' } },
+        400
+      );
     }
 
     const result = await taskCreationService.startConversation(projectId);
@@ -1431,7 +1434,10 @@ async function handleTaskCreationStart(request: Request): Promise<Response> {
     return json({ ok: true, data: { sessionId: result.value.id } });
   } catch (error) {
     console.error('[TaskCreation] Start error:', error);
-    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to start conversation' } }, 500);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to start conversation' } },
+      500
+    );
   }
 }
 
@@ -1441,14 +1447,23 @@ async function handleTaskCreationMessage(request: Request): Promise<Response> {
     const { sessionId, message } = body as { sessionId: string; message: string };
 
     if (!sessionId || !message) {
-      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId and message are required' } }, 400);
+      return json(
+        {
+          ok: false,
+          error: { code: 'INVALID_INPUT', message: 'sessionId and message are required' },
+        },
+        400
+      );
     }
 
     // Send message with token streaming to SSE
     const controller = sseConnections.get(sessionId);
     const onToken = controller
       ? (delta: string, accumulated: string) => {
-          const data = JSON.stringify({ type: 'task-creation:token', data: { delta, accumulated } });
+          const data = JSON.stringify({
+            type: 'task-creation:token',
+            data: { delta, accumulated },
+          });
           controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
         }
       : undefined;
@@ -1458,7 +1473,10 @@ async function handleTaskCreationMessage(request: Request): Promise<Response> {
     if (!result.ok) {
       // Send error to SSE if connected
       if (controller) {
-        const errorData = JSON.stringify({ type: 'task-creation:error', data: { error: result.error.message } });
+        const errorData = JSON.stringify({
+          type: 'task-creation:error',
+          data: { error: result.error.message },
+        });
         controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`));
       }
       return json({ ok: false, error: result.error }, 400);
@@ -1488,17 +1506,26 @@ async function handleTaskCreationMessage(request: Request): Promise<Response> {
     return json({ ok: true, data: { messageId: 'msg-sent' } });
   } catch (error) {
     console.error('[TaskCreation] Message error:', error);
-    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to send message' } }, 500);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to send message' } },
+      500
+    );
   }
 }
 
 async function handleTaskCreationAccept(request: Request): Promise<Response> {
   try {
     const body = await request.json();
-    const { sessionId, overrides } = body as { sessionId: string; overrides?: Record<string, unknown> };
+    const { sessionId, overrides } = body as {
+      sessionId: string;
+      overrides?: Record<string, unknown>;
+    };
 
     if (!sessionId) {
-      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+      return json(
+        { ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } },
+        400
+      );
     }
 
     const result = await taskCreationService.acceptSuggestion(sessionId, overrides);
@@ -1517,10 +1544,16 @@ async function handleTaskCreationAccept(request: Request): Promise<Response> {
       controller.enqueue(new TextEncoder().encode(`data: ${completeData}\n\n`));
     }
 
-    return json({ ok: true, data: { taskId: result.value.taskId, sessionId, status: 'completed' } });
+    return json({
+      ok: true,
+      data: { taskId: result.value.taskId, sessionId, status: 'completed' },
+    });
   } catch (error) {
     console.error('[TaskCreation] Accept error:', error);
-    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to accept suggestion' } }, 500);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to accept suggestion' } },
+      500
+    );
   }
 }
 
@@ -1530,7 +1563,10 @@ async function handleTaskCreationCancel(request: Request): Promise<Response> {
     const { sessionId } = body as { sessionId: string };
 
     if (!sessionId) {
-      return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+      return json(
+        { ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } },
+        400
+      );
     }
 
     const result = await taskCreationService.cancel(sessionId);
@@ -1551,7 +1587,10 @@ async function handleTaskCreationCancel(request: Request): Promise<Response> {
     return json({ ok: true, data: { sessionId, status: 'cancelled' } });
   } catch (error) {
     console.error('[TaskCreation] Cancel error:', error);
-    return json({ ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to cancel session' } }, 500);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to cancel session' } },
+      500
+    );
   }
 }
 
@@ -1561,7 +1600,10 @@ function handleTaskCreationStream(url: URL): Response {
 
   if (!sessionId) {
     console.log('[TaskCreation Stream] No sessionId provided');
-    return json({ ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } }, 400);
+    return json(
+      { ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } },
+      400
+    );
   }
 
   // Verify session exists
@@ -1569,7 +1611,10 @@ function handleTaskCreationStream(url: URL): Response {
   console.log('[TaskCreation Stream] Session lookup result:', session ? 'found' : 'not found');
   if (!session) {
     console.log('[TaskCreation Stream] Session not found, returning 404');
-    return json({ ok: false, error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } }, 404);
+    return json(
+      { ok: false, error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' } },
+      404
+    );
   }
 
   // Create SSE stream with keep-alive

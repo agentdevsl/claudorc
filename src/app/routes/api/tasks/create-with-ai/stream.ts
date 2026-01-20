@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
+import { getApiServicesOrThrow, type Services } from '@/app/routes/api/runtime';
 
 export const Route = createFileRoute('/api/tasks/create-with-ai/stream')({
   server: {
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/stream')({
           );
         }
 
-        let services;
+        let services: Services;
         try {
           services = getApiServicesOrThrow();
         } catch (error) {
@@ -68,9 +68,7 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/stream')({
             try {
               // Send initial connection event
               controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: 'connected', sessionId })}\n\n`
-                )
+                encoder.encode(`data: ${JSON.stringify({ type: 'connected', sessionId })}\n\n`)
               );
 
               for await (const event of stream) {

@@ -1,9 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  type SessionStatus,
-  useTaskCreation,
-} from '@/app/components/features/new-task-dialog/use-task-creation';
+import { useTaskCreation } from '@/app/components/features/new-task-dialog/use-task-creation';
 
 // Mock the API client
 vi.mock('@/lib/api/client', () => ({
@@ -367,7 +364,7 @@ describe('useTaskCreation', () => {
       });
 
       await act(async () => {
-        MockEventSource.instances[0]!.simulateMessage({
+        MockEventSource.instances[0]?.simulateMessage({
           type: 'task-creation:suggestion',
           data: {
             suggestion: {
@@ -413,7 +410,7 @@ describe('useTaskCreation', () => {
       });
 
       await act(async () => {
-        MockEventSource.instances[0]!.simulateMessage({
+        MockEventSource.instances[0]?.simulateMessage({
           type: 'task-creation:suggestion',
           data: {
             suggestion: {

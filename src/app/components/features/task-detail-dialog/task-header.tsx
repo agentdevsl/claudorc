@@ -1,4 +1,4 @@
-import { Circle, Copy, X, Lightning, Notebook } from '@phosphor-icons/react';
+import { Circle, Copy, Lightning, Notebook, X } from '@phosphor-icons/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
@@ -134,9 +134,7 @@ function ModeToggle({
           className={cn(
             'relative z-10 flex-1 flex items-center justify-center gap-2 rounded-md',
             'text-xs font-semibold transition-all duration-200',
-            currentMode === 'plan'
-              ? 'text-secondary'
-              : 'text-fg-muted hover:text-fg-default'
+            currentMode === 'plan' ? 'text-secondary' : 'text-fg-muted hover:text-fg-default'
           )}
           title="Plan mode - Strategic planning with multi-turn conversation"
         >
@@ -159,9 +157,7 @@ function ModeToggle({
           className={cn(
             'relative z-10 flex-1 flex items-center justify-center gap-2 rounded-md',
             'text-xs font-semibold transition-all duration-200',
-            currentMode === 'implement'
-              ? 'text-accent'
-              : 'text-fg-muted hover:text-fg-default'
+            currentMode === 'implement' ? 'text-accent' : 'text-fg-muted hover:text-fg-default'
           )}
           title="Implement mode - Full autonomous implementation with sandbox"
         >
@@ -245,9 +241,7 @@ export function TaskHeader({
             <Copy
               className={cn(
                 'h-3 w-3 transition-all duration-150',
-                copied
-                  ? 'text-success opacity-100 scale-110'
-                  : 'opacity-0 group-hover:opacity-60'
+                copied ? 'text-success opacity-100 scale-110' : 'opacity-0 group-hover:opacity-60'
               )}
             />
           </button>
@@ -317,9 +311,7 @@ export function TaskHeader({
       </div>
 
       {/* Title - larger, bolder */}
-      <h2 className="text-xl font-bold tracking-tight text-fg leading-tight pr-8">
-        {task.title}
-      </h2>
+      <h2 className="text-xl font-bold tracking-tight text-fg leading-tight pr-8">{task.title}</h2>
 
       {/* Controls row: Priority and Mode */}
       <div className="flex items-end justify-between gap-6 pt-1">
@@ -349,9 +341,7 @@ export function TaskHeader({
         </div>
 
         {/* Mode toggle - premium segmented control */}
-        {onModeChange && (
-          <ModeToggle currentMode={currentMode} onModeChange={onModeChange} />
-        )}
+        {onModeChange && <ModeToggle currentMode={currentMode} onModeChange={onModeChange} />}
       </div>
     </div>
   );

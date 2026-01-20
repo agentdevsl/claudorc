@@ -17,7 +17,11 @@ import type { TaskMode } from '@/db/schema/tasks';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils/cn';
 import { getLabelColors, PRIORITY_CONFIG, type Priority } from './kanban-board/constants';
-import { useTaskCreation, type Message, type TaskSuggestion } from './new-task-dialog/use-task-creation';
+import {
+  type Message,
+  type TaskSuggestion,
+  useTaskCreation,
+} from './new-task-dialog/use-task-creation';
 
 // ============================================================================
 // TYPES
@@ -59,7 +63,6 @@ const DEFAULT_SUGGESTION: EditableSuggestion = {
   priority: 'medium',
   mode: 'implement',
 };
-
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -124,9 +127,7 @@ function MessageBubble({ message }: { message: Message }): React.JSX.Element {
             : 'rounded-tl-md bg-surface-muted border border-border'
         )}
       >
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
-        </p>
+        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
       </div>
     </div>
   );
@@ -178,7 +179,11 @@ function SuggestionCard({
             return (
               <span
                 key={label}
-                className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors.bg, colors.text)}
+                className={cn(
+                  'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                  colors.bg,
+                  colors.text
+                )}
               >
                 {label}
               </span>
@@ -193,17 +198,27 @@ function SuggestionCard({
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-fg-muted">
-          <span className={cn(
-            'inline-flex items-center gap-1 px-2 py-0.5 rounded',
-            suggestion.mode === 'plan' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent'
-          )}>
-            {suggestion.mode === 'plan' ? <Notebook className="h-3 w-3" /> : <Lightning className="h-3 w-3" />}
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-0.5 rounded',
+              suggestion.mode === 'plan'
+                ? 'bg-secondary/10 text-secondary'
+                : 'bg-accent/10 text-accent'
+            )}
+          >
+            {suggestion.mode === 'plan' ? (
+              <Notebook className="h-3 w-3" />
+            ) : (
+              <Lightning className="h-3 w-3" />
+            )}
             {suggestion.mode === 'plan' ? 'Plan' : 'Implement'}
           </span>
-          <span className={cn(
-            'px-2 py-0.5 rounded',
-            PRIORITY_CONFIG[suggestion.priority].color.replace('bg-', 'bg-opacity-20 text-')
-          )}>
+          <span
+            className={cn(
+              'px-2 py-0.5 rounded',
+              PRIORITY_CONFIG[suggestion.priority].color.replace('bg-', 'bg-opacity-20 text-')
+            )}
+          >
             {suggestion.priority}
           </span>
         </div>
@@ -422,7 +437,8 @@ function EditPanel({
                   suggestion.priority === priority
                     ? cn(
                         priority === 'high' && 'bg-danger/10 text-danger border-danger/30',
-                        priority === 'medium' && 'bg-attention/10 text-attention border-attention/30',
+                        priority === 'medium' &&
+                          'bg-attention/10 text-attention border-attention/30',
                         priority === 'low' && 'bg-success/10 text-success border-success/30'
                       )
                     : 'bg-surface-muted text-fg-muted border-border hover:text-fg'
@@ -590,7 +606,7 @@ export function NewTaskDialog({
   // Auto-scroll to bottom when messages change or streaming
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  }, []);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
@@ -694,7 +710,9 @@ export function NewTaskDialog({
           {showEditPanel && editableSuggestion ? (
             <EditPanel
               suggestion={editableSuggestion}
-              onChange={(updates) => setEditableSuggestion((prev) => prev ? { ...prev, ...updates } : null)}
+              onChange={(updates) =>
+                setEditableSuggestion((prev) => (prev ? { ...prev, ...updates } : null))
+              }
               onSubmit={handleSubmit}
               onBack={() => setShowEditPanel(false)}
               isSubmitting={isSubmitting}
@@ -704,12 +722,16 @@ export function NewTaskDialog({
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-subtle/50">
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-lg border',
-                    status === 'connecting' ? 'bg-attention/10 text-attention border-attention/20' :
-                    status === 'error' ? 'bg-danger/10 text-danger border-danger/20' :
-                    'bg-secondary/10 text-secondary border-secondary/20'
-                  )}>
+                  <div
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-lg border',
+                      status === 'connecting'
+                        ? 'bg-attention/10 text-attention border-attention/20'
+                        : status === 'error'
+                          ? 'bg-danger/10 text-danger border-danger/20'
+                          : 'bg-secondary/10 text-secondary border-secondary/20'
+                    )}
+                  >
                     {status === 'connecting' ? (
                       <Spinner className="h-4 w-4 animate-spin" />
                     ) : status === 'error' ? (
@@ -723,9 +745,11 @@ export function NewTaskDialog({
                       Create with AI
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description className="text-xs text-fg-muted">
-                      {status === 'connecting' ? 'Connecting...' :
-                       status === 'error' ? 'Connection error' :
-                       'Describe what you want to build'}
+                      {status === 'connecting'
+                        ? 'Connecting...'
+                        : status === 'error'
+                          ? 'Connection error'
+                          : 'Describe what you want to build'}
                     </DialogPrimitive.Description>
                   </div>
                 </div>
@@ -751,19 +775,19 @@ export function NewTaskDialog({
                 {messages.map((message) => (
                   <div key={message.id}>
                     <MessageBubble message={message} />
-                    {message.role === 'assistant' && suggestion && message.id === messages[messages.length - 1]?.id && (
-                      <SuggestionCard
-                        suggestion={suggestion}
-                        onAccept={handleAcceptSuggestion}
-                        onEdit={() => setShowEditPanel(true)}
-                      />
-                    )}
+                    {message.role === 'assistant' &&
+                      suggestion &&
+                      message.id === messages[messages.length - 1]?.id && (
+                        <SuggestionCard
+                          suggestion={suggestion}
+                          onAccept={handleAcceptSuggestion}
+                          onEdit={() => setShowEditPanel(true)}
+                        />
+                      )}
                   </div>
                 ))}
                 {/* Streaming content */}
-                {isStreaming && streamingContent && (
-                  <StreamingBubble content={streamingContent} />
-                )}
+                {isStreaming && streamingContent && <StreamingBubble content={streamingContent} />}
                 {/* Typing indicator when streaming but no content yet */}
                 {isStreaming && !streamingContent && (
                   <div className="flex gap-3">
@@ -779,24 +803,23 @@ export function NewTaskDialog({
               </div>
 
               {/* Quick suggestions (show if no messages, or show manual option on error) */}
-              {messages.length === 0 && (status === 'active' || status === 'error' || status === 'connecting') && (
-                <QuickSuggestions
-                  onSelect={(text) => setInput(text)}
-                  onCreateManually={handleCreateManually}
-                />
-              )}
+              {messages.length === 0 &&
+                (status === 'active' || status === 'error' || status === 'connecting') && (
+                  <QuickSuggestions
+                    onSelect={(text) => setInput(text)}
+                    onCreateManually={handleCreateManually}
+                  />
+                )}
 
               {/* Create Task button - always visible after messages */}
               {messages.length > 0 && (
                 <div className="px-4 py-3 border-t border-border bg-surface-subtle/50 flex items-center justify-between">
-                  <p className="text-xs text-fg-muted">
-                    Ready to create your task?
-                  </p>
+                  <p className="text-xs text-fg-muted">Ready to create your task?</p>
                   <button
                     type="button"
                     onClick={() => {
                       // Pre-fill with user's original request as description
-                      const firstUserMsg = messages.find(m => m.role === 'user');
+                      const firstUserMsg = messages.find((m) => m.role === 'user');
                       setEditableSuggestion({
                         title: '',
                         description: firstUserMsg?.content || '',
@@ -851,7 +874,11 @@ export function NewTaskDialog({
                   </button>
                 </div>
                 <p className="text-[11px] text-fg-subtle mt-2 px-1">
-                  Press <kbd className="px-1 py-0.5 rounded bg-surface-muted border border-border font-mono text-[10px]">Enter</kbd> to send
+                  Press{' '}
+                  <kbd className="px-1 py-0.5 rounded bg-surface-muted border border-border font-mono text-[10px]">
+                    Enter
+                  </kbd>{' '}
+                  to send
                 </p>
               </div>
             </>

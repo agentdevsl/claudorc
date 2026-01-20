@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
+import { getApiServicesOrThrow, type Services } from '@/app/routes/api/runtime';
 
 export const Route = createFileRoute('/api/tasks/create-with-ai/message')({
   server: {
@@ -8,7 +8,7 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/message')({
        * POST /api/tasks/create-with-ai/message - Send a message in the conversation
        */
       POST: async ({ request }: { request: Request }) => {
-        let services;
+        let services: Services;
         try {
           services = getApiServicesOrThrow();
         } catch (error) {

@@ -38,7 +38,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<Ap
     if (error instanceof TypeError) {
       return {
         ok: false,
-        error: { code: API_ERROR_CODES.NETWORK_ERROR, message: error.message || 'Network request failed' },
+        error: {
+          code: API_ERROR_CODES.NETWORK_ERROR,
+          message: error.message || 'Network request failed',
+        },
       };
     }
     return {
@@ -90,7 +93,10 @@ async function apiServerFetch<T>(
     if (error instanceof TypeError) {
       return {
         ok: false,
-        error: { code: API_ERROR_CODES.NETWORK_ERROR, message: error.message || 'Network request failed' },
+        error: {
+          code: API_ERROR_CODES.NETWORK_ERROR,
+          message: error.message || 'Network request failed',
+        },
       };
     }
     return {
@@ -118,7 +124,7 @@ async function apiServerFetch<T>(
 }
 
 // Re-export shared types for convenience
-export type { TaskSuggestion, TaskCreationStatus } from './types';
+export type { TaskCreationStatus, TaskSuggestion } from './types';
 export { API_ERROR_CODES } from './types';
 
 // Project types

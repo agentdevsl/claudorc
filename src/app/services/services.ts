@@ -8,11 +8,11 @@ import { ProjectService } from '@/services/project.service';
 import { SandboxConfigService } from '@/services/sandbox-config.service';
 import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
+import { TaskService } from '@/services/task.service';
 import {
   createTaskCreationService,
   type TaskCreationService,
 } from '@/services/task-creation.service';
-import { TaskService } from '@/services/task.service';
 import { TemplateService } from '@/services/template.service';
 import { WorktreeService } from '@/services/worktree.service';
 import type { Database } from '@/types/database';

@@ -1,6 +1,6 @@
 import { GearSix, Plus } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
 import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
@@ -15,7 +15,15 @@ import type { DiffSummary } from '@/lib/types/diff';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId' | 'mode'
+  | 'id'
+  | 'projectId'
+  | 'title'
+  | 'description'
+  | 'column'
+  | 'position'
+  | 'labels'
+  | 'agentId'
+  | 'mode'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -36,7 +44,7 @@ function ProjectKanban(): React.JSX.Element {
   const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
 
   // Fetch project and tasks from API
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setError(null);
     setIsLoading(true);
 
@@ -67,12 +75,12 @@ function ProjectKanban(): React.JSX.Element {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
 
   // Fetch on mount and when projectId changes
   useEffect(() => {
     fetchData();
-  }, [projectId]);
+  }, [fetchData]);
 
   const handleTaskMove = async (
     taskId: string,
@@ -201,9 +209,7 @@ function ProjectKanban(): React.JSX.Element {
           setTasks((prev) => prev.filter((task) => task.id !== id));
         }}
         onModeChange={async (taskId, mode) => {
-          setTasks((prev) =>
-            prev.map((task) => (task.id === taskId ? { ...task, mode } : task))
-          );
+          setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, mode } : task)));
           // Update selectedTask state to reflect the change
           if (selectedTask && selectedTask.id === taskId) {
             setSelectedTask({ ...selectedTask, mode });

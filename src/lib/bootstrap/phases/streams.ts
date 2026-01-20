@@ -1,6 +1,6 @@
 import { createError } from '../../errors/base.js';
-import { getDurableStreamsServer } from '../../streams/server.js';
 import { setStreamProvider } from '../../streams/provider.js';
+import { getDurableStreamsServer } from '../../streams/server.js';
 import { err, ok } from '../../utils/result.js';
 
 /**

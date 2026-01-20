@@ -65,7 +65,14 @@ export class TaskService {
   ) {}
 
   async create(input: CreateTaskInput): Promise<Result<Task, TaskError>> {
-    const { projectId, title, description, labels = [], priority = 'medium', mode = 'implement' } = input;
+    const {
+      projectId,
+      title,
+      description,
+      labels = [],
+      priority = 'medium',
+      mode = 'implement',
+    } = input;
 
     const project = await this.db.query.projects.findFirst({
       where: eq(projects.id, projectId),
