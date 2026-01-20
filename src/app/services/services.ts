@@ -1,11 +1,17 @@
 import type { AppError, createError } from '@/lib/errors/base';
 import { ok, type Result } from '@/lib/utils/result';
 import { AgentService } from '@/services/agent.service';
+import { DurableStreamsService } from '@/services/durable-streams.service';
 import { GitHubTokenService } from '@/services/github-token.service';
+import { createPlanModeService, type PlanModeService } from '@/services/plan-mode.service';
 import { ProjectService } from '@/services/project.service';
 import { SandboxConfigService } from '@/services/sandbox-config.service';
 import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
+import {
+  createTaskCreationService,
+  type TaskCreationService,
+} from '@/services/task-creation.service';
 import { TaskService } from '@/services/task.service';
 import { TemplateService } from '@/services/template.service';
 import { WorktreeService } from '@/services/worktree.service';
@@ -17,9 +23,12 @@ import type { Database } from '@/types/database';
  */
 export type Services = {
   agentService: AgentService;
+  durableStreamsService: DurableStreamsService;
   githubTokenService: GitHubTokenService;
+  planModeService: PlanModeService;
   projectService: ProjectService;
   sandboxConfigService: SandboxConfigService;
+  taskCreationService: TaskCreationService;
   taskService: TaskService;
   sessionService: SessionService;
   templateService: TemplateService;
@@ -74,13 +83,31 @@ export function createServices(context: {
     const sandboxConfigService = new SandboxConfigService(context.db);
     const githubTokenService = new GitHubTokenService(context.db);
 
+    // Create durable streams service wrapper
+    const durableStreamsService = new DurableStreamsService(context.streams);
+
+    // Create plan mode service (GitHub issue creation is optional)
+    const planModeService = createPlanModeService(
+      context.db,
+      durableStreamsService,
+      null, // Issue creator not configured in browser environment
+      null, // GitHub config not set by default
+      { maxTurns: 20 }
+    );
+
+    // Create task creation service for AI-powered task creation
+    const taskCreationService = createTaskCreationService(context.db, durableStreamsService);
+
     console.log('[Services] All services initialized successfully');
 
     return ok({
       agentService,
+      durableStreamsService,
       githubTokenService,
+      planModeService,
       projectService,
       sandboxConfigService,
+      taskCreationService,
       taskService,
       sessionService,
       templateService,

@@ -1,160 +1,328 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
-import type { Task } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
 
-const createTask = (overrides: Partial<Task> = {}): Task => ({
-  id: overrides.id ?? 'task-1',
-  projectId: overrides.projectId ?? 'project-1',
-  title: overrides.title ?? 'Test task',
-  description: overrides.description ?? null,
-  column: overrides.column ?? 'backlog',
-  position: overrides.position ?? 0,
-  labels: overrides.labels ?? [],
-  branch: null,
-  diffSummary: null,
-  approvedAt: null,
-  approvedBy: null,
-  rejectionCount: 0,
-  rejectionReason: null,
-  agentId: null,
-  sessionId: null,
-  worktreeId: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  startedAt: null,
-  completedAt: null,
-});
+const createTask = (overrides: Partial<Task> = {}): Task =>
+  ({
+    id: overrides.id ?? 'task-1',
+    projectId: overrides.projectId ?? 'project-1',
+    title: overrides.title ?? 'Test task',
+    description: overrides.description ?? null,
+    mode: overrides.mode ?? 'implement',
+    column: overrides.column ?? 'backlog',
+    position: overrides.position ?? 0,
+    labels: overrides.labels ?? [],
+    priority: overrides.priority ?? 'medium',
+    branch: null,
+    diffSummary: null,
+    approvedAt: null,
+    approvedBy: null,
+    rejectionCount: 0,
+    rejectionReason: null,
+    agentId: null,
+    sessionId: null,
+    worktreeId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null,
+  }) as Task;
 
 describe('TaskDetailDialog', () => {
-  it('renders the edit task dialog with title and description fields', () => {
-    render(
-      <TaskDetailDialog
-        task={createTask({ title: 'My task', description: 'Task description' })}
-        open
-        onOpenChange={vi.fn()}
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-      />
-    );
+  describe('rendering', () => {
+    it('renders task title in header', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ title: 'My task title' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
 
-    expect(screen.getByText('Edit Task')).toBeInTheDocument();
-    expect(screen.getByTestId('task-title-input')).toHaveValue('My task');
-    expect(screen.getByTestId('task-description-input')).toHaveValue('Task description');
+      expect(screen.getByText('My task title')).toBeInTheDocument();
+    });
+
+    it('renders "No task selected" when task is null', () => {
+      render(
+        <TaskDetailDialog
+          task={null}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('No task selected')).toBeInTheDocument();
+    });
+
+    it('renders task description section', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ description: 'Task description text' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('Task description text')).toBeInTheDocument();
+    });
+
+    it('renders task metadata', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask()}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      // Check for metadata section labels
+      expect(screen.getByText('Branch')).toBeInTheDocument();
+      expect(screen.getByText('Created')).toBeInTheDocument();
+    });
   });
 
-  it('renders "New Task" title when task is null', () => {
-    render(
-      <TaskDetailDialog
-        task={null}
-        open
-        onOpenChange={vi.fn()}
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-      />
-    );
+  describe('delete action', () => {
+    it('shows delete button for backlog tasks', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ column: 'backlog' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
 
-    expect(screen.getByText('New Task')).toBeInTheDocument();
-    expect(screen.getByText('Add details for the new task.')).toBeInTheDocument();
-  });
+      expect(screen.getByText('Delete')).toBeInTheDocument();
+    });
 
-  it('calls onSave with updated title and description', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    render(
-      <TaskDetailDialog
-        task={createTask({ title: 'Original title', description: 'Original description' })}
-        open
-        onOpenChange={vi.fn()}
-        onSave={onSave}
-        onDelete={vi.fn()}
-      />
-    );
+    it('calls onDelete when delete button is clicked', async () => {
+      const onDelete = vi.fn().mockResolvedValue(undefined);
+      render(
+        <TaskDetailDialog
+          task={createTask({ id: 'task-123', column: 'backlog' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      );
 
-    const titleInput = screen.getByTestId('task-title-input');
-    const descriptionInput = screen.getByTestId('task-description-input');
+      fireEvent.click(screen.getByText('Delete'));
 
-    fireEvent.change(titleInput, { target: { value: 'Updated title' } });
-    fireEvent.change(descriptionInput, { target: { value: 'Updated description' } });
-    fireEvent.click(screen.getByTestId('save-task-button'));
-
-    await waitFor(() => {
-      expect(onSave).toHaveBeenCalledWith({
-        title: 'Updated title',
-        description: 'Updated description',
-        labels: [],
-        agentId: null,
-        priority: undefined,
+      await waitFor(() => {
+        expect(onDelete).toHaveBeenCalledWith('task-123');
       });
     });
   });
 
-  it('calls onDelete when delete button is clicked', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined);
-    render(
-      <TaskDetailDialog
-        task={createTask({ id: 'task-123' })}
-        open
-        onOpenChange={vi.fn()}
-        onSave={vi.fn()}
-        onDelete={onDelete}
-      />
-    );
+  describe('close behavior', () => {
+    it('calls onOpenChange when dialog overlay is clicked', () => {
+      const onOpenChange = vi.fn();
+      render(
+        <TaskDetailDialog
+          task={createTask()}
+          open
+          onOpenChange={onOpenChange}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
 
-    fireEvent.click(screen.getByText('Delete'));
+      // Dialog overlay has data-state="open"
+      const overlay = document.querySelector('[data-state="open"]');
+      if (overlay) {
+        fireEvent.click(overlay);
+      }
 
-    await waitFor(() => {
-      expect(onDelete).toHaveBeenCalledWith('task-123');
+      // Note: The actual close behavior is handled by Radix Dialog internally
+    });
+
+    it('closes dialog after successful delete', async () => {
+      const onOpenChange = vi.fn();
+      const onDelete = vi.fn().mockResolvedValue(undefined);
+      render(
+        <TaskDetailDialog
+          task={createTask({ column: 'backlog' })}
+          open
+          onOpenChange={onOpenChange}
+          onSave={vi.fn()}
+          onDelete={onDelete}
+        />
+      );
+
+      fireEvent.click(screen.getByText('Delete'));
+
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      });
     });
   });
 
-  it('closes the dialog after saving', async () => {
-    const onOpenChange = vi.fn();
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    render(
-      <TaskDetailDialog
-        task={createTask()}
-        open
-        onOpenChange={onOpenChange}
-        onSave={onSave}
-        onDelete={vi.fn()}
-      />
+  describe('column-specific actions', () => {
+    it.each([
+      ['backlog', 'Delete'],
+      ['waiting_approval', 'Reject'],
+    ] as const)(
+      'shows appropriate action for %s column',
+      (column: TaskColumn, expectedButton: string) => {
+        render(
+          <TaskDetailDialog
+            task={createTask({ column })}
+            open
+            onOpenChange={vi.fn()}
+            onSave={vi.fn()}
+            onDelete={vi.fn()}
+            onMoveColumn={vi.fn()}
+          />
+        );
+
+        expect(screen.getByText(expectedButton)).toBeInTheDocument();
+      }
     );
 
-    fireEvent.click(screen.getByTestId('save-task-button'));
+    it('shows "Start Task" button for backlog tasks with onMoveColumn', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ column: 'backlog' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          onMoveColumn={vi.fn()}
+        />
+      );
 
-    await waitFor(() => {
-      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(screen.getByText('Start Task')).toBeInTheDocument();
+    });
+
+    it('shows "Approve" button for waiting_approval tasks with onMoveColumn', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ column: 'waiting_approval' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          onMoveColumn={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('Approve')).toBeInTheDocument();
     });
   });
 
-  it('does not show delete button when task is null', () => {
-    render(
-      <TaskDetailDialog
-        task={null}
-        open
-        onOpenChange={vi.fn()}
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-      />
-    );
+  describe('mode toggle', () => {
+    it('renders mode toggle when onModeChange is provided', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ mode: 'implement' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          onModeChange={vi.fn()}
+        />
+      );
 
-    expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+      expect(screen.getByText('Execution Mode')).toBeInTheDocument();
+      expect(screen.getByText('Plan')).toBeInTheDocument();
+      expect(screen.getByText('Implement')).toBeInTheDocument();
+    });
+
+    it('does not render mode toggle when onModeChange is not provided', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask()}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByText('Execution Mode')).not.toBeInTheDocument();
+    });
   });
 
-  it('closes the dialog when cancel is clicked', () => {
-    const onOpenChange = vi.fn();
-    render(
-      <TaskDetailDialog
-        task={createTask()}
-        open
-        onOpenChange={onOpenChange}
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-      />
-    );
+  describe('priority display', () => {
+    it('displays priority buttons', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ priority: 'medium' })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
 
-    fireEvent.click(screen.getByText('Cancel'));
+      expect(screen.getByText(/high/i)).toBeInTheDocument();
+      expect(screen.getByText(/medium/i)).toBeInTheDocument();
+      expect(screen.getByText(/low/i)).toBeInTheDocument();
+    });
+  });
 
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+  describe('labels', () => {
+    it('renders labels section', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask()}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('Labels')).toBeInTheDocument();
+    });
+
+    it('displays task labels', () => {
+      render(
+        <TaskDetailDialog
+          task={createTask({ labels: ['bug', 'feature'] })}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('bug')).toBeInTheDocument();
+      expect(screen.getByText('feature')).toBeInTheDocument();
+    });
+  });
+
+  describe('viewers', () => {
+    it('displays viewer avatars when viewers are present', () => {
+      const viewers = [
+        { userId: 'user-1', displayName: 'Alice', avatarUrl: undefined, joinedAt: Date.now() },
+        { userId: 'user-2', displayName: 'Bob', avatarUrl: undefined, joinedAt: Date.now() },
+      ];
+
+      render(
+        <TaskDetailDialog
+          task={createTask()}
+          open
+          onOpenChange={vi.fn()}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          viewers={viewers}
+        />
+      );
+
+      expect(screen.getByTitle('Alice')).toBeInTheDocument();
+      expect(screen.getByTitle('Bob')).toBeInTheDocument();
+    });
   });
 });

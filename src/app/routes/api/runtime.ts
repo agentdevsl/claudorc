@@ -6,6 +6,8 @@ import * as schema from '@/db/schema/index.js';
 import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
 import type { DurableStreamsServer } from '@/services/session.service';
 
+export type { Services };
+
 const fallbackStreams: DurableStreamsServer = {
   createStream: async () => undefined,
   publish: async () => undefined,

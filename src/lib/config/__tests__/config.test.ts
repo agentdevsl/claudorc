@@ -7,7 +7,6 @@ import { containsSecrets } from '../validate-secrets.js';
 const sampleConfig = {
   worktreeRoot: '.worktrees',
   defaultBranch: 'main',
-  maxConcurrentAgents: 2,
   allowedTools: ['Read'],
   maxTurns: 25,
 };
@@ -20,7 +19,7 @@ describe('config system', () => {
   it('deep merges config layers', () => {
     const merged = deepMerge(DEFAULT_PROJECT_CONFIG, sampleConfig);
 
-    expect(merged.maxConcurrentAgents).toBe(2);
+    expect(merged.maxTurns).toBe(25);
     expect(merged.allowedTools).toEqual(['Read']);
   });
 

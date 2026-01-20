@@ -22,6 +22,7 @@ export function buildTask(projectId: string, options: TaskFactoryOptions = {}): 
     projectId,
     title: options.title ?? `Test Task ${id.slice(0, 6)}`,
     description: options.description ?? null,
+    mode: options.mode ?? 'implement',
     column: options.column ?? 'backlog',
     position: options.position ?? 0,
     labels: options.labels ?? [],
@@ -80,6 +81,7 @@ export async function createTasksInColumns(
 ): Promise<Record<TaskColumn, Task[]>> {
   const result: Record<TaskColumn, Task[]> = {
     backlog: [],
+    queued: [],
     in_progress: [],
     waiting_approval: [],
     verified: [],

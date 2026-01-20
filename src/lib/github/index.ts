@@ -9,6 +9,13 @@ export {
 export type { SyncConfigOptions, SyncConfigResult } from './config-sync.js';
 // Config Sync
 export { checkConfigExists, syncConfigFromGitHub } from './config-sync.js';
+// Issue Creator
+export type { GitHubIssueInput, GitHubIssueResult } from './issue-creator.js';
+export {
+  createGitHubIssueCreator,
+  createGitHubIssueCreatorFromOctokit,
+  GitHubIssueCreator,
+} from './issue-creator.js';
 export type { RateLimitInfo, RateLimitStatus } from './rate-limit.js';
 // Rate Limit
 export {

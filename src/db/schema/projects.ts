@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { ProjectSandboxConfig } from '../../lib/sandbox/types.js';
 import { githubInstallations } from './github.js';
 import { sandboxConfigs } from './sandbox-configs.js';
 
@@ -16,6 +17,8 @@ export type ProjectConfig = {
   temperature?: number;
   /** Environment variables to pass to sandbox containers securely */
   envVars?: Record<string, string>;
+  /** Sandbox configuration for Docker-based execution */
+  sandbox?: ProjectSandboxConfig;
 };
 
 export const projects = sqliteTable('projects', {

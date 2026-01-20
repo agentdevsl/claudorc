@@ -1,6 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import { PlanSessionView } from '@/app/components/features/plan-session-view';
+import type { Task, TaskColumn, TaskMode } from '@/db/schema/tasks';
 import type { Worktree } from '@/db/schema/worktrees';
 import { cn } from '@/lib/utils/cn';
 import { TaskActions } from './task-actions';
@@ -43,6 +44,7 @@ export interface TaskDetailDialogProps {
   onSave: (data: UpdateTaskInput) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMoveColumn?: (taskId: string, column: TaskColumn) => Promise<void>;
+  onModeChange?: (taskId: string, mode: TaskMode) => Promise<void>;
   onViewSession?: (sessionId: string) => void;
   onOpenApproval?: (taskId: string) => void;
   viewers?: TaskViewer[];
@@ -102,6 +104,7 @@ export function TaskDetailDialog({
   onSave,
   onDelete,
   onMoveColumn,
+  onModeChange,
   onViewSession,
   onOpenApproval,
   viewers = [],
@@ -143,17 +146,44 @@ export function TaskDetailDialog({
       await onSave(pendingChanges);
       dispatch({ type: 'SAVE_SUCCESS' });
       setPendingChanges({});
-    } catch {
+    } catch (error) {
+      console.error('[TaskDetailDialog] Failed to save task:', error);
       dispatch({ type: 'SAVE_ERROR' });
+      // TODO: Show toast notification to user
+      // toast.error('Failed to save changes. Please try again.');
     }
   }, [pendingChanges, onSave]);
 
   // Delete handler
   const handleDelete = useCallback(async () => {
     if (!task) return;
-    await onDelete(task.id);
-    onOpenChange(false);
+    try {
+      await onDelete(task.id);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('[TaskDetailDialog] Failed to delete task:', error);
+      // TODO: Show toast notification to user
+      // toast.error('Failed to delete task. Please try again.');
+    }
   }, [task, onDelete, onOpenChange]);
+
+  // Mode change handler
+  const handleModeChange = useCallback(
+    async (mode: TaskMode) => {
+      if (!task || !onModeChange) return;
+      try {
+        await onModeChange(task.id, mode);
+      } catch (error) {
+        console.error('[TaskDetailDialog] Failed to change task mode:', error);
+        // TODO: Show toast notification to user
+        // toast.error('Failed to change task mode. Please try again.');
+      }
+    },
+    [task, onModeChange]
+  );
+
+  // Determine if we should show plan session view
+  const showPlanSessionView = task?.mode === 'plan' && task?.column === 'in_progress';
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -239,75 +269,88 @@ export function TaskDetailDialog({
             task={displayTask}
             viewers={viewers}
             onPriorityChange={(priority) => handleFieldChange('priority', priority)}
+            onModeChange={onModeChange ? handleModeChange : undefined}
           />
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="space-y-5 p-5">
-              {/* Description */}
-              <TaskDescription
-                description={displayTask.description ?? ''}
-                isEditing={state.editingSection === 'description'}
-                onEdit={() => dispatch({ type: 'START_EDIT', section: 'description' })}
-                onChange={(description) => handleFieldChange('description', description)}
-                onSave={handleSave}
-                onCancel={() => dispatch({ type: 'CANCEL_EDIT' })}
-              />
-
-              {/* Metadata grid */}
-              <TaskMetadata task={task} />
-
-              {/* Labels */}
-              <TaskLabels
-                labels={(displayTask.labels as string[]) ?? []}
-                availableLabels={availableLabels}
-                onChange={(labels) => handleFieldChange('labels', labels)}
-              />
-
-              {/* Worktree info (if exists) */}
-              {worktree && <TaskWorktree worktree={worktree} />}
-
-              {/* Activity timeline */}
-              <TaskActivity
-                activities={activityLog}
-                activeTab={state.activityTab}
-                onTabChange={(tab) => dispatch({ type: 'SET_ACTIVITY_TAB', tab })}
+          {/* Content area - conditionally render based on mode */}
+          {showPlanSessionView ? (
+            <div className="flex-1 overflow-hidden">
+              <PlanSessionView
+                taskId={task.id}
+                projectId={task.projectId}
+                onSessionEnd={() => onOpenChange(false)}
               />
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-5 p-5">
+                {/* Description */}
+                <TaskDescription
+                  description={displayTask.description ?? ''}
+                  isEditing={state.editingSection === 'description'}
+                  onEdit={() => dispatch({ type: 'START_EDIT', section: 'description' })}
+                  onChange={(description) => handleFieldChange('description', description)}
+                  onSave={handleSave}
+                  onCancel={() => dispatch({ type: 'CANCEL_EDIT' })}
+                />
 
-          {/* Footer with actions */}
-          <div className="flex items-center justify-between border-t border-border bg-surface-muted px-5 py-4">
-            {/* Unsaved changes indicator */}
-            {hasUnsavedChanges ? (
-              <span className="text-xs text-attention">Unsaved changes</span>
-            ) : (
-              <span />
-            )}
+                {/* Metadata grid */}
+                <TaskMetadata task={task} />
 
-            {/* Action buttons */}
-            <TaskActions
-              column={task.column}
-              isSaving={state.isSaving}
-              hasChanges={hasUnsavedChanges}
-              onSave={handleSave}
-              onCancel={() => {
-                setPendingChanges({});
-                dispatch({ type: 'CANCEL_EDIT' });
-              }}
-              onDelete={handleDelete}
-              onViewSession={
-                onViewSession && task.sessionId
-                  ? () => {
-                      const sessionId = task.sessionId;
-                      if (sessionId) onViewSession(sessionId);
-                    }
-                  : undefined
-              }
-              onOpenApproval={onOpenApproval ? () => onOpenApproval(task.id) : undefined}
-              onMoveColumn={onMoveColumn ? (col) => onMoveColumn(task.id, col) : undefined}
-            />
-          </div>
+                {/* Labels */}
+                <TaskLabels
+                  labels={(displayTask.labels as string[]) ?? []}
+                  availableLabels={availableLabels}
+                  onChange={(labels) => handleFieldChange('labels', labels)}
+                />
+
+                {/* Worktree info (if exists) */}
+                {worktree && <TaskWorktree worktree={worktree} />}
+
+                {/* Activity timeline */}
+                <TaskActivity
+                  activities={activityLog}
+                  activeTab={state.activityTab}
+                  onTabChange={(tab) => dispatch({ type: 'SET_ACTIVITY_TAB', tab })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Footer with actions - hide when showing plan session view */}
+          {!showPlanSessionView && (
+            <div className="flex items-center justify-between border-t border-border bg-surface-muted px-5 py-4">
+              {/* Unsaved changes indicator */}
+              {hasUnsavedChanges ? (
+                <span className="text-xs text-attention">Unsaved changes</span>
+              ) : (
+                <span />
+              )}
+
+              {/* Action buttons */}
+              <TaskActions
+                column={task.column}
+                isSaving={state.isSaving}
+                hasChanges={hasUnsavedChanges}
+                onSave={handleSave}
+                onCancel={() => {
+                  setPendingChanges({});
+                  dispatch({ type: 'CANCEL_EDIT' });
+                }}
+                onDelete={handleDelete}
+                onViewSession={
+                  onViewSession && task.sessionId
+                    ? () => {
+                        const sessionId = task.sessionId;
+                        if (sessionId) onViewSession(sessionId);
+                      }
+                    : undefined
+                }
+                onOpenApproval={onOpenApproval ? () => onOpenApproval(task.id) : undefined}
+                onMoveColumn={onMoveColumn ? (col) => onMoveColumn(task.id, col) : undefined}
+              />
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
 import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
-import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
+// Use separate dialogs: new-task-dialog for creation, task-detail-dialog for editing with mode toggle
+import { NewTaskDialog } from '@/app/components/features/new-task-dialog';
+import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/index';
 import { Button } from '@/app/components/ui/button';
 import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
@@ -13,7 +15,7 @@ import type { DiffSummary } from '@/lib/types/diff';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId'
+  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId' | 'mode'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -28,26 +30,47 @@ function ProjectKanban(): React.JSX.Element {
   const [project, setProject] = useState<ProjectListItem | null>(null);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
 
-  // Fetch project and tasks from API on mount
-  useEffect(() => {
-    const fetchData = async () => {
+  // Fetch project and tasks from API
+  const fetchData = async () => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
       const [projectResult, tasksResult] = await Promise.all([
         apiClient.projects.get(projectId),
         apiClient.tasks.list(projectId),
       ]);
 
-      if (projectResult.ok) {
-        setProject(projectResult.data);
+      if (!projectResult.ok) {
+        console.error('[ProjectKanban] Failed to fetch project:', projectResult.error);
+        setError(`Failed to load project: ${projectResult.error.message}`);
+        setIsLoading(false);
+        return;
       }
-      if (tasksResult.ok) {
+
+      setProject(projectResult.data);
+
+      if (!tasksResult.ok) {
+        console.error('[ProjectKanban] Failed to fetch tasks:', tasksResult.error);
+        setError(`Failed to load tasks: ${tasksResult.error.message}`);
+      } else {
         setTasks(tasksResult.data.items as ClientTask[]);
       }
+    } catch (err) {
+      console.error('[ProjectKanban] Unexpected error:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
+
+  // Fetch on mount and when projectId changes
+  useEffect(() => {
     fetchData();
   }, [projectId]);
 
@@ -91,6 +114,23 @@ function ProjectKanban(): React.JSX.Element {
     );
   }
 
+  if (error) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: 'Error' }]}>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <div className="text-destructive text-sm">{error}</div>
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      </LayoutShell>
+    );
+  }
+
   if (!project) {
     return <div className="p-6 text-sm text-fg-muted">Project not found.</div>;
   }
@@ -127,40 +167,47 @@ function ProjectKanban(): React.JSX.Element {
         />
       </main>
 
+      {/* New Task Dialog - AI-powered task creation with streaming */}
+      <NewTaskDialog
+        projectId={projectId}
+        open={showNewTask}
+        onOpenChange={(open) => {
+          if (!open) setShowNewTask(false);
+        }}
+        onTaskCreated={async (_taskId) => {
+          // Refresh tasks list after AI creates a new task
+          const tasksResult = await apiClient.tasks.list(projectId);
+          if (tasksResult.ok) {
+            setTasks(tasksResult.data.items as ClientTask[]);
+          }
+        }}
+      />
+
+      {/* Edit Task Dialog - uses new dialog with mode toggle */}
       <TaskDetailDialog
         task={selectedTask as Parameters<typeof TaskDetailDialog>[0]['task']}
-        open={Boolean(selectedTask) || showNewTask}
+        open={Boolean(selectedTask)}
         onOpenChange={(open) => {
-          if (!open) {
-            setSelectedTask(null);
-            setShowNewTask(false);
-          }
+          if (!open) setSelectedTask(null);
         }}
         onSave={async (data) => {
           if (selectedTask) {
-            // TODO: Add API endpoint for updating tasks
             setTasks((prev) =>
               prev.map((task) => (task.id === selectedTask.id ? { ...task, ...data } : task))
             );
-          } else if (project) {
-            // TODO: Add API endpoint for creating tasks
-            const newTask: ClientTask = {
-              id: `temp-${Date.now()}`,
-              projectId: project.id,
-              title: data.title ?? 'New Task',
-              description: data.description ?? null,
-              column: 'backlog',
-              priority: data.priority ?? 'medium',
-              position: 0,
-              labels: data.labels ?? [],
-              agentId: null,
-            };
-            setTasks((prev) => [newTask, ...prev]);
           }
         }}
         onDelete={async (id) => {
-          // TODO: Add API endpoint for deleting tasks
           setTasks((prev) => prev.filter((task) => task.id !== id));
+        }}
+        onModeChange={async (taskId, mode) => {
+          setTasks((prev) =>
+            prev.map((task) => (task.id === taskId ? { ...task, mode } : task))
+          );
+          // Update selectedTask state to reflect the change
+          if (selectedTask && selectedTask.id === taskId) {
+            setSelectedTask({ ...selectedTask, mode });
+          }
         }}
       />
 

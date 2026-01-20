@@ -1,64 +1,71 @@
 import { createError } from '../../errors/base.js';
+import { getDurableStreamsServer } from '../../streams/server.js';
+import { setStreamProvider } from '../../streams/provider.js';
 import { err, ok } from '../../utils/result.js';
 
-type DurableStreamsClientConstructor = new (config: {
-  url: string;
-  reconnect: Record<string, unknown>;
-}) => {
-  connect: () => Promise<void>;
+/**
+ * Configuration for durable streams
+ */
+export interface StreamsConfig {
+  /** Base URL for stream API endpoints */
+  baseUrl?: string;
+  /** Maximum reconnection attempts */
+  maxReconnectAttempts?: number;
+  /** Initial delay between reconnection attempts (ms) */
+  initialReconnectDelay?: number;
+  /** Maximum delay between reconnection attempts (ms) */
+  maxReconnectDelay?: number;
+  /** Backoff multiplier for reconnection delays */
+  backoffMultiplier?: number;
+}
+
+const DEFAULT_CONFIG: Required<StreamsConfig> = {
+  baseUrl: '/api/streams',
+  maxReconnectAttempts: 5,
+  initialReconnectDelay: 1000,
+  maxReconnectDelay: 30000,
+  backoffMultiplier: 2,
 };
 
-const resolveStreamsClient = async (): Promise<DurableStreamsClientConstructor | undefined> => {
-  if (globalThis.DurableStreamsClient) {
-    return globalThis.DurableStreamsClient;
-  }
+/**
+ * Initialize and connect the durable streams server.
+ *
+ * This function:
+ * 1. Gets or creates the singleton durable streams server
+ * 2. Registers it as the global stream provider
+ * 3. Returns the server instance for further use
+ *
+ * Compatible with bootstrap service phase function signature.
+ */
+export const connectStreams = async (_ctx?: unknown) => {
+  const config = DEFAULT_CONFIG;
 
   try {
-    const module = await import('@durable-streams/client');
-    return (module as { DurableStreamsClient?: DurableStreamsClientConstructor })
-      .DurableStreamsClient;
-  } catch {
-    return undefined;
-  }
-};
+    // Get the singleton server instance
+    const server = getDurableStreamsServer();
 
-export const connectStreams = async () => {
-  try {
-    const DurableStreamsClient = await resolveStreamsClient();
-    if (!DurableStreamsClient) {
-      return err(
-        createError('BOOTSTRAP_STREAMS_FAILED', 'DurableStreamsClient not available', 500)
-      );
-    }
-    const client = new DurableStreamsClient({
-      url: '/api/streams',
-      reconnect: {
-        maxAttempts: 5,
-        initialDelay: 1000,
-        maxDelay: 30000,
-        backoffFactor: 2,
-      },
+    // Register as the global stream provider
+    setStreamProvider(server);
+
+    // Log successful initialization
+    console.log('[Streams] Durable streams server initialized', {
+      baseUrl: config.baseUrl,
     });
 
-    await client.connect();
-
-    return ok(client);
+    return ok(server);
   } catch (error) {
+    console.error('[Streams] Failed to initialize durable streams:', error);
     return err(
-      createError('BOOTSTRAP_STREAMS_FAILED', 'Failed to connect streams', 500, {
+      createError('BOOTSTRAP_STREAMS_FAILED', 'Failed to initialize streams', 500, {
         error: String(error),
       })
     );
   }
 };
 
-declare global {
-  var DurableStreamsClient:
-    | (new (config: {
-        url: string;
-        reconnect: Record<string, unknown>;
-      }) => {
-        connect: () => Promise<void>;
-      })
-    | undefined;
+/**
+ * Get the current streams configuration
+ */
+export function getStreamsConfig(): Required<StreamsConfig> {
+  return { ...DEFAULT_CONFIG };
 }

@@ -198,7 +198,8 @@ describe('bootstrap phases', () => {
 
   it('streams phase returns ok on successful connect', async () => {
     const { connectStreams } = await import('../phases/streams.js');
-    const originalClient = globalThis.DurableStreamsClient;
+    const globalAny = globalThis as Record<string, unknown>;
+    const originalClient = globalAny.DurableStreamsClient;
 
     class MockClient {
       async connect() {
@@ -206,14 +207,14 @@ describe('bootstrap phases', () => {
       }
     }
 
-    globalThis.DurableStreamsClient = MockClient;
+    globalAny.DurableStreamsClient = MockClient;
 
     const result = await connectStreams();
 
     if (originalClient) {
-      globalThis.DurableStreamsClient = originalClient;
+      globalAny.DurableStreamsClient = originalClient;
     } else {
-      delete globalThis.DurableStreamsClient;
+      delete globalAny.DurableStreamsClient;
     }
 
     expect(result.ok).toBe(true);

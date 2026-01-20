@@ -1,14 +1,19 @@
+import type { ProjectSandboxConfig } from '../sandbox/types.js';
+
 export type ProjectConfig = {
   worktreeRoot: string;
   initScript?: string;
   envFile?: string;
   defaultBranch: string;
-  maxConcurrentAgents: number;
   allowedTools: string[];
   maxTurns: number;
   model?: string;
   systemPrompt?: string;
   temperature?: number;
+  /** Environment variables to pass to sandbox containers securely */
+  envVars?: Record<string, string>;
+  /** Sandbox configuration for Docker-based execution */
+  sandbox?: ProjectSandboxConfig;
 };
 
 export type GlobalConfig = {
@@ -21,7 +26,6 @@ export type GlobalConfig = {
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   worktreeRoot: '.worktrees',
   defaultBranch: 'main',
-  maxConcurrentAgents: 3,
   allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
   maxTurns: 50,
 };

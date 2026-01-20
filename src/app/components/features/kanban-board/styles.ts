@@ -120,3 +120,23 @@ export const agentStatusVariants = cva('flex items-center gap-1.5 px-2 py-1 roun
 });
 
 export type AgentStatusVariants = VariantProps<typeof agentStatusVariants>;
+
+/**
+ * Task mode badge styles
+ */
+export const modeBadgeVariants = cva(
+  'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide',
+  {
+    variants: {
+      mode: {
+        plan: 'bg-secondary-muted text-secondary',
+        implement: 'bg-accent-muted text-accent',
+      },
+    },
+    defaultVariants: {
+      mode: 'implement',
+    },
+  }
+);
+
+export type ModeBadgeVariants = VariantProps<typeof modeBadgeVariants>;

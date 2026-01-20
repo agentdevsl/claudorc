@@ -66,8 +66,8 @@ export { SessionHistory } from './session-history';
 // Sidebar
 export { Sidebar } from './sidebar';
 
-// Task Detail Dialog
-export { TaskDetailDialog } from './task-detail-dialog';
+// Task Detail Dialog - Uses directory-based module with mode toggle support
+export { TaskDetailDialog } from './task-detail-dialog/index';
 
 // Theme Toggle
 export { ThemeToggle } from './theme-toggle';
