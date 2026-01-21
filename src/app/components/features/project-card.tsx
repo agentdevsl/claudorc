@@ -84,9 +84,9 @@ interface MiniKanbanBarProps {
 function MiniKanbanBar({ label, count, total, colorClass }: MiniKanbanBarProps): React.JSX.Element {
   const percentage = total > 0 ? (count / total) * 100 : 0;
   return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between mb-1.5 text-[11px] uppercase tracking-wide">
-        <span className={colorClass}>{label}</span>
+    <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col items-center gap-0.5 mb-1.5 text-[10px] uppercase tracking-wide">
+        <span className={`truncate max-w-full ${colorClass}`}>{label}</span>
         <span className={`font-semibold font-mono ${colorClass}`}>{count}</span>
       </div>
       <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
@@ -143,33 +143,33 @@ export function ProjectCard({
       {/* Body */}
       <div className="p-4">
         {/* Mini Kanban */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-1 mb-4">
           <MiniKanbanBar
-            label="Backlog"
+            label="Back"
             count={taskCounts.backlog}
             total={taskCounts.total}
             colorClass="text-fg-muted"
           />
           <MiniKanbanBar
-            label="Queued"
+            label="Queue"
             count={taskCounts.queued}
             total={taskCounts.total}
             colorClass="text-[var(--secondary-fg)]"
           />
           <MiniKanbanBar
-            label="In Progress"
+            label="Prog"
             count={taskCounts.inProgress}
             total={taskCounts.total}
             colorClass="text-attention"
           />
           <MiniKanbanBar
-            label="Approval"
+            label="Appr"
             count={taskCounts.waitingApproval}
             total={taskCounts.total}
             colorClass="text-accent"
           />
           <MiniKanbanBar
-            label="Verified"
+            label="Done"
             count={taskCounts.verified}
             total={taskCounts.total}
             colorClass="text-success"
