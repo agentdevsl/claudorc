@@ -1,4 +1,4 @@
-import { GearSix, Plus } from '@phosphor-icons/react';
+import { GearSix } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
@@ -7,7 +7,7 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 // Use separate dialogs: new-task-dialog for creation, task-detail-dialog for editing with mode toggle
 import { NewTaskDialog } from '@/app/components/features/new-task-dialog';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/index';
-import { Button } from '@/app/components/ui/button';
+import { AIActionButton } from '@/app/components/ui/ai-action-button';
 import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { DiffSummary } from '@/lib/types/diff';
@@ -149,22 +149,22 @@ function ProjectKanban(): React.JSX.Element {
       projectName={project.name}
       projectPath={project.path}
       breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: project.name }]}
+      centerAction={
+        <AIActionButton
+          onClick={() => setShowNewTask(true)}
+          data-testid="add-task-button"
+        />
+      }
       actions={
-        <div className="flex items-center gap-2">
-          <Link
-            to="/projects/$projectId/settings"
-            params={{ projectId: project.id }}
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
-            data-testid="project-settings-link"
-          >
-            <GearSix className="h-4 w-4" />
-            <span className="sr-only">Project settings</span>
-          </Link>
-          <Button onClick={() => setShowNewTask(true)} data-testid="add-task-button">
-            <Plus className="h-4 w-4" />
-            New Task
-          </Button>
-        </div>
+        <Link
+          to="/projects/$projectId/settings"
+          params={{ projectId: project.id }}
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
+          data-testid="project-settings-link"
+        >
+          <GearSix className="h-4 w-4" />
+          <span className="sr-only">Project settings</span>
+        </Link>
       }
     >
       <main className="flex-1 overflow-hidden bg-canvas">

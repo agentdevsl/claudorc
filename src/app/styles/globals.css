@@ -188,6 +188,11 @@
     --secondary-muted: rgba(247, 120, 186, 0.15);
     --secondary-subtle: rgba(247, 120, 186, 0.1);
 
+    /* Claude Brand (Orange) */
+    --claude: #d97757;
+    --claude-muted: rgba(217, 119, 87, 0.15);
+    --claude-subtle: rgba(217, 119, 87, 0.1);
+
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(1, 4, 9, 0.3);
     --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
@@ -283,6 +288,11 @@
     --secondary-muted: rgba(219, 39, 119, 0.12);
     --secondary-subtle: rgba(219, 39, 119, 0.06);
 
+    /* Claude Brand (Orange) */
+    --claude: #d97757;
+    --claude-muted: rgba(217, 119, 87, 0.12);
+    --claude-subtle: rgba(217, 119, 87, 0.06);
+
     /* Shadows - Soft, layered depth with warm undertones */
     --shadow-sm: 0 1px 2px rgba(30, 40, 60, 0.06), 0 1px 3px rgba(30, 40, 60, 0.08);
     --shadow-md: 0 4px 6px -1px rgba(30, 40, 60, 0.08), 0 2px 4px -2px rgba(30, 40, 60, 0.06);
@@ -347,6 +357,9 @@
       --done-muted: rgba(124, 58, 237, 0.12);
       --secondary-fg: #db2777;
       --secondary-muted: rgba(219, 39, 119, 0.12);
+      --claude: #d97757;
+      --claude-muted: rgba(217, 119, 87, 0.12);
+      --claude-subtle: rgba(217, 119, 87, 0.06);
       --shadow-sm: 0 1px 2px rgba(30, 40, 60, 0.06), 0 1px 3px rgba(30, 40, 60, 0.08);
       --shadow-md: 0 4px 6px -1px rgba(30, 40, 60, 0.08), 0 2px 4px -2px rgba(30, 40, 60, 0.06);
       --shadow-lg: 0 10px 15px -3px rgba(30, 40, 60, 0.1), 0 4px 6px -4px rgba(30, 40, 60, 0.08);
@@ -403,6 +416,9 @@
       --done-muted: rgba(163, 113, 247, 0.15);
       --secondary-fg: #f778ba;
       --secondary-muted: rgba(247, 120, 186, 0.15);
+      --claude: #d97757;
+      --claude-muted: rgba(217, 119, 87, 0.15);
+      --claude-subtle: rgba(217, 119, 87, 0.1);
       --shadow-sm: 0 1px 2px rgba(1, 4, 9, 0.3);
       --shadow-md: 0 3px 6px rgba(1, 4, 9, 0.3);
       --shadow-lg: 0 8px 24px rgba(1, 4, 9, 0.4);
@@ -599,6 +615,17 @@
     }
   }
 
+  /* AI button gradient animation */
+  @keyframes gradient-shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
   /* Status dot pulse animation */
   @keyframes statusPulse {
     0% {
@@ -609,6 +636,37 @@
     }
     100% {
       box-shadow: 0 0 0 0 transparent;
+    }
+  }
+
+  /* Claw'd mascot animations */
+  @keyframes bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-1px);
+    }
+  }
+
+  @keyframes step-l {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(-12deg);
+    }
+  }
+
+  @keyframes step-r {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(12deg);
     }
   }
 
@@ -668,6 +726,71 @@
   /* Status dot with pulse */
   .status-dot-pulse {
     animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  /* ==========================================
+     SESSION HISTORY ANIMATIONS (Phase 6)
+     ========================================== */
+
+  /* Session card selection - subtle scale and border highlight */
+  .session-card-transition {
+    transition: all var(--duration-fast) var(--ease-out);
+  }
+
+  .session-card-transition:hover {
+    transform: translateY(-1px);
+  }
+
+  .session-card-transition.selected {
+    transform: translateY(0);
+  }
+
+  /* Timeline dot pulse for active sessions */
+  @keyframes timelineDotPulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.15);
+    }
+  }
+
+  .timeline-dot-pulse {
+    animation: timelineDotPulse 2s ease-in-out infinite;
+  }
+
+  /* Current event highlight - subtle pulse for emphasis */
+  @keyframes currentEventPulse {
+    0%,
+    100% {
+      background-color: var(--accent-muted);
+    }
+    50% {
+      background-color: var(--accent-subtle);
+    }
+  }
+
+  .current-event-highlight {
+    animation: currentEventPulse 2s ease-in-out infinite;
+    border-left: 3px solid var(--accent-fg);
+  }
+
+  /* Panel content swap animation */
+  .panel-content-enter {
+    animation: fadeIn var(--duration-normal) var(--ease-out),
+      slideUp var(--duration-normal) var(--ease-out);
+  }
+
+  /* Progress bar smooth width transition during playback */
+  .progress-bar-smooth {
+    transition: width 75ms linear;
+  }
+
+  .progress-bar-smooth.dragging {
+    transition: none;
   }
 }
 

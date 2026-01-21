@@ -39,6 +39,8 @@ interface KanbanBoardProps {
   onBulkMove?: (taskIds: string[], column: TaskColumn) => Promise<void>;
   onBulkDelete?: (taskIds: string[]) => Promise<void>;
   onAddTask?: (column: TaskColumn) => void;
+  /** Custom header action for backlog column (e.g., AI create button) */
+  backlogHeaderAction?: React.ReactNode;
   isLoading?: boolean;
 }
 
@@ -49,6 +51,7 @@ export function KanbanBoard({
   onBulkMove,
   onBulkDelete,
   onAddTask,
+  backlogHeaderAction,
   isLoading,
 }: KanbanBoardProps): React.JSX.Element {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -221,6 +224,7 @@ export function KanbanBoard({
               isCollapsed={isColumnCollapsed(column.id)}
               onToggleCollapse={() => toggleColumnCollapse(column.id)}
               onAddTask={onAddTask ? () => onAddTask(column.id) : undefined}
+              headerAction={column.id === 'backlog' ? backlogHeaderAction : undefined}
               config={column}
             />
           ))}
