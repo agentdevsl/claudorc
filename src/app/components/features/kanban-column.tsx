@@ -74,7 +74,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex w-full flex-col rounded-lg border border-[var(--border-default)] bg-[var(--bg-default)] md:w-[300px] md:flex-shrink-0',
+        'flex min-w-[200px] flex-1 flex-col rounded-lg border border-[var(--border-default)] bg-[var(--bg-default)]',
         accentClass,
         'border-t-2',
         isOver && 'bg-[var(--accent-muted)] ring-2 ring-[var(--accent-fg)]'
