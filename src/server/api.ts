@@ -39,6 +39,18 @@ declare const Bun: {
   serve: (options: { port: number; fetch: (req: Request) => Response | Promise<Response> }) => void;
 };
 
+/**
+ * Validate that an ID is safe and properly formatted
+ * Accepts cuid2 IDs and kebab-case string IDs
+ */
+function isValidId(id: string): boolean {
+  if (!id || typeof id !== 'string') return false;
+  // Length check: reasonable ID lengths (1-100 chars)
+  if (id.length < 1 || id.length > 100) return false;
+  // Only allow alphanumeric, hyphens, underscores (safe for paths/queries)
+  return /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 // Initialize SQLite database using Bun's native SQLite
 const DB_PATH = './data/agentpane.db';
 const sqlite = new BunSQLite(DB_PATH);
@@ -1130,18 +1142,57 @@ async function handleSyncTemplate(id: string): Promise<Response> {
 // ============ Marketplace Handlers ============
 
 async function handleListMarketplaces(url: URL): Promise<Response> {
-  const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
-  const includeDisabled = url.searchParams.get('includeDisabled') === 'true';
+  try {
+    const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+    const includeDisabled = url.searchParams.get('includeDisabled') === 'true';
 
-  const result = await marketplaceService.list({ limit, includeDisabled });
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
+    const result = await marketplaceService.list({ limit, includeDisabled });
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        items: result.value.map((m) => ({
+          id: m.id,
+          name: m.name,
+          githubOwner: m.githubOwner,
+          githubRepo: m.githubRepo,
+          branch: m.branch,
+          pluginsPath: m.pluginsPath,
+          isDefault: m.isDefault,
+          isEnabled: m.isEnabled,
+          status: m.status,
+          lastSyncedAt: m.lastSyncedAt,
+          syncError: m.syncError,
+          pluginCount: (m.cachedPlugins ?? []).length,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt,
+        })),
+        totalCount: result.value.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Marketplaces] List error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list marketplaces' } },
+      500
+    );
   }
+}
 
-  return json({
-    ok: true,
-    data: {
-      items: result.value.map((m) => ({
+async function handleGetMarketplace(id: string): Promise<Response> {
+  try {
+    const result = await marketplaceService.getById(id);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    const m = result.value;
+    return json({
+      ok: true,
+      data: {
         id: m.id,
         name: m.name,
         githubOwner: m.githubOwner,
@@ -1153,128 +1204,156 @@ async function handleListMarketplaces(url: URL): Promise<Response> {
         status: m.status,
         lastSyncedAt: m.lastSyncedAt,
         syncError: m.syncError,
-        pluginCount: (m.cachedPlugins ?? []).length,
+        plugins: m.cachedPlugins ?? [],
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
-      })),
-      totalCount: result.value.length,
-    },
-  });
-}
-
-async function handleGetMarketplace(id: string): Promise<Response> {
-  const result = await marketplaceService.getById(id);
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
+      },
+    });
+  } catch (error) {
+    console.error('[Marketplaces] Get error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get marketplace' } },
+      500
+    );
   }
-
-  const m = result.value;
-  return json({
-    ok: true,
-    data: {
-      id: m.id,
-      name: m.name,
-      githubOwner: m.githubOwner,
-      githubRepo: m.githubRepo,
-      branch: m.branch,
-      pluginsPath: m.pluginsPath,
-      isDefault: m.isDefault,
-      isEnabled: m.isEnabled,
-      status: m.status,
-      lastSyncedAt: m.lastSyncedAt,
-      syncError: m.syncError,
-      plugins: m.cachedPlugins ?? [],
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
-    },
-  });
 }
 
 async function handleCreateMarketplace(request: Request): Promise<Response> {
-  const body = (await request.json()) as {
-    name: string;
-    githubUrl?: string;
-    githubOwner?: string;
-    githubRepo?: string;
-    branch?: string;
-    pluginsPath?: string;
-  };
+  try {
+    const body = (await request.json()) as {
+      name: string;
+      githubUrl?: string;
+      githubOwner?: string;
+      githubRepo?: string;
+      branch?: string;
+      pluginsPath?: string;
+    };
 
-  if (!body.name) {
-    return json({ ok: false, error: { code: 'MISSING_NAME', message: 'Name is required' } }, 400);
-  }
+    if (!body.name) {
+      return json({ ok: false, error: { code: 'MISSING_NAME', message: 'Name is required' } }, 400);
+    }
 
-  if (!body.githubUrl && (!body.githubOwner || !body.githubRepo)) {
+    if (!body.githubUrl && (!body.githubOwner || !body.githubRepo)) {
+      return json(
+        {
+          ok: false,
+          error: { code: 'MISSING_REPO', message: 'GitHub URL or owner/repo required' },
+        },
+        400
+      );
+    }
+
+    const result = await marketplaceService.create(body);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Marketplaces] Create error:', error);
     return json(
-      { ok: false, error: { code: 'MISSING_REPO', message: 'GitHub URL or owner/repo required' } },
-      400
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create marketplace' } },
+      500
     );
   }
-
-  const result = await marketplaceService.create(body);
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
-  }
-
-  return json({ ok: true, data: result.value });
 }
 
 async function handleDeleteMarketplace(id: string): Promise<Response> {
-  const result = await marketplaceService.delete(id);
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
-  }
+  try {
+    const result = await marketplaceService.delete(id);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
 
-  return json({ ok: true, data: { deleted: true } });
+    return json({ ok: true, data: { deleted: true } });
+  } catch (error) {
+    console.error('[Marketplaces] Delete error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete marketplace' } },
+      500
+    );
+  }
 }
 
 async function handleSyncMarketplace(id: string): Promise<Response> {
-  const result = await marketplaceService.sync(id);
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
-  }
+  try {
+    console.log(`[Marketplaces] Syncing marketplace ${id}`);
+    const result = await marketplaceService.sync(id);
+    if (!result.ok) {
+      console.error(`[Marketplaces] Sync failed for ${id}:`, result.error);
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
 
-  return json({ ok: true, data: result.value });
+    console.log(`[Marketplaces] Synced ${result.value.pluginCount} plugins for ${id}`);
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Marketplaces] Sync error:', error);
+    return json(
+      { ok: false, error: { code: 'SYNC_ERROR', message: 'Failed to sync marketplace' } },
+      500
+    );
+  }
 }
 
 async function handleListPlugins(url: URL): Promise<Response> {
-  const search = url.searchParams.get('search') ?? undefined;
-  const category = url.searchParams.get('category') ?? undefined;
-  const marketplaceId = url.searchParams.get('marketplaceId') ?? undefined;
+  try {
+    const search = url.searchParams.get('search') ?? undefined;
+    const category = url.searchParams.get('category') ?? undefined;
+    const marketplaceId = url.searchParams.get('marketplaceId') ?? undefined;
 
-  const result = await marketplaceService.listAllPlugins({ search, category, marketplaceId });
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
+    const result = await marketplaceService.listAllPlugins({ search, category, marketplaceId });
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        items: result.value,
+        totalCount: result.value.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Marketplaces] List plugins error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to list plugins' } }, 500);
   }
-
-  return json({
-    ok: true,
-    data: {
-      items: result.value,
-      totalCount: result.value.length,
-    },
-  });
 }
 
 async function handleGetCategories(): Promise<Response> {
-  const result = await marketplaceService.getCategories();
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
-  }
+  try {
+    const result = await marketplaceService.getCategories();
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
 
-  return json({
-    ok: true,
-    data: { categories: result.value },
-  });
+    return json({
+      ok: true,
+      data: { categories: result.value },
+    });
+  } catch (error) {
+    console.error('[Marketplaces] Get categories error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get categories' } },
+      500
+    );
+  }
 }
 
 async function handleSeedDefaultMarketplace(): Promise<Response> {
-  const result = await marketplaceService.seedDefaultMarketplace();
-  if (!result.ok) {
-    return json({ ok: false, error: result.error }, result.error.status);
-  }
+  try {
+    const result = await marketplaceService.seedDefaultMarketplace();
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, result.error.status);
+    }
 
-  return json({ ok: true, data: { seeded: result.value !== null } });
+    return json({ ok: true, data: { seeded: result.value !== null } });
+  } catch (error) {
+    console.error('[Marketplaces] Seed error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to seed marketplace' } },
+      500
+    );
+  }
 }
 
 // ============ Task Handlers ============
@@ -2707,6 +2786,12 @@ async function handleRequest(request: Request): Promise<Response> {
   const marketplaceMatch = path.match(/^\/api\/marketplaces\/([^/]+)$/);
   if (marketplaceMatch?.[1]) {
     const marketplaceId = marketplaceMatch[1];
+    if (!isValidId(marketplaceId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid marketplace ID format' } },
+        400
+      );
+    }
     if (request.method === 'GET') {
       return handleGetMarketplace(marketplaceId);
     }
@@ -2717,7 +2802,14 @@ async function handleRequest(request: Request): Promise<Response> {
 
   const marketplaceSyncMatch = path.match(/^\/api\/marketplaces\/([^/]+)\/sync$/);
   if (marketplaceSyncMatch?.[1] && request.method === 'POST') {
-    return handleSyncMarketplace(marketplaceSyncMatch[1]);
+    const marketplaceId = marketplaceSyncMatch[1];
+    if (!isValidId(marketplaceId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid marketplace ID format' } },
+        400
+      );
+    }
+    return handleSyncMarketplace(marketplaceId);
   }
 
   // Task routes

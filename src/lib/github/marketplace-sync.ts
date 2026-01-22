@@ -2,6 +2,30 @@ import type { Octokit } from 'octokit';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 
+// Concurrency limiter for GitHub API calls to avoid rate limiting
+const MAX_CONCURRENT_REQUESTS = 5;
+
+/**
+ * Batch process items with concurrency limit
+ * Processes items in chunks to avoid overwhelming the GitHub API
+ */
+async function batchProcess<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency: number = MAX_CONCURRENT_REQUESTS
+): Promise<R[]> {
+  const results: R[] = [];
+
+  // Process in chunks
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const chunkResults = await Promise.all(chunk.map(fn));
+    results.push(...chunkResults);
+  }
+
+  return results;
+}
+
 // Plugin tags for filtering
 export const PLUGIN_TAGS = ['official', 'external'] as const;
 export type PluginTag = (typeof PLUGIN_TAGS)[number];
@@ -98,17 +122,17 @@ export async function syncMarketplaceFromGitHub(
         }
       }
 
-      // Fetch metadata for each plugin in this path
-      for (const pluginId of pluginDirs) {
-        const plugin = await fetchPluginMetadata(
-          octokit,
-          owner,
-          repo,
-          currentPath,
-          pluginId,
-          ref,
-          tag
-        );
+      // Fetch metadata for each plugin in this path (with concurrency limiting)
+      const pluginIds = Array.from(pluginDirs);
+      console.log(
+        `[MarketplaceSync] Fetching metadata for ${pluginIds.length} plugins from ${currentPath}`
+      );
+
+      const fetchedPlugins = await batchProcess(pluginIds, (pluginId) =>
+        fetchPluginMetadata(octokit, owner, repo, currentPath, pluginId, ref, tag)
+      );
+
+      for (const plugin of fetchedPlugins) {
         if (plugin) {
           plugins.push(plugin);
         }

@@ -65,6 +65,7 @@ export class MarketplaceService {
    */
   async seedDefaultMarketplace(): Promise<Result<Marketplace | null, MarketplaceError>> {
     const DEFAULT_MARKETPLACE_ID = 'anthropic-official-marketplace';
+    console.log('[MarketplaceService] Checking for default marketplace');
 
     // Check if default marketplace already exists (by fixed ID or isDefault flag)
     const existing = await this.db.query.marketplaces.findFirst({
@@ -72,6 +73,7 @@ export class MarketplaceService {
     });
 
     if (existing) {
+      console.log('[MarketplaceService] Default marketplace already exists');
       return ok(null);
     }
 
@@ -106,6 +108,7 @@ export class MarketplaceService {
   }
 
   async create(input: CreateMarketplaceInput): Promise<Result<Marketplace, MarketplaceError>> {
+    console.log('[MarketplaceService] Creating marketplace:', input.name);
     let owner: string;
     let repo: string;
 
@@ -150,9 +153,11 @@ export class MarketplaceService {
       .returning();
 
     if (!created) {
+      console.error('[MarketplaceService] Failed to create marketplace');
       return err(MarketplaceErrors.NOT_FOUND);
     }
 
+    console.log('[MarketplaceService] Created marketplace:', created.id);
     return ok(created);
   }
 
@@ -224,19 +229,23 @@ export class MarketplaceService {
   }
 
   async delete(id: string): Promise<Result<void, MarketplaceError>> {
+    console.log('[MarketplaceService] Deleting marketplace:', id);
     const marketplace = await this.db.query.marketplaces.findFirst({
       where: eq(marketplaces.id, id),
     });
 
     if (!marketplace) {
+      console.error('[MarketplaceService] Marketplace not found for deletion:', id);
       return err(MarketplaceErrors.NOT_FOUND);
     }
 
     if (marketplace.isDefault) {
+      console.error('[MarketplaceService] Cannot delete default marketplace');
       return err(MarketplaceErrors.CANNOT_DELETE_DEFAULT);
     }
 
     await this.db.delete(marketplaces).where(eq(marketplaces.id, id));
+    console.log('[MarketplaceService] Deleted marketplace:', id);
 
     return ok(undefined);
   }
@@ -245,13 +254,19 @@ export class MarketplaceService {
    * Sync plugins from a marketplace's GitHub repository
    */
   async sync(id: string): Promise<Result<SyncResult, MarketplaceError>> {
+    console.log('[MarketplaceService] Starting sync for marketplace:', id);
     const marketplace = await this.db.query.marketplaces.findFirst({
       where: eq(marketplaces.id, id),
     });
 
     if (!marketplace) {
+      console.error('[MarketplaceService] Marketplace not found for sync:', id);
       return err(MarketplaceErrors.NOT_FOUND);
     }
+
+    console.log(
+      `[MarketplaceService] Syncing ${marketplace.githubOwner}/${marketplace.githubRepo}`
+    );
 
     // Mark as syncing
     await this.db
@@ -306,6 +321,7 @@ export class MarketplaceService {
       });
 
       if (!syncResult.ok) {
+        console.error(`[MarketplaceService] Sync failed for ${id}:`, syncResult.error.message);
         await this.db
           .update(marketplaces)
           .set({
@@ -330,6 +346,9 @@ export class MarketplaceService {
         })
         .where(eq(marketplaces.id, id));
 
+      console.log(
+        `[MarketplaceService] Sync complete for ${id}: ${syncResult.value.plugins.length} plugins`
+      );
       return ok({
         marketplaceId: id,
         pluginCount: syncResult.value.plugins.length,
@@ -338,6 +357,7 @@ export class MarketplaceService {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[MarketplaceService] Sync error for ${id}:`, errorMessage);
       await this.db
         .update(marketplaces)
         .set({

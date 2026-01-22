@@ -55,7 +55,7 @@ function AnthropicBadge(): React.JSX.Element {
 // Plugin tags for filtering
 export type PluginTag = 'official' | 'external';
 
-// Cached plugin type from marketplace
+// Cached plugin type from marketplace (matches db/schema/marketplaces.ts)
 export interface CachedPlugin {
   id: string;
   name: string;
@@ -63,6 +63,7 @@ export interface CachedPlugin {
   author?: string;
   version?: string;
   category?: string;
+  readme?: string;
   tags?: PluginTag[];
 }
 
@@ -141,20 +142,20 @@ function CollapsibleSection({
   if (count === 0) return null;
 
   return (
-    <div className="border-t border-border-muted pt-3">
+    <div className="pt-3 first:pt-0 first:border-t-0 border-t border-border-muted/50">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-2 text-left transition-colors duration-150 hover:bg-surface-subtle rounded px-1 -mx-1"
+        className="group flex w-full items-center gap-2.5 text-left py-1.5 px-2 -mx-2 rounded-md transition-all duration-200 hover:bg-surface-subtle"
       >
-        <span className={cn('transition-transform duration-150', isOpen && 'rotate-90')}>
-          <CaretRight className="h-4 w-4 text-fg-muted" />
+        <span className={cn('transition-transform duration-200 ease-out', isOpen && 'rotate-90')}>
+          <CaretRight className="h-3.5 w-3.5 text-fg-subtle group-hover:text-fg-muted" />
         </span>
-        <span className={cn('p-1 rounded', bgClass)}>{icon}</span>
-        <span className="text-xs font-medium text-fg">{title}</span>
+        <span className={cn('p-1.5 rounded-md transition-colors', bgClass)}>{icon}</span>
+        <span className="text-[13px] font-medium text-fg tracking-tight">{title}</span>
         <span
           className={cn(
-            'ml-auto inline-flex items-center h-5 px-2 rounded-full text-xs font-medium',
+            'ml-auto inline-flex items-center justify-center min-w-[24px] h-5 px-2 rounded-full text-[11px] font-semibold tabular-nums',
             bgClass,
             colorClass
           )}
@@ -162,7 +163,18 @@ function CollapsibleSection({
           {count}
         </span>
       </button>
-      {isOpen && <div className="mt-2 space-y-1 pl-6 max-h-64 overflow-y-auto">{children}</div>}
+      <div
+        className={cn(
+          'grid transition-all duration-200 ease-out',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="pt-2 pb-1 pl-8 space-y-0.5 max-h-72 overflow-y-auto scrollbar-thin">
+            {children}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -177,19 +189,23 @@ function PluginRow({ plugin }: PluginRowProps): React.JSX.Element {
   const showCategory = plugin.category && plugin.category.toLowerCase() !== 'uncategorized';
 
   return (
-    <div className="group flex items-start gap-2 rounded px-2 py-1.5 transition-colors duration-150 hover:bg-surface-subtle">
-      <Lightning className="h-3.5 w-3.5 mt-0.5 text-accent shrink-0" weight="fill" />
+    <div className="group flex items-start gap-2.5 rounded-md px-2.5 py-2 transition-all duration-150 hover:bg-surface-subtle/80 cursor-default">
+      <div className="mt-0.5 p-1 rounded bg-accent-subtle group-hover:bg-accent-muted transition-colors">
+        <Lightning className="h-3 w-3 text-accent" weight="fill" />
+      </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-fg">{plugin.name}</span>
+          <span className="text-[13px] font-medium text-fg leading-tight">{plugin.name}</span>
           {showCategory && (
-            <span className="text-[10px] text-fg-muted bg-surface-muted px-1 py-0.5 rounded">
+            <span className="text-[10px] text-fg-subtle bg-surface-muted/80 px-1.5 py-0.5 rounded-sm font-medium uppercase tracking-wide">
               {plugin.category}
             </span>
           )}
         </div>
         {plugin.description && (
-          <div className="text-[11px] text-fg-muted line-clamp-1">{plugin.description}</div>
+          <p className="mt-0.5 text-xs text-fg-muted leading-relaxed line-clamp-2">
+            {plugin.description}
+          </p>
         )}
       </div>
     </div>
@@ -216,52 +232,64 @@ export function MarketplaceCard({
   const cardContent = (
     <div
       className={cn(
-        'rounded-lg border bg-surface overflow-hidden transition-colors duration-150',
+        'rounded-xl border bg-surface overflow-hidden transition-all duration-200',
         isOfficial
-          ? 'border-transparent hover:border-[#cc785c]/30'
-          : 'border-border hover:border-fg-subtle'
+          ? 'border-transparent shadow-lg shadow-[#cc785c]/5'
+          : 'border-border hover:border-fg-subtle hover:shadow-md'
       )}
       data-testid="marketplace-card"
     >
-      {/* Official: Premium header with gradient accent */}
+      {/* Official: Premium header with animated gradient accent */}
       {isOfficial && (
-        <div className="h-1 bg-gradient-to-r from-[#cc785c]/80 via-[#e8a090] to-[#cc785c]/80" />
+        <div className="h-1 bg-gradient-to-r from-[#cc785c] via-[#e8a090] to-[#cc785c] bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
       )}
 
       {/* Header */}
       <div
         className={cn(
-          'p-4 border-b border-border-muted',
-          isOfficial && 'bg-gradient-to-b from-[#cc785c]/5 to-transparent'
+          'p-5 border-b border-border-muted/50',
+          isOfficial && 'bg-gradient-to-b from-[#cc785c]/[0.04] to-transparent'
         )}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               <div
-                className={cn('p-1.5 rounded', isOfficial ? 'bg-[#cc785c]/15' : 'bg-accent-muted')}
+                className={cn(
+                  'p-2 rounded-lg transition-colors',
+                  isOfficial ? 'bg-[#cc785c]/10' : 'bg-accent-muted'
+                )}
               >
                 <Package
-                  className={cn('h-4 w-4', isOfficial ? 'text-[#cc785c]' : 'text-accent')}
+                  className={cn('h-5 w-5', isOfficial ? 'text-[#cc785c]' : 'text-accent')}
                   weight="fill"
                 />
               </div>
-              <h3 className="text-sm font-semibold text-fg" data-testid="marketplace-name">
-                {marketplace.name}
-              </h3>
-              {isOfficial && <AnthropicBadge />}
+              <div>
+                <h3
+                  className="text-base font-semibold text-fg tracking-tight"
+                  data-testid="marketplace-name"
+                >
+                  {marketplace.name}
+                </h3>
+                <p className="text-xs text-fg-muted mt-0.5">
+                  {isOfficial
+                    ? 'Official Claude plugins from Anthropic'
+                    : 'Custom plugin marketplace repository'}
+                </p>
+              </div>
             </div>
-            <p className="mt-1.5 text-xs text-fg-muted">
-              {isOfficial
-                ? 'Official Claude plugins from Anthropic'
-                : 'Custom plugin marketplace repository'}
-            </p>
+            {isOfficial && (
+              <div className="mt-3">
+                <AnthropicBadge />
+              </div>
+            )}
           </div>
 
           {/* Status badge */}
           <span
             className={cn(
-              'inline-flex items-center gap-1 h-5 px-2 text-xs font-medium rounded-full border shrink-0',
+              'inline-flex items-center gap-1.5 h-6 px-2.5 text-xs font-medium rounded-full border shrink-0 transition-colors',
               statusConfig.className
             )}
             data-testid="marketplace-status"
@@ -276,43 +304,47 @@ export function MarketplaceCard({
           </span>
         </div>
 
-        {/* Repository info */}
-        <div className="mt-3 flex items-center gap-4 text-xs text-fg-muted">
+        {/* Repository info & sync status */}
+        <div className="mt-4 flex items-center gap-4 text-xs">
           <a
             href={githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-fg transition-colors group"
+            className="group flex items-center gap-1.5 text-fg-muted hover:text-fg transition-colors"
             data-testid="marketplace-repo-link"
           >
-            <GithubLogo className="h-4 w-4 shrink-0" />
-            <span className="font-mono group-hover:underline">
+            <GithubLogo className="h-4 w-4 shrink-0" weight="fill" />
+            <code className="font-mono text-[11px] bg-surface-subtle px-1.5 py-0.5 rounded group-hover:bg-surface-muted transition-colors">
               {marketplace.githubOwner}/{marketplace.githubRepo}
-            </span>
+            </code>
             <ArrowSquareOut className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
           </a>
-          <div className="flex items-center gap-1" data-testid="marketplace-last-synced">
-            <Clock className="h-4 w-4" />
-            <span>Synced {formatRelativeTime(marketplace.lastSyncedAt)}</span>
+          <span className="text-border-default">|</span>
+          <div
+            className="flex items-center gap-1.5 text-fg-subtle"
+            data-testid="marketplace-last-synced"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>{formatRelativeTime(marketplace.lastSyncedAt)}</span>
           </div>
         </div>
 
         {/* Summary counts as badges */}
         {marketplace.pluginCount > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="marketplace-counts">
-            <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-surface-muted text-fg-muted text-xs font-medium">
-              <Lightning className="h-3 w-3" weight="fill" />
+          <div className="mt-4 flex flex-wrap gap-2" data-testid="marketplace-counts">
+            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-surface-muted text-fg-muted text-xs font-medium">
+              <Lightning className="h-3.5 w-3.5" weight="fill" />
               {marketplace.pluginCount} plugin{marketplace.pluginCount !== 1 && 's'}
             </span>
             {officialCount > 0 && (
-              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-success-muted text-success text-xs font-medium">
-                <ShieldCheck className="h-3 w-3" weight="fill" />
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-success-muted text-success text-xs font-medium">
+                <ShieldCheck className="h-3.5 w-3.5" weight="fill" />
                 {officialCount} official
               </span>
             )}
             {externalCount > 0 && (
-              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-accent-muted text-accent text-xs font-medium">
-                <Users className="h-3 w-3" weight="fill" />
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-accent-muted text-accent text-xs font-medium">
+                <Users className="h-3.5 w-3.5" weight="fill" />
                 {externalCount} community
               </span>
             )}
@@ -322,7 +354,7 @@ export function MarketplaceCard({
 
       {/* Expandable plugins section - grouped by tags */}
       {plugins.length > 0 && (
-        <div className="p-4 space-y-2">
+        <div className="px-5 py-4 space-y-1">
           {/* Official plugins */}
           <CollapsibleSection
             title="Official Plugins"
@@ -383,29 +415,29 @@ export function MarketplaceCard({
 
       {/* Actions footer */}
       <div
-        className="px-4 py-3 bg-surface-subtle border-t border-border-muted flex items-center justify-between"
+        className="px-5 py-4 bg-surface-subtle/50 border-t border-border-muted/50 flex items-center justify-between gap-4"
         data-testid="marketplace-actions"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <a
             href={githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors"
+            className="group inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg transition-colors"
           >
-            <GithubLogo className="h-4 w-4" />
-            View on GitHub
-            <ArrowSquareOut className="h-3 w-3" />
+            <GithubLogo className="h-4 w-4" weight="fill" />
+            <span className="group-hover:underline">View on GitHub</span>
+            <ArrowSquareOut className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
           </a>
           {!marketplace.isDefault && onRemove && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onRemove}
-              className="text-danger hover:text-danger hover:bg-danger-muted"
+              className="text-danger/80 hover:text-danger hover:bg-danger-muted h-7 px-2 text-xs"
               data-testid="marketplace-delete-button"
             >
-              <Trash className="h-4 w-4 mr-1" />
+              <Trash className="h-3.5 w-3.5 mr-1" />
               Remove
             </Button>
           )}
@@ -415,9 +447,10 @@ export function MarketplaceCard({
           size="sm"
           onClick={onSync}
           disabled={isSyncing}
+          className={cn('h-8 px-3.5', isSyncing && 'opacity-80')}
           data-testid="marketplace-sync-button"
         >
-          <ArrowsClockwise className={cn('h-4 w-4 mr-1', isSyncing && 'animate-spin')} />
+          <ArrowsClockwise className={cn('h-4 w-4 mr-1.5', isSyncing && 'animate-spin')} />
           {isSyncing ? 'Syncing...' : 'Sync Now'}
         </Button>
       </div>
@@ -427,10 +460,10 @@ export function MarketplaceCard({
   // Official marketplace gets a premium animated gradient border wrapper
   if (isOfficial) {
     return (
-      <div className="relative rounded-lg p-[1px] overflow-hidden group/card">
+      <div className="relative rounded-xl p-[1px] overflow-hidden group/card">
         {/* Animated gradient border */}
         <div
-          className="absolute inset-0 rounded-lg bg-[conic-gradient(from_var(--gradient-angle),#cc785c_0%,#e8a090_25%,#cc785c_50%,#e8a090_75%,#cc785c_100%)] opacity-60 group-hover/card:opacity-80 transition-opacity duration-500"
+          className="absolute inset-0 rounded-xl bg-[conic-gradient(from_var(--gradient-angle),#cc785c_0%,#e8a090_25%,#cc785c_50%,#e8a090_75%,#cc785c_100%)] opacity-50 group-hover/card:opacity-70 transition-opacity duration-500"
           style={
             {
               '--gradient-angle': '0deg',
@@ -439,7 +472,7 @@ export function MarketplaceCard({
           }
         />
         {/* Subtle glow effect */}
-        <div className="absolute inset-0 rounded-lg bg-[#cc785c]/20 blur-xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 rounded-xl bg-[#cc785c]/15 blur-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
         {/* Card content */}
         <div className="relative">{cardContent}</div>
         {/* Keyframes for gradient rotation */}

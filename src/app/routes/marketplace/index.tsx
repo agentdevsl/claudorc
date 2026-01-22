@@ -253,12 +253,12 @@ function MarketplacePage(): React.JSX.Element {
         </Button>
       }
     >
-      <div data-testid="marketplace-page" className="p-6">
+      <div data-testid="marketplace-page" className="p-6 max-w-6xl mx-auto">
         {/* Error state */}
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-danger-muted border border-danger/30 text-sm text-danger">
-            {error}
-            <Button variant="ghost" size="sm" onClick={fetchData} className="ml-2">
+          <div className="mb-6 p-4 rounded-xl bg-danger-muted/50 border border-danger/20 text-sm text-danger flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="ghost" size="sm" onClick={fetchData} className="ml-4 shrink-0">
               Retry
             </Button>
           </div>
@@ -279,7 +279,7 @@ function MarketplacePage(): React.JSX.Element {
           </div>
         ) : (
           /* Marketplace cards grid */
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2" data-testid="marketplace-grid">
+          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2" data-testid="marketplace-grid">
             {marketplaces.map((marketplace) => (
               <MarketplaceCard
                 key={marketplace.id}
@@ -297,10 +297,10 @@ function MarketplacePage(): React.JSX.Element {
 
         {/* Syncing indicator for auto-sync */}
         {syncingIds.size > 0 && plugins.length === 0 && (
-          <div className="mt-6 flex items-center justify-center py-8">
-            <div className="flex items-center gap-2 text-fg-muted">
-              <ArrowsClockwise className="h-5 w-5 animate-spin" />
-              Syncing plugins from GitHub...
+          <div className="mt-8 flex items-center justify-center py-8">
+            <div className="flex items-center gap-3 text-fg-muted bg-surface-subtle px-5 py-3 rounded-full">
+              <ArrowsClockwise className="h-4 w-4 animate-spin text-accent" />
+              <span className="text-sm">Syncing plugins from GitHub...</span>
             </div>
           </div>
         )}
