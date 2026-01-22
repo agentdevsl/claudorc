@@ -1,19 +1,16 @@
-import {
-  ArrowsClockwise,
-  CaretDown,
-  FunnelSimple,
-  MagnifyingGlass,
-  Plus,
-  PuzzlePiece,
-} from '@phosphor-icons/react';
+import { ArrowsClockwise, Plus, PuzzlePiece, Spinner } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AddMarketplaceDialog } from '@/app/components/features/add-marketplace-dialog';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
-import { MarketplaceSourceCard, PluginCard } from '@/app/components/features/marketplace-card';
+import { type CachedPlugin, MarketplaceCard } from '@/app/components/features/marketplace-card';
 import { Button } from '@/app/components/ui/button';
 import { apiClient } from '@/lib/api/client';
+
+// Marketplace syncs with: https://github.com/anthropics/claude-plugins-official
+//   - /plugins (internal Anthropic plugins)
+//   - /external_plugins (third-party community plugins)
 
 export const Route = createFileRoute('/marketplace/')({
   component: MarketplacePage,
@@ -51,14 +48,8 @@ type PluginItem = {
 function MarketplacePage(): React.JSX.Element {
   const [marketplaces, setMarketplaces] = useState<MarketplaceItem[]>([]);
   const [plugins, setPlugins] = useState<PluginItem[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMarketplace, setSelectedMarketplace] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // UI state
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -77,15 +68,10 @@ function MarketplacePage(): React.JSX.Element {
       // First, seed the default marketplace if needed
       await apiClient.marketplaces.seed();
 
-      // Fetch marketplaces, plugins, and categories in parallel
-      const [marketplacesRes, pluginsRes, categoriesRes] = await Promise.all([
+      // Fetch marketplaces and plugins in parallel
+      const [marketplacesRes, pluginsRes] = await Promise.all([
         apiClient.marketplaces.list(),
-        apiClient.marketplaces.listPlugins({
-          search: searchQuery || undefined,
-          category: selectedCategory !== 'all' ? selectedCategory : undefined,
-          marketplaceId: selectedMarketplace !== 'all' ? selectedMarketplace : undefined,
-        }),
-        apiClient.marketplaces.getCategories(),
+        apiClient.marketplaces.listPlugins({}),
       ]);
 
       if (marketplacesRes.ok) {
@@ -110,19 +96,12 @@ function MarketplacePage(): React.JSX.Element {
                 });
                 // Refetch data after successful sync
                 if (result.ok) {
-                  const [newMarketplaces, newPlugins, newCategories] = await Promise.all([
+                  const [newMarketplaces, newPlugins] = await Promise.all([
                     apiClient.marketplaces.list(),
-                    apiClient.marketplaces.listPlugins({
-                      search: searchQuery || undefined,
-                      category: selectedCategory !== 'all' ? selectedCategory : undefined,
-                      marketplaceId:
-                        selectedMarketplace !== 'all' ? selectedMarketplace : undefined,
-                    }),
-                    apiClient.marketplaces.getCategories(),
+                    apiClient.marketplaces.listPlugins({}),
                   ]);
                   if (newMarketplaces.ok) setMarketplaces(newMarketplaces.data.items);
                   if (newPlugins.ok) setPlugins(newPlugins.data.items);
-                  if (newCategories.ok) setCategories(newCategories.data.categories);
                 }
               });
             }
@@ -133,16 +112,12 @@ function MarketplacePage(): React.JSX.Element {
       if (pluginsRes.ok) {
         setPlugins(pluginsRes.data.items);
       }
-
-      if (categoriesRes.ok) {
-        setCategories(categoriesRes.data.categories);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load marketplace data');
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, selectedCategory, selectedMarketplace, hasAutoSynced]);
+  }, [hasAutoSynced]);
 
   useEffect(() => {
     fetchData();
@@ -205,133 +180,45 @@ function MarketplacePage(): React.JSX.Element {
     }
   };
 
-  // Filter plugins locally for immediate feedback
-  const filteredPlugins = plugins.filter((plugin) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const nameMatch = plugin.name.toLowerCase().includes(query);
-      const descMatch = plugin.description?.toLowerCase().includes(query);
-      if (!nameMatch && !descMatch) return false;
-    }
+  // Get plugins for a specific marketplace
+  const getPluginsForMarketplace = (marketplaceId: string): CachedPlugin[] => {
+    return plugins
+      .filter((p) => p.marketplaceId === marketplaceId)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        author: p.author,
+        version: p.version,
+        category: p.category,
+      }));
+  };
 
-    if (selectedCategory !== 'all' && plugin.category !== selectedCategory) {
-      return false;
-    }
-
-    if (selectedMarketplace !== 'all' && plugin.marketplaceId !== selectedMarketplace) {
-      return false;
-    }
-
-    return true;
-  });
+  // Loading state
+  if (isLoading) {
+    return (
+      <LayoutShell breadcrumbs={[{ label: 'Content' }, { label: 'Marketplace' }]}>
+        <div className="flex items-center justify-center min-h-[60vh]" data-testid="loading-state">
+          <div className="flex items-center gap-2 text-fg-muted">
+            <Spinner className="h-5 w-5 animate-spin" />
+            Loading marketplace...
+          </div>
+        </div>
+      </LayoutShell>
+    );
+  }
 
   return (
-    <LayoutShell breadcrumbs={[{ label: 'Content' }, { label: 'Marketplace' }]}>
+    <LayoutShell
+      breadcrumbs={[{ label: 'Content' }, { label: 'Marketplace' }]}
+      actions={
+        <Button onClick={() => setShowAddDialog(true)} data-testid="add-marketplace-button">
+          <Plus className="h-4 w-4" />
+          Add Marketplace
+        </Button>
+      }
+    >
       <div data-testid="marketplace-page" className="p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold text-fg">Plugin Marketplace</h1>
-            <p className="text-sm text-fg-muted mt-1">
-              Browse and install plugins from connected repositories
-            </p>
-          </div>
-          <Button onClick={() => setShowAddDialog(true)} data-testid="add-marketplace-button">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Marketplace
-          </Button>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-muted" />
-            <input
-              type="text"
-              placeholder="Search plugins..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border bg-surface text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-              data-testid="search-input"
-            />
-          </div>
-
-          {/* Marketplace filter */}
-          <div className="relative">
-            <select
-              value={selectedMarketplace}
-              onChange={(e) => setSelectedMarketplace(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm rounded-md border border-border bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-              data-testid="marketplace-filter"
-            >
-              <option value="all">All Sources</option>
-              {marketplaces.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <CaretDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-muted pointer-events-none" />
-          </div>
-
-          {/* Category filter */}
-          <div className="relative">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm rounded-md border border-border bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-              data-testid="category-filter"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            <CaretDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-muted pointer-events-none" />
-          </div>
-
-          {/* Clear filters */}
-          {(searchQuery || selectedMarketplace !== 'all' || selectedCategory !== 'all') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedMarketplace('all');
-                setSelectedCategory('all');
-              }}
-            >
-              <FunnelSimple className="h-4 w-4 mr-1" />
-              Clear
-            </Button>
-          )}
-        </div>
-
-        {/* Connected Marketplaces */}
-        {marketplaces.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-medium text-fg-muted mb-3">Connected Sources</h2>
-            <div className="flex flex-wrap gap-3">
-              {marketplaces.map((marketplace) => (
-                <MarketplaceSourceCard
-                  key={marketplace.id}
-                  marketplace={marketplace}
-                  onSync={() => handleSyncMarketplace(marketplace.id)}
-                  onRemove={
-                    marketplace.isDefault
-                      ? undefined
-                      : () => handleRemoveMarketplace(marketplace.id)
-                  }
-                  isSyncing={syncingIds.has(marketplace.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Error state */}
         {error && (
           <div className="mb-6 p-4 rounded-lg bg-danger-muted border border-danger/30 text-sm text-danger">
@@ -342,69 +229,44 @@ function MarketplacePage(): React.JSX.Element {
           </div>
         )}
 
-        {/* Loading state */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <ArrowsClockwise className="h-6 w-6 text-fg-muted animate-spin" />
-            <span className="ml-2 text-sm text-fg-muted">Loading plugins...</span>
+        {/* Empty state - no marketplaces */}
+        {marketplaces.length === 0 ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <EmptyState
+              icon={PuzzlePiece}
+              title="No Marketplaces Connected"
+              subtitle="Connect to plugin marketplaces to discover and install Claude plugins. Add a custom marketplace or wait for the official Anthropic marketplace to sync."
+              primaryAction={{
+                label: 'Add Marketplace',
+                onClick: () => setShowAddDialog(true),
+              }}
+            />
           </div>
-        )}
-
-        {/* Plugin Grid */}
-        {!isLoading && filteredPlugins.length > 0 && (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredPlugins.map((plugin, index) => (
-              <div
-                key={`${plugin.marketplaceId}-${plugin.id}`}
-                className="animate-fadeIn"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <PluginCard
-                  plugin={plugin}
-                  onToggle={() => {
-                    // TODO: Implement toggle functionality
-                    console.log('Toggle plugin:', plugin.id);
-                  }}
-                  onViewDetails={() => {
-                    // TODO: Implement view details
-                    console.log('View plugin:', plugin.id);
-                  }}
-                />
-              </div>
+        ) : (
+          /* Marketplace cards grid */
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2" data-testid="marketplace-grid">
+            {marketplaces.map((marketplace) => (
+              <MarketplaceCard
+                key={marketplace.id}
+                marketplace={marketplace}
+                plugins={getPluginsForMarketplace(marketplace.id)}
+                onSync={() => handleSyncMarketplace(marketplace.id)}
+                onRemove={
+                  marketplace.isDefault ? undefined : () => handleRemoveMarketplace(marketplace.id)
+                }
+                isSyncing={syncingIds.has(marketplace.id)}
+              />
             ))}
           </div>
         )}
 
-        {/* Empty state */}
-        {!isLoading && filteredPlugins.length === 0 && (
-          <div className="flex items-center justify-center min-h-[40vh]">
-            <EmptyState
-              icon={PuzzlePiece}
-              title={
-                searchQuery || selectedCategory !== 'all' || selectedMarketplace !== 'all'
-                  ? 'No plugins match your filters'
-                  : 'No plugins available'
-              }
-              subtitle={
-                searchQuery || selectedCategory !== 'all' || selectedMarketplace !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'Sync a marketplace to discover plugins, or add a custom marketplace repository.'
-              }
-              action={
-                marketplaces.length > 0 &&
-                !searchQuery &&
-                selectedCategory === 'all' &&
-                selectedMarketplace === 'all'
-                  ? {
-                      label: 'Sync All',
-                      onClick: () =>
-                        marketplaces.forEach((m) => {
-                          handleSyncMarketplace(m.id);
-                        }),
-                    }
-                  : undefined
-              }
-            />
+        {/* Syncing indicator for auto-sync */}
+        {syncingIds.size > 0 && plugins.length === 0 && (
+          <div className="mt-6 flex items-center justify-center py-8">
+            <div className="flex items-center gap-2 text-fg-muted">
+              <ArrowsClockwise className="h-5 w-5 animate-spin" />
+              Syncing plugins from GitHub...
+            </div>
           </div>
         )}
 
@@ -416,24 +278,6 @@ function MarketplacePage(): React.JSX.Element {
           isAdding={isAddingMarketplace}
         />
       </div>
-
-      {/* Animation styles */}
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out forwards;
-          opacity: 0;
-        }
-      `}</style>
     </LayoutShell>
   );
 }
