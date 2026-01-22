@@ -6,6 +6,7 @@ import {
   GithubLogo,
   Lightning,
   Package,
+  SealCheck,
   ShieldCheck,
   Trash,
   Users,
@@ -13,6 +14,43 @@ import {
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/lib/utils/cn';
+
+/**
+ * Animated Anthropic wordmark with subtle gradient shimmer
+ * Used exclusively for the official marketplace to convey authenticity
+ */
+function AnthropicBadge(): React.JSX.Element {
+  return (
+    <a
+      href="https://anthropic.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1a1a1a] dark:bg-[#0d0d0d] border border-[#cc785c]/30 hover:border-[#cc785c]/60 transition-all duration-300"
+    >
+      {/* Anthropic logo mark - simplified 'A' shape */}
+      <svg
+        className="h-3.5 w-3.5 text-[#cc785c]"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path d="M13.827 3.52h3.603L24 20.48h-3.603l-6.57-16.96zm-7.258 0h3.767L16.906 20.48h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 10.593L8.453 7.776l-2.248 6.337h4.496z" />
+      </svg>
+      {/* Verified text with shimmer */}
+      <span className="relative text-[10px] font-medium tracking-wide text-[#e8d5ce] uppercase">
+        <span className="relative z-10">Verified</span>
+        {/* Shimmer overlay */}
+        <span
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-[#cc785c]/40 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer"
+          style={{
+            backgroundSize: '200% 100%',
+          }}
+        />
+      </span>
+      <SealCheck className="h-3 w-3 text-[#cc785c]" weight="fill" />
+    </a>
+  );
+}
 
 // Plugin tags for filtering
 export type PluginTag = 'official' | 'external';
@@ -173,30 +211,48 @@ export function MarketplaceCard({
   const officialCount = plugins.filter((p) => p.tags?.includes('official')).length;
   const externalCount = plugins.filter((p) => p.tags?.includes('external')).length;
 
-  return (
+  const isOfficial = marketplace.isDefault;
+
+  const cardContent = (
     <div
-      className="rounded-lg border border-border bg-surface overflow-hidden transition-colors duration-150 hover:border-fg-subtle"
+      className={cn(
+        'rounded-lg border bg-surface overflow-hidden transition-colors duration-150',
+        isOfficial
+          ? 'border-transparent hover:border-[#cc785c]/30'
+          : 'border-border hover:border-fg-subtle'
+      )}
       data-testid="marketplace-card"
     >
+      {/* Official: Premium header with gradient accent */}
+      {isOfficial && (
+        <div className="h-1 bg-gradient-to-r from-[#cc785c]/80 via-[#e8a090] to-[#cc785c]/80" />
+      )}
+
       {/* Header */}
-      <div className="p-4 border-b border-border-muted">
+      <div
+        className={cn(
+          'p-4 border-b border-border-muted',
+          isOfficial && 'bg-gradient-to-b from-[#cc785c]/5 to-transparent'
+        )}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded bg-accent-muted">
-                <Package className="h-4 w-4 text-accent" weight="fill" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                className={cn('p-1.5 rounded', isOfficial ? 'bg-[#cc785c]/15' : 'bg-accent-muted')}
+              >
+                <Package
+                  className={cn('h-4 w-4', isOfficial ? 'text-[#cc785c]' : 'text-accent')}
+                  weight="fill"
+                />
               </div>
               <h3 className="text-sm font-semibold text-fg" data-testid="marketplace-name">
                 {marketplace.name}
               </h3>
-              {marketplace.isDefault && (
-                <span className="text-[10px] font-medium text-accent bg-accent-muted px-1.5 py-0.5 rounded uppercase tracking-wide">
-                  Official
-                </span>
-              )}
+              {isOfficial && <AnthropicBadge />}
             </div>
             <p className="mt-1.5 text-xs text-fg-muted">
-              {marketplace.isDefault
+              {isOfficial
                 ? 'Official Claude plugins from Anthropic'
                 : 'Custom plugin marketplace repository'}
             </p>
@@ -367,4 +423,40 @@ export function MarketplaceCard({
       </div>
     </div>
   );
+
+  // Official marketplace gets a premium animated gradient border wrapper
+  if (isOfficial) {
+    return (
+      <div className="relative rounded-lg p-[1px] overflow-hidden group/card">
+        {/* Animated gradient border */}
+        <div
+          className="absolute inset-0 rounded-lg bg-[conic-gradient(from_var(--gradient-angle),#cc785c_0%,#e8a090_25%,#cc785c_50%,#e8a090_75%,#cc785c_100%)] opacity-60 group-hover/card:opacity-80 transition-opacity duration-500"
+          style={
+            {
+              '--gradient-angle': '0deg',
+              animation: 'gradient-rotate 8s linear infinite',
+            } as React.CSSProperties
+          }
+        />
+        {/* Subtle glow effect */}
+        <div className="absolute inset-0 rounded-lg bg-[#cc785c]/20 blur-xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
+        {/* Card content */}
+        <div className="relative">{cardContent}</div>
+        {/* Keyframes for gradient rotation */}
+        <style>{`
+          @keyframes gradient-rotate {
+            0% { --gradient-angle: 0deg; }
+            100% { --gradient-angle: 360deg; }
+          }
+          @property --gradient-angle {
+            syntax: '<angle>';
+            initial-value: 0deg;
+            inherits: false;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return cardContent;
 }

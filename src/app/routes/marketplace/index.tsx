@@ -1,6 +1,6 @@
 import { ArrowsClockwise, Plus, PuzzlePiece, Spinner } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AddMarketplaceDialog } from '@/app/components/features/add-marketplace-dialog';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
@@ -56,8 +56,8 @@ function MarketplacePage(): React.JSX.Element {
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const [isAddingMarketplace, setIsAddingMarketplace] = useState(false);
 
-  // Track if we've already tried auto-syncing to avoid repeated attempts
-  const [hasAutoSynced, setHasAutoSynced] = useState(false);
+  // Track if we've already tried auto-syncing to avoid repeated attempts (use ref to avoid dependency issues)
+  const hasAutoSyncedRef = useRef(false);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -78,46 +78,67 @@ function MarketplacePage(): React.JSX.Element {
         setMarketplaces(marketplacesRes.data.items);
 
         // Auto-sync marketplaces that have never been synced (first time setup)
-        if (!hasAutoSynced) {
+        if (!hasAutoSyncedRef.current) {
           const unsyncedMarketplaces = marketplacesRes.data.items.filter(
             (m) => m.lastSyncedAt === null && m.status !== 'syncing'
           );
 
           if (unsyncedMarketplaces.length > 0) {
-            setHasAutoSynced(true);
+            hasAutoSyncedRef.current = true;
             // Sync unsynced marketplaces in the background
             for (const marketplace of unsyncedMarketplaces) {
               setSyncingIds((prev) => new Set(prev).add(marketplace.id));
-              apiClient.marketplaces.sync(marketplace.id).then(async (result) => {
-                setSyncingIds((prev) => {
-                  const next = new Set(prev);
-                  next.delete(marketplace.id);
-                  return next;
+              apiClient.marketplaces
+                .sync(marketplace.id)
+                .then(async (result) => {
+                  setSyncingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(marketplace.id);
+                    return next;
+                  });
+                  // Refetch data after successful sync
+                  if (result.ok) {
+                    const [newMarketplaces, newPlugins] = await Promise.all([
+                      apiClient.marketplaces.list(),
+                      apiClient.marketplaces.listPlugins({}),
+                    ]);
+                    if (newMarketplaces.ok) setMarketplaces(newMarketplaces.data.items);
+                    if (newPlugins.ok) setPlugins(newPlugins.data.items);
+                  } else {
+                    console.error(
+                      `[Marketplace] Auto-sync failed for ${marketplace.id}:`,
+                      result.error
+                    );
+                  }
+                })
+                .catch((err) => {
+                  console.error(`[Marketplace] Auto-sync error for ${marketplace.id}:`, err);
+                  setSyncingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(marketplace.id);
+                    return next;
+                  });
                 });
-                // Refetch data after successful sync
-                if (result.ok) {
-                  const [newMarketplaces, newPlugins] = await Promise.all([
-                    apiClient.marketplaces.list(),
-                    apiClient.marketplaces.listPlugins({}),
-                  ]);
-                  if (newMarketplaces.ok) setMarketplaces(newMarketplaces.data.items);
-                  if (newPlugins.ok) setPlugins(newPlugins.data.items);
-                }
-              });
             }
           }
         }
+      } else {
+        console.error('[Marketplace] Failed to fetch marketplaces:', marketplacesRes.error);
+        setError(marketplacesRes.error?.message ?? 'Failed to load marketplaces');
       }
 
       if (pluginsRes.ok) {
         setPlugins(pluginsRes.data.items);
+      } else {
+        console.error('[Marketplace] Failed to fetch plugins:', pluginsRes.error);
       }
     } catch (err) {
+      console.error('[Marketplace] Fetch error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load marketplace data');
     } finally {
       setIsLoading(false);
     }
-  }, [hasAutoSynced]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -131,7 +152,13 @@ function MarketplacePage(): React.JSX.Element {
       if (result.ok) {
         // Refresh data after sync
         await fetchData();
+      } else {
+        console.error(`[Marketplace] Sync failed for ${id}:`, result.error);
+        setError(result.error?.message ?? 'Failed to sync marketplace');
       }
+    } catch (err) {
+      console.error(`[Marketplace] Sync error for ${id}:`, err);
+      setError(err instanceof Error ? err.message : 'Failed to sync marketplace');
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
@@ -174,9 +201,17 @@ function MarketplacePage(): React.JSX.Element {
     const confirmed = window.confirm('Are you sure you want to remove this marketplace?');
     if (!confirmed) return;
 
-    const result = await apiClient.marketplaces.delete(id);
-    if (result.ok) {
-      await fetchData();
+    try {
+      const result = await apiClient.marketplaces.delete(id);
+      if (result.ok) {
+        await fetchData();
+      } else {
+        console.error(`[Marketplace] Delete failed for ${id}:`, result.error);
+        setError(result.error?.message ?? 'Failed to remove marketplace');
+      }
+    } catch (err) {
+      console.error(`[Marketplace] Delete error for ${id}:`, err);
+      setError(err instanceof Error ? err.message : 'Failed to remove marketplace');
     }
   };
 

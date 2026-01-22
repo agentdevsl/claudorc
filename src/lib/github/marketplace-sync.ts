@@ -158,8 +158,12 @@ async function fetchPluginMetadata(
       if (metadata.version) version = metadata.version;
       if (metadata.category) category = metadata.category;
     }
-  } catch {
-    // SKILL.md not found, continue with defaults
+  } catch (error) {
+    // Only suppress 404 (file not found), log other errors
+    const status = (error as { status?: number }).status;
+    if (status !== 404) {
+      console.error(`[MarketplaceSync] Failed to fetch SKILL.md for ${pluginId}:`, error);
+    }
   }
 
   // Try to fetch README.md
@@ -181,8 +185,12 @@ async function fetchPluginMetadata(
         }
       }
     }
-  } catch {
-    // README.md not found
+  } catch (error) {
+    // Only suppress 404 (file not found), log other errors
+    const status = (error as { status?: number }).status;
+    if (status !== 404) {
+      console.error(`[MarketplaceSync] Failed to fetch README.md for ${pluginId}:`, error);
+    }
   }
 
   return {
