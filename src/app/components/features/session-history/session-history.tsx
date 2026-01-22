@@ -9,7 +9,7 @@ import { calculateTotalDuration, groupSessionsByDate } from './utils/group-by-da
 
 /**
  * Raw session data from API - more flexible type that accepts
- * what the API actually returns (Session with presence data)
+ * what the API actually returns (Session with presence and summary data)
  */
 export interface RawSession {
   id: string;
@@ -23,6 +23,12 @@ export interface RawSession {
   updatedAt?: string;
   closedAt?: string | null;
   presence?: unknown[];
+  // Summary fields (enriched from API)
+  turnsUsed?: number;
+  tokensUsed?: number;
+  filesModified?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
 }
 
 /** Project for filtering */
@@ -66,8 +72,8 @@ function toSessionListItem(raw: RawSession, projectMap: Map<string, string>): Se
     createdAt,
     closedAt,
     duration,
-    turnsUsed: 0, // From summary
-    tokensUsed: 0, // From summary
+    turnsUsed: raw.turnsUsed ?? 0,
+    tokensUsed: raw.tokensUsed ?? 0,
     projectId: raw.projectId,
     projectName: projectMap.get(raw.projectId) ?? null,
   };

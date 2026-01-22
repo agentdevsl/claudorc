@@ -4,8 +4,41 @@ import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { createSessionSchema, listSessionsSchema } from '@/lib/api/schemas';
 import { parseBody, parseQuery } from '@/lib/api/validation';
+import type { SessionWithPresence } from '@/services/session.service';
 
 const { sessionService } = getApiServicesOrThrow();
+
+// Enriched session with summary data
+interface SessionWithSummary extends SessionWithPresence {
+  turnsUsed: number;
+  tokensUsed: number;
+  filesModified: number;
+  linesAdded: number;
+  linesRemoved: number;
+}
+
+// Fetch summaries for sessions and merge the data
+async function enrichSessionsWithSummaries(
+  sessions: SessionWithPresence[]
+): Promise<SessionWithSummary[]> {
+  // Batch fetch summaries for all sessions
+  const summaryPromises = sessions.map((s) => sessionService.getSessionSummary(s.id));
+  const summaryResults = await Promise.all(summaryPromises);
+
+  return sessions.map((session, index) => {
+    const summaryResult = summaryResults[index];
+    const summary = summaryResult?.ok ? summaryResult.value : null;
+
+    return {
+      ...session,
+      turnsUsed: summary?.turnsCount ?? 0,
+      tokensUsed: summary?.tokensUsed ?? 0,
+      filesModified: summary?.filesModified ?? 0,
+      linesAdded: summary?.linesAdded ?? 0,
+      linesRemoved: summary?.linesRemoved ?? 0,
+    };
+  });
+}
 
 export const Route = createFileRoute('/api/sessions')({
   server: {
@@ -60,11 +93,14 @@ export const Route = createFileRoute('/api/sessions')({
             );
           }
 
+          // Enrich with summary data
+          const enrichedSessions = await enrichSessionsWithSummaries(filteredSessions);
+
           return Response.json(
             success({
-              data: filteredSessions,
+              data: enrichedSessions,
               pagination: {
-                total: filteredSessions.length,
+                total: enrichedSessions.length,
                 limit,
                 offset,
               },
@@ -84,11 +120,14 @@ export const Route = createFileRoute('/api/sessions')({
           });
         }
 
+        // Enrich with summary data
+        const enrichedSessions = await enrichSessionsWithSummaries(result.value);
+
         return Response.json(
           success({
-            data: result.value,
+            data: enrichedSessions,
             pagination: {
-              total: result.value.length,
+              total: enrichedSessions.length,
               limit,
               offset,
             },

@@ -1,4 +1,4 @@
-import { ChatCircle, Clock, Wrench } from '@phosphor-icons/react';
+import { ChatCircle, Clock, Coins, Wrench } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
 import type { SessionCardProps } from '../types';
@@ -118,6 +118,14 @@ export function SessionCard({
           {session.turnsUsed}/50
         </span>
 
+        {/* Tokens */}
+        {session.tokensUsed > 0 && (
+          <span className="flex items-center gap-1">
+            <Coins className="h-3 w-3" />
+            {formatTokens(session.tokensUsed)}
+          </span>
+        )}
+
         {/* Status badge */}
         <span
           className={cn(
@@ -133,13 +141,6 @@ export function SessionCard({
             : session.status.charAt(0).toUpperCase() + session.status.slice(1)}
         </span>
       </div>
-
-      {/* Compact mode shows fewer details */}
-      {compact && (
-        <div className="mt-2 flex items-center justify-between text-xs text-fg-subtle">
-          <span>{formatTokens(session.tokensUsed)} tokens</span>
-        </div>
-      )}
     </button>
   );
 }
