@@ -1,4 +1,5 @@
 import {
+  CaretUpDown,
   Clock,
   Cube,
   Files,
@@ -8,11 +9,13 @@ import {
   Hourglass,
   Kanban,
   Plus,
+  PuzzlePiece,
   Robot,
 } from '@phosphor-icons/react';
-import { Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { apiClient, type ProjectSummaryItem } from '@/lib/api/client';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useProjectContext } from '@/app/providers/project-context';
+import { apiClient } from '@/lib/api/client';
 
 interface SidebarProps {
   projectId?: string;
@@ -29,39 +32,67 @@ interface NavItem {
   readonly testId?: string;
 }
 
-// Workspace section nav items
-const workspaceNavItems: readonly NavItem[] = [
+// ORGANIZATION section - app-wide navigation (not project-specific)
+const organizationNavItems: readonly NavItem[] = [
   { label: 'Projects', to: '/projects', icon: Kanban, testId: 'nav-projects' },
-  { label: 'Agents', to: '/agents', icon: Robot, badge: 'active', testId: 'nav-agents' },
-] as const;
-
-// History section nav items
-const historyNavItems: readonly NavItem[] = [
   { label: 'Queue', to: '/queue', icon: Hourglass, testId: 'nav-queue' },
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
 ] as const;
 
-// Templates section nav items
-const templateNavItems: readonly NavItem[] = [
+// CONTENT section - organization-wide templates and marketplace
+// Marketplace syncs with: https://github.com/anthropics/claude-plugins-official
+//   - /plugins (internal Anthropic plugins)
+//   - /external_plugins (third-party community plugins)
+const contentNavItems: readonly NavItem[] = [
   { label: 'Org Templates', to: '/templates/org', icon: Files, testId: 'nav-org-templates' },
-  {
-    label: 'Project Templates',
-    to: '/templates/project',
-    icon: FolderOpen,
-    testId: 'nav-project-templates',
-  },
+  { label: 'Marketplace', to: '/marketplace', icon: PuzzlePiece, testId: 'nav-marketplace' },
 ] as const;
 
-// Sandbox section nav items
-const sandboxNavItems: readonly NavItem[] = [
+// EXECUTION section - runtime and sandbox configuration
+const executionNavItems: readonly NavItem[] = [
   { label: 'Sandbox Configs', to: '/settings/sandbox', icon: Cube, testId: 'nav-sandbox-configs' },
 ] as const;
 
 // Admin section nav items are now dynamic based on health status
 
-export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
-  const [currentProject, setCurrentProject] = useState<ProjectSummaryItem | null>(null);
+export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Element {
+  const { currentProject, openPicker } = useProjectContext();
+  const navigate = useNavigate();
   const [isHealthy, setIsHealthy] = useState(true);
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Handle click with delay to distinguish from double-click
+  const handleProjectClick = useCallback(() => {
+    // Clear any existing timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+    // Set a short delay before opening picker to allow double-click detection
+    clickTimeoutRef.current = setTimeout(() => {
+      openPicker();
+    }, 200);
+  }, [openPicker]);
+
+  // Double-click navigates to the current project
+  const handleProjectDoubleClick = useCallback(() => {
+    // Cancel the single-click timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+    if (currentProject) {
+      navigate({ to: '/projects/$projectId', params: { projectId: currentProject.project.id } });
+    }
+  }, [currentProject, navigate]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Check system health periodically
   useEffect(() => {
@@ -85,24 +116,6 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
       badgeVariant: isHealthy ? undefined : 'warning',
     },
   ];
-
-  // Fetch current project summary when projectId changes
-  useEffect(() => {
-    if (!projectId) {
-      setCurrentProject(null);
-      return;
-    }
-
-    const loadProject = async () => {
-      // Fetch project summaries and find the current one
-      const result = await apiClient.projects.listWithSummaries({ limit: 50 });
-      if (result.ok) {
-        const project = result.data.items.find((p) => p.project.id === projectId);
-        setCurrentProject(project ?? null);
-      }
-    };
-    void loadProject();
-  }, [projectId]);
 
   return (
     <aside
@@ -224,14 +237,16 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
         <span className="text-[15px] font-semibold text-fg">AgentPane</span>
       </Link>
 
-      {/* Current project or link to browse */}
+      {/* Current project card - click opens picker, double-click navigates to project */}
       <div className="mx-3 mt-3 flex flex-col gap-1.5" data-testid="project-list">
         {currentProject ? (
-          <Link
-            to="/projects/$projectId"
-            params={{ projectId: currentProject.project.id }}
-            className="flex items-center gap-2.5 rounded-md border border-accent bg-accent-muted p-2.5 transition-colors"
+          <button
+            type="button"
+            onClick={handleProjectClick}
+            onDoubleClick={handleProjectDoubleClick}
+            className="flex items-center gap-2.5 rounded-md border border-accent bg-accent-muted p-2.5 text-left transition-colors hover:bg-accent-muted/80"
             data-testid="project-card"
+            title="Click to switch projects, double-click to open"
           >
             <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-success to-accent text-[11px] font-semibold text-white">
               {currentProject.project.name.charAt(0).toUpperCase()}
@@ -250,27 +265,35 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
                 <span data-testid="project-status">{currentProject.taskCounts.total} tasks</span>
               </div>
             </div>
-          </Link>
+            <CaretUpDown className="h-4 w-4 flex-shrink-0 text-fg-muted" />
+          </button>
         ) : (
-          <Link
-            to="/projects"
+          <button
+            type="button"
+            onClick={openPicker}
             className="flex items-center gap-2.5 rounded-md border border-dashed border-border bg-surface-subtle p-2.5 text-sm text-fg-muted transition-colors hover:border-fg-subtle hover:text-fg"
+            data-testid="project-card"
           >
             <Plus className="h-4 w-4" />
-            <span>Select a project</span>
-          </Link>
+            <span className="flex-1 text-left">Select a project</span>
+            <CaretUpDown className="h-4 w-4 flex-shrink-0" />
+          </button>
         )}
       </div>
 
       {/* Navigation */}
       <nav className="mt-4 flex-1 overflow-y-auto px-3">
-        {/* Workspace section */}
-        <NavSection title="Workspace" testId="nav-section-workspace">
-          {workspaceNavItems.map((item) => (
+        {/* ORGANIZATION section - app-wide navigation */}
+        <NavSection title="Organization" testId="nav-section-organization">
+          {organizationNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
-          {/* Tasks - links to selected project's kanban */}
-          {currentProject && (
+        </NavSection>
+
+        {/* PROJECT section - only shown when a project is selected */}
+        {currentProject && (
+          <NavSection title="Project" testId="nav-section-project">
+            {/* Tasks - links to selected project's kanban */}
             <Link
               to="/projects/$projectId"
               params={{ projectId: currentProject.project.id }}
@@ -282,9 +305,7 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
               <Kanban className="h-4 w-4 opacity-80" />
               Tasks
             </Link>
-          )}
-          {/* Git - links to selected project's git management */}
-          {currentProject && (
+            {/* Git - links to selected project's git management */}
             <Link
               to="/projects/$projectId/git"
               params={{ projectId: currentProject.project.id }}
@@ -295,31 +316,34 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
               <GitFork className="h-4 w-4 opacity-80" />
               Git
             </Link>
-          )}
-        </NavSection>
+            {/* Templates - project-specific templates */}
+            <Link
+              to="/templates/project"
+              activeProps={{ className: 'bg-accent-muted text-accent' }}
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+              data-testid="nav-project-templates"
+            >
+              <FolderOpen className="h-4 w-4 opacity-80" />
+              Templates
+            </Link>
+          </NavSection>
+        )}
 
-        {/* History section */}
-        <NavSection title="History" testId="nav-section-history">
-          {historyNavItems.map((item) => (
-            <NavLink key={item.label} item={item} />
-          ))}
-        </NavSection>
-
-        {/* Content section */}
+        {/* CONTENT section - organization-wide templates */}
         <NavSection title="Content" testId="nav-section-content">
-          {templateNavItems.map((item) => (
+          {contentNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>
 
-        {/* Sandbox section */}
-        <NavSection title="Sandbox" testId="nav-section-sandbox">
-          {sandboxNavItems.map((item) => (
+        {/* EXECUTION section - sandbox configuration */}
+        <NavSection title="Execution" testId="nav-section-execution">
+          {executionNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}
         </NavSection>
 
-        {/* Admin section */}
+        {/* ADMIN section */}
         <NavSection title="Admin" testId="nav-section-admin">
           {adminNavItems.map((item) => (
             <NavLink key={item.label} item={item} />

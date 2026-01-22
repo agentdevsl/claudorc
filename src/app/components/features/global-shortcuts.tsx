@@ -1,7 +1,12 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { type Shortcut, useKeyboardShortcuts } from '@/app/hooks/use-keyboard-shortcuts';
+import { useProjectContext } from '@/app/providers/project-context';
 import { useShortcutsContext } from '@/app/providers/shortcuts-provider';
+import { apiClient } from '@/lib/api/client';
+import type { Result } from '@/lib/utils/result';
+import { NewProjectDialog, type SandboxType } from './new-project-dialog';
+import { ProjectPicker } from './project-picker';
 import { ShortcutsHelp } from './shortcuts-help';
 
 // =============================================================================
@@ -258,4 +263,191 @@ export function GlobalShortcuts(): React.JSX.Element {
   useKeyboardShortcuts(shortcuts, shortcutsContext);
 
   return <ShortcutsHelp />;
+}
+
+// =============================================================================
+// Component with Project Picker Integration
+// =============================================================================
+
+/**
+ * Enhanced GlobalShortcuts component that includes the ProjectPicker and NewProjectDialog.
+ * Use this in the root layout to enable Cmd+P project switching.
+ */
+export function GlobalShortcutsWithPicker(): React.JSX.Element {
+  const navigate = useNavigate();
+  const shortcutsContext = useShortcutsContext();
+  const { setHelpOpen } = shortcutsContext;
+  const {
+    isPickerOpen,
+    openPicker,
+    closePicker,
+    isNewProjectDialogOpen,
+    openNewProjectDialog,
+    closeNewProjectDialog,
+    selectProject,
+    allProjects,
+    recentProjects,
+    currentProjectId,
+    isLoading,
+    error,
+    refreshProjects,
+  } = useProjectContext();
+
+  // Handle new project submission
+  const handleNewProjectSubmit = useCallback(
+    async (data: {
+      name: string;
+      path: string;
+      description?: string;
+      sandboxType?: SandboxType;
+    }): Promise<Result<void, { code: string; message: string }>> => {
+      try {
+        const result = await apiClient.projects.create({
+          name: data.name,
+          path: data.path,
+          description: data.description,
+        });
+
+        if (!result.ok) {
+          return {
+            ok: false,
+            error: { code: result.error.code, message: result.error.message },
+          };
+        }
+
+        // Refresh projects and navigate to new project
+        await refreshProjects();
+        navigate({ to: '/projects/$projectId', params: { projectId: result.data.id } });
+        return { ok: true, value: undefined };
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: 'UNKNOWN_ERROR',
+            message: err instanceof Error ? err.message : 'Failed to create project',
+          },
+        };
+      }
+    },
+    [navigate, refreshProjects]
+  );
+
+  // Handle path validation (stub implementation - returns basic validation result)
+  const handleValidatePath = useCallback(
+    async (
+      pathToValidate: string
+    ): Promise<
+      Result<
+        {
+          name: string;
+          path: string;
+          defaultBranch: string;
+          hasClaudeConfig: boolean;
+          remoteUrl?: string;
+        },
+        unknown
+      >
+    > => {
+      // TODO: Add API endpoint for path validation
+      // For now, return a basic validation result
+      const pathParts = pathToValidate.split('/');
+      const name = pathParts[pathParts.length - 1] || 'unknown';
+      return {
+        ok: true,
+        value: { name, path: pathToValidate, defaultBranch: 'main', hasClaudeConfig: false },
+      };
+    },
+    []
+  );
+
+  // Shortcuts with project picker
+  const shortcuts = useMemo<Shortcut[]>(
+    () => [
+      {
+        key: '1',
+        meta: true,
+        description: 'Go to Agents view',
+        category: 'views',
+        action: () => navigate({ to: '/agents' }),
+      },
+      {
+        key: '2',
+        meta: true,
+        description: 'Go to Tasks/Kanban',
+        category: 'views',
+        action: () => navigate({ to: '/projects' }),
+      },
+      {
+        key: 'p',
+        meta: true,
+        description: 'Open project picker',
+        category: 'navigation',
+        action: openPicker,
+      },
+      {
+        key: 'n',
+        meta: true,
+        shift: true,
+        description: 'New project',
+        category: 'actions',
+        action: openNewProjectDialog,
+      },
+      {
+        key: '/',
+        meta: true,
+        description: 'Show keyboard shortcuts',
+        category: 'navigation',
+        action: () => setHelpOpen(true),
+      },
+      {
+        key: 'Escape',
+        description: 'Close modal/deselect',
+        category: 'navigation',
+        action: () => {
+          if (isPickerOpen) {
+            closePicker();
+          } else if (isNewProjectDialogOpen) {
+            closeNewProjectDialog();
+          } else {
+            setHelpOpen(false);
+          }
+        },
+      },
+    ],
+    [
+      navigate,
+      setHelpOpen,
+      openPicker,
+      closePicker,
+      openNewProjectDialog,
+      closeNewProjectDialog,
+      isPickerOpen,
+      isNewProjectDialogOpen,
+    ]
+  );
+
+  useKeyboardShortcuts(shortcuts, shortcutsContext);
+
+  return (
+    <>
+      <ShortcutsHelp />
+      <ProjectPicker
+        open={isPickerOpen}
+        onOpenChange={(open) => (open ? openPicker() : closePicker())}
+        selectedProjectId={currentProjectId}
+        onProjectSelect={selectProject}
+        onNewProjectClick={openNewProjectDialog}
+        recentProjects={recentProjects}
+        allProjects={allProjects}
+        isLoading={isLoading}
+        error={error}
+      />
+      <NewProjectDialog
+        open={isNewProjectDialogOpen}
+        onOpenChange={(open) => (open ? openNewProjectDialog() : closeNewProjectDialog())}
+        onSubmit={handleNewProjectSubmit}
+        onValidatePath={handleValidatePath}
+      />
+    </>
+  );
 }

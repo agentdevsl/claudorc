@@ -23,8 +23,6 @@ export function LayoutShell({
   centerAction,
   children,
 }: LayoutShellProps): React.JSX.Element {
-  const pageTitle = breadcrumbs?.[breadcrumbs.length - 1]?.label;
-
   return (
     <div className="flex min-h-screen bg-canvas text-fg" data-testid="layout-shell">
       <div className="hidden md:block">
@@ -47,12 +45,10 @@ export function LayoutShell({
               </button>
               <div>
                 <Breadcrumbs items={breadcrumbs} />
-                {/* Only show separate page title when there are multiple breadcrumbs to avoid duplication */}
-                {pageTitle && breadcrumbs.length > 1 ? (
-                  <div className="text-sm font-semibold text-fg" data-testid="page-title">
-                    {pageTitle}
-                  </div>
-                ) : null}
+                {/*
+                  Don't show separate page title - the last breadcrumb already shows the current page.
+                  This avoids redundancy like "Projects > test123ab / test123ab"
+                */}
               </div>
             </div>
             {centerAction ? (

@@ -16,6 +16,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
+import { Route as MarketplaceIndexRouteImport } from './routes/marketplace/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
 import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
@@ -116,6 +117,11 @@ const QueueIndexRoute = QueueIndexRouteImport.update({
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceIndexRoute = MarketplaceIndexRouteImport.update({
+  id: '/marketplace/',
+  path: '/marketplace/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
@@ -480,6 +486,7 @@ export interface FileRoutesByFullPath {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
+  '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -554,6 +561,7 @@ export interface FileRoutesByTo {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents': typeof AgentsIndexRoute
+  '/marketplace': typeof MarketplaceIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/queue': typeof QueueIndexRoute
   '/sessions': typeof SessionsIndexRoute
@@ -630,6 +638,7 @@ export interface FileRoutesById {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
+  '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -707,6 +716,7 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents/'
+    | '/marketplace/'
     | '/projects/'
     | '/queue/'
     | '/sessions/'
@@ -781,6 +791,7 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents'
+    | '/marketplace'
     | '/projects'
     | '/queue'
     | '/sessions'
@@ -856,6 +867,7 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents/'
+    | '/marketplace/'
     | '/projects/'
     | '/queue/'
     | '/sessions/'
@@ -924,6 +936,7 @@ export interface RootRouteChildren {
   TemplatesOrgRoute: typeof TemplatesOrgRoute
   TemplatesProjectRoute: typeof TemplatesProjectRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  MarketplaceIndexRoute: typeof MarketplaceIndexRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   QueueIndexRoute: typeof QueueIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
@@ -991,6 +1004,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects/'
       preLoaderRoute: typeof ProjectsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace/': {
+      id: '/marketplace/'
+      path: '/marketplace'
+      fullPath: '/marketplace/'
+      preLoaderRoute: typeof MarketplaceIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agents/': {
@@ -1689,6 +1709,7 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesOrgRoute: TemplatesOrgRoute,
   TemplatesProjectRoute: TemplatesProjectRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  MarketplaceIndexRoute: MarketplaceIndexRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   QueueIndexRoute: QueueIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
