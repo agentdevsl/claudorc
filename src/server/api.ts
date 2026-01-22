@@ -22,6 +22,7 @@ import {
   type TaskCreationService,
 } from '../services/task-creation.service.js';
 import { TemplateService } from '../services/template.service.js';
+import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
 
@@ -111,6 +112,31 @@ const taskCreationService: TaskCreationService = createTaskCreationService(
   mockStreamsService,
   sessionService
 );
+
+// CommandRunner for WorktreeService using Bun.spawn
+const bunCommandRunner: CommandRunner = {
+  exec: async (command: string, cwd: string) => {
+    const proc = Bun.spawn(['sh', '-c', command], {
+      cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const exitCode = await proc.exited;
+
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+
+    if (exitCode !== 0) {
+      throw new Error(`Command failed with exit code ${exitCode}: ${stderr || stdout}`);
+    }
+
+    return { stdout, stderr };
+  },
+};
+
+// WorktreeService for git worktree operations
+const worktreeService = new WorktreeService(db, bunCommandRunner);
 
 // ============ Project Handlers ============
 
@@ -1711,6 +1737,618 @@ async function handleGetSessionSummary(id: string): Promise<Response> {
   }
 }
 
+// ============ Worktree Handlers ============
+
+async function handleListWorktrees(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    const result = await worktreeService.list(projectId);
+
+    if (!result.ok) {
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list worktrees' } },
+        500
+      );
+    }
+
+    return json({ ok: true, data: { items: result.value } });
+  } catch (error) {
+    console.error('[Worktrees] List error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list worktrees' } },
+      500
+    );
+  }
+}
+
+async function handleGetWorktree(id: string): Promise<Response> {
+  try {
+    const result = await worktreeService.getStatus(id);
+
+    if (!result.ok) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Worktree not found' } }, 404);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Worktrees] Get error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to get worktree' } }, 500);
+  }
+}
+
+async function handleCreateWorktree(request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    projectId: string;
+    taskId: string;
+    baseBranch?: string;
+  };
+
+  if (!body.projectId || !body.taskId) {
+    return json(
+      {
+        ok: false,
+        error: { code: 'MISSING_PARAMS', message: 'projectId and taskId are required' },
+      },
+      400
+    );
+  }
+
+  try {
+    const result = await worktreeService.create({
+      projectId: body.projectId,
+      taskId: body.taskId,
+      baseBranch: body.baseBranch,
+    });
+
+    if (!result.ok) {
+      console.error('[Worktrees] Create failed:', result.error);
+      return json(
+        { ok: false, error: { code: result.error.code, message: result.error.message } },
+        400
+      );
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Worktrees] Create error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create worktree' } },
+      500
+    );
+  }
+}
+
+async function handleRemoveWorktree(id: string, url: URL): Promise<Response> {
+  const force = url.searchParams.get('force') === 'true';
+
+  try {
+    const result = await worktreeService.remove(id, force);
+
+    if (!result.ok) {
+      console.error('[Worktrees] Remove failed:', result.error);
+      return json(
+        { ok: false, error: { code: result.error.code, message: result.error.message } },
+        result.error.code === 'NOT_FOUND' ? 404 : 400
+      );
+    }
+
+    return json({ ok: true, data: null });
+  } catch (error) {
+    console.error('[Worktrees] Remove error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to remove worktree' } },
+      500
+    );
+  }
+}
+
+async function handleCommitWorktree(id: string, request: Request): Promise<Response> {
+  const body = (await request.json()) as { message: string };
+
+  if (!body.message) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'message is required' } },
+      400
+    );
+  }
+
+  try {
+    const result = await worktreeService.commit(id, body.message);
+
+    if (!result.ok) {
+      console.error('[Worktrees] Commit failed:', result.error);
+      return json(
+        { ok: false, error: { code: result.error.code, message: result.error.message } },
+        result.error.code === 'NOT_FOUND' ? 404 : 400
+      );
+    }
+
+    return json({ ok: true, data: { sha: result.value } });
+  } catch (error) {
+    console.error('[Worktrees] Commit error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to commit changes' } },
+      500
+    );
+  }
+}
+
+async function handleMergeWorktree(id: string, request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    targetBranch?: string;
+    deleteAfterMerge?: boolean;
+    squash?: boolean;
+    commitMessage?: string;
+  };
+
+  try {
+    const result = await worktreeService.merge(id, body.targetBranch);
+
+    if (!result.ok) {
+      console.error('[Worktrees] Merge failed:', result.error);
+      // Check for merge conflict
+      if (result.error.code === 'MERGE_CONFLICT') {
+        return json(
+          {
+            ok: false,
+            error: { code: 'MERGE_CONFLICT', message: result.error.message },
+            conflicts: result.error.details?.files ?? [],
+          },
+          409
+        );
+      }
+      return json(
+        { ok: false, error: { code: result.error.code, message: result.error.message } },
+        result.error.code === 'NOT_FOUND' ? 404 : 400
+      );
+    }
+
+    // If deleteAfterMerge is requested, remove the worktree
+    if (body.deleteAfterMerge) {
+      const removeResult = await worktreeService.remove(id, true);
+      if (!removeResult.ok) {
+        console.error('[Worktrees] Post-merge cleanup failed:', removeResult.error);
+        // Return success for merge but indicate cleanup failed
+        return json({
+          ok: true,
+          data: { merged: true, cleanupFailed: true, cleanupError: removeResult.error.message },
+        });
+      }
+    }
+
+    return json({ ok: true, data: { merged: true } });
+  } catch (error) {
+    console.error('[Worktrees] Merge error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to merge worktree' } },
+      500
+    );
+  }
+}
+
+async function handleGetWorktreeDiff(id: string): Promise<Response> {
+  try {
+    const result = await worktreeService.getDiff(id);
+
+    if (!result.ok) {
+      console.error('[Worktrees] Diff failed:', result.error);
+      return json(
+        { ok: false, error: { code: result.error.code, message: result.error.message } },
+        result.error.code === 'NOT_FOUND' ? 404 : 400
+      );
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Worktrees] Diff error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to get diff' } }, 500);
+  }
+}
+
+async function handlePruneWorktrees(request: Request): Promise<Response> {
+  const body = (await request.json()) as { projectId?: string };
+  const projectId = body.projectId;
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    const result = await worktreeService.prune(projectId);
+
+    if (!result.ok) {
+      console.error('[Worktrees] Prune failed:', result.error);
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to prune worktrees' } },
+        500
+      );
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Worktrees] Prune error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to prune worktrees' } },
+      500
+    );
+  }
+}
+
+// ============ Git View Handlers ============
+
+async function handleGetGitStatus(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    // Get project to find the path
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+
+    if (!project) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Get current branch
+    const { stdout: branchOutput } = await bunCommandRunner.exec(
+      'git rev-parse --abbrev-ref HEAD',
+      project.path
+    );
+    const currentBranch = branchOutput.trim();
+
+    // Get repo name from path
+    const repoName = project.path.split('/').pop() || project.name;
+
+    // Get git status (porcelain format for easy parsing)
+    const { stdout: statusOutput } = await bunCommandRunner.exec(
+      'git status --porcelain',
+      project.path
+    );
+
+    const statusLines = statusOutput
+      .trim()
+      .split('\n')
+      .filter((line) => line.trim());
+    const staged = statusLines.filter((line) => /^[MADRC]/.test(line)).length;
+    const unstaged = statusLines.filter((line) => /^.[MADRC]/.test(line)).length;
+    const untracked = statusLines.filter((line) => line.startsWith('??')).length;
+    const hasChanges = statusLines.length > 0;
+
+    // Get ahead/behind info
+    let ahead = 0;
+    let behind = 0;
+    try {
+      const { stdout: aheadBehind } = await bunCommandRunner.exec(
+        `git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || echo "0	0"`,
+        project.path
+      );
+      const [aheadStr, behindStr] = aheadBehind.trim().split(/\s+/);
+      ahead = parseInt(aheadStr || '0', 10) || 0;
+      behind = parseInt(behindStr || '0', 10) || 0;
+    } catch {
+      // No upstream, ignore
+    }
+
+    return json({
+      ok: true,
+      data: {
+        repoName,
+        currentBranch,
+        status: hasChanges ? 'dirty' : 'clean',
+        staged,
+        unstaged,
+        untracked,
+        ahead,
+        behind,
+      },
+    });
+  } catch (error) {
+    console.error('[Git] Get status error:', error);
+    return json(
+      { ok: false, error: { code: 'GIT_ERROR', message: 'Failed to get git status' } },
+      500
+    );
+  }
+}
+
+async function handleListGitBranches(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    // Get project to find the path
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+
+    if (!project) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Get current HEAD branch
+    const { stdout: headOutput } = await bunCommandRunner.exec(
+      'git rev-parse --abbrev-ref HEAD',
+      project.path
+    );
+    const currentBranch = headOutput.trim();
+
+    // Get all local branches with their commit info
+    // Format: refname:short, objectname, objectname:short, upstream:track
+    const { stdout: branchOutput } = await bunCommandRunner.exec(
+      'git for-each-ref --format="%(refname:short)|%(objectname)|%(objectname:short)|%(upstream:track)" refs/heads/',
+      project.path
+    );
+
+    const branches = await Promise.all(
+      branchOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim())
+        .map(async (line) => {
+          const [name, commitHash, shortHash, trackInfo] = line.split('|');
+          if (!name || !commitHash) return null;
+
+          // Get commit count (commits ahead of main/master)
+          let commitCount = 0;
+          try {
+            // Try to count commits ahead of main, fallback to master
+            const { stdout: countOutput } = await bunCommandRunner.exec(
+              `git rev-list --count main..${name} 2>/dev/null || git rev-list --count master..${name} 2>/dev/null || echo "0"`,
+              project.path
+            );
+            commitCount = parseInt(countOutput.trim(), 10) || 0;
+          } catch {
+            // Ignore errors, keep count at 0
+          }
+
+          // Parse tracking status
+          let status: 'ahead' | 'behind' | 'diverged' | 'up-to-date' | 'no-upstream' =
+            'no-upstream';
+          if (trackInfo) {
+            if (trackInfo.includes('ahead') && trackInfo.includes('behind')) {
+              status = 'diverged';
+            } else if (trackInfo.includes('ahead')) {
+              status = 'ahead';
+            } else if (trackInfo.includes('behind')) {
+              status = 'behind';
+            } else if (trackInfo === '') {
+              status = 'up-to-date';
+            }
+          }
+
+          return {
+            name: name || '',
+            commitHash: commitHash || '',
+            shortHash: shortHash || '',
+            commitCount,
+            isHead: name === currentBranch,
+            status,
+          };
+        })
+    );
+
+    // Filter out nulls and sort by isHead first, then by name
+    const validBranches = branches
+      .filter((b): b is NonNullable<typeof b> => b !== null)
+      .sort((a, b) => {
+        if (a.isHead && !b.isHead) return -1;
+        if (!a.isHead && b.isHead) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    return json({ ok: true, data: { items: validBranches } });
+  } catch (error) {
+    console.error('[Git] List branches error:', error);
+    return json(
+      { ok: false, error: { code: 'GIT_ERROR', message: 'Failed to list branches' } },
+      500
+    );
+  }
+}
+
+async function handleListGitCommits(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+  const branch = url.searchParams.get('branch');
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    // Get project to find the path
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+
+    if (!project) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Default to current branch if not specified
+    const targetBranch = branch || 'HEAD';
+
+    // Get commit log with format: hash|short|subject|author|date
+    // Using %x00 as delimiter for safety
+    const { stdout: logOutput } = await bunCommandRunner.exec(
+      `git log ${targetBranch} --format="%H|%h|%s|%an|%aI" -n ${limit}`,
+      project.path
+    );
+
+    const commits = await Promise.all(
+      logOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim())
+        .map(async (line) => {
+          const parts = line.split('|');
+          const hash = parts[0] || '';
+          const shortHash = parts[1] || '';
+          const message = parts[2] || '';
+          const author = parts[3] || '';
+          const date = parts[4] || '';
+
+          // Get file stats for each commit (additions, deletions, files changed)
+          let additions: number | undefined;
+          let deletions: number | undefined;
+          let filesChanged: number | undefined;
+
+          try {
+            const { stdout: statsOutput } = await bunCommandRunner.exec(
+              `git show ${hash} --stat --format="" | tail -1`,
+              project.path
+            );
+            // Parse stats like: "3 files changed, 10 insertions(+), 5 deletions(-)"
+            const statsLine = statsOutput.trim();
+            const filesMatch = statsLine.match(/(\d+) files? changed/);
+            const insertionsMatch = statsLine.match(/(\d+) insertions?\(\+\)/);
+            const deletionsMatch = statsLine.match(/(\d+) deletions?\(-\)/);
+
+            if (filesMatch) filesChanged = parseInt(filesMatch[1] || '0', 10);
+            if (insertionsMatch) additions = parseInt(insertionsMatch[1] || '0', 10);
+            if (deletionsMatch) deletions = parseInt(deletionsMatch[1] || '0', 10);
+          } catch {
+            // Stats are optional, ignore errors
+          }
+
+          return {
+            hash,
+            shortHash,
+            message,
+            author,
+            date,
+            ...(additions !== undefined && { additions }),
+            ...(deletions !== undefined && { deletions }),
+            ...(filesChanged !== undefined && { filesChanged }),
+          };
+        })
+    );
+
+    return json({ ok: true, data: { items: commits } });
+  } catch (error) {
+    console.error('[Git] List commits error:', error);
+    return json(
+      { ok: false, error: { code: 'GIT_ERROR', message: 'Failed to list commits' } },
+      500
+    );
+  }
+}
+
+async function handleListGitRemoteBranches(url: URL): Promise<Response> {
+  const projectId = url.searchParams.get('projectId');
+
+  if (!projectId) {
+    return json(
+      { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+      400
+    );
+  }
+
+  try {
+    // Get project to find the path
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+
+    if (!project) {
+      return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+    }
+
+    // Fetch latest from remote (don't fail if offline)
+    try {
+      await bunCommandRunner.exec('git fetch --prune 2>/dev/null || true', project.path);
+    } catch {
+      // Ignore fetch errors (might be offline)
+    }
+
+    // Get all remote branches with their commit info
+    const { stdout: branchOutput } = await bunCommandRunner.exec(
+      'git for-each-ref --format="%(refname:short)|%(objectname)|%(objectname:short)" refs/remotes/',
+      project.path
+    );
+
+    const branches = await Promise.all(
+      branchOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim())
+        .map(async (line) => {
+          const [fullName, commitHash, shortHash] = line.split('|');
+          if (!fullName || !commitHash) return null;
+
+          // Skip HEAD pointer (with refname:short, origin/HEAD becomes just "origin")
+          if (fullName.endsWith('/HEAD')) return null;
+
+          // Skip entries without a slash (these are symbolic refs like origin/HEAD shown as "origin")
+          if (!fullName.includes('/')) return null;
+
+          // Remove remote prefix (e.g., "origin/main" -> "main")
+          const name = fullName.replace(/^[^/]+\//, '');
+
+          // Get commit count from main/master
+          let commitCount = 0;
+          try {
+            const { stdout: countOutput } = await bunCommandRunner.exec(
+              `git rev-list --count main..${fullName} 2>/dev/null || git rev-list --count master..${fullName} 2>/dev/null || echo "0"`,
+              project.path
+            );
+            commitCount = parseInt(countOutput.trim(), 10) || 0;
+          } catch {
+            // Ignore errors, keep count at 0
+          }
+
+          return {
+            name,
+            fullName: fullName || '',
+            commitHash: commitHash || '',
+            shortHash: shortHash || '',
+            commitCount,
+          };
+        })
+    );
+
+    // Filter out nulls and sort by name
+    const validBranches = branches
+      .filter((b): b is NonNullable<typeof b> => b !== null)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return json({ ok: true, data: { items: validBranches } });
+  } catch (error) {
+    console.error('[Git] List remote branches error:', error);
+    return json(
+      { ok: false, error: { code: 'GIT_ERROR', message: 'Failed to list remote branches' } },
+      500
+    );
+  }
+}
+
 // ============ Task Creation Stream Handler ============
 
 function handleTaskCreationStream(url: URL): Response {
@@ -2005,6 +2643,68 @@ async function handleRequest(request: Request): Promise<Response> {
     if (id && method === 'GET') {
       return handleGetSession(id);
     }
+  }
+
+  // Worktree routes
+  if (path === '/api/worktrees' && method === 'GET') {
+    return handleListWorktrees(url);
+  }
+  if (path === '/api/worktrees' && method === 'POST') {
+    return handleCreateWorktree(request);
+  }
+  if (path === '/api/worktrees/prune' && method === 'POST') {
+    return handlePruneWorktrees(request);
+  }
+  // Match /api/worktrees/:id/commit pattern
+  const worktreeCommitMatch = path.match(/^\/api\/worktrees\/([^/]+)\/commit$/);
+  if (worktreeCommitMatch && method === 'POST') {
+    const id = worktreeCommitMatch[1];
+    if (id) {
+      return handleCommitWorktree(id, request);
+    }
+  }
+  // Match /api/worktrees/:id/merge pattern
+  const worktreeMergeMatch = path.match(/^\/api\/worktrees\/([^/]+)\/merge$/);
+  if (worktreeMergeMatch && method === 'POST') {
+    const id = worktreeMergeMatch[1];
+    if (id) {
+      return handleMergeWorktree(id, request);
+    }
+  }
+  // Match /api/worktrees/:id/diff pattern
+  const worktreeDiffMatch = path.match(/^\/api\/worktrees\/([^/]+)\/diff$/);
+  if (worktreeDiffMatch && method === 'GET') {
+    const id = worktreeDiffMatch[1];
+    if (id) {
+      return handleGetWorktreeDiff(id);
+    }
+  }
+  // Match /api/worktrees/:id pattern (must come after more specific routes)
+  const worktreeIdMatch = path.match(/^\/api\/worktrees\/([^/]+)$/);
+  if (worktreeIdMatch) {
+    const id = worktreeIdMatch[1];
+    if (id) {
+      if (method === 'GET') {
+        return handleGetWorktree(id);
+      }
+      if (method === 'DELETE') {
+        return handleRemoveWorktree(id, url);
+      }
+    }
+  }
+
+  // Git routes
+  if (path === '/api/git/status' && method === 'GET') {
+    return handleGetGitStatus(url);
+  }
+  if (path === '/api/git/branches' && method === 'GET') {
+    return handleListGitBranches(url);
+  }
+  if (path === '/api/git/commits' && method === 'GET') {
+    return handleListGitCommits(url);
+  }
+  if (path === '/api/git/remote-branches' && method === 'GET') {
+    return handleListGitRemoteBranches(url);
   }
 
   // Health check

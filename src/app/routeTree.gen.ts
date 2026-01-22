@@ -38,7 +38,9 @@ import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
 import { Route as ApiWorktreesIndexRouteImport } from './routes/api/worktrees/index'
 import { Route as ApiStreamsIndexRouteImport } from './routes/api/streams/index'
+import { Route as ProjectsProjectIdWorktreesRouteImport } from './routes/projects/$projectId/worktrees'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
+import { Route as ProjectsProjectIdGitRouteImport } from './routes/projects/$projectId/git'
 import { Route as ApiWorktreesPruneRouteImport } from './routes/api/worktrees/prune'
 import { Route as ApiWorktreesIdRouteImport } from './routes/api/worktrees/$id'
 import { Route as ApiWebhooksGithubRouteImport } from './routes/api/webhooks/github'
@@ -226,12 +228,23 @@ const ApiStreamsIndexRoute = ApiStreamsIndexRouteImport.update({
   path: '/api/streams/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdWorktreesRoute =
+  ProjectsProjectIdWorktreesRouteImport.update({
+    id: '/projects/$projectId/worktrees',
+    path: '/projects/$projectId/worktrees',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProjectsProjectIdSettingsRoute =
   ProjectsProjectIdSettingsRouteImport.update({
     id: '/projects/$projectId/settings',
     path: '/projects/$projectId/settings',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectsProjectIdGitRoute = ProjectsProjectIdGitRouteImport.update({
+  id: '/projects/$projectId/git',
+  path: '/projects/$projectId/git',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWorktreesPruneRoute = ApiWorktreesPruneRouteImport.update({
   id: '/api/worktrees/prune',
   path: '/api/worktrees/prune',
@@ -482,7 +495,9 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
+  '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
   '/api/streams/': typeof ApiStreamsIndexRoute
   '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -554,7 +569,9 @@ export interface FileRoutesByTo {
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
+  '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
   '/api/streams': typeof ApiStreamsIndexRoute
   '/api/worktrees': typeof ApiWorktreesIndexRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
@@ -628,7 +645,9 @@ export interface FileRoutesById {
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
+  '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
   '/api/streams/': typeof ApiStreamsIndexRoute
   '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -703,7 +722,9 @@ export interface FileRouteTypes {
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
+    | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
+    | '/projects/$projectId/worktrees'
     | '/api/streams/'
     | '/api/worktrees/'
     | '/projects/$projectId/'
@@ -775,7 +796,9 @@ export interface FileRouteTypes {
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
+    | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
+    | '/projects/$projectId/worktrees'
     | '/api/streams'
     | '/api/worktrees'
     | '/projects/$projectId'
@@ -848,7 +871,9 @@ export interface FileRouteTypes {
     | '/api/webhooks/github'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
+    | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
+    | '/projects/$projectId/worktrees'
     | '/api/streams/'
     | '/api/worktrees/'
     | '/projects/$projectId/'
@@ -908,7 +933,9 @@ export interface RootRouteChildren {
   ApiWebhooksGithubRoute: typeof ApiWebhooksGithubRoute
   ApiWorktreesIdRoute: typeof ApiWorktreesIdRouteWithChildren
   ApiWorktreesPruneRoute: typeof ApiWorktreesPruneRoute
+  ProjectsProjectIdGitRoute: typeof ProjectsProjectIdGitRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
+  ProjectsProjectIdWorktreesRoute: typeof ProjectsProjectIdWorktreesRoute
   ApiStreamsIndexRoute: typeof ApiStreamsIndexRoute
   ApiWorktreesIndexRoute: typeof ApiWorktreesIndexRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
@@ -1120,11 +1147,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStreamsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId/worktrees': {
+      id: '/projects/$projectId/worktrees'
+      path: '/projects/$projectId/worktrees'
+      fullPath: '/projects/$projectId/worktrees'
+      preLoaderRoute: typeof ProjectsProjectIdWorktreesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/$projectId/settings': {
       id: '/projects/$projectId/settings'
       path: '/projects/$projectId/settings'
       fullPath: '/projects/$projectId/settings'
       preLoaderRoute: typeof ProjectsProjectIdSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/$projectId/git': {
+      id: '/projects/$projectId/git'
+      path: '/projects/$projectId/git'
+      fullPath: '/projects/$projectId/git'
+      preLoaderRoute: typeof ProjectsProjectIdGitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/worktrees/prune': {
@@ -1657,7 +1698,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksGithubRoute: ApiWebhooksGithubRoute,
   ApiWorktreesIdRoute: ApiWorktreesIdRouteWithChildren,
   ApiWorktreesPruneRoute: ApiWorktreesPruneRoute,
+  ProjectsProjectIdGitRoute: ProjectsProjectIdGitRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
+  ProjectsProjectIdWorktreesRoute: ProjectsProjectIdWorktreesRoute,
   ApiStreamsIndexRoute: ApiStreamsIndexRoute,
   ApiWorktreesIndexRoute: ApiWorktreesIndexRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
