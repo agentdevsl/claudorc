@@ -4,7 +4,7 @@ import {
   Files,
   FolderOpen,
   Gear,
-  GitBranch,
+  GitFork,
   Hourglass,
   Kanban,
   Plus,
@@ -38,7 +38,6 @@ const workspaceNavItems: readonly NavItem[] = [
 const historyNavItems: readonly NavItem[] = [
   { label: 'Queue', to: '/queue', icon: Hourglass, testId: 'nav-queue' },
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
-  { label: 'Worktrees', to: '/worktrees', icon: GitBranch, testId: 'nav-worktrees' },
 ] as const;
 
 // Templates section nav items
@@ -253,12 +252,26 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
             <Link
               to="/projects/$projectId"
               params={{ projectId: currentProject.project.id }}
+              activeOptions={{ exact: true }}
               activeProps={{ className: 'bg-accent-muted text-accent' }}
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
               data-testid="nav-tasks"
             >
               <Kanban className="h-4 w-4 opacity-80" />
               Tasks
+            </Link>
+          )}
+          {/* Git - links to selected project's git management */}
+          {currentProject && (
+            <Link
+              to="/projects/$projectId/git"
+              params={{ projectId: currentProject.project.id }}
+              activeProps={{ className: 'bg-accent-muted text-accent' }}
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+              data-testid="nav-git"
+            >
+              <GitFork className="h-4 w-4 opacity-80" />
+              Git
             </Link>
           )}
         </NavSection>
@@ -270,8 +283,8 @@ export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
           ))}
         </NavSection>
 
-        {/* Templates section */}
-        <NavSection title="Templates" testId="nav-section-templates">
+        {/* Content section */}
+        <NavSection title="Content" testId="nav-section-content">
           {templateNavItems.map((item) => (
             <NavLink key={item.label} item={item} />
           ))}

@@ -1,43 +1,49 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorktreeManagement } from '@/app/components/features/worktree-management';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 
-export const Route = createFileRoute('/worktrees/')({
-  component: WorktreesPage,
+export const Route = createFileRoute('/projects/$projectId/worktrees')({
+  component: ProjectWorktreesPage,
 });
 
-function WorktreesPage(): React.JSX.Element {
+function ProjectWorktreesPage(): React.JSX.Element {
+  const { projectId } = Route.useParams();
   const [project, setProject] = useState<ProjectListItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch project from API on mount
+  // Fetch project from API
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchProject = async () => {
       try {
-        const projectsResult = await apiClient.projects.list({ limit: 1 });
-        if (projectsResult.ok) {
-          setProject(projectsResult.data.items[0] ?? null);
+        const result = await apiClient.projects.get(projectId);
+        if (result.ok) {
+          setProject(result.data);
         } else {
-          console.error('[WorktreesPage] Failed to fetch projects:', projectsResult.error);
-          setError(projectsResult.error.message);
+          console.error('[ProjectWorktreesPage] Failed to fetch project:', result.error);
+          setError(result.error.message);
         }
       } catch (err) {
-        console.error('[WorktreesPage] Exception fetching projects:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load projects');
+        console.error('[ProjectWorktreesPage] Exception fetching project:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load project');
       } finally {
         setIsLoading(false);
       }
     };
-    void fetchData();
-  }, []);
+    void fetchProject();
+  }, [projectId]);
 
   if (isLoading) {
     return (
-      <LayoutShell breadcrumbs={[{ label: 'Worktrees' }]}>
+      <LayoutShell
+        breadcrumbs={[
+          { label: 'Projects', to: '/projects' },
+          { label: 'Loading...' },
+          { label: 'Worktrees' },
+        ]}
+      >
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-muted-foreground">Loading...</div>
         </div>
@@ -47,7 +53,13 @@ function WorktreesPage(): React.JSX.Element {
 
   if (error) {
     return (
-      <LayoutShell breadcrumbs={[{ label: 'Worktrees' }]}>
+      <LayoutShell
+        breadcrumbs={[
+          { label: 'Projects', to: '/projects' },
+          { label: 'Error' },
+          { label: 'Worktrees' },
+        ]}
+      >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
           <div className="rounded-lg border border-danger/30 bg-danger/5 p-6">
             <p className="text-sm font-medium text-danger">Failed to load worktrees</p>
@@ -60,20 +72,17 @@ function WorktreesPage(): React.JSX.Element {
 
   return (
     <LayoutShell
-      breadcrumbs={[{ label: 'Worktrees' }]}
+      projectId={projectId}
       projectName={project?.name}
       projectPath={project?.path}
+      breadcrumbs={[
+        { label: 'Projects', to: '/projects' },
+        { label: project?.name ?? 'Project', to: `/projects/${projectId}` },
+        { label: 'Worktrees' },
+      ]}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        {project ? (
-          <WorktreeManagement projectId={project.id} />
-        ) : (
-          <EmptyState
-            preset="no-projects"
-            title="No project selected"
-            subtitle="Add a project to see worktrees."
-          />
-        )}
+        <WorktreeManagement projectId={projectId} />
       </div>
     </LayoutShell>
   );

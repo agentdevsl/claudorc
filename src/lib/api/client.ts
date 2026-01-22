@@ -402,10 +402,147 @@ export const apiClient = {
       const searchParams = new URLSearchParams();
       if (params?.projectId) searchParams.set('projectId', params.projectId);
       const query = searchParams.toString();
-      return apiFetch<{ items: unknown[]; totalCount: number }>(
-        `/api/worktrees${query ? `?${query}` : ''}`
-      );
+      return apiServerFetch<{
+        items: Array<{
+          id: string;
+          branch: string;
+          path: string;
+          baseBranch: string;
+          status: string;
+          taskId: string | null;
+          taskTitle?: string;
+          agentId?: string;
+          agentName?: string;
+          createdAt: string;
+          updatedAt: string | null;
+          hasUncommittedChanges?: boolean;
+          aheadBehind?: { ahead: number; behind: number };
+        }>;
+        totalCount: number;
+      }>(`/api/worktrees${query ? `?${query}` : ''}`);
     },
+
+    get: (id: string) =>
+      apiServerFetch<{
+        id: string;
+        branch: string;
+        path: string;
+        baseBranch: string;
+        status: string;
+        taskId: string | null;
+        createdAt: string;
+        updatedAt: string | null;
+        hasUncommittedChanges: boolean;
+        aheadBehind?: { ahead: number; behind: number };
+      }>(`/api/worktrees/${encodeURIComponent(id)}`),
+
+    create: (data: { projectId: string; taskId: string; baseBranch?: string }) =>
+      apiServerFetch<{
+        id: string;
+        branch: string;
+        path: string;
+        status: string;
+      }>('/api/worktrees', { method: 'POST', body: data }),
+
+    remove: (id: string, force?: boolean) =>
+      apiServerFetch<{ success: boolean }>(
+        `/api/worktrees/${encodeURIComponent(id)}${force ? '?force=true' : ''}`,
+        { method: 'DELETE' }
+      ),
+
+    commit: (id: string, message: string) =>
+      apiServerFetch<{ sha: string }>(`/api/worktrees/${encodeURIComponent(id)}/commit`, {
+        method: 'POST',
+        body: { message },
+      }),
+
+    merge: (
+      id: string,
+      options: {
+        targetBranch?: string;
+        deleteAfterMerge?: boolean;
+        squash?: boolean;
+        commitMessage?: string;
+      }
+    ) =>
+      apiServerFetch<{
+        merged: boolean;
+        conflicts?: string[];
+        cleanupFailed?: boolean;
+        cleanupError?: string;
+      }>(`/api/worktrees/${encodeURIComponent(id)}/merge`, { method: 'POST', body: options }),
+
+    getDiff: (id: string) =>
+      apiServerFetch<{
+        files: Array<{
+          path: string;
+          status: 'added' | 'modified' | 'deleted' | 'renamed';
+          additions: number;
+          deletions: number;
+        }>;
+        stats: { filesChanged: number; additions: number; deletions: number };
+      }>(`/api/worktrees/${encodeURIComponent(id)}/diff`),
+
+    prune: (projectId: string) =>
+      apiServerFetch<{
+        pruned: number;
+        failed: Array<{ worktreeId: string; branch: string; error: string }>;
+      }>(`/api/worktrees/prune`, { method: 'POST', body: { projectId } }),
+  },
+
+  git: {
+    status: (projectId: string) =>
+      apiServerFetch<{
+        repoName: string;
+        currentBranch: string;
+        status: 'clean' | 'dirty';
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        ahead: number;
+        behind: number;
+      }>(`/api/git/status?projectId=${encodeURIComponent(projectId)}`),
+
+    branches: (projectId: string) =>
+      apiServerFetch<{
+        items: Array<{
+          name: string;
+          commitHash: string;
+          shortHash: string;
+          commitCount: number;
+          isHead: boolean;
+          status: 'ahead' | 'behind' | 'diverged' | 'up-to-date' | 'no-upstream';
+        }>;
+      }>(`/api/git/branches?projectId=${encodeURIComponent(projectId)}`),
+
+    commits: (projectId: string, branch?: string, limit?: number) => {
+      const params = new URLSearchParams({ projectId });
+      if (branch) params.set('branch', branch);
+      if (limit) params.set('limit', String(limit));
+      return apiServerFetch<{
+        items: Array<{
+          hash: string;
+          shortHash: string;
+          message: string;
+          author: string;
+          date: string;
+          additions?: number;
+          deletions?: number;
+          filesChanged?: number;
+        }>;
+      }>(`/api/git/commits?${params.toString()}`);
+    },
+
+    remoteBranches: (projectId: string) =>
+      apiServerFetch<{
+        items: Array<{
+          name: string;
+          fullName: string;
+          commitHash: string;
+          shortHash: string;
+          commitCount: number;
+        }>;
+      }>(`/api/git/remote-branches?projectId=${encodeURIComponent(projectId)}`),
   },
 
   filesystem: {
