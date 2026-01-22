@@ -1,5 +1,7 @@
 export type MarketplaceStatus = 'active' | 'syncing' | 'error';
 
+export type PluginTag = 'official' | 'external';
+
 export interface CachedPlugin {
   id: string;
   name: string;
@@ -8,6 +10,7 @@ export interface CachedPlugin {
   version?: string;
   category?: string;
   readme?: string;
+  tags?: PluginTag[];
 }
 
 export interface MarketplaceListItem {

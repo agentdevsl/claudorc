@@ -2,6 +2,10 @@ import type { Octokit } from 'octokit';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 
+// Plugin tags for filtering
+export const PLUGIN_TAGS = ['official', 'external'] as const;
+export type PluginTag = (typeof PLUGIN_TAGS)[number];
+
 /**
  * Cached plugin metadata from marketplace repository
  */
@@ -13,6 +17,12 @@ export interface CachedPlugin {
   version?: string;
   category?: string;
   readme?: string;
+  tags?: PluginTag[];
+}
+
+export interface PluginPathConfig {
+  path: string;
+  tag: PluginTag;
 }
 
 export interface MarketplaceSyncOptions {
@@ -20,6 +30,8 @@ export interface MarketplaceSyncOptions {
   owner: string;
   repo: string;
   pluginsPath?: string;
+  /** Additional paths with tags for multi-path marketplaces (e.g., official + external) */
+  additionalPaths?: PluginPathConfig[];
   ref?: string;
 }
 
@@ -31,11 +43,19 @@ export interface MarketplaceSyncResult {
 /**
  * Fetch plugins from a marketplace GitHub repository
  * Looks for plugin directories and extracts metadata from each
+ * Supports multiple paths with different tags (e.g., official vs external)
  */
 export async function syncMarketplaceFromGitHub(
   options: MarketplaceSyncOptions
 ): Promise<Result<MarketplaceSyncResult, { message: string }>> {
-  const { octokit, owner, repo, pluginsPath = 'plugins', ref = 'main' } = options;
+  const {
+    octokit,
+    owner,
+    repo,
+    pluginsPath = 'plugins',
+    additionalPaths = [],
+    ref = 'main',
+  } = options;
 
   try {
     // Get the latest commit SHA
@@ -54,28 +74,44 @@ export async function syncMarketplaceFromGitHub(
       recursive: 'true',
     });
 
-    // Find plugin directories (directories directly under pluginsPath)
-    const pluginDirs = new Set<string>();
-    const pluginsPrefix = pluginsPath.endsWith('/') ? pluginsPath : `${pluginsPath}/`;
+    // Build list of paths to scan with their tags
+    const pathConfigs: PluginPathConfig[] = [
+      { path: pluginsPath, tag: 'official' },
+      ...additionalPaths,
+    ];
 
-    for (const item of tree.tree) {
-      if (item.path?.startsWith(pluginsPrefix) && item.type === 'tree') {
-        // Get the first directory segment after pluginsPath
-        const relativePath = item.path.slice(pluginsPrefix.length);
-        const pluginName = relativePath.split('/')[0];
-        if (pluginName && !pluginName.includes('/')) {
-          pluginDirs.add(pluginName);
-        }
-      }
-    }
-
-    // Fetch metadata for each plugin
     const plugins: CachedPlugin[] = [];
 
-    for (const pluginId of pluginDirs) {
-      const plugin = await fetchPluginMetadata(octokit, owner, repo, pluginsPath, pluginId, ref);
-      if (plugin) {
-        plugins.push(plugin);
+    for (const { path: currentPath, tag } of pathConfigs) {
+      // Find plugin directories (directories directly under currentPath)
+      const pluginDirs = new Set<string>();
+      const pluginsPrefix = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
+
+      for (const item of tree.tree) {
+        if (item.path?.startsWith(pluginsPrefix) && item.type === 'tree') {
+          // Get the first directory segment after pluginsPath
+          const relativePath = item.path.slice(pluginsPrefix.length);
+          const pluginName = relativePath.split('/')[0];
+          if (pluginName && !pluginName.includes('/')) {
+            pluginDirs.add(pluginName);
+          }
+        }
+      }
+
+      // Fetch metadata for each plugin in this path
+      for (const pluginId of pluginDirs) {
+        const plugin = await fetchPluginMetadata(
+          octokit,
+          owner,
+          repo,
+          currentPath,
+          pluginId,
+          ref,
+          tag
+        );
+        if (plugin) {
+          plugins.push(plugin);
+        }
       }
     }
 
@@ -92,7 +128,8 @@ async function fetchPluginMetadata(
   repo: string,
   pluginsPath: string,
   pluginId: string,
-  ref: string
+  ref: string,
+  tag: PluginTag
 ): Promise<CachedPlugin | null> {
   const basePath = `${pluginsPath}/${pluginId}`;
 
@@ -156,6 +193,7 @@ async function fetchPluginMetadata(
     version,
     category,
     readme,
+    tags: [tag],
   };
 }
 

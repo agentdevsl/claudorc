@@ -6,11 +6,16 @@ import {
   GithubLogo,
   Lightning,
   Package,
+  ShieldCheck,
   Trash,
+  Users,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/lib/utils/cn';
+
+// Plugin tags for filtering
+export type PluginTag = 'official' | 'external';
 
 // Cached plugin type from marketplace
 export interface CachedPlugin {
@@ -20,6 +25,7 @@ export interface CachedPlugin {
   author?: string;
   version?: string;
   category?: string;
+  tags?: PluginTag[];
 }
 
 export interface MarketplaceCardProps {
@@ -129,13 +135,16 @@ interface PluginRowProps {
 }
 
 function PluginRow({ plugin }: PluginRowProps): React.JSX.Element {
+  // Only show category if it's set and not a generic placeholder
+  const showCategory = plugin.category && plugin.category.toLowerCase() !== 'uncategorized';
+
   return (
     <div className="group flex items-start gap-2 rounded px-2 py-1.5 transition-colors duration-150 hover:bg-surface-subtle">
       <Lightning className="h-3.5 w-3.5 mt-0.5 text-accent shrink-0" weight="fill" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-fg">{plugin.name}</span>
-          {plugin.category && (
+          {showCategory && (
             <span className="text-[10px] text-fg-muted bg-surface-muted px-1 py-0.5 rounded">
               {plugin.category}
             </span>
@@ -160,17 +169,9 @@ export function MarketplaceCard({
   const statusConfig = STATUS_CONFIG[effectiveStatus];
   const githubUrl = `https://github.com/${marketplace.githubOwner}/${marketplace.githubRepo}`;
 
-  // Group plugins by category
-  const categoryCounts = plugins.reduce(
-    (acc, plugin) => {
-      const category = plugin.category || 'Uncategorized';
-      acc[category] = (acc[category] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+  // Count plugins by tag
+  const officialCount = plugins.filter((p) => p.tags?.includes('official')).length;
+  const externalCount = plugins.filter((p) => p.tags?.includes('external')).length;
 
   return (
     <div
@@ -243,40 +244,73 @@ export function MarketplaceCard({
         {/* Summary counts as badges */}
         {marketplace.pluginCount > 0 && (
           <div className="mt-3 flex flex-wrap gap-2" data-testid="marketplace-counts">
-            <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-accent-muted text-accent text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-surface-muted text-fg-muted text-xs font-medium">
               <Lightning className="h-3 w-3" weight="fill" />
               {marketplace.pluginCount} plugin{marketplace.pluginCount !== 1 && 's'}
             </span>
-            {sortedCategories.slice(0, 3).map(([category, count]) => (
-              <span
-                key={category}
-                className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-surface-muted text-fg-muted text-xs font-medium"
-              >
-                {category}: {count}
+            {officialCount > 0 && (
+              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-success-muted text-success text-xs font-medium">
+                <ShieldCheck className="h-3 w-3" weight="fill" />
+                {officialCount} official
               </span>
-            ))}
-            {sortedCategories.length > 3 && (
-              <span className="inline-flex items-center h-5 px-2 rounded-full bg-surface-muted text-fg-subtle text-xs">
-                +{sortedCategories.length - 3} more categories
+            )}
+            {externalCount > 0 && (
+              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-accent-muted text-accent text-xs font-medium">
+                <Users className="h-3 w-3" weight="fill" />
+                {externalCount} community
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* Expandable plugins section */}
+      {/* Expandable plugins section - grouped by tags */}
       {plugins.length > 0 && (
         <div className="p-4 space-y-2">
+          {/* Official plugins */}
           <CollapsibleSection
-            title="Available Plugins"
-            icon={<Lightning className="h-4 w-4 text-accent" weight="fill" />}
-            count={plugins.length}
+            title="Official Plugins"
+            icon={<ShieldCheck className="h-4 w-4 text-success" weight="fill" />}
+            count={plugins.filter((p) => p.tags?.includes('official')).length}
+            colorClass="text-success"
+            bgClass="bg-success-muted"
+            defaultOpen
+          >
+            {plugins
+              .filter((p) => p.tags?.includes('official'))
+              .map((plugin) => (
+                <PluginRow key={plugin.id} plugin={plugin} />
+              ))}
+          </CollapsibleSection>
+
+          {/* External/Community plugins */}
+          <CollapsibleSection
+            title="Community Plugins"
+            icon={<Users className="h-4 w-4 text-accent" weight="fill" />}
+            count={plugins.filter((p) => p.tags?.includes('external')).length}
             colorClass="text-accent"
             bgClass="bg-accent-muted"
           >
-            {plugins.map((plugin) => (
-              <PluginRow key={plugin.id} plugin={plugin} />
-            ))}
+            {plugins
+              .filter((p) => p.tags?.includes('external'))
+              .map((plugin) => (
+                <PluginRow key={plugin.id} plugin={plugin} />
+              ))}
+          </CollapsibleSection>
+
+          {/* Uncategorized plugins (no tags) - fallback for custom marketplaces */}
+          <CollapsibleSection
+            title="Available Plugins"
+            icon={<Lightning className="h-4 w-4 text-fg-muted" weight="fill" />}
+            count={plugins.filter((p) => !p.tags || p.tags.length === 0).length}
+            colorClass="text-fg-muted"
+            bgClass="bg-surface-muted"
+          >
+            {plugins
+              .filter((p) => !p.tags || p.tags.length === 0)
+              .map((plugin) => (
+                <PluginRow key={plugin.id} plugin={plugin} />
+              ))}
           </CollapsibleSection>
         </div>
       )}

@@ -291,11 +291,17 @@ export class MarketplaceService {
         octokit = createOctokitFromToken(token);
       }
 
+      // For the official Anthropic marketplace, also fetch external plugins
+      const additionalPaths = marketplace.isDefault
+        ? [{ path: 'external_plugins', tag: 'external' as const }]
+        : [];
+
       const syncResult = await syncMarketplaceFromGitHub({
         octokit,
         owner: marketplace.githubOwner,
         repo: marketplace.githubRepo,
         pluginsPath: marketplace.pluginsPath ?? 'plugins',
+        additionalPaths,
         ref: marketplace.branch ?? 'main',
       });
 

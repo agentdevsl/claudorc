@@ -6,6 +6,10 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 export const MARKETPLACE_STATUSES = ['active', 'syncing', 'error'] as const;
 export type MarketplaceStatus = (typeof MARKETPLACE_STATUSES)[number];
 
+// Plugin tags for filtering
+export const PLUGIN_TAGS = ['official', 'external'] as const;
+export type PluginTag = (typeof PLUGIN_TAGS)[number];
+
 // Cached plugin type
 export interface CachedPlugin {
   id: string; // Directory name
@@ -15,6 +19,7 @@ export interface CachedPlugin {
   version?: string;
   category?: string;
   readme?: string; // README.md content
+  tags?: PluginTag[]; // official, external, etc.
 }
 
 export const marketplaces = sqliteTable('marketplaces', {
