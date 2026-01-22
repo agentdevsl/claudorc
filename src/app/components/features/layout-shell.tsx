@@ -24,11 +24,11 @@ export function LayoutShell({
   children,
 }: LayoutShellProps): React.JSX.Element {
   return (
-    <div className="flex min-h-screen bg-canvas text-fg" data-testid="layout-shell">
+    <div className="flex h-screen bg-canvas text-fg" data-testid="layout-shell">
       <div className="hidden md:block">
         <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-h-0">
         {breadcrumbs ? (
           <header
             className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 sm:py-4"
@@ -67,7 +67,7 @@ export function LayoutShell({
             )}
           </header>
         ) : null}
-        <main className="flex-1" data-testid="layout-main">
+        <main className="flex-1 min-h-0 overflow-hidden" data-testid="layout-main">
           {children}
         </main>
       </div>

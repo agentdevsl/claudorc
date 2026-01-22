@@ -1,6 +1,6 @@
-import { Funnel, Plus } from '@phosphor-icons/react';
+import { MagnifyingGlass, Plus } from '@phosphor-icons/react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
@@ -132,6 +132,19 @@ function Dashboard(): React.JSX.Element {
   const [localRepos, setLocalRepos] = useState<{ name: string; path: string }[]>([]);
   const [defaultSandboxType, setDefaultSandboxType] = useState<SandboxType>('docker');
   const [sandboxConfigs, setSandboxConfigs] = useState<SandboxConfigItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter projects by search query
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return projectSummaries;
+    }
+    const query = searchQuery.toLowerCase();
+    return projectSummaries.filter(
+      (s) =>
+        s.project.name.toLowerCase().includes(query) || s.project.path.toLowerCase().includes(query)
+    );
+  }, [projectSummaries, searchQuery]);
 
   // Check if global settings are configured (API key is required, GitHub PAT is optional)
   useEffect(() => {
@@ -424,10 +437,17 @@ function Dashboard(): React.JSX.Element {
       breadcrumbs={[{ label: 'Projects' }]}
       actions={
         <div className="flex items-center gap-3">
-          <Button variant="outline">
-            <Funnel className="h-4 w-4" />
-            Filter
-          </Button>
+          <div className="relative">
+            <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search projects..."
+              className="w-48 rounded-md border border-border bg-surface py-1.5 pl-9 pr-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              data-testid="project-search"
+            />
+          </div>
           <Button onClick={() => setShowNewProject(true)} data-testid="new-project-button">
             <Plus className="h-4 w-4" />
             New Project
@@ -473,12 +493,24 @@ function Dashboard(): React.JSX.Element {
               }
             />
           </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+            <MagnifyingGlass className="h-12 w-12 text-fg-subtle mb-4" />
+            <p className="text-fg-muted">No projects match "{searchQuery}"</p>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="mt-2 text-sm text-accent hover:text-accent/80"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <div
             className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             data-testid="project-list"
           >
-            {projectSummaries.map((summary) => (
+            {filteredProjects.map((summary) => (
               <ProjectCard
                 key={summary.project.id}
                 project={summary.project}

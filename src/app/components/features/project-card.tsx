@@ -1,5 +1,5 @@
 import { CheckCircle, Clock, Desktop, GearSix, Warning } from '@phosphor-icons/react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
 
 export type ProjectStatus = 'running' | 'idle' | 'needs-approval';
@@ -107,16 +107,27 @@ export function ProjectCard({
   successRate,
   lastRunAt,
 }: ProjectCardProps): React.JSX.Element {
+  const navigate = useNavigate();
   const statusConfig = STATUS_CONFIG[status];
   const avatarColor = getAvatarColor(project.id);
   const initials = getInitials(project.name);
 
   const isNeedsApproval = status === 'needs-approval';
 
+  const handleDoubleClick = () => {
+    navigate({ to: '/projects/$projectId', params: { projectId: project.id } });
+  };
+
   return (
     <div
-      className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md"
+      className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md cursor-pointer"
       data-testid="project-card"
+      role="button"
+      tabIndex={0}
+      onDoubleClick={handleDoubleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') handleDoubleClick();
+      }}
     >
       {/* Header */}
       <div className="p-4 flex items-start gap-3 border-b border-border-muted">

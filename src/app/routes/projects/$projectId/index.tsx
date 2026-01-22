@@ -156,13 +156,11 @@ function ProjectKanban(): React.JSX.Element {
         </Link>
       }
     >
-      <main className="flex-1 overflow-hidden bg-canvas">
-        <KanbanBoard
-          tasks={tasks as Parameters<typeof KanbanBoard>[0]['tasks']}
-          onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
-          onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
-        />
-      </main>
+      <KanbanBoard
+        tasks={tasks as Parameters<typeof KanbanBoard>[0]['tasks']}
+        onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
+        onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
+      />
 
       {/* New Task Dialog - AI-powered task creation with streaming */}
       <NewTaskDialog
