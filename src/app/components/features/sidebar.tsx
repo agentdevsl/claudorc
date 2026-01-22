@@ -24,7 +24,8 @@ interface NavItem {
   readonly label: string;
   readonly to: string;
   readonly icon: typeof Robot;
-  readonly badge?: number | 'active';
+  readonly badge?: number | 'active' | string;
+  readonly badgeVariant?: 'success' | 'warning' | 'info';
   readonly testId?: string;
 }
 
@@ -56,13 +57,34 @@ const sandboxNavItems: readonly NavItem[] = [
   { label: 'Sandbox Configs', to: '/settings/sandbox', icon: Cube, testId: 'nav-sandbox-configs' },
 ] as const;
 
-// Admin section nav items (formerly Global)
-const adminNavItems: readonly NavItem[] = [
-  { label: 'Settings', to: '/settings', icon: Gear, testId: 'nav-settings' },
-] as const;
+// Admin section nav items are now dynamic based on health status
 
 export function Sidebar({ projectId }: SidebarProps): React.JSX.Element {
   const [currentProject, setCurrentProject] = useState<ProjectSummaryItem | null>(null);
+  const [isHealthy, setIsHealthy] = useState(true);
+
+  // Check system health periodically
+  useEffect(() => {
+    const checkHealth = async () => {
+      const result = await apiClient.system.health();
+      setIsHealthy(result.ok && result.data.status === 'healthy');
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Dynamic admin nav items based on health status
+  const adminNavItems: NavItem[] = [
+    {
+      label: 'Settings',
+      to: '/settings',
+      icon: Gear,
+      testId: 'nav-settings',
+      badge: isHealthy ? undefined : 'Unhealthy',
+      badgeVariant: isHealthy ? undefined : 'warning',
+    },
+  ];
 
   // Fetch current project summary when projectId changes
   useEffect(() => {
@@ -350,6 +372,19 @@ function NavSection({
 function NavLink({ item }: { item: NavItem }): React.JSX.Element {
   const Icon = item.icon;
 
+  const getBadgeClasses = () => {
+    if (item.badgeVariant === 'warning') {
+      return 'bg-attention-muted text-attention';
+    }
+    if (item.badgeVariant === 'success' || item.badge === 'active') {
+      return 'bg-success-muted text-success';
+    }
+    if (item.badgeVariant === 'info') {
+      return 'bg-accent-muted text-accent';
+    }
+    return 'bg-surface-emphasis text-fg-muted';
+  };
+
   return (
     <Link
       to={item.to}
@@ -364,11 +399,7 @@ function NavLink({ item }: { item: NavItem }): React.JSX.Element {
       {item.label}
       {item.badge !== undefined && (
         <span
-          className={`ml-auto flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-medium ${
-            item.badge === 'active'
-              ? 'bg-success-muted text-success'
-              : 'bg-surface-emphasis text-fg-muted'
-          }`}
+          className={`ml-auto flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-medium ${getBadgeClasses()}`}
         >
           {item.badge === 'active' ? '3' : item.badge}
         </span>
