@@ -35,7 +35,6 @@ interface NavItem {
 // ORGANIZATION section - app-wide navigation (not project-specific)
 const organizationNavItems: readonly NavItem[] = [
   { label: 'Projects', to: '/projects', icon: Kanban, testId: 'nav-projects' },
-  { label: 'Queue', to: '/queue', icon: Hourglass, testId: 'nav-queue' },
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
 ] as const;
 
@@ -325,6 +324,16 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
             >
               <FolderOpen className="h-4 w-4 opacity-80" />
               Templates
+            </Link>
+            {/* Queue - project task queue */}
+            <Link
+              to="/queue"
+              activeProps={{ className: 'bg-accent-muted text-accent' }}
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+              data-testid="nav-queue"
+            >
+              <Hourglass className="h-4 w-4 opacity-80" />
+              Queue
             </Link>
           </NavSection>
         )}
