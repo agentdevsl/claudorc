@@ -278,20 +278,31 @@ function MarketplacePage(): React.JSX.Element {
             />
           </div>
         ) : (
-          /* Marketplace cards - single column, full width */
-          <div className="flex flex-col gap-5 max-w-3xl" data-testid="marketplace-grid">
-            {marketplaces.map((marketplace) => (
-              <MarketplaceCard
-                key={marketplace.id}
-                marketplace={marketplace}
-                plugins={getPluginsForMarketplace(marketplace.id)}
-                onSync={() => handleSyncMarketplace(marketplace.id)}
-                onRemove={
-                  marketplace.isDefault ? undefined : () => handleRemoveMarketplace(marketplace.id)
-                }
-                isSyncing={syncingIds.has(marketplace.id)}
-              />
-            ))}
+          /* Marketplace cards - single column, left-aligned */
+          <div className="flex flex-col gap-5" data-testid="marketplace-grid">
+            {marketplaces.map((marketplace) => {
+              const marketplacePlugins = getPluginsForMarketplace(marketplace.id);
+              const hasPlugins = marketplacePlugins.length > 0;
+              return (
+                <div
+                  key={marketplace.id}
+                  className={hasPlugins ? 'max-w-4xl' : 'max-w-2xl'}
+                  style={{ transition: 'max-width 0.3s ease-out' }}
+                >
+                  <MarketplaceCard
+                    marketplace={marketplace}
+                    plugins={marketplacePlugins}
+                    onSync={() => handleSyncMarketplace(marketplace.id)}
+                    onRemove={
+                      marketplace.isDefault
+                        ? undefined
+                        : () => handleRemoveMarketplace(marketplace.id)
+                    }
+                    isSyncing={syncingIds.has(marketplace.id)}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
 
