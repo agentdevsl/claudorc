@@ -15,15 +15,7 @@ import type { DiffSummary } from '@/lib/types/diff';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  | 'id'
-  | 'projectId'
-  | 'title'
-  | 'description'
-  | 'column'
-  | 'position'
-  | 'labels'
-  | 'agentId'
-  | 'mode'
+  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -150,10 +142,7 @@ function ProjectKanban(): React.JSX.Element {
       projectPath={project.path}
       breadcrumbs={[{ label: 'Projects', to: '/projects' }, { label: project.name }]}
       centerAction={
-        <AIActionButton
-          onClick={() => setShowNewTask(true)}
-          data-testid="add-task-button"
-        />
+        <AIActionButton onClick={() => setShowNewTask(true)} data-testid="add-task-button" />
       }
       actions={
         <Link
@@ -207,13 +196,6 @@ function ProjectKanban(): React.JSX.Element {
         }}
         onDelete={async (id) => {
           setTasks((prev) => prev.filter((task) => task.id !== id));
-        }}
-        onModeChange={async (taskId, mode) => {
-          setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, mode } : task)));
-          // Update selectedTask state to reflect the change
-          if (selectedTask && selectedTask.id === taskId) {
-            setSelectedTask({ ...selectedTask, mode });
-          }
         }}
       />
 

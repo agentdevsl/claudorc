@@ -7,6 +7,8 @@ import { planSessions } from './plan-sessions';
 import { projects } from './projects';
 import { sandboxConfigs } from './sandbox-configs';
 import { sandboxInstances, sandboxTmuxSessions } from './sandboxes';
+import { sessionEvents } from './session-events';
+import { sessionSummaries } from './session-summaries';
 import { sessions } from './sessions';
 import { tasks } from './tasks';
 import { templateProjects } from './template-projects';
@@ -70,7 +72,7 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   auditLogs: many(auditLogs),
 }));
 
-export const sessionsRelations = relations(sessions, ({ one }) => ({
+export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [sessions.projectId],
     references: [projects.id],
@@ -82,6 +84,11 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
   agent: one(agents, {
     fields: [sessions.agentId],
     references: [agents.id],
+  }),
+  events: many(sessionEvents),
+  summary: one(sessionSummaries, {
+    fields: [sessions.id],
+    references: [sessionSummaries.sessionId],
   }),
 }));
 
@@ -177,5 +184,21 @@ export const sandboxTmuxSessionsRelations = relations(sandboxTmuxSessions, ({ on
   task: one(tasks, {
     fields: [sandboxTmuxSessions.taskId],
     references: [tasks.id],
+  }),
+}));
+
+// Session events relations
+export const sessionEventsRelations = relations(sessionEvents, ({ one }) => ({
+  session: one(sessions, {
+    fields: [sessionEvents.sessionId],
+    references: [sessions.id],
+  }),
+}));
+
+// Session summaries relations
+export const sessionSummariesRelations = relations(sessionSummaries, ({ one }) => ({
+  session: one(sessions, {
+    fields: [sessionSummaries.sessionId],
+    references: [sessions.id],
   }),
 }));

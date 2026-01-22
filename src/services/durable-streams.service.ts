@@ -190,7 +190,6 @@ export interface TaskCreationSuggestionEvent {
     description: string;
     labels: string[];
     priority: 'high' | 'medium' | 'low';
-    mode: 'plan' | 'implement';
   };
 }
 
@@ -202,7 +201,6 @@ export interface TaskCreationCompletedEvent {
     description: string;
     labels: string[];
     priority: 'high' | 'medium' | 'low';
-    mode: 'plan' | 'implement';
   };
 }
 

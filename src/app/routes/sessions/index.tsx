@@ -1,13 +1,27 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { EmptyState } from '@/app/components/features/empty-state';
+import { useEffect, useMemo, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { SessionHistory } from '@/app/components/features/session-history';
 import { apiClient } from '@/lib/api/client';
-import type { SessionWithPresence } from '@/services/session.service';
 
-// Alias for the session type used by SessionHistory
-type ClientSession = SessionWithPresence;
+// Session data shape from API
+interface ApiSession {
+  id: string;
+  projectId: string;
+  taskId?: string | null;
+  agentId?: string | null;
+  title?: string | null;
+  url: string;
+  status: string;
+  createdAt?: string;
+  closedAt?: string | null;
+}
+
+// Project data shape
+interface Project {
+  id: string;
+  name: string;
+}
 
 export const Route = createFileRoute('/sessions/')({
   component: SessionsPage,
@@ -15,24 +29,44 @@ export const Route = createFileRoute('/sessions/')({
 
 function SessionsPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const [sessions, setSessions] = useState<ClientSession[]>([]);
+  const [sessions, setSessions] = useState<ApiSession[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch sessions from API on mount
+  // Fetch sessions and projects from API on mount
   useEffect(() => {
-    const fetchSessions = async () => {
+    const fetchData = async () => {
       try {
-        const result = await apiClient.sessions.list();
-        if (result.ok) {
-          setSessions(result.data.items as ClientSession[]);
+        const [sessionsResult, projectsResult] = await Promise.all([
+          apiClient.sessions.list(),
+          apiClient.projects.list(),
+        ]);
+
+        if (sessionsResult.ok && sessionsResult.data) {
+          const sessionsData = Array.isArray(sessionsResult.data) ? sessionsResult.data : [];
+          setSessions(sessionsData as ApiSession[]);
+        }
+
+        if (projectsResult.ok && projectsResult.data) {
+          const projectsData = Array.isArray(projectsResult.data)
+            ? projectsResult.data
+            : ((projectsResult.data as { items?: Project[] }).items ?? []);
+          setProjects(projectsData as Project[]);
         }
       } catch {
         // API may not be ready yet
       }
       setIsLoading(false);
     };
-    fetchSessions();
+    fetchData();
   }, []);
+
+  // Filter sessions by selected project
+  const filteredSessions = useMemo(() => {
+    if (!selectedProjectId) return sessions;
+    return sessions.filter((s) => s.projectId === selectedProjectId);
+  }, [sessions, selectedProjectId]);
 
   if (isLoading) {
     return (
@@ -46,15 +80,15 @@ function SessionsPage(): React.JSX.Element {
 
   return (
     <LayoutShell breadcrumbs={[{ label: 'Sessions' }]}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        {sessions.length === 0 ? (
-          <EmptyState preset="empty-session" title="No sessions yet" />
-        ) : (
-          <SessionHistory
-            sessions={sessions as Parameters<typeof SessionHistory>[0]['sessions']}
-            onOpen={(sessionId) => navigate({ to: '/sessions/$sessionId', params: { sessionId } })}
-          />
-        )}
+      <div className="flex h-full w-full flex-col">
+        <SessionHistory
+          sessions={filteredSessions}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onProjectChange={setSelectedProjectId}
+          isLoading={isLoading}
+          onOpen={(sessionId) => navigate({ to: '/sessions/$sessionId', params: { sessionId } })}
+        />
       </div>
     </LayoutShell>
   );

@@ -70,24 +70,16 @@ export const AIActionButton = forwardRef<HTMLButtonElement, AIActionButtonProps>
               <rect x="12" y="3" width="2" height="2" fill="#1a1a1a" />
             </g>
             {/* 4 short legs */}
-            <g
-              className="origin-[5px_9px] group-hover:animate-[step-l_0.2s_ease-in-out_infinite]"
-            >
+            <g className="origin-[5px_9px] group-hover:animate-[step-l_0.2s_ease-in-out_infinite]">
               <rect x="4" y="9" width="3" height="4" fill="#D97757" />
             </g>
-            <g
-              className="origin-[8px_9px] group-hover:animate-[step-r_0.2s_ease-in-out_infinite]"
-            >
+            <g className="origin-[8px_9px] group-hover:animate-[step-r_0.2s_ease-in-out_infinite]">
               <rect x="7" y="9" width="3" height="4" fill="#D97757" />
             </g>
-            <g
-              className="origin-[12px_9px] group-hover:animate-[step-l_0.2s_ease-in-out_infinite]"
-            >
+            <g className="origin-[12px_9px] group-hover:animate-[step-l_0.2s_ease-in-out_infinite]">
               <rect x="10" y="9" width="3" height="4" fill="#D97757" />
             </g>
-            <g
-              className="origin-[15px_9px] group-hover:animate-[step-r_0.2s_ease-in-out_infinite]"
-            >
+            <g className="origin-[15px_9px] group-hover:animate-[step-r_0.2s_ease-in-out_infinite]">
               <rect x="13" y="9" width="3" height="4" fill="#D97757" />
             </g>
           </svg>

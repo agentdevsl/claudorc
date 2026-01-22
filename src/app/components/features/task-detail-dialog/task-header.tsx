@@ -1,8 +1,8 @@
-import { Circle, Copy, Lightning, Notebook, X } from '@phosphor-icons/react';
+import { Circle, Copy, X } from '@phosphor-icons/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
-import type { Task, TaskColumn, TaskMode } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import type { TaskViewer } from './index';
 
@@ -90,109 +90,21 @@ function formatTaskId(id: string): string {
   return `TSK-${shortId}`;
 }
 
-// Mode Toggle Component with sliding indicator
-function ModeToggle({
-  currentMode,
-  onModeChange,
-}: {
-  currentMode: TaskMode;
-  onModeChange: (mode: TaskMode) => void;
-}) {
-  const [isHovering, setIsHovering] = useState<TaskMode | null>(null);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-subtle">
-        Execution Mode
-      </span>
-      <div
-        className={cn(
-          'relative flex h-10 rounded-lg p-1',
-          'bg-gradient-to-b from-surface-muted to-surface-emphasis/50',
-          'border border-border/60',
-          'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]'
-        )}
-      >
-        {/* Sliding indicator */}
-        <div
-          className={cn(
-            'absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-md',
-            'transition-all duration-300 ease-out',
-            'shadow-md',
-            currentMode === 'plan'
-              ? 'left-1 bg-gradient-to-b from-secondary/20 to-secondary/10 border border-secondary/30'
-              : 'left-[calc(50%+2px)] bg-gradient-to-b from-accent/20 to-accent/10 border border-accent/30'
-          )}
-        />
-
-        {/* Plan button */}
-        <button
-          type="button"
-          onClick={() => onModeChange('plan')}
-          onMouseEnter={() => setIsHovering('plan')}
-          onMouseLeave={() => setIsHovering(null)}
-          className={cn(
-            'relative z-10 flex-1 flex items-center justify-center gap-2 rounded-md',
-            'text-xs font-semibold transition-all duration-200',
-            currentMode === 'plan' ? 'text-secondary' : 'text-fg-muted hover:text-fg-default'
-          )}
-          title="Plan mode - Strategic planning with multi-turn conversation"
-        >
-          <Notebook
-            weight={currentMode === 'plan' ? 'fill' : 'regular'}
-            className={cn(
-              'h-4 w-4 transition-transform duration-200',
-              (isHovering === 'plan' || currentMode === 'plan') && 'scale-110'
-            )}
-          />
-          <span>Plan</span>
-        </button>
-
-        {/* Implement button */}
-        <button
-          type="button"
-          onClick={() => onModeChange('implement')}
-          onMouseEnter={() => setIsHovering('implement')}
-          onMouseLeave={() => setIsHovering(null)}
-          className={cn(
-            'relative z-10 flex-1 flex items-center justify-center gap-2 rounded-md',
-            'text-xs font-semibold transition-all duration-200',
-            currentMode === 'implement' ? 'text-accent' : 'text-fg-muted hover:text-fg-default'
-          )}
-          title="Implement mode - Full autonomous implementation with sandbox"
-        >
-          <Lightning
-            weight={currentMode === 'implement' ? 'fill' : 'regular'}
-            className={cn(
-              'h-4 w-4 transition-transform duration-200',
-              (isHovering === 'implement' || currentMode === 'implement') && 'scale-110'
-            )}
-          />
-          <span>Implement</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
 interface TaskHeaderProps {
   task: Task;
   viewers: TaskViewer[];
   onPriorityChange: (priority: 'high' | 'medium' | 'low') => void;
-  onModeChange?: (mode: TaskMode) => void;
 }
 
 export function TaskHeader({
   task,
   viewers,
   onPriorityChange,
-  onModeChange,
 }: TaskHeaderProps): React.JSX.Element {
   const [copied, setCopied] = useState(false);
 
   const currentPriority =
     (task as Task & { priority?: 'high' | 'medium' | 'low' }).priority ?? 'medium';
-  const currentMode: TaskMode = task.mode ?? 'implement';
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(task.id);
@@ -339,9 +251,6 @@ export function TaskHeader({
             ))}
           </div>
         </div>
-
-        {/* Mode toggle - premium segmented control */}
-        {onModeChange && <ModeToggle currentMode={currentMode} onModeChange={onModeChange} />}
       </div>
     </div>
   );

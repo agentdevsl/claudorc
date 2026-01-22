@@ -6,14 +6,12 @@ import { apiClient } from '@/lib/api/client';
 // ============================================================================
 
 export type TaskPriority = 'high' | 'medium' | 'low';
-export type TaskMode = 'plan' | 'implement';
 
 export interface TaskSuggestion {
   title: string;
   description: string;
   labels: string[];
   priority: TaskPriority;
-  mode: TaskMode;
 }
 
 export interface Message {
@@ -273,9 +271,11 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
   // Cancel session
   const cancel = useCallback(async () => {
+    console.log('[useTaskCreation] cancel called', { sessionId });
     if (!sessionId) return;
 
     const result = await apiClient.taskCreation.cancel(sessionId);
+    console.log('[useTaskCreation] cancel result', result);
 
     if (!result.ok) {
       setError(result.error.message);

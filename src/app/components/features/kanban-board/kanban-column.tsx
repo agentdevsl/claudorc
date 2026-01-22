@@ -111,8 +111,8 @@ export function KanbanColumn({
           </div>
         )}
 
-        {!isCollapsed && (
-          headerAction ?? (
+        {!isCollapsed &&
+          (headerAction ?? (
             <button
               type="button"
               onClick={onAddTask}
@@ -121,8 +121,7 @@ export function KanbanColumn({
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
-          )
-        )}
+          ))}
       </div>
 
       {/* Content */}

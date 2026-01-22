@@ -1,6 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, like, lte, sql } from 'drizzle-orm';
+import type { SessionStatus } from '../db/schema/enums.js';
 import { projects } from '../db/schema/projects.js';
+import { sessionEvents } from '../db/schema/session-events.js';
+import type { NewSessionSummary, SessionSummary } from '../db/schema/session-summaries.js';
+import { sessionSummaries } from '../db/schema/session-summaries.js';
 import type { Session } from '../db/schema/sessions.js';
 import { sessions } from '../db/schema/sessions.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
@@ -74,6 +78,21 @@ export type HistoryOptions = {
   startTime?: number;
 };
 
+export type ListSessionsWithFiltersOptions = {
+  status?: SessionStatus[];
+  agentId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type GetEventsBySessionOptions = {
+  limit?: number;
+  offset?: number;
+};
+
 export type SessionWithPresence = {
   id: string;
   projectId: string;
@@ -83,12 +102,22 @@ export type SessionWithPresence = {
   url: string;
   status: string;
   presence: ActiveUser[];
+  createdAt?: string;
+  updatedAt?: string;
+  closedAt?: string | null;
 };
 
 export type DurableStreamsServer = {
   createStream: (id: string, schema: unknown) => Promise<void>;
   publish: (id: string, type: string, data: unknown) => Promise<void>;
-  subscribe: (id: string) => AsyncIterable<{ type: string; data: unknown }>;
+  subscribe: (
+    id: string,
+    options?: { fromOffset?: number }
+  ) => AsyncIterable<{
+    type: string;
+    data: unknown;
+    offset: number;
+  }>;
 };
 
 const presenceStore = new Map<string, Map<string, ActiveUser>>();
@@ -291,7 +320,29 @@ export class SessionService {
 
   async publish(sessionId: string, event: SessionEvent): Promise<Result<void, SessionError>> {
     try {
+      // Publish to real-time stream (for live subscribers)
       await this.streams.publish(sessionId, event.type, event.data);
+
+      // Persist to database for historical replay (non-blocking)
+      // We don't await this to avoid slowing down real-time delivery
+      this.persistEvent(sessionId, event).then(
+        (result) => {
+          if (!result.ok) {
+            console.error(
+              `[SessionService] Failed to persist event for session ${sessionId}:`,
+              result.error.code,
+              result.error.message
+            );
+          }
+        },
+        (persistError: unknown) => {
+          console.error(
+            `[SessionService] Unexpected error persisting event for session ${sessionId}:`,
+            persistError instanceof Error ? persistError.message : String(persistError)
+          );
+        }
+      );
+
       return ok(undefined);
     } catch (error) {
       return err(SessionErrors.SYNC_FAILED(String(error)));
@@ -313,7 +364,7 @@ export class SessionService {
     const subscription = this.streams.subscribe(sessionId);
     for await (const event of subscription) {
       yield {
-        id: createId(),
+        id: `evt_${event.offset}`,
         type: event.type as SessionEventType,
         timestamp: Date.now(),
         data: event.data,
@@ -354,6 +405,301 @@ export class SessionService {
       return ok(sessionId);
     } catch {
       return err(ValidationErrors.INVALID_URL(url));
+    }
+  }
+
+  // ===== Persistent Event Storage =====
+
+  /**
+   * Persist an event to the database and track offset.
+   * Uses retry logic to handle race conditions with concurrent inserts.
+   */
+  async persistEvent(
+    sessionId: string,
+    event: SessionEvent,
+    retryCount = 0
+  ): Promise<Result<{ id: string; offset: number }, SessionError>> {
+    const MAX_RETRIES = 3;
+
+    try {
+      // Verify session exists
+      const session = await this.db.query.sessions.findFirst({
+        where: eq(sessions.id, sessionId),
+      });
+
+      if (!session) {
+        return err(SessionErrors.NOT_FOUND);
+      }
+
+      // Get the next offset for this session
+      const lastEvent = await this.db.query.sessionEvents.findFirst({
+        where: eq(sessionEvents.sessionId, sessionId),
+        orderBy: [desc(sessionEvents.offset)],
+      });
+
+      const nextOffset = (lastEvent?.offset ?? -1) + 1;
+
+      // Determine channel from event type
+      const channel = this.getChannelFromEventType(event.type);
+
+      // Insert the event
+      const [inserted] = await this.db
+        .insert(sessionEvents)
+        .values({
+          id: event.id || createId(),
+          sessionId,
+          offset: nextOffset,
+          type: event.type,
+          channel,
+          data: event.data,
+          timestamp: event.timestamp,
+        })
+        .returning();
+
+      if (!inserted) {
+        return err(SessionErrors.SYNC_FAILED('Failed to persist event'));
+      }
+
+      // Update session summary with new offset
+      await this.updateSessionSummaryOffset(sessionId, nextOffset);
+
+      return ok({ id: inserted.id, offset: nextOffset });
+    } catch (error) {
+      // Handle unique constraint violation (race condition)
+      const errorMessage = String(error);
+      const isConstraintViolation =
+        errorMessage.includes('UNIQUE constraint failed') ||
+        errorMessage.includes('unique constraint') ||
+        errorMessage.includes('duplicate key');
+
+      if (isConstraintViolation && retryCount < MAX_RETRIES) {
+        // Retry with recalculated offset
+        return this.persistEvent(sessionId, event, retryCount + 1);
+      }
+
+      return err(SessionErrors.SYNC_FAILED(errorMessage));
+    }
+  }
+
+  /**
+   * Retrieve persisted events with pagination
+   */
+  async getEventsBySession(
+    sessionId: string,
+    options?: GetEventsBySessionOptions
+  ): Promise<Result<SessionEvent[], SessionError>> {
+    try {
+      // Verify session exists
+      const session = await this.db.query.sessions.findFirst({
+        where: eq(sessions.id, sessionId),
+      });
+
+      if (!session) {
+        return err(SessionErrors.NOT_FOUND);
+      }
+
+      const limit = options?.limit ?? 100;
+      const offset = options?.offset ?? 0;
+
+      const events = await this.db.query.sessionEvents.findMany({
+        where: eq(sessionEvents.sessionId, sessionId),
+        orderBy: [sessionEvents.offset],
+        limit,
+        offset,
+      });
+
+      // Convert to SessionEvent format
+      return ok(
+        events.map((e) => ({
+          id: e.id,
+          type: e.type as SessionEventType,
+          timestamp: e.timestamp,
+          data: e.data,
+        }))
+      );
+    } catch (error) {
+      return err(SessionErrors.SYNC_FAILED(String(error)));
+    }
+  }
+
+  /**
+   * Get aggregated session statistics
+   */
+  async getSessionSummary(sessionId: string): Promise<Result<SessionSummary | null, SessionError>> {
+    try {
+      // Verify session exists
+      const session = await this.db.query.sessions.findFirst({
+        where: eq(sessions.id, sessionId),
+      });
+
+      if (!session) {
+        return err(SessionErrors.NOT_FOUND);
+      }
+
+      const summary = await this.db.query.sessionSummaries.findFirst({
+        where: eq(sessionSummaries.sessionId, sessionId),
+      });
+
+      return ok(summary ?? null);
+    } catch (error) {
+      return err(SessionErrors.SYNC_FAILED(String(error)));
+    }
+  }
+
+  /**
+   * Update summary after session changes
+   */
+  async updateSessionSummary(
+    sessionId: string,
+    updates: Partial<NewSessionSummary>
+  ): Promise<Result<SessionSummary, SessionError>> {
+    try {
+      // Verify session exists
+      const session = await this.db.query.sessions.findFirst({
+        where: eq(sessions.id, sessionId),
+      });
+
+      if (!session) {
+        return err(SessionErrors.NOT_FOUND);
+      }
+
+      // Check if summary exists
+      const existingSummary = await this.db.query.sessionSummaries.findFirst({
+        where: eq(sessionSummaries.sessionId, sessionId),
+      });
+
+      if (existingSummary) {
+        // Update existing summary
+        const [updated] = await this.db
+          .update(sessionSummaries)
+          .set({
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(sessionSummaries.sessionId, sessionId))
+          .returning();
+
+        if (!updated) {
+          return err(SessionErrors.SYNC_FAILED('Failed to update summary'));
+        }
+
+        return ok(updated);
+      }
+
+      // Create new summary
+      const [created] = await this.db
+        .insert(sessionSummaries)
+        .values({
+          sessionId,
+          ...updates,
+        })
+        .returning();
+
+      if (!created) {
+        return err(SessionErrors.SYNC_FAILED('Failed to create summary'));
+      }
+
+      return ok(created);
+    } catch (error) {
+      return err(SessionErrors.SYNC_FAILED(String(error)));
+    }
+  }
+
+  /**
+   * Enhanced list with status/date/search filters
+   */
+  async listSessionsWithFilters(
+    projectId: string,
+    options?: ListSessionsWithFiltersOptions
+  ): Promise<Result<{ sessions: SessionWithPresence[]; total: number }, SessionError>> {
+    try {
+      // Build filter conditions
+      const conditions = [eq(sessions.projectId, projectId)];
+
+      if (options?.status && options.status.length > 0) {
+        conditions.push(inArray(sessions.status, options.status));
+      }
+
+      if (options?.agentId) {
+        conditions.push(eq(sessions.agentId, options.agentId));
+      }
+
+      if (options?.dateFrom) {
+        conditions.push(gte(sessions.createdAt, options.dateFrom));
+      }
+
+      if (options?.dateTo) {
+        conditions.push(lte(sessions.createdAt, options.dateTo));
+      }
+
+      if (options?.search) {
+        conditions.push(like(sessions.title, `%${options.search}%`));
+      }
+
+      const limit = options?.limit ?? 20;
+      const offset = options?.offset ?? 0;
+
+      // Get total count
+      const countResult = await this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(sessions)
+        .where(and(...conditions));
+
+      const total = countResult[0]?.count ?? 0;
+
+      // Get paginated sessions
+      const items = await this.db.query.sessions.findMany({
+        where: and(...conditions),
+        orderBy: [desc(sessions.createdAt)],
+        limit,
+        offset,
+      });
+
+      // Add presence data to each session
+      const sessionsWithPresence: SessionWithPresence[] = items.map((s: Session) => ({
+        ...s,
+        presence: Array.from(presenceStore.get(s.id)?.values() ?? []),
+      }));
+
+      return ok({ sessions: sessionsWithPresence, total });
+    } catch (error) {
+      return err(SessionErrors.SYNC_FAILED(String(error)));
+    }
+  }
+
+  // ===== Private Helpers =====
+
+  /**
+   * Determine channel from event type
+   */
+  private getChannelFromEventType(type: SessionEventType): string {
+    if (type === 'chunk') return 'chunks';
+    if (type.startsWith('tool:')) return 'toolCalls';
+    if (type.startsWith('terminal:')) return 'terminal';
+    if (type.startsWith('presence:')) return 'presence';
+    if (type.startsWith('approval:')) return 'approval';
+    if (type.startsWith('agent:')) return 'agent';
+    if (type === 'state:update') return 'state';
+    return 'other';
+  }
+
+  /**
+   * Update session summary offset tracking
+   */
+  private async updateSessionSummaryOffset(sessionId: string, _offset: number): Promise<void> {
+    const existing = await this.db.query.sessionSummaries.findFirst({
+      where: eq(sessionSummaries.sessionId, sessionId),
+    });
+
+    if (existing) {
+      await this.db
+        .update(sessionSummaries)
+        .set({ updatedAt: new Date().toISOString() })
+        .where(eq(sessionSummaries.sessionId, sessionId));
+    } else {
+      await this.db.insert(sessionSummaries).values({
+        sessionId,
+      });
     }
   }
 }

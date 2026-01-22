@@ -59,12 +59,16 @@ export function LayoutShell({
               <div className="flex justify-center" data-testid="header-center-action">
                 {centerAction}
               </div>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
             {actions ? (
               <div className="flex items-center justify-end gap-2" data-testid="header-actions">
                 {actions}
               </div>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
           </header>
         ) : null}
         <main className="flex-1" data-testid="layout-main">

@@ -1,16 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ListBullets } from '@phosphor-icons/react';
-import type { Task, TaskMode } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import { LABEL_TYPES, type Priority } from './constants';
-import {
-  agentStatusVariants,
-  cardVariants,
-  labelVariants,
-  modeBadgeVariants,
-  priorityVariants,
-} from './styles';
+import { agentStatusVariants, cardVariants, labelVariants, priorityVariants } from './styles';
 
 interface KanbanCardProps {
   /** Task data */
@@ -51,13 +44,6 @@ function getPriority(task: Task): Priority {
  */
 function formatTaskId(id: string): string {
   return `#TSK-${id.slice(-3).toUpperCase()}`;
-}
-
-/**
- * Get task mode, defaulting to 'implement'
- */
-function getTaskMode(task: Task): TaskMode {
-  return task.mode ?? 'implement';
 }
 
 export function KanbanCard({
@@ -117,9 +103,7 @@ export function KanbanCard({
 
   const priority = getPriority(task);
   const labels = task.labels ?? [];
-  const mode = getTaskMode(task);
   const isAgentRunning = Boolean(task.agentId) && task.column === 'in_progress';
-  const isPlanMode = mode === 'plan';
 
   return (
     <article
@@ -158,12 +142,6 @@ export function KanbanCard({
       {/* Footer */}
       <div className="flex items-center justify-between mt-2.5">
         <span className="font-mono text-xs text-fg-muted">{formatTaskId(task.id)}</span>
-        {isPlanMode && (
-          <span className={modeBadgeVariants({ mode: 'plan' })}>
-            <ListBullets className="h-3 w-3" />
-            Plan
-          </span>
-        )}
       </div>
 
       {/* Agent Status Badge */}

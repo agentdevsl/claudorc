@@ -321,7 +321,6 @@ export const apiClient = {
       description?: string;
       labels?: string[];
       priority?: 'high' | 'medium' | 'low';
-      mode?: 'plan' | 'implement';
     }) =>
       apiServerFetch<{
         taskId: string;
@@ -331,17 +330,71 @@ export const apiClient = {
   },
 
   sessions: {
-    list: (params?: { projectId?: string; limit?: number }) => {
+    list: (params?: {
+      projectId?: string;
+      limit?: number;
+      offset?: number;
+      status?: string[];
+      agentId?: string;
+      taskId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
+    }) => {
       const searchParams = new URLSearchParams();
       if (params?.projectId) searchParams.set('projectId', params.projectId);
       if (params?.limit) searchParams.set('limit', String(params.limit));
+      if (params?.offset) searchParams.set('offset', String(params.offset));
+      if (params?.status?.length) searchParams.set('status', params.status.join(','));
+      if (params?.agentId) searchParams.set('agentId', params.agentId);
+      if (params?.taskId) searchParams.set('taskId', params.taskId);
+      if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+      if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+      if (params?.search) searchParams.set('search', params.search);
       const query = searchParams.toString();
-      return apiFetch<{ items: unknown[]; totalCount: number }>(
+      // Use apiServerFetch to hit the Bun API server directly
+      return apiServerFetch<{ data: unknown[]; pagination: unknown }>(
         `/api/sessions${query ? `?${query}` : ''}`
       );
     },
 
-    get: (id: string) => apiFetch<unknown>(`/api/sessions/${id}`),
+    get: (id: string) => apiServerFetch<unknown>(`/api/sessions/${id}`),
+
+    getEvents: (id: string, params?: { limit?: number; offset?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set('limit', String(params.limit));
+      if (params?.offset) searchParams.set('offset', String(params.offset));
+      const query = searchParams.toString();
+      // Use apiServerFetch to hit the Bun API server directly
+      return apiServerFetch<{
+        data: Array<{ id: string; type: string; timestamp: number; data: unknown }>;
+        pagination: { total: number; limit: number; offset: number };
+      }>(`/api/sessions/${encodeURIComponent(id)}/events${query ? `?${query}` : ''}`);
+    },
+
+    getSummary: (id: string) =>
+      // Use apiServerFetch to hit the Bun API server directly
+      apiServerFetch<{
+        sessionId: string;
+        durationMs: number | null;
+        turnsCount: number;
+        tokensUsed: number;
+        filesModified: number;
+        linesAdded: number;
+        linesRemoved: number;
+        finalStatus: 'success' | 'failed' | 'cancelled' | null;
+        session: { id: string; status: string; title: string | null };
+      }>(`/api/sessions/${encodeURIComponent(id)}/summary`),
+
+    export: (id: string, format: 'json' | 'markdown' | 'csv') =>
+      apiFetch<{
+        content: string;
+        contentType: string;
+        filename: string;
+      }>(`/api/sessions/${encodeURIComponent(id)}/export`, {
+        method: 'POST',
+        body: { format },
+      }),
   },
 
   worktrees: {
@@ -575,7 +628,6 @@ export const apiClient = {
           description: string;
           labels: string[];
           priority: 'high' | 'medium' | 'low';
-          mode: 'plan' | 'implement';
         } | null;
       }>('/api/tasks/create-with-ai/message', {
         method: 'POST',
@@ -592,7 +644,6 @@ export const apiClient = {
         description: string;
         labels: string[];
         priority: 'high' | 'medium' | 'low';
-        mode: 'plan' | 'implement';
       }>
     ) =>
       apiServerFetch<{

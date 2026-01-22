@@ -205,6 +205,35 @@ CREATE TABLE IF NOT EXISTS "sandbox_configs" (
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "session_events" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "session_id" TEXT NOT NULL REFERENCES "sessions"("id") ON DELETE CASCADE,
+  "offset" INTEGER NOT NULL,
+  "type" TEXT NOT NULL,
+  "channel" TEXT NOT NULL,
+  "data" TEXT NOT NULL,
+  "timestamp" INTEGER NOT NULL,
+  "user_id" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "session_events_session_idx" ON "session_events"("session_id");
+CREATE INDEX IF NOT EXISTS "session_events_offset_idx" ON "session_events"("session_id", "offset");
+CREATE UNIQUE INDEX IF NOT EXISTS "session_events_unique_offset" ON "session_events"("session_id", "offset");
+
+CREATE TABLE IF NOT EXISTS "session_summaries" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "session_id" TEXT NOT NULL UNIQUE REFERENCES "sessions"("id") ON DELETE CASCADE,
+  "duration_ms" INTEGER,
+  "turns_count" INTEGER DEFAULT 0,
+  "tokens_used" INTEGER DEFAULT 0,
+  "files_modified" INTEGER DEFAULT 0,
+  "lines_added" INTEGER DEFAULT 0,
+  "lines_removed" INTEGER DEFAULT 0,
+  "final_status" TEXT,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
 `;
 
 // Additional migrations for existing databases

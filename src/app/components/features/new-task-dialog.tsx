@@ -1,11 +1,8 @@
 import {
   ArrowRight,
   Check,
-  Lightning,
-  Notebook,
   PaperPlaneTilt,
   Plus,
-  Sparkle,
   Spinner,
   User,
   Warning,
@@ -13,10 +10,9 @@ import {
 } from '@phosphor-icons/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TaskMode } from '@/db/schema/tasks';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils/cn';
-import { getLabelColors, PRIORITY_CONFIG, type Priority } from './kanban-board/constants';
+import { getLabelColors, type Priority } from './kanban-board/constants';
 import {
   type Message,
   type TaskSuggestion,
@@ -40,54 +36,125 @@ interface EditableSuggestion {
   description: string;
   labels: string[];
   priority: Priority;
-  mode: TaskMode;
 }
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const AVAILABLE_LABELS = ['bug', 'feature', 'enhancement', 'docs', 'refactor', 'test'];
+const AVAILABLE_LABELS = ['feature', 'bug', 'enhancement', 'docs', 'refactor', 'test', 'research'];
 
-const INITIAL_SUGGESTIONS = [
-  'Add user authentication with OAuth',
-  'Fix the dashboard loading performance',
-  'Create API documentation',
-  'Refactor the database queries',
-];
+// Terraform workflow quick suggestions organized by persona
+const TERRAFORM_WORKFLOWS = {
+  consumer: [
+    { label: 'Deploy VPC', description: 'Deploy a VPC using registry modules' },
+    { label: 'Add RDS database', description: 'Provision an RDS instance with security groups' },
+    { label: 'Setup EKS cluster', description: 'Create a Kubernetes cluster on AWS' },
+  ],
+  platform: [
+    { label: 'Create module', description: 'Build a reusable Terraform module' },
+    { label: 'Add module tests', description: 'Write Terraform tests for a module' },
+    { label: 'Publish to registry', description: 'Publish module to private registry' },
+  ],
+  uplift: [
+    { label: 'Upgrade providers', description: 'Uplift provider versions to latest stable' },
+    {
+      label: 'Modernize config',
+      description: 'Refactor legacy Terraform to current best practices',
+    },
+    {
+      label: 'Add moved blocks',
+      description: 'Migrate resources using moved blocks for state refactoring',
+    },
+  ],
+};
 
 const DEFAULT_SUGGESTION: EditableSuggestion = {
   title: '',
   description: '',
   labels: [],
   priority: 'medium',
-  mode: 'implement',
 };
+
+/**
+ * Strip task_suggestion JSON blocks from message content.
+ * These are machine-readable outputs that shouldn't be shown to users.
+ */
+function stripTaskSuggestionJson(content: string): string {
+  // Match ```json blocks containing "type": "task_suggestion"
+  const jsonBlockPattern = /```json\s*\n\s*\{[^`]*"type"\s*:\s*"task_suggestion"[^`]*\}\s*\n```/gs;
+  return content.replace(jsonBlockPattern, '').trim();
+}
 
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
 
+/** Thinking phrases that cycle while waiting for Claude */
+const THINKING_PHRASES = [
+  'Analyzing requirements',
+  'Structuring task',
+  'Considering approach',
+  'Drafting details',
+  'Evaluating scope',
+  'Mapping dependencies',
+  'Refining description',
+  'Checking best practices',
+  'Formulating response',
+  'Almost there',
+];
+
 /**
- * Typing indicator for AI response
+ * Claude-style thinking indicator with cycling breadcrumb words
  */
-function TypingIndicator(): React.JSX.Element {
+function ThinkingIndicator(): React.JSX.Element {
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
+        setIsTransitioning(false);
+      }, 150);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-2 w-2 rounded-full bg-secondary/60"
-          style={{
-            animation: 'bounce 1.4s infinite ease-in-out both',
-            animationDelay: `${i * 0.16}s`,
-          }}
-        />
-      ))}
+    <div className="flex items-center gap-2 px-3 py-2">
+      {/* Animated dots */}
+      <div className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 rounded-full bg-claude"
+            style={{
+              animation: 'pulse-dot 1.4s infinite ease-in-out both',
+              animationDelay: `${i * 0.16}s`,
+            }}
+          />
+        ))}
+      </div>
+      {/* Cycling phrase */}
+      <span
+        className={cn(
+          'text-sm text-fg-muted transition-all duration-150',
+          isTransitioning ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'
+        )}
+      >
+        {THINKING_PHRASES[phraseIndex]}
+      </span>
+      {/* Ellipsis animation */}
+      <span className="text-sm text-fg-muted">
+        <span className="inline-block animate-pulse">...</span>
+      </span>
       <style>{`
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0); }
-          40% { transform: scale(1); }
+        @keyframes pulse-dot {
+          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1); }
         }
       `}</style>
     </div>
@@ -95,7 +162,7 @@ function TypingIndicator(): React.JSX.Element {
 }
 
 /**
- * Chat message bubble
+ * Chat message bubble - Claude branded for AI messages
  */
 function MessageBubble({ message }: { message: Message }): React.JSX.Element {
   const isUser = message.role === 'user';
@@ -107,14 +174,16 @@ function MessageBubble({ message }: { message: Message }): React.JSX.Element {
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
           isUser
-            ? 'bg-accent/10 text-accent border border-accent/20'
-            : 'bg-secondary/10 text-secondary border border-secondary/20'
+            ? 'bg-accent-muted text-accent border border-accent/20'
+            : 'bg-claude-muted text-claude border border-claude/20'
         )}
       >
         {isUser ? (
           <User className="h-4 w-4" weight="bold" />
         ) : (
-          <Sparkle className="h-4 w-4" weight="fill" />
+          <svg viewBox="0 0 248 248" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+            <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+          </svg>
         )}
       </div>
 
@@ -127,25 +196,8 @@ function MessageBubble({ message }: { message: Message }): React.JSX.Element {
             : 'rounded-tl-md bg-surface-muted border border-border'
         )}
       >
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Streaming message bubble (shows content as it streams)
- */
-function StreamingBubble({ content }: { content: string }): React.JSX.Element {
-  return (
-    <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary border border-secondary/20">
-        <Sparkle className="h-4 w-4" weight="fill" />
-      </div>
-      <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-surface-muted border border-border px-4 py-2.5">
         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {content}
-          <span className="inline-block w-2 h-4 ml-0.5 bg-secondary/60 animate-pulse" />
+          {isUser ? message.content : stripTaskSuggestionJson(message.content)}
         </p>
       </div>
     </div>
@@ -153,7 +205,28 @@ function StreamingBubble({ content }: { content: string }): React.JSX.Element {
 }
 
 /**
- * Suggestion card showing the generated task
+ * Streaming message bubble (shows content as it streams) - Claude branded
+ */
+function StreamingBubble({ content }: { content: string }): React.JSX.Element {
+  return (
+    <div className="flex gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-claude-muted text-claude border border-claude/20">
+        <svg viewBox="0 0 248 248" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+          <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+        </svg>
+      </div>
+      <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-surface-muted border border-border px-4 py-2.5">
+        <p className="text-sm whitespace-pre-wrap leading-relaxed">
+          {stripTaskSuggestionJson(content)}
+          <span className="inline-block w-2 h-4 ml-0.5 bg-claude/60 animate-pulse" />
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Task preview card showing the generated task details - Claude branded
  */
 function SuggestionCard({
   suggestion,
@@ -165,119 +238,245 @@ function SuggestionCard({
   onEdit: () => void;
 }): React.JSX.Element {
   return (
-    <div className="mx-11 mt-3 rounded-xl border border-secondary/30 bg-secondary/5 p-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-1">
-            Suggested Task
-          </p>
-          <h4 className="font-semibold text-fg">{suggestion.title}</h4>
-        </div>
-        <div className="flex items-center gap-1">
-          {suggestion.labels.map((label) => {
-            const colors = getLabelColors(label);
-            return (
-              <span
-                key={label}
-                className={cn(
-                  'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                  colors.bg,
-                  colors.text
-                )}
+    <div className="mx-4 mt-4 rounded-xl border-2 border-claude/40 bg-gradient-to-br from-claude/5 to-claude/10 overflow-hidden shadow-lg flex flex-col">
+      {/* Header with title */}
+      <div className="px-4 py-2.5 bg-claude/10 border-b border-claude/20">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <svg
+                viewBox="0 0 248 248"
+                fill="currentColor"
+                className="h-3.5 w-3.5 text-claude shrink-0"
+                aria-hidden="true"
               >
-                {label}
+                <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+              </svg>
+              <span className="text-[10px] font-semibold text-claude uppercase tracking-wide">
+                Task Preview
               </span>
-            );
-          })}
+            </div>
+            <h3 className="text-base font-semibold text-fg leading-tight">{suggestion.title}</h3>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-medium',
+                suggestion.priority === 'high' && 'bg-danger-muted text-danger-fg',
+                suggestion.priority === 'medium' && 'bg-attention-muted text-attention-fg',
+                suggestion.priority === 'low' && 'bg-success-muted text-success-fg'
+              )}
+            >
+              {suggestion.priority}
+            </span>
+            {suggestion.labels.map((label) => {
+              const colors = getLabelColors(label);
+              return (
+                <span
+                  key={label}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium',
+                    colors.bg,
+                    colors.text
+                  )}
+                >
+                  {label}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <p className="text-xs text-fg-muted line-clamp-3 mb-4">
-        {suggestion.description.slice(0, 150)}...
-      </p>
+      {/* Description - takes remaining space */}
+      <div className="flex-1 overflow-y-auto p-3 min-h-0">
+        <p className="text-sm text-fg-muted whitespace-pre-wrap leading-relaxed">
+          {suggestion.description}
+        </p>
+      </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-fg-muted">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-0.5 rounded',
-              suggestion.mode === 'plan'
-                ? 'bg-secondary/10 text-secondary'
-                : 'bg-accent/10 text-accent'
-            )}
-          >
-            {suggestion.mode === 'plan' ? (
-              <Notebook className="h-3 w-3" />
-            ) : (
-              <Lightning className="h-3 w-3" />
-            )}
-            {suggestion.mode === 'plan' ? 'Plan' : 'Implement'}
-          </span>
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded',
-              PRIORITY_CONFIG[suggestion.priority].color.replace('bg-', 'bg-opacity-20 text-')
-            )}
-          >
-            {suggestion.priority}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="px-3 py-1.5 text-xs font-medium text-fg-muted hover:text-fg border border-border rounded-lg hover:bg-surface-muted transition-colors"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={onAccept}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-secondary hover:bg-secondary/90 rounded-lg transition-colors"
-          >
-            <Check className="h-3 w-3" weight="bold" />
-            Accept
-          </button>
-        </div>
+      {/* Actions - compact footer */}
+      <div className="px-3 py-2 bg-surface/30 border-t border-claude/20 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="px-3 py-1.5 text-xs font-medium text-fg-muted hover:text-fg border border-border rounded-md hover:bg-surface-muted transition-colors"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={onAccept}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-claude hover:bg-claude/90 rounded-md transition-colors shadow-sm"
+        >
+          <Check className="h-4 w-4" weight="bold" />
+          Create Task
+        </button>
       </div>
     </div>
   );
 }
 
 /**
- * Quick suggestion chips
+ * Task details sidebar - always visible, shows priority and tags
  */
-function QuickSuggestions({
+function TaskDetailsSidebar({
+  priority,
+  tags,
+  onPriorityChange,
+  onTagsChange,
+  onCreateManually,
+}: {
+  priority: Priority;
+  tags: string[];
+  onPriorityChange: (p: Priority) => void;
+  onTagsChange: (tags: string[]) => void;
+  onCreateManually: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="w-72 border-l border-border bg-surface-subtle/30 flex flex-col">
+      <div className="p-4 border-b border-border">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-1">
+          Task Details
+        </h3>
+        <p className="text-[10px] text-fg-muted">Configure before or after chat</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {/* Priority */}
+        <div className="space-y-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">
+            Priority
+          </span>
+          <div className="flex gap-1.5">
+            {(['high', 'medium', 'low'] as Priority[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPriorityChange(p)}
+                className={cn(
+                  'flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-all border text-center',
+                  priority === p
+                    ? cn(
+                        p === 'high' && 'bg-danger-muted text-danger-fg border-danger-fg/30',
+                        p === 'medium' &&
+                          'bg-attention-muted text-attention-fg border-attention-fg/30',
+                        p === 'low' && 'bg-success-muted text-success-fg border-success-fg/30'
+                      )
+                    : 'bg-surface text-fg-muted border-border hover:text-fg hover:bg-surface-muted'
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tags */}
+        <div className="space-y-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">
+            Tags
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {AVAILABLE_LABELS.map((label) => {
+              const colors = getLabelColors(label);
+              const isSelected = tags.includes(label);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    onTagsChange(isSelected ? tags.filter((t) => t !== label) : [...tags, label]);
+                  }}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-[11px] font-medium transition-all',
+                    colors.bg,
+                    colors.text,
+                    isSelected ? 'ring-1 ring-current' : 'opacity-60 hover:opacity-100'
+                  )}
+                >
+                  {label}
+                  {isSelected && <Check className="inline ml-1 h-2.5 w-2.5" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Manual create option */}
+      <div className="p-4 border-t border-border">
+        <button
+          type="button"
+          onClick={onCreateManually}
+          className="w-full px-3 py-2.5 rounded-lg text-xs font-medium text-fg-muted hover:text-fg border border-border hover:bg-surface-muted transition-colors"
+        >
+          <Plus className="inline h-3 w-3 mr-1.5" />
+          Create task manually
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Terraform workflow suggestions - organized by persona
+ */
+function TerraformWorkflows({
   onSelect,
   onCreateManually,
 }: {
   onSelect: (text: string) => void;
   onCreateManually: () => void;
 }): React.JSX.Element {
+  const personas = [
+    { key: 'consumer', label: 'App Consumer', icon: '🚀', color: 'text-accent' },
+    { key: 'platform', label: 'Platform Team', icon: '🔧', color: 'text-claude' },
+    { key: 'uplift', label: 'Uplift & Migrate', icon: '⬆️', color: 'text-done-fg' },
+  ] as const;
+
   return (
-    <div className="flex flex-col gap-3 px-4 py-3 border-t border-border">
-      <div className="flex flex-wrap gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle mr-2 self-center">
-          Try:
+    <div className="flex flex-col gap-4 px-4 py-4 border-t border-border bg-surface-subtle/30">
+      <div className="text-center">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+          Terraform Workflows
         </span>
-        {INITIAL_SUGGESTIONS.map((suggestion) => (
-          <button
-            key={suggestion}
-            type="button"
-            onClick={() => onSelect(suggestion)}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium',
-              'bg-surface-muted border border-border text-fg-muted',
-              'hover:bg-surface hover:text-fg hover:border-fg-subtle',
-              'transition-colors duration-150'
-            )}
-          >
-            {suggestion}
-          </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {personas.map((persona) => (
+          <div key={persona.key} className="flex flex-col gap-2">
+            <div className={cn('text-xs font-medium flex items-center gap-1.5', persona.color)}>
+              <span>{persona.icon}</span>
+              {persona.label}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {TERRAFORM_WORKFLOWS[persona.key].map((workflow) => (
+                <button
+                  key={workflow.label}
+                  type="button"
+                  onClick={() => onSelect(workflow.description)}
+                  className={cn(
+                    'text-left px-2.5 py-2 rounded-lg text-xs',
+                    'bg-surface border border-border',
+                    'hover:bg-claude/5 hover:border-claude/30',
+                    'transition-colors duration-150 group'
+                  )}
+                >
+                  <div className="font-medium text-fg group-hover:text-claude transition-colors">
+                    {workflow.label}
+                  </div>
+                  <div className="text-[10px] text-fg-muted mt-0.5 line-clamp-1">
+                    {workflow.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
-      <div className="flex justify-center">
+
+      <div className="flex justify-center pt-1">
         <button
           type="button"
           onClick={onCreateManually}
@@ -293,51 +492,8 @@ function QuickSuggestions({
     </div>
   );
 }
-
 /**
- * Mode selector (minimal version for edit panel)
- */
-function ModeSelector({
-  value,
-  onChange,
-}: {
-  value: TaskMode;
-  onChange: (mode: TaskMode) => void;
-}): React.JSX.Element {
-  return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => onChange('plan')}
-        className={cn(
-          'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all',
-          value === 'plan'
-            ? 'bg-secondary/15 text-secondary border border-secondary/30'
-            : 'bg-surface-muted text-fg-muted border border-border hover:text-fg'
-        )}
-      >
-        <Notebook weight={value === 'plan' ? 'fill' : 'regular'} className="h-4 w-4" />
-        Plan
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('implement')}
-        className={cn(
-          'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all',
-          value === 'implement'
-            ? 'bg-accent/15 text-accent border border-accent/30'
-            : 'bg-surface-muted text-fg-muted border border-border hover:text-fg'
-        )}
-      >
-        <Lightning weight={value === 'implement' ? 'fill' : 'regular'} className="h-4 w-4" />
-        Implement
-      </button>
-    </div>
-  );
-}
-
-/**
- * Edit panel for refining the task
+ * Edit panel for refining the task - Claude branded with two-column layout
  */
 function EditPanel({
   suggestion,
@@ -353,171 +509,217 @@ function EditPanel({
   isSubmitting: boolean;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-surface-muted transition-colors"
-        >
-          <ArrowRight className="h-4 w-4 rotate-180" />
-        </button>
-        <div>
-          <h3 className="text-base font-semibold text-fg">Refine Task</h3>
-          <p className="text-xs text-fg-muted">Edit the details before creating</p>
-        </div>
-      </div>
-
-      {/* Form */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {/* Title */}
-        <div className="space-y-2">
-          <label
-            htmlFor="task-title-input"
-            className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle"
+    <div className="flex flex-col h-full bg-gradient-to-br from-surface via-surface to-claude/[0.02]">
+      {/* Header - Claude branded */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-claude/20 bg-claude/5">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-claude hover:text-claude hover:bg-claude/10 transition-colors"
           >
-            Title
-          </label>
-          <input
-            id="task-title-input"
-            type="text"
-            value={suggestion.title}
-            onChange={(e) => onChange({ title: e.target.value })}
-            className={cn(
-              'w-full h-10 px-3 rounded-lg',
-              'bg-surface-muted border border-border text-sm text-fg',
-              'focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30'
-            )}
-          />
+            <ArrowRight className="h-4 w-4 rotate-180" />
+          </button>
+          <div className="flex items-center gap-2">
+            <svg
+              viewBox="0 0 248 248"
+              fill="currentColor"
+              className="h-4 w-4 text-claude"
+              aria-hidden="true"
+            >
+              <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Refine Task</h3>
+              <p className="text-[10px] text-fg-muted">Review and edit before creating</p>
+            </div>
+          </div>
         </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <label
-            htmlFor="task-description-input"
-            className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle"
+        {/* Quick metadata badges */}
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'px-2 py-0.5 rounded text-[10px] font-medium',
+              suggestion.priority === 'high' && 'bg-danger-muted text-danger-fg',
+              suggestion.priority === 'medium' && 'bg-attention-muted text-attention-fg',
+              suggestion.priority === 'low' && 'bg-success-muted text-success-fg'
+            )}
           >
-            Description
-          </label>
-          <textarea
-            id="task-description-input"
-            value={suggestion.description}
-            onChange={(e) => onChange({ description: e.target.value })}
-            rows={8}
-            className={cn(
-              'w-full px-3 py-2.5 rounded-lg resize-none',
-              'bg-surface-muted border border-border text-sm text-fg',
-              'focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30'
-            )}
-          />
-        </div>
-
-        {/* Mode */}
-        <div className="space-y-2">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Execution Mode
+            {suggestion.priority}
           </span>
-          <ModeSelector value={suggestion.mode} onChange={(mode) => onChange({ mode })} />
-        </div>
-
-        {/* Priority */}
-        <div className="space-y-2">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Priority
-          </span>
-          <div className="flex gap-2">
-            {(['high', 'medium', 'low'] as Priority[]).map((priority) => (
-              <button
-                key={priority}
-                type="button"
-                onClick={() => onChange({ priority })}
+          {suggestion.labels.slice(0, 2).map((label) => {
+            const colors = getLabelColors(label);
+            return (
+              <span
+                key={label}
                 className={cn(
-                  'flex-1 py-2 rounded-lg text-sm font-medium transition-all border',
-                  suggestion.priority === priority
-                    ? cn(
-                        priority === 'high' && 'bg-danger/10 text-danger border-danger/30',
-                        priority === 'medium' &&
-                          'bg-attention/10 text-attention border-attention/30',
-                        priority === 'low' && 'bg-success/10 text-success border-success/30'
-                      )
-                    : 'bg-surface-muted text-fg-muted border-border hover:text-fg'
+                  'px-2 py-0.5 rounded text-[10px] font-medium',
+                  colors.bg,
+                  colors.text
                 )}
               >
-                {priority}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Labels */}
-        <div className="space-y-2">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Labels
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {AVAILABLE_LABELS.map((label) => {
-              const colors = getLabelColors(label);
-              const isSelected = suggestion.labels.includes(label);
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    onChange({
-                      labels: isSelected
-                        ? suggestion.labels.filter((l) => l !== label)
-                        : [...suggestion.labels, label],
-                    });
-                  }}
-                  className={cn(
-                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                    colors.bg,
-                    colors.text,
-                    isSelected ? 'ring-1 ring-current' : 'opacity-60 hover:opacity-100'
-                  )}
-                >
-                  {label}
-                  {isSelected && <Check className="inline ml-1 h-3 w-3" />}
-                </button>
-              );
-            })}
-          </div>
+                {label}
+              </span>
+            );
+          })}
+          {suggestion.labels.length > 2 && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-surface-muted text-fg-muted">
+              +{suggestion.labels.length - 2}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
-        <button
-          type="button"
-          onClick={onBack}
-          className="h-9 px-4 rounded-lg text-sm font-medium text-fg-muted border border-border hover:bg-surface-muted transition-colors"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={!suggestion.title.trim() || isSubmitting}
-          className={cn(
-            'h-9 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-medium transition-all',
-            suggestion.title.trim() && !isSubmitting
-              ? 'bg-accent text-white hover:bg-accent/90'
-              : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
-          )}
-        >
-          {isSubmitting ? (
-            <>
-              <Spinner className="h-4 w-4 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" />
-              Create Task
-            </>
-          )}
-        </button>
+      {/* Two-column layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Task content (larger) */}
+        <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+          {/* Title input - prominent */}
+          <div className="px-4 py-3 border-b border-border bg-surface/50">
+            <input
+              id="task-title-input"
+              type="text"
+              value={suggestion.title}
+              onChange={(e) => onChange({ title: e.target.value })}
+              placeholder="Task title..."
+              className={cn(
+                'w-full text-lg font-semibold bg-transparent border-none p-0 text-fg',
+                'placeholder:text-fg-subtle/50',
+                'focus:outline-none focus:ring-0'
+              )}
+            />
+          </div>
+
+          {/* Task details - scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              <label
+                htmlFor="task-details-input"
+                className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle mb-2 block"
+              >
+                Task Details
+              </label>
+              <textarea
+                id="task-details-input"
+                value={suggestion.description}
+                onChange={(e) => onChange({ description: e.target.value })}
+                placeholder="Describe what needs to be done..."
+                className={cn(
+                  'w-full min-h-[300px] p-3 rounded-lg resize-none',
+                  'bg-surface border border-border text-sm text-fg leading-relaxed',
+                  'placeholder:text-fg-subtle/50',
+                  'focus:outline-none focus:border-claude focus:ring-1 focus:ring-claude/30',
+                  'transition-colors'
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Metadata sidebar */}
+        <div className="w-64 flex flex-col bg-surface-subtle/30">
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            {/* Priority */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">
+                Priority
+              </span>
+              <div className="flex gap-1.5">
+                {(['high', 'medium', 'low'] as Priority[]).map((priority) => (
+                  <button
+                    key={priority}
+                    type="button"
+                    onClick={() => onChange({ priority })}
+                    className={cn(
+                      'flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-all border text-center',
+                      suggestion.priority === priority
+                        ? cn(
+                            priority === 'high' &&
+                              'bg-danger-muted text-danger-fg border-danger-fg/30',
+                            priority === 'medium' &&
+                              'bg-attention-muted text-attention-fg border-attention-fg/30',
+                            priority === 'low' &&
+                              'bg-success-muted text-success-fg border-success-fg/30'
+                          )
+                        : 'bg-surface text-fg-muted border-border hover:text-fg hover:bg-surface-muted'
+                    )}
+                  >
+                    {priority}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">
+                Tags
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {AVAILABLE_LABELS.map((label) => {
+                  const colors = getLabelColors(label);
+                  const isSelected = suggestion.labels.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        onChange({
+                          labels: isSelected
+                            ? suggestion.labels.filter((l) => l !== label)
+                            : [...suggestion.labels, label],
+                        });
+                      }}
+                      className={cn(
+                        'px-2.5 py-1 rounded-full text-[11px] font-medium transition-all',
+                        colors.bg,
+                        colors.text,
+                        isSelected ? 'ring-1 ring-current' : 'opacity-50 hover:opacity-100'
+                      )}
+                    >
+                      {label}
+                      {isSelected && <Check className="inline ml-1 h-2.5 w-2.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions in sidebar footer */}
+          <div className="p-4 border-t border-border space-y-2">
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!suggestion.title.trim() || isSubmitting}
+              className={cn(
+                'w-full h-10 rounded-lg inline-flex items-center justify-center gap-2 text-sm font-medium transition-all',
+                suggestion.title.trim() && !isSubmitting
+                  ? 'bg-claude text-white hover:bg-claude/90 shadow-sm'
+                  : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
+              )}
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" weight="bold" />
+                  Create Task
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full h-9 rounded-lg text-xs font-medium text-fg-muted border border-border hover:bg-surface-muted transition-colors"
+            >
+              Back to Chat
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -556,6 +758,8 @@ export function NewTaskDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isManualMode, setIsManualMode] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [selectedPriority, setSelectedPriority] = useState<Priority>('medium');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -568,7 +772,6 @@ export function NewTaskDialog({
         description: suggestion.description,
         labels: suggestion.labels,
         priority: suggestion.priority as Priority,
-        mode: suggestion.mode,
       });
     }
   }, [suggestion]);
@@ -590,6 +793,8 @@ export function NewTaskDialog({
       setIsSubmitting(false);
       setIsManualMode(false);
       setLocalError(null);
+      setSelectedPriority('medium');
+      setSelectedTags([]);
     } else {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -622,9 +827,20 @@ export function NewTaskDialog({
     }
   };
 
-  const handleAcceptSuggestion = () => {
-    if (editableSuggestion) {
-      setShowEditPanel(true);
+  const handleAcceptSuggestion = async () => {
+    if (!editableSuggestion) return;
+
+    setIsSubmitting(true);
+    try {
+      // Directly create task using the AI suggestion
+      await acceptSuggestion({
+        title: editableSuggestion.title,
+        description: editableSuggestion.description,
+        labels: editableSuggestion.labels,
+        priority: editableSuggestion.priority,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -633,8 +849,12 @@ export function NewTaskDialog({
     if (sessionId && status === 'active') {
       cancel();
     }
-    // Set up empty suggestion and go to edit panel
-    setEditableSuggestion({ ...DEFAULT_SUGGESTION });
+    // Set up empty suggestion with user-selected options and go to edit panel
+    setEditableSuggestion({
+      ...DEFAULT_SUGGESTION,
+      priority: selectedPriority,
+      labels: selectedTags,
+    });
     setShowEditPanel(true);
     setIsManualMode(true);
   };
@@ -652,7 +872,6 @@ export function NewTaskDialog({
           description: editableSuggestion.description,
           labels: editableSuggestion.labels,
           priority: editableSuggestion.priority,
-          mode: editableSuggestion.mode,
         });
 
         if (result.ok) {
@@ -668,7 +887,6 @@ export function NewTaskDialog({
           description: editableSuggestion.description,
           labels: editableSuggestion.labels,
           priority: editableSuggestion.priority,
-          mode: editableSuggestion.mode,
         });
       }
     } finally {
@@ -677,7 +895,9 @@ export function NewTaskDialog({
   };
 
   const handleClose = async () => {
+    console.log('[NewTaskDialog] handleClose called', { sessionId, status });
     if (sessionId && status === 'active') {
+      console.log('[NewTaskDialog] Calling cancel for session:', sessionId);
       await cancel();
     }
     onOpenChange(false);
@@ -697,9 +917,9 @@ export function NewTaskDialog({
         <DialogPrimitive.Content
           className={cn(
             'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
-            'w-full max-w-3xl h-[85vh] max-h-[800px]',
+            'w-[90vw] max-w-5xl min-h-[500px] h-[90vh] max-h-[900px]',
             'bg-surface border border-border rounded-xl overflow-hidden',
-            'shadow-xl flex flex-col',
+            'shadow-xl flex flex-col resize',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -718,170 +938,197 @@ export function NewTaskDialog({
               isSubmitting={isSubmitting}
             />
           ) : (
-            <>
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-subtle/50">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex h-9 w-9 items-center justify-center rounded-lg border',
-                      status === 'connecting'
-                        ? 'bg-attention/10 text-attention border-attention/20'
-                        : status === 'error'
-                          ? 'bg-danger/10 text-danger border-danger/20'
-                          : 'bg-secondary/10 text-secondary border-secondary/20'
-                    )}
-                  >
-                    {status === 'connecting' ? (
-                      <Spinner className="h-4 w-4 animate-spin" />
-                    ) : status === 'error' ? (
-                      <Warning className="h-4 w-4" weight="fill" />
-                    ) : (
-                      <Sparkle className="h-4 w-4" weight="fill" />
-                    )}
-                  </div>
-                  <div>
-                    <DialogPrimitive.Title className="text-base font-semibold text-fg">
-                      Create with AI
-                    </DialogPrimitive.Title>
-                    <DialogPrimitive.Description className="text-xs text-fg-muted">
-                      {status === 'connecting'
-                        ? 'Connecting...'
-                        : status === 'error'
-                          ? 'Connection error'
-                          : 'Describe what you want to build'}
-                    </DialogPrimitive.Description>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-surface-muted transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Error banner */}
-              {(error || localError) && (
-                <div className="px-4 py-3 bg-danger/10 border-b border-danger/20 flex items-center gap-2">
-                  <Warning className="h-4 w-4 text-danger" weight="fill" />
-                  <p className="text-sm text-danger">{error || localError}</p>
-                </div>
-              )}
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id}>
-                    <MessageBubble message={message} />
-                    {message.role === 'assistant' &&
-                      suggestion &&
-                      message.id === messages[messages.length - 1]?.id && (
-                        <SuggestionCard
-                          suggestion={suggestion}
-                          onAccept={handleAcceptSuggestion}
-                          onEdit={() => setShowEditPanel(true)}
-                        />
+            <div className="flex flex-1 overflow-hidden">
+              {/* LEFT PANEL - Main content */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* Compact Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-lg',
+                        status === 'connecting'
+                          ? 'bg-attention-muted text-attention'
+                          : status === 'error'
+                            ? 'bg-danger-muted text-danger'
+                            : 'bg-claude-muted text-claude'
                       )}
-                  </div>
-                ))}
-                {/* Streaming content */}
-                {isStreaming && streamingContent && <StreamingBubble content={streamingContent} />}
-                {/* Typing indicator when streaming but no content yet */}
-                {isStreaming && !streamingContent && (
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary border border-secondary/20">
-                      <Sparkle className="h-4 w-4 animate-pulse" weight="fill" />
+                    >
+                      {status === 'connecting' ? (
+                        <Spinner className="h-4 w-4 animate-spin" />
+                      ) : status === 'error' ? (
+                        <Warning className="h-4 w-4" weight="fill" />
+                      ) : (
+                        <svg
+                          viewBox="0 0 248 248"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+                        </svg>
+                      )}
                     </div>
-                    <div className="rounded-2xl rounded-tl-md bg-surface-muted border border-border">
-                      <TypingIndicator />
+                    <div>
+                      <DialogPrimitive.Title className="text-sm font-semibold text-fg flex items-center gap-2">
+                        Create with Claude
+                        {status === 'active' && (
+                          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-success-fg animate-pulse" />
+                        )}
+                      </DialogPrimitive.Title>
+                      <DialogPrimitive.Description className="text-[11px] text-fg-muted">
+                        {status === 'connecting'
+                          ? 'Connecting...'
+                          : status === 'error'
+                            ? 'Connection error'
+                            : 'Describe your Terraform task'}
+                      </DialogPrimitive.Description>
                     </div>
                   </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Quick suggestions (show if no messages, or show manual option on error) */}
-              {messages.length === 0 &&
-                (status === 'active' || status === 'error' || status === 'connecting') && (
-                  <QuickSuggestions
-                    onSelect={(text) => setInput(text)}
-                    onCreateManually={handleCreateManually}
-                  />
-                )}
-
-              {/* Create Task button - always visible after messages */}
-              {messages.length > 0 && (
-                <div className="px-4 py-3 border-t border-border bg-surface-subtle/50 flex items-center justify-between">
-                  <p className="text-xs text-fg-muted">Ready to create your task?</p>
                   <button
                     type="button"
-                    onClick={() => {
-                      // Pre-fill with user's original request as description
-                      const firstUserMsg = messages.find((m) => m.role === 'user');
-                      setEditableSuggestion({
-                        title: '',
-                        description: firstUserMsg?.content || '',
-                        labels: [],
-                        priority: 'medium',
-                        mode: 'implement',
-                      });
-                      setShowEditPanel(true);
-                      setIsManualMode(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-accent hover:bg-accent/90 rounded-lg transition-colors"
+                    onClick={handleClose}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted hover:text-fg hover:bg-surface-muted transition-colors"
                   >
-                    <Plus className="h-3 w-3" />
-                    Create Task
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
-              )}
 
-              {/* Input */}
-              <div className="p-4 border-t border-border bg-surface-subtle/30">
-                <div className="relative">
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Describe what you want to accomplish..."
-                    rows={2}
-                    disabled={status !== 'active'}
+                {/* Input - FIRST, prominent */}
+                <div className="p-4 border-b border-border bg-surface-subtle/30">
+                  <div className="relative">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="What do you want to build with Terraform?"
+                      rows={2}
+                      disabled={status !== 'active'}
+                      className={cn(
+                        'w-full px-4 py-3 pr-12 rounded-lg resize-none',
+                        'bg-surface border-2 text-sm text-fg',
+                        'placeholder:text-fg-subtle',
+                        'focus:outline-none',
+                        'transition-all duration-300',
+                        'disabled:opacity-50 disabled:cursor-not-allowed',
+                        // Glow effect when text is entered
+                        input.trim()
+                          ? 'border-claude shadow-[0_0_15px_rgba(217,119,87,0.3)] ring-2 ring-claude/20'
+                          : 'border-border focus:border-claude focus:ring-1 focus:ring-claude/30'
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSend}
+                      disabled={!input.trim() || isStreaming || status !== 'active'}
+                      className={cn(
+                        'absolute right-2 bottom-2 h-8 w-8 rounded-md',
+                        'flex items-center justify-center transition-all duration-300',
+                        input.trim() && !isStreaming && status === 'active'
+                          ? 'bg-claude text-white hover:bg-claude/90 shadow-[0_0_12px_rgba(217,119,87,0.5)] animate-pulse'
+                          : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
+                      )}
+                    >
+                      <PaperPlaneTilt className="h-4 w-4" weight="fill" />
+                    </button>
+                  </div>
+                  {/* Enter hint - more prominent when text is entered */}
+                  <p
                     className={cn(
-                      'w-full px-4 py-3 pr-12 rounded-xl resize-none',
-                      'bg-surface border border-border text-sm text-fg',
-                      'placeholder:text-fg-subtle',
-                      'focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/30',
-                      'transition-all duration-150',
-                      'disabled:opacity-50 disabled:cursor-not-allowed'
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={!input.trim() || isStreaming || status !== 'active'}
-                    className={cn(
-                      'absolute right-2 bottom-2 h-8 w-8 rounded-lg',
-                      'flex items-center justify-center transition-all duration-150',
-                      input.trim() && !isStreaming && status === 'active'
-                        ? 'bg-secondary text-white hover:bg-secondary/90'
-                        : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
+                      'mt-1.5 px-1 transition-all duration-300',
+                      input.trim()
+                        ? 'text-[11px] text-claude font-medium'
+                        : 'text-[10px] text-fg-subtle'
                     )}
                   >
-                    <PaperPlaneTilt className="h-4 w-4" weight="fill" />
-                  </button>
+                    Press{' '}
+                    <kbd
+                      className={cn(
+                        'px-1.5 py-0.5 rounded font-mono text-[9px] transition-all duration-300',
+                        input.trim()
+                          ? 'bg-claude/10 border border-claude/30 text-claude shadow-[0_0_8px_rgba(217,119,87,0.2)]'
+                          : 'bg-surface-muted border border-border'
+                      )}
+                    >
+                      Enter
+                    </kbd>{' '}
+                    to send
+                  </p>
                 </div>
-                <p className="text-[11px] text-fg-subtle mt-2 px-1">
-                  Press{' '}
-                  <kbd className="px-1 py-0.5 rounded bg-surface-muted border border-border font-mono text-[10px]">
-                    Enter
-                  </kbd>{' '}
-                  to send
-                </p>
+
+                {/* Error banner */}
+                {(error || localError) && (
+                  <div className="px-4 py-2 bg-danger/10 border-b border-danger/20 flex items-center gap-2">
+                    <Warning className="h-3.5 w-3.5 text-danger" weight="fill" />
+                    <p className="text-xs text-danger">{error || localError}</p>
+                  </div>
+                )}
+
+                {/* Terraform workflows - show when no conversation yet */}
+                {messages.length === 0 &&
+                  (status === 'active' || status === 'error' || status === 'connecting') && (
+                    <div className="flex-1 overflow-y-auto">
+                      <TerraformWorkflows
+                        onSelect={(text) => setInput(text)}
+                        onCreateManually={handleCreateManually}
+                      />
+                    </div>
+                  )}
+
+                {/* Chat messages - show when conversation started */}
+                {messages.length > 0 && (
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {messages.map((message) => (
+                      <div key={message.id}>
+                        <MessageBubble message={message} />
+                        {message.role === 'assistant' &&
+                          suggestion &&
+                          message.id === messages[messages.length - 1]?.id && (
+                            <SuggestionCard
+                              suggestion={suggestion}
+                              onAccept={handleAcceptSuggestion}
+                              onEdit={() => setShowEditPanel(true)}
+                            />
+                          )}
+                      </div>
+                    ))}
+                    {/* Streaming content */}
+                    {isStreaming && streamingContent && (
+                      <StreamingBubble content={streamingContent} />
+                    )}
+                    {/* Typing indicator */}
+                    {isStreaming && !streamingContent && (
+                      <div className="flex gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-claude-muted text-claude border border-claude/20">
+                          <svg
+                            viewBox="0 0 248 248"
+                            fill="currentColor"
+                            className="h-4 w-4 animate-pulse"
+                            aria-hidden="true"
+                          >
+                            <path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z" />
+                          </svg>
+                        </div>
+                        <div className="rounded-2xl rounded-tl-md bg-surface-muted border border-border">
+                          <ThinkingIndicator />
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
               </div>
-            </>
+
+              {/* RIGHT PANEL - Task Details Sidebar */}
+              <TaskDetailsSidebar
+                priority={selectedPriority}
+                tags={selectedTags}
+                onPriorityChange={setSelectedPriority}
+                onTagsChange={setSelectedTags}
+                onCreateManually={handleCreateManually}
+              />
+            </div>
           )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

@@ -1,0 +1,32 @@
+import { createId } from '@paralleldrive/cuid2';
+import { sql } from 'drizzle-orm';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sessions } from './sessions';
+
+export const sessionEvents = sqliteTable(
+  'session_events',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    offset: integer('offset').notNull(),
+    type: text('type').notNull(), // chunk, tool:start, tool:result, etc.
+    channel: text('channel').notNull(), // chunks, toolCalls, terminal, presence
+    data: text('data', { mode: 'json' }).notNull(),
+    timestamp: integer('timestamp').notNull(),
+    userId: text('user_id'), // The user who initiated the action (if available)
+    createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => [
+    index('session_events_session_idx').on(table.sessionId),
+    index('session_events_offset_idx').on(table.sessionId, table.offset),
+    // Enforce unique offset per session to prevent race conditions
+    uniqueIndex('session_events_unique_offset').on(table.sessionId, table.offset),
+  ]
+);
+
+export type SessionEvent = typeof sessionEvents.$inferSelect;
+export type NewSessionEvent = typeof sessionEvents.$inferInsert;

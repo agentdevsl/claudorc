@@ -63,9 +63,12 @@ import { Route as ApiTasksIdRejectRouteImport } from './routes/api/tasks/$id/rej
 import { Route as ApiTasksIdMoveRouteImport } from './routes/api/tasks/$id/move'
 import { Route as ApiTasksIdApproveRouteImport } from './routes/api/tasks/$id/approve'
 import { Route as ApiStreamsStreamIdSubscribeRouteImport } from './routes/api/streams/$streamId/subscribe'
+import { Route as ApiSessionsIdSummaryRouteImport } from './routes/api/sessions/$id/summary'
 import { Route as ApiSessionsIdStreamRouteImport } from './routes/api/sessions/$id/stream'
 import { Route as ApiSessionsIdPresenceRouteImport } from './routes/api/sessions/$id/presence'
 import { Route as ApiSessionsIdHistoryRouteImport } from './routes/api/sessions/$id/history'
+import { Route as ApiSessionsIdExportRouteImport } from './routes/api/sessions/$id/export'
+import { Route as ApiSessionsIdEventsRouteImport } from './routes/api/sessions/$id/events'
 import { Route as ApiSessionsIdCloseRouteImport } from './routes/api/sessions/$id/close'
 import { Route as ApiPlansTaskIdStreamRouteImport } from './routes/api/plans/$taskId/stream'
 import { Route as ApiPlansTaskIdStartRouteImport } from './routes/api/plans/$taskId/start'
@@ -356,6 +359,11 @@ const ApiStreamsStreamIdSubscribeRoute =
     path: '/subscribe',
     getParentRoute: () => ApiStreamsStreamIdRoute,
   } as any)
+const ApiSessionsIdSummaryRoute = ApiSessionsIdSummaryRouteImport.update({
+  id: '/summary',
+  path: '/summary',
+  getParentRoute: () => ApiSessionsIdRoute,
+} as any)
 const ApiSessionsIdStreamRoute = ApiSessionsIdStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -369,6 +377,16 @@ const ApiSessionsIdPresenceRoute = ApiSessionsIdPresenceRouteImport.update({
 const ApiSessionsIdHistoryRoute = ApiSessionsIdHistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => ApiSessionsIdRoute,
+} as any)
+const ApiSessionsIdExportRoute = ApiSessionsIdExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => ApiSessionsIdRoute,
+} as any)
+const ApiSessionsIdEventsRoute = ApiSessionsIdEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => ApiSessionsIdRoute,
 } as any)
 const ApiSessionsIdCloseRoute = ApiSessionsIdCloseRouteImport.update({
@@ -479,9 +497,12 @@ export interface FileRoutesByFullPath {
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
+  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
+  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
   '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
   '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
   '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
+  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
   '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
@@ -548,9 +569,12 @@ export interface FileRoutesByTo {
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
+  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
+  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
   '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
   '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
   '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
+  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
   '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
@@ -619,9 +643,12 @@ export interface FileRoutesById {
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
+  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
+  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
   '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
   '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
   '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
+  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
   '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
   '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
@@ -691,9 +718,12 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
     | '/api/sessions/$id/close'
+    | '/api/sessions/$id/events'
+    | '/api/sessions/$id/export'
     | '/api/sessions/$id/history'
     | '/api/sessions/$id/presence'
     | '/api/sessions/$id/stream'
+    | '/api/sessions/$id/summary'
     | '/api/streams/$streamId/subscribe'
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
@@ -760,9 +790,12 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
     | '/api/sessions/$id/close'
+    | '/api/sessions/$id/events'
+    | '/api/sessions/$id/export'
     | '/api/sessions/$id/history'
     | '/api/sessions/$id/presence'
     | '/api/sessions/$id/stream'
+    | '/api/sessions/$id/summary'
     | '/api/streams/$streamId/subscribe'
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
@@ -830,9 +863,12 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
     | '/api/sessions/$id/close'
+    | '/api/sessions/$id/events'
+    | '/api/sessions/$id/export'
     | '/api/sessions/$id/history'
     | '/api/sessions/$id/presence'
     | '/api/sessions/$id/stream'
+    | '/api/sessions/$id/summary'
     | '/api/streams/$streamId/subscribe'
     | '/api/tasks/$id/approve'
     | '/api/tasks/$id/move'
@@ -1259,6 +1295,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStreamsStreamIdSubscribeRouteImport
       parentRoute: typeof ApiStreamsStreamIdRoute
     }
+    '/api/sessions/$id/summary': {
+      id: '/api/sessions/$id/summary'
+      path: '/summary'
+      fullPath: '/api/sessions/$id/summary'
+      preLoaderRoute: typeof ApiSessionsIdSummaryRouteImport
+      parentRoute: typeof ApiSessionsIdRoute
+    }
     '/api/sessions/$id/stream': {
       id: '/api/sessions/$id/stream'
       path: '/stream'
@@ -1278,6 +1321,20 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/api/sessions/$id/history'
       preLoaderRoute: typeof ApiSessionsIdHistoryRouteImport
+      parentRoute: typeof ApiSessionsIdRoute
+    }
+    '/api/sessions/$id/export': {
+      id: '/api/sessions/$id/export'
+      path: '/export'
+      fullPath: '/api/sessions/$id/export'
+      preLoaderRoute: typeof ApiSessionsIdExportRouteImport
+      parentRoute: typeof ApiSessionsIdRoute
+    }
+    '/api/sessions/$id/events': {
+      id: '/api/sessions/$id/events'
+      path: '/events'
+      fullPath: '/api/sessions/$id/events'
+      preLoaderRoute: typeof ApiSessionsIdEventsRouteImport
       parentRoute: typeof ApiSessionsIdRoute
     }
     '/api/sessions/$id/close': {
@@ -1434,16 +1491,22 @@ const ApiProjectsRouteWithChildren = ApiProjectsRoute._addFileChildren(
 
 interface ApiSessionsIdRouteChildren {
   ApiSessionsIdCloseRoute: typeof ApiSessionsIdCloseRoute
+  ApiSessionsIdEventsRoute: typeof ApiSessionsIdEventsRoute
+  ApiSessionsIdExportRoute: typeof ApiSessionsIdExportRoute
   ApiSessionsIdHistoryRoute: typeof ApiSessionsIdHistoryRoute
   ApiSessionsIdPresenceRoute: typeof ApiSessionsIdPresenceRoute
   ApiSessionsIdStreamRoute: typeof ApiSessionsIdStreamRoute
+  ApiSessionsIdSummaryRoute: typeof ApiSessionsIdSummaryRoute
 }
 
 const ApiSessionsIdRouteChildren: ApiSessionsIdRouteChildren = {
   ApiSessionsIdCloseRoute: ApiSessionsIdCloseRoute,
+  ApiSessionsIdEventsRoute: ApiSessionsIdEventsRoute,
+  ApiSessionsIdExportRoute: ApiSessionsIdExportRoute,
   ApiSessionsIdHistoryRoute: ApiSessionsIdHistoryRoute,
   ApiSessionsIdPresenceRoute: ApiSessionsIdPresenceRoute,
   ApiSessionsIdStreamRoute: ApiSessionsIdStreamRoute,
+  ApiSessionsIdSummaryRoute: ApiSessionsIdSummaryRoute,
 }
 
 const ApiSessionsIdRouteWithChildren = ApiSessionsIdRoute._addFileChildren(
