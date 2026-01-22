@@ -130,6 +130,25 @@ When you discover new information that would be helpful for future development w
 - **Update specs** when implementation reveals gaps or corrections needed
 - **Add valuable insights** such as common pitfalls, debugging techniques, dependency relationships, or implementation patterns
 
+## Development
+
+### Starting the Server
+
+```bash
+npm run dev
+```
+
+This starts both servers concurrently:
+- **Frontend**: Vite dev server on port 3000
+- **API**: Backend server on port 3001
+
+The startup script includes health checks to ensure both servers are ready before development begins.
+
+### Common Issues
+
+- **API offline**: If API requests fail, check that port 3001 is running. Restart with `npm run dev`.
+- **Frontend not loading**: Ensure port 3000 is available and Vite started successfully.
+
 ## Important: Use Subagents Liberally
 
 When performing any research, concurrent subagents can be used for performance and isolation. Use parallel tool calls and tasks where possible.

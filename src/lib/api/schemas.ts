@@ -243,3 +243,52 @@ export const updateSandboxConfigSchema = z.object({
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath: z.string().max(500).optional(),
 });
+
+// Session history schemas
+const sessionStatusSchema = z.enum([
+  'idle',
+  'initializing',
+  'active',
+  'paused',
+  'closing',
+  'closed',
+  'error',
+]);
+
+export const listSessionsSchema = z.object({
+  /** Filter by session statuses (comma-separated or multiple params) */
+  status: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const statuses = Array.isArray(val) ? val : val.split(',');
+      return statuses.filter((s) => sessionStatusSchema.safeParse(s).success);
+    }),
+  /** Filter by agent ID */
+  agentId: cuidSchema.optional(),
+  /** Filter by task ID */
+  taskId: cuidSchema.optional(),
+  /** Filter sessions created after this date (ISO string) */
+  dateFrom: z.string().optional(),
+  /** Filter sessions created before this date (ISO string) */
+  dateTo: z.string().optional(),
+  /** Search in session title */
+  search: z.string().optional(),
+  /** Pagination limit */
+  limit: z.coerce.number().min(1).max(100).default(50),
+  /** Pagination offset */
+  offset: z.coerce.number().min(0).default(0),
+});
+
+export const sessionEventsSchema = z.object({
+  /** Number of events to return */
+  limit: z.coerce.number().min(1).max(1000).default(50),
+  /** Number of events to skip */
+  offset: z.coerce.number().min(0).default(0),
+});
+
+export const sessionExportSchema = z.object({
+  /** Export format */
+  format: z.enum(['json', 'markdown', 'csv']),
+});

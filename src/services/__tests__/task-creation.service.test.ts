@@ -233,7 +233,6 @@ describe('TaskCreationService', () => {
         expect(result.value.suggestion).not.toBeNull();
         expect(result.value.suggestion?.title).toBe('Fix login bug');
         expect(result.value.suggestion?.priority).toBe('high');
-        expect(result.value.suggestion?.mode).toBe('implement');
       }
 
       expect(streams.publishTaskCreationSuggestion).toHaveBeenCalled();
@@ -316,7 +315,6 @@ describe('TaskCreationService', () => {
         description: 'Test description',
         labels: ['feature'],
         priority: 'medium',
-        mode: 'implement',
       };
 
       // Mock streaming response with suggestion
@@ -375,7 +373,6 @@ describe('TaskCreationService', () => {
         description: 'Test description',
         labels: ['feature'],
         priority: 'medium',
-        mode: 'implement',
       };
 
       async function* mockStream() {
@@ -642,7 +639,6 @@ describe('TaskCreationService', () => {
         expect(result.value.suggestion).not.toBeNull();
         expect(result.value.suggestion?.labels).toEqual([]);
         expect(result.value.suggestion?.priority).toBe('medium');
-        expect(result.value.suggestion?.mode).toBe('implement');
       }
     });
   });

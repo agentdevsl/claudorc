@@ -51,6 +51,11 @@ const config: Config = {
           DEFAULT: 'var(--done-fg)',
           muted: 'var(--done-muted)',
         },
+        claude: {
+          DEFAULT: 'var(--claude)',
+          muted: 'var(--claude-muted)',
+          subtle: 'var(--claude-subtle)',
+        },
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

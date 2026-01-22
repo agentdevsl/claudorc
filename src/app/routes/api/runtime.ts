@@ -12,7 +12,7 @@ const fallbackStreams: DurableStreamsServer = {
   createStream: async () => undefined,
   publish: async () => undefined,
   subscribe: async function* () {
-    yield { type: 'chunk', data: {} };
+    yield { type: 'chunk', data: {}, offset: 0 };
   },
 };
 

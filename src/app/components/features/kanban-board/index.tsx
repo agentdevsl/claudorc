@@ -30,6 +30,8 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   /** Callback when new task is requested for a column */
   onNewTask?: (column: TaskColumn) => void;
+  /** Custom header action for backlog column (e.g., AI create button) */
+  backlogHeaderAction?: React.ReactNode;
   /** Loading state */
   isLoading?: boolean;
 }
@@ -76,6 +78,7 @@ export function KanbanBoard({
   onTaskMove,
   onTaskClick,
   onNewTask,
+  backlogHeaderAction,
   isLoading: _isLoading,
 }: KanbanBoardProps): React.JSX.Element {
   const [{ selectedIds, collapsedColumns }, actions] = useBoardState();
@@ -241,8 +244,7 @@ export function KanbanBoard({
       onDragEnd={handleDragEnd}
     >
       <div
-        className="flex gap-4 p-5 overflow-x-auto"
-        style={{ minHeight: 'calc(100vh - 180px)' }}
+        className="flex gap-4 p-5 overflow-x-auto h-full"
         onClick={handleBoardClick}
         onKeyDown={handleBoardKeyDown}
         role="application"
@@ -263,6 +265,7 @@ export function KanbanBoard({
               isDropTarget={isDropTarget}
               onCollapse={() => handleColumnCollapse(columnId)}
               onAddTask={() => handleAddTask(columnId)}
+              headerAction={columnId === 'backlog' ? backlogHeaderAction : undefined}
             >
               {columnTasks.map((task) => (
                 <KanbanCard

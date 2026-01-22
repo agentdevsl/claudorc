@@ -1,0 +1,394 @@
+import { useCallback, useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api/client';
+import type {
+  SessionDetail,
+  SessionFilters,
+  SessionListItem,
+  SessionSort,
+  StreamEntry,
+  StreamEntryType,
+} from '../types';
+import { calculateTimeOffset, formatTimeOffset } from '../utils/format-duration';
+
+// Types for API responses
+interface SessionListResponse {
+  sessions: SessionListItem[];
+  total: number;
+  hasMore: boolean;
+}
+
+interface SessionDetailResponse {
+  session: SessionDetail;
+}
+
+/**
+ * Hook for fetching sessions list
+ */
+export function useSessions(projectId: string, filters?: SessionFilters, sort?: SessionSort) {
+  const [data, setData] = useState<SessionListResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<{ message: string } | null>(null);
+
+  const fetchSessions = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await apiClient.sessions.list({
+        projectId,
+        limit: 50,
+      });
+
+      if (result.ok) {
+        // Transform the response to match our expected type
+        const items = (result.data.data as SessionListItem[]) ?? [];
+
+        // Apply client-side filtering
+        let filtered = items;
+
+        if (filters?.status && filters.status.length > 0) {
+          filtered = filtered.filter((s) => filters.status?.includes(s.status));
+        }
+
+        if (filters?.agentId) {
+          filtered = filtered.filter((s) => s.agentId === filters.agentId);
+        }
+
+        if (filters?.taskId) {
+          filtered = filtered.filter((s) => s.taskId === filters.taskId);
+        }
+
+        if (filters?.search) {
+          const searchLower = filters.search.toLowerCase();
+          filtered = filtered.filter(
+            (s) =>
+              s.title?.toLowerCase().includes(searchLower) ||
+              s.taskTitle?.toLowerCase().includes(searchLower) ||
+              s.agentName?.toLowerCase().includes(searchLower)
+          );
+        }
+
+        if (filters?.dateFrom) {
+          const fromDate = new Date(filters.dateFrom);
+          filtered = filtered.filter((s) => new Date(s.createdAt) >= fromDate);
+        }
+
+        if (filters?.dateTo) {
+          const toDate = new Date(filters.dateTo);
+          filtered = filtered.filter((s) => new Date(s.createdAt) <= toDate);
+        }
+
+        // Apply sorting
+        if (sort) {
+          filtered = [...filtered].sort((a, b) => {
+            let aVal: number;
+            let bVal: number;
+
+            switch (sort.field) {
+              case 'createdAt':
+                aVal = new Date(a.createdAt).getTime();
+                bVal = new Date(b.createdAt).getTime();
+                break;
+              case 'closedAt':
+                aVal = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+                bVal = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+                break;
+              case 'duration':
+                aVal = a.duration ?? 0;
+                bVal = b.duration ?? 0;
+                break;
+              default:
+                aVal = new Date(a.createdAt).getTime();
+                bVal = new Date(b.createdAt).getTime();
+            }
+
+            return sort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+          });
+        }
+
+        setData({
+          sessions: filtered,
+          total: filtered.length,
+          hasMore: false,
+        });
+      } else {
+        setError({ message: result.error.message });
+      }
+    } catch (err) {
+      setError({ message: err instanceof Error ? err.message : 'Failed to fetch sessions' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId, filters, sort]);
+
+  useEffect(() => {
+    void fetchSessions();
+  }, [fetchSessions]);
+
+  return { data, isLoading, error, refetch: fetchSessions };
+}
+
+interface PartialErrors {
+  events?: string;
+  summary?: string;
+}
+
+interface UseSessionDetailReturn {
+  data: SessionDetailResponse | null;
+  isLoading: boolean;
+  error: { message: string } | null;
+  partialErrors: PartialErrors | null;
+  refetch: () => Promise<void>;
+}
+
+/**
+ * Hook for fetching session detail with events and summary.
+ * Returns partial errors when events or summary fail but session succeeds.
+ */
+export function useSessionDetail(sessionId: string | null): UseSessionDetailReturn {
+  const [data, setData] = useState<SessionDetailResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<{ message: string } | null>(null);
+  const [partialErrors, setPartialErrors] = useState<PartialErrors | null>(null);
+
+  const fetchDetail = useCallback(async () => {
+    if (!sessionId) {
+      setData(null);
+      setPartialErrors(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setPartialErrors(null);
+
+    try {
+      // Fetch session, events, and summary in parallel
+      const [sessionResult, eventsResult, summaryResult] = await Promise.all([
+        apiClient.sessions.get(sessionId),
+        apiClient.sessions.getEvents(sessionId, { limit: 1000 }),
+        apiClient.sessions.getSummary(sessionId),
+      ]);
+
+      if (!sessionResult.ok) {
+        setError({ message: sessionResult.error.message });
+        return;
+      }
+
+      // Track partial errors for non-critical failures
+      const errors: PartialErrors = {};
+
+      // Transform the response to match our expected type
+      const session = sessionResult.data as unknown as SessionDetail;
+
+      // Get events from the events endpoint
+      let events: SessionDetail['events'] = [];
+      if (eventsResult.ok && eventsResult.data?.data) {
+        events = eventsResult.data.data.map((e) => ({
+          id: e.id,
+          type: e.type as SessionDetail['events'][0]['type'],
+          timestamp: e.timestamp,
+          data: e.data,
+        }));
+      } else if (!eventsResult.ok) {
+        errors.events = eventsResult.error.message;
+      }
+
+      // Get metrics from summary
+      type SummaryData = {
+        sessionId: string;
+        durationMs: number | null;
+        turnsCount: number;
+        tokensUsed: number;
+        filesModified: number;
+        linesAdded: number;
+        linesRemoved: number;
+        finalStatus: 'success' | 'failed' | 'cancelled' | null;
+        session: { id: string; status: string; title: string | null };
+      };
+      let summary: SummaryData | null = null;
+      if (summaryResult.ok) {
+        summary = summaryResult.data;
+      } else {
+        errors.summary = summaryResult.error.message;
+      }
+
+      // Set partial errors if any occurred
+      if (Object.keys(errors).length > 0) {
+        setPartialErrors(errors);
+      }
+
+      // Ensure required fields have defaults
+      setData({
+        session: {
+          ...session,
+          events,
+          filesModified: summary?.filesModified ?? session.filesModified ?? 0,
+          linesAdded: summary?.linesAdded ?? session.linesAdded ?? 0,
+          linesRemoved: summary?.linesRemoved ?? session.linesRemoved ?? 0,
+          testsRun: session.testsRun ?? 0,
+          testsPassed: session.testsPassed ?? 0,
+          turnsUsed: summary?.turnsCount ?? session.turnsUsed ?? 0,
+          tokensUsed: summary?.tokensUsed ?? session.tokensUsed ?? 0,
+          duration: summary?.durationMs ?? session.duration ?? null,
+        },
+      });
+    } catch (err) {
+      setError({ message: err instanceof Error ? err.message : 'Failed to fetch session' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    void fetchDetail();
+  }, [fetchDetail]);
+
+  return { data, isLoading, error, partialErrors, refetch: fetchDetail };
+}
+
+/**
+ * Parse session events into stream entries for display
+ */
+export function parseEventsToStreamEntries(
+  events: SessionDetail['events'],
+  sessionStartTime: number
+): StreamEntry[] {
+  if (!events || events.length === 0) {
+    return [];
+  }
+
+  return events.map((event) => {
+    const timeOffsetMs = calculateTimeOffset(event.timestamp, sessionStartTime);
+    const timeOffset = formatTimeOffset(timeOffsetMs);
+
+    // Determine entry type based on event type
+    let type: StreamEntryType = 'system';
+    let content = '';
+    let toolCall: StreamEntry['toolCall'];
+
+    switch (event.type) {
+      case 'agent:started':
+        type = 'system';
+        content = `Session started. ${(event.data as { message?: string })?.message ?? ''}`;
+        break;
+
+      case 'agent:completed':
+        type = 'system';
+        content = `Session completed successfully. ${(event.data as { message?: string })?.message ?? ''}`;
+        break;
+
+      case 'agent:error':
+        type = 'system';
+        content = `Error: ${(event.data as { error?: string })?.error ?? 'Unknown error'}`;
+        break;
+
+      case 'chunk': {
+        const chunkData = event.data as {
+          role?: string;
+          content?: string;
+          model?: string;
+          usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+        };
+        if (chunkData.role === 'user') {
+          type = 'user';
+          content = chunkData.content ?? '';
+        } else if (chunkData.role === 'assistant') {
+          type = 'assistant';
+          content = chunkData.content ?? '';
+        } else {
+          type = 'system';
+          content = chunkData.content ?? '';
+        }
+        // Extract model and usage for display
+        const model = chunkData.model;
+        const usage = chunkData.usage
+          ? {
+              inputTokens: chunkData.usage.inputTokens ?? 0,
+              outputTokens: chunkData.usage.outputTokens ?? 0,
+              totalTokens: chunkData.usage.totalTokens ?? 0,
+            }
+          : undefined;
+
+        return {
+          id: event.id,
+          type,
+          timestamp: event.timestamp,
+          timeOffset,
+          content,
+          model,
+          usage,
+        };
+      }
+
+      case 'tool:start': {
+        type = 'tool';
+        const toolData = event.data as { name?: string; input?: Record<string, unknown> };
+        content = `Executing ${toolData.name ?? 'tool'}...`;
+        toolCall = {
+          name: toolData.name ?? 'Unknown',
+          input: toolData.input ?? {},
+          status: 'running',
+        };
+        break;
+      }
+
+      case 'tool:result': {
+        type = 'tool';
+        const resultData = event.data as {
+          name?: string;
+          input?: Record<string, unknown>;
+          output?: unknown;
+          error?: string;
+        };
+        content = resultData.error
+          ? `Tool ${resultData.name ?? 'unknown'} failed`
+          : `Tool ${resultData.name ?? 'unknown'} completed`;
+        toolCall = {
+          name: resultData.name ?? 'Unknown',
+          input: resultData.input ?? {},
+          output: resultData.output,
+          status: resultData.error ? 'error' : 'complete',
+        };
+        break;
+      }
+
+      case 'terminal:input':
+        type = 'user';
+        content = (event.data as { input?: string })?.input ?? '';
+        break;
+
+      case 'terminal:output':
+        type = 'assistant';
+        content = (event.data as { output?: string })?.output ?? '';
+        break;
+
+      default:
+        type = 'system';
+        content = JSON.stringify(event.data);
+    }
+
+    return {
+      id: event.id,
+      type,
+      timestamp: event.timestamp,
+      timeOffset,
+      content,
+      toolCall,
+    };
+  });
+}
+
+/**
+ * Hook for session events with parsed stream entries
+ */
+export function useSessionEvents(session: SessionDetail | null) {
+  if (!session) {
+    return { entries: [] as StreamEntry[], isLoading: false };
+  }
+
+  const sessionStartTime = new Date(session.createdAt).getTime();
+  const entries = parseEventsToStreamEntries(session.events, sessionStartTime);
+
+  return { entries, isLoading: false };
+}

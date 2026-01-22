@@ -179,7 +179,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
 
       // Simulate token streaming
       await act(async () => {
@@ -219,7 +220,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
 
       // Simulate assistant message completion
       await act(async () => {
@@ -256,7 +258,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
 
       // Simulate suggestion
       await act(async () => {
@@ -295,7 +298,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
 
       // Simulate error
       await act(async () => {
@@ -326,7 +330,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
 
       // Simulate completion
       await act(async () => {
@@ -525,7 +530,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
       expect(eventSource.readyState).toBe(1); // OPEN
 
       act(() => {
@@ -553,7 +559,8 @@ describe('useTaskCreation', () => {
         expect(MockEventSource.instances.length).toBe(1);
       });
 
-      const eventSource = MockEventSource.instances[0]!;
+      const eventSource = MockEventSource.instances[0];
+      expect(eventSource).toBeDefined();
       expect(eventSource.readyState).toBe(1); // OPEN
 
       unmount();

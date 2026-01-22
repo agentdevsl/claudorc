@@ -1,7 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { PlanSessionView } from '@/app/components/features/plan-session-view';
-import type { Task, TaskColumn, TaskMode } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema/tasks';
 import type { Worktree } from '@/db/schema/worktrees';
 import { cn } from '@/lib/utils/cn';
 import { TaskActions } from './task-actions';
@@ -44,7 +44,6 @@ export interface TaskDetailDialogProps {
   onSave: (data: UpdateTaskInput) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMoveColumn?: (taskId: string, column: TaskColumn) => Promise<void>;
-  onModeChange?: (taskId: string, mode: TaskMode) => Promise<void>;
   onViewSession?: (sessionId: string) => void;
   onOpenApproval?: (taskId: string) => void;
   viewers?: TaskViewer[];
@@ -104,7 +103,6 @@ export function TaskDetailDialog({
   onSave,
   onDelete,
   onMoveColumn,
-  onModeChange,
   onViewSession,
   onOpenApproval,
   viewers = [],
@@ -167,23 +165,8 @@ export function TaskDetailDialog({
     }
   }, [task, onDelete, onOpenChange]);
 
-  // Mode change handler
-  const handleModeChange = useCallback(
-    async (mode: TaskMode) => {
-      if (!task || !onModeChange) return;
-      try {
-        await onModeChange(task.id, mode);
-      } catch (error) {
-        console.error('[TaskDetailDialog] Failed to change task mode:', error);
-        // TODO: Show toast notification to user
-        // toast.error('Failed to change task mode. Please try again.');
-      }
-    },
-    [task, onModeChange]
-  );
-
-  // Determine if we should show plan session view
-  const showPlanSessionView = task?.mode === 'plan' && task?.column === 'in_progress';
+  // Determine if we should show plan session view (currently disabled - no mode field)
+  const showPlanSessionView = false;
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -269,7 +252,6 @@ export function TaskDetailDialog({
             task={displayTask}
             viewers={viewers}
             onPriorityChange={(priority) => handleFieldChange('priority', priority)}
-            onModeChange={onModeChange ? handleModeChange : undefined}
           />
 
           {/* Content area - conditionally render based on mode */}

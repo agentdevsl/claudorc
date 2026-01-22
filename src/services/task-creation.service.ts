@@ -2,11 +2,12 @@ import { type SDKMessage, unstable_v2_createSession } from '@anthropic-ai/claude
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
-import { type NewTask, type TaskMode, tasks } from '@/db/schema/tasks';
+import { type NewTask, tasks } from '@/db/schema/tasks';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
 import type { DurableStreamsService } from './durable-streams.service';
+import type { SessionService } from './session.service';
 
 // ============================================================================
 // Types
@@ -19,7 +20,6 @@ export interface TaskSuggestion {
   description: string;
   labels: string[];
   priority: TaskPriority;
-  mode: TaskMode;
 }
 
 export interface TaskCreationMessage {
@@ -53,6 +53,8 @@ export interface TaskCreationSession {
   v2Session: V2Session | null;
   /** Whether system prompt has been sent */
   systemPromptSent: boolean;
+  /** Database session ID for history tracking */
+  dbSessionId: string | null;
 }
 
 export interface TaskCreationError {
@@ -118,15 +120,13 @@ ALWAYS respond with a JSON block in this exact format:
   "title": "Short descriptive title (5-10 words)",
   "description": "Detailed task description in markdown format. Include:\\n- What needs to be done\\n- Acceptance criteria\\n- Any relevant context",
   "labels": ["feature"],
-  "priority": "medium",
-  "mode": "implement"
+  "priority": "medium"
 }
 \`\`\`
 
 Field guidelines:
-- labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test"]
+- labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
 - priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
-- mode: "plan" for complex tasks needing analysis, "implement" for straightforward work
 
 CRITICAL: Generate the suggestion immediately even with limited information. The user can refine it later. Don't ask clarifying questions - make reasonable assumptions and document them in the description.`;
 
@@ -141,7 +141,8 @@ export class TaskCreationService {
 
   constructor(
     private db: Database,
-    private streams: DurableStreamsService
+    private streams: DurableStreamsService,
+    private sessionService?: SessionService
   ) {}
 
   /**
@@ -164,7 +165,6 @@ export class TaskCreationService {
         description: parsed.description,
         labels: Array.isArray(parsed.labels) ? parsed.labels : [],
         priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
-        mode: ['plan', 'implement'].includes(parsed.mode) ? parsed.mode : 'implement',
       };
     } catch {
       return null;
@@ -193,6 +193,29 @@ export class TaskCreationService {
 
     // Create our session wrapper
     const sessionId = createId();
+
+    // Create database session for history tracking (if session service is available)
+    let dbSessionId: string | null = null;
+    if (this.sessionService) {
+      try {
+        const dbSessionResult = await this.sessionService.create({
+          projectId,
+          title: 'Task Creation',
+        });
+        if (dbSessionResult.ok) {
+          dbSessionId = dbSessionResult.value.id;
+          console.log('[TaskCreationService] Created database session:', dbSessionId);
+        } else {
+          console.warn(
+            '[TaskCreationService] Failed to create database session:',
+            dbSessionResult.error
+          );
+        }
+      } catch (error) {
+        console.error('[TaskCreationService] Error creating database session:', error);
+      }
+    }
+
     const session: TaskCreationSession = {
       id: sessionId,
       projectId,
@@ -205,6 +228,7 @@ export class TaskCreationService {
       sdkSessionId: null,
       v2Session: v2Session as V2Session,
       systemPromptSent: false,
+      dbSessionId,
     };
 
     this.sessions.set(sessionId, session);
@@ -274,6 +298,20 @@ export class TaskCreationService {
       console.error('[TaskCreationService] Failed to publish user message:', error);
     }
 
+    // Persist user message to database for session history
+    if (session.dbSessionId && this.sessionService) {
+      try {
+        await this.sessionService.publish(session.dbSessionId, {
+          id: userMessage.id,
+          type: 'chunk',
+          timestamp: Date.now(),
+          data: { role: 'user', content },
+        });
+      } catch (error) {
+        console.error('[TaskCreationService] Failed to persist user message:', error);
+      }
+    }
+
     try {
       // Build message with system prompt for first message
       let messageToSend = content;
@@ -286,6 +324,9 @@ export class TaskCreationService {
       await session.v2Session.send(messageToSend);
 
       let accumulated = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let modelUsed = '';
 
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
@@ -296,7 +337,28 @@ export class TaskCreationService {
 
         // Handle partial streaming messages
         if (msg.type === 'stream_event') {
-          const event = msg.event as { type: string; delta?: { type: string; text?: string } };
+          const event = msg.event as {
+            type: string;
+            delta?: { type: string; text?: string };
+            message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+
+          // Capture message_start for model info (legacy SDK V1 path)
+          if (event.type === 'message_start' && event.message) {
+            if (event.message.model) {
+              modelUsed = event.message.model;
+            }
+            if (event.message.usage) {
+              inputTokens = event.message.usage.input_tokens ?? 0;
+            }
+          }
+
+          // Capture message_delta for output token usage
+          if (event.type === 'message_delta' && event.usage) {
+            outputTokens = event.usage.output_tokens ?? 0;
+          }
+
           if (
             event.type === 'content_block_delta' &&
             event.delta?.type === 'text_delta' &&
@@ -328,7 +390,40 @@ export class TaskCreationService {
           if (text) {
             accumulated = text;
           }
+
+          // Extract model and usage from assistant message
+          const message = msg.message as {
+            model?: string;
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+          if (message?.model) {
+            modelUsed = message.model;
+          }
+          if (message?.usage) {
+            inputTokens = message.usage.input_tokens ?? 0;
+            outputTokens = message.usage.output_tokens ?? 0;
+          }
         }
+
+        // Handle result messages which may contain usage info
+        if (msg.type === 'result') {
+          const result = msg as {
+            usage?: { input_tokens?: number; output_tokens?: number };
+            num_turns?: number;
+          };
+          if (result.usage) {
+            inputTokens = result.usage.input_tokens ?? inputTokens;
+            outputTokens = result.usage.output_tokens ?? outputTokens;
+          }
+        }
+      }
+
+      // Log token usage for debugging
+      const totalTokens = inputTokens + outputTokens;
+      if (totalTokens > 0) {
+        console.log(
+          `[TaskCreationService] Token usage - Input: ${inputTokens}, Output: ${outputTokens}, Model: ${modelUsed}`
+        );
       }
 
       // Add assistant response if we have content
@@ -351,6 +446,25 @@ export class TaskCreationService {
           });
         } catch (error) {
           console.error('[TaskCreationService] Failed to publish assistant message:', error);
+        }
+
+        // Persist assistant message to database for session history
+        if (session.dbSessionId && this.sessionService) {
+          try {
+            await this.sessionService.publish(session.dbSessionId, {
+              id: assistantMessage.id,
+              type: 'chunk',
+              timestamp: Date.now(),
+              data: {
+                role: 'assistant',
+                content: accumulated,
+                model: modelUsed || undefined,
+                usage: totalTokens > 0 ? { inputTokens, outputTokens, totalTokens } : undefined,
+              },
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] Failed to persist assistant message:', error);
+          }
         }
 
         // Parse suggestion from response
@@ -427,7 +541,6 @@ export class TaskCreationService {
         description: finalSuggestion.description,
         labels: finalSuggestion.labels,
         priority: finalSuggestion.priority,
-        mode: finalSuggestion.mode,
         column: 'backlog',
         position: 0, // Will be reordered by the task service
       };
@@ -442,6 +555,16 @@ export class TaskCreationService {
           console.error('[TaskCreationService] Failed to close V2 session:', error);
         }
         session.v2Session = null;
+      }
+
+      // Close database session
+      if (session.dbSessionId && this.sessionService) {
+        try {
+          await this.sessionService.close(session.dbSessionId);
+          console.log('[TaskCreationService] Closed database session:', session.dbSessionId);
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to close database session:', error);
+        }
       }
 
       // Update session
@@ -486,6 +609,16 @@ export class TaskCreationService {
       session.v2Session = null;
     }
 
+    // Close database session
+    if (session.dbSessionId && this.sessionService) {
+      try {
+        await this.sessionService.close(session.dbSessionId);
+        console.log('[TaskCreationService] Closed database session:', session.dbSessionId);
+      } catch (error) {
+        console.error('[TaskCreationService] Failed to close database session:', error);
+      }
+    }
+
     session.status = 'cancelled';
     session.completedAt = new Date().toISOString();
 
@@ -513,7 +646,8 @@ export class TaskCreationService {
  */
 export function createTaskCreationService(
   db: Database,
-  streams: DurableStreamsService
+  streams: DurableStreamsService,
+  sessionService?: SessionService
 ): TaskCreationService {
-  return new TaskCreationService(db, streams);
+  return new TaskCreationService(db, streams, sessionService);
 }

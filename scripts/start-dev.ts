@@ -53,7 +53,7 @@ async function waitForHealthy(): Promise<boolean> {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const result = await checkHealth();
     if (result.ok) {
-      process.stdout.write('\r' + ' '.repeat(60) + '\r'); // Clear spinner line
+      process.stdout.write(`\r${' '.repeat(60)}\r`); // Clear spinner line
       log('✅', `API server healthy!`, colors.green);
       if (result.details) {
         const details = result.details as { status: string; responseTimeMs: number };
@@ -73,7 +73,7 @@ async function waitForHealthy(): Promise<boolean> {
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
 
-  process.stdout.write('\r' + ' '.repeat(60) + '\r'); // Clear spinner line
+  process.stdout.write(`\r${' '.repeat(60)}\r`); // Clear spinner line
   log('❌', `API server failed to become healthy after ${MAX_RETRIES} attempts`, colors.yellow);
   return false;
 }

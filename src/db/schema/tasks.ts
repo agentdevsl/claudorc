@@ -8,13 +8,6 @@ import type { TaskColumn, TaskPriority } from './enums';
 
 export type { TaskColumn, TaskPriority } from './enums';
 
-/**
- * Task execution mode
- * - plan: Multi-turn planning session (no sandbox)
- * - implement: Full implementation with sandbox
- */
-export type TaskMode = 'plan' | 'implement';
-
 import { projects } from './projects';
 import { sessions } from './sessions';
 import { worktrees } from './worktrees';
@@ -35,7 +28,6 @@ export const tasks = sqliteTable('tasks', {
   }),
   title: text('title').notNull(),
   description: text('description'),
-  mode: text('mode').$type<TaskMode>().notNull().default('implement'),
   column: text('column').$type<TaskColumn>().default('backlog').notNull(),
   position: integer('position').default(0).notNull(),
   labels: text('labels', { mode: 'json' }).$type<string[]>().default([]),

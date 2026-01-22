@@ -21,6 +21,8 @@ interface KanbanColumnProps {
   onCollapse: (collapsed: boolean) => void;
   /** Callback to add new task */
   onAddTask: () => void;
+  /** Optional custom action to render in header (replaces default + button) */
+  headerAction?: React.ReactNode;
   /** Card renderer */
   children: React.ReactNode;
 }
@@ -33,6 +35,7 @@ export function KanbanColumn({
   isDropTarget,
   onCollapse,
   onAddTask,
+  headerAction,
   children,
 }: KanbanColumnProps): React.JSX.Element {
   const { setNodeRef, isOver } = useDroppable({
@@ -44,7 +47,7 @@ export function KanbanColumn({
   return (
     <section
       ref={setNodeRef}
-      className={cn(columnVariants({ state: columnState }), 'max-h-[calc(100vh-180px)] shrink-0')}
+      className={cn(columnVariants({ state: columnState }), 'h-full shrink-0')}
       style={{
         width: isCollapsed ? undefined : COLUMN_WIDTH,
         minWidth: isCollapsed ? undefined : COLUMN_WIDTH,
@@ -108,16 +111,17 @@ export function KanbanColumn({
           </div>
         )}
 
-        {!isCollapsed && (
-          <button
-            type="button"
-            onClick={onAddTask}
-            className="w-6 h-6 rounded flex items-center justify-center text-fg-muted hover:bg-surface-muted hover:text-fg transition-colors"
-            aria-label={`Add task to ${title}`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        )}
+        {!isCollapsed &&
+          (headerAction ?? (
+            <button
+              type="button"
+              onClick={onAddTask}
+              className="w-6 h-6 rounded flex items-center justify-center text-fg-muted hover:bg-surface-muted hover:text-fg transition-colors"
+              aria-label={`Add task to ${title}`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          ))}
       </div>
 
       {/* Content */}

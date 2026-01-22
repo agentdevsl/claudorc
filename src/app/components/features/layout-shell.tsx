@@ -7,7 +7,10 @@ interface LayoutShellProps {
   projectId?: string;
   projectName?: string;
   projectPath?: string;
+  /** Actions displayed on the right side of the header */
   actions?: ReactNode;
+  /** Action displayed in the center of the header */
+  centerAction?: ReactNode;
   children: ReactNode;
 }
 
@@ -17,6 +20,7 @@ export function LayoutShell({
   projectName,
   projectPath,
   actions,
+  centerAction,
   children,
 }: LayoutShellProps): React.JSX.Element {
   const pageTitle = breadcrumbs?.[breadcrumbs.length - 1]?.label;
@@ -29,7 +33,7 @@ export function LayoutShell({
       <div className="flex flex-1 flex-col">
         {breadcrumbs ? (
           <header
-            className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
+            className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 sm:py-4"
             data-testid="layout-header"
           >
             <div className="flex items-center gap-3">
@@ -51,11 +55,20 @@ export function LayoutShell({
                 ) : null}
               </div>
             </div>
+            {centerAction ? (
+              <div className="flex justify-center" data-testid="header-center-action">
+                {centerAction}
+              </div>
+            ) : (
+              <div />
+            )}
             {actions ? (
-              <div className="flex items-center gap-2" data-testid="header-actions">
+              <div className="flex items-center justify-end gap-2" data-testid="header-actions">
                 {actions}
               </div>
-            ) : null}
+            ) : (
+              <div />
+            )}
           </header>
         ) : null}
         <main className="flex-1" data-testid="layout-main">

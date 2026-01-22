@@ -15,6 +15,7 @@ import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/sc
 import { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
+import { type DurableStreamsServer, SessionService } from '../services/session.service.js';
 import { TaskService } from '../services/task.service.js';
 import {
   createTaskCreationService,
@@ -90,8 +91,26 @@ const mockStreamsService: DurableStreamsService = {
   publishTaskCreationCancelled: async () => undefined,
 } as unknown as DurableStreamsService;
 
-// TaskCreationService for AI-powered task creation
-const taskCreationService: TaskCreationService = createTaskCreationService(db, mockStreamsService);
+// Mock DurableStreamsServer for SessionService
+const mockStreamsServer: DurableStreamsServer = {
+  createStream: async () => undefined,
+  publish: async () => undefined,
+  subscribe: async function* () {
+    yield { type: 'chunk', data: {}, offset: 0 };
+  },
+};
+
+// SessionService for session management (needed for task creation history)
+const sessionService = new SessionService(db, mockStreamsServer, {
+  baseUrl: 'http://localhost:3001',
+});
+
+// TaskCreationService for AI-powered task creation (with session tracking)
+const taskCreationService: TaskCreationService = createTaskCreationService(
+  db,
+  mockStreamsService,
+  sessionService
+);
 
 // ============ Project Handlers ============
 
@@ -1144,7 +1163,6 @@ async function handleCreateTask(request: Request): Promise<Response> {
       description?: string;
       labels?: string[];
       priority?: 'high' | 'medium' | 'low';
-      mode?: 'plan' | 'implement';
     };
 
     if (!body.projectId || !body.title) {
@@ -1163,7 +1181,6 @@ async function handleCreateTask(request: Request): Promise<Response> {
       description: body.description,
       labels: body.labels,
       priority: body.priority,
-      mode: body.mode,
     });
 
     if (!result.ok) {
@@ -1594,6 +1611,108 @@ async function handleTaskCreationCancel(request: Request): Promise<Response> {
   }
 }
 
+// ============ Session Handlers ============
+
+async function handleListSessions(url: URL): Promise<Response> {
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+  const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+
+  try {
+    const result = await sessionService.list({ limit, offset });
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    return json({
+      ok: true,
+      data: result.value,
+      pagination: {
+        limit,
+        offset,
+        hasMore: result.value.length === limit,
+      },
+    });
+  } catch (error) {
+    console.error('[Sessions] List error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to list sessions' } },
+      500
+    );
+  }
+}
+
+async function handleGetSession(id: string): Promise<Response> {
+  try {
+    const result = await sessionService.getById(id);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 404);
+    }
+
+    return json({ ok: true, data: result.value });
+  } catch (error) {
+    console.error('[Sessions] Get error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to get session' } },
+      500
+    );
+  }
+}
+
+async function handleGetSessionEvents(id: string, url: URL): Promise<Response> {
+  try {
+    const limit = parseInt(url.searchParams.get('limit') ?? '100', 10);
+    const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+
+    const result = await sessionService.getEventsBySession(id, { limit, offset });
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 404);
+    }
+
+    return json({
+      ok: true,
+      data: result.value,
+      pagination: { total: result.value.length, limit, offset },
+    });
+  } catch (error) {
+    console.error('[Sessions] Get events error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to get session events' } },
+      500
+    );
+  }
+}
+
+async function handleGetSessionSummary(id: string): Promise<Response> {
+  try {
+    const result = await sessionService.getSessionSummary(id);
+    if (!result.ok) {
+      return json({ ok: false, error: result.error }, 404);
+    }
+
+    // Return default values if no summary exists yet
+    const summary = result.value ?? {
+      sessionId: id,
+      durationMs: null,
+      turnsCount: 0,
+      tokensUsed: 0,
+      filesModified: 0,
+      linesAdded: 0,
+      linesRemoved: 0,
+      finalStatus: null,
+    };
+
+    return json({ ok: true, data: summary });
+  } catch (error) {
+    console.error('[Sessions] Get summary error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to get session summary' } },
+      500
+    );
+  }
+}
+
+// ============ Task Creation Stream Handler ============
+
 function handleTaskCreationStream(url: URL): Response {
   const sessionId = url.searchParams.get('sessionId');
   console.log('[TaskCreation Stream] Request for sessionId:', sessionId);
@@ -1857,6 +1976,35 @@ async function handleRequest(request: Request): Promise<Response> {
   // SSE stream endpoint
   if (path === '/api/tasks/create-with-ai/stream' && method === 'GET') {
     return handleTaskCreationStream(url);
+  }
+
+  // Sessions routes
+  if (path === '/api/sessions' && method === 'GET') {
+    return handleListSessions(url);
+  }
+  // Match /api/sessions/:id/events pattern
+  const sessionEventsMatch = path.match(/^\/api\/sessions\/([^/]+)\/events$/);
+  if (sessionEventsMatch) {
+    const id = sessionEventsMatch[1];
+    if (id && method === 'GET') {
+      return handleGetSessionEvents(id, url);
+    }
+  }
+  // Match /api/sessions/:id/summary pattern
+  const sessionSummaryMatch = path.match(/^\/api\/sessions\/([^/]+)\/summary$/);
+  if (sessionSummaryMatch) {
+    const id = sessionSummaryMatch[1];
+    if (id && method === 'GET') {
+      return handleGetSessionSummary(id);
+    }
+  }
+  // Match /api/sessions/:id pattern
+  const sessionIdMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
+  if (sessionIdMatch) {
+    const id = sessionIdMatch[1];
+    if (id && method === 'GET') {
+      return handleGetSession(id);
+    }
   }
 
   // Health check

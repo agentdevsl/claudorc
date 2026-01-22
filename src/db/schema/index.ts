@@ -9,6 +9,8 @@ export * from './projects';
 export * from './relations';
 export * from './sandbox-configs';
 export * from './sandboxes';
+export * from './session-events';
+export * from './session-summaries';
 export * from './sessions';
 export * from './tasks';
 export * from './template-projects';

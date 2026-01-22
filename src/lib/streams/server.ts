@@ -130,8 +130,8 @@ export class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
     try {
       while (true) {
-        if (eventQueue.length > 0) {
-          const event = eventQueue.shift()!;
+        const event = eventQueue.shift();
+        if (event) {
           yield { type: event.type, data: event.data, offset: event.offset };
         } else {
           // Wait for next event

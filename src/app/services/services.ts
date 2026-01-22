@@ -95,8 +95,12 @@ export function createServices(context: {
       { maxTurns: 20 }
     );
 
-    // Create task creation service for AI-powered task creation
-    const taskCreationService = createTaskCreationService(context.db, durableStreamsService);
+    // Create task creation service for AI-powered task creation (with session tracking)
+    const taskCreationService = createTaskCreationService(
+      context.db,
+      durableStreamsService,
+      sessionService
+    );
 
     console.log('[Services] All services initialized successfully');
 

@@ -18,6 +18,8 @@ interface KanbanColumnProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onAddTask?: () => void;
+  /** Custom header action to replace the default add button */
+  headerAction?: React.ReactNode;
   config?: ColumnConfig;
 }
 
@@ -32,6 +34,7 @@ export function KanbanColumn({
   isCollapsed = false,
   onToggleCollapse,
   onAddTask,
+  headerAction,
   config,
 }: KanbanColumnProps): React.JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -107,17 +110,18 @@ export function KanbanColumn({
             </span>
           </div>
         </div>
-        {onAddTask && (
-          <button
-            type="button"
-            onClick={onAddTask}
-            className="flex h-6 w-6 items-center justify-center rounded text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-muted)] hover:text-[var(--fg-default)]"
-            aria-label={`Add task to ${title}`}
-            data-testid="add-task-button"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        )}
+        {headerAction ??
+          (onAddTask && (
+            <button
+              type="button"
+              onClick={onAddTask}
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-muted)] hover:text-[var(--fg-default)]"
+              aria-label={`Add task to ${title}`}
+              data-testid="add-task-button"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          ))}
       </div>
 
       {/* Column content */}
