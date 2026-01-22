@@ -253,7 +253,7 @@ function MarketplacePage(): React.JSX.Element {
         </Button>
       }
     >
-      <div data-testid="marketplace-page" className="p-6 max-w-6xl mx-auto">
+      <div data-testid="marketplace-page" className="p-6">
         {/* Error state */}
         {error && (
           <div className="mb-6 p-4 rounded-xl bg-danger-muted/50 border border-danger/20 text-sm text-danger flex items-center justify-between">
@@ -278,8 +278,8 @@ function MarketplacePage(): React.JSX.Element {
             />
           </div>
         ) : (
-          /* Marketplace cards grid */
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2" data-testid="marketplace-grid">
+          /* Marketplace cards - single column, full width */
+          <div className="flex flex-col gap-5 max-w-3xl" data-testid="marketplace-grid">
             {marketplaces.map((marketplace) => (
               <MarketplaceCard
                 key={marketplace.id}
