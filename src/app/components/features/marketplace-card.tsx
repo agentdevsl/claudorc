@@ -125,7 +125,8 @@ interface CollapsibleSectionProps {
   colorClass: string;
   bgClass: string;
   children: React.ReactNode;
-  defaultOpen?: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
 }
 
 function CollapsibleSection({
@@ -135,17 +136,16 @@ function CollapsibleSection({
   colorClass,
   bgClass,
   children,
-  defaultOpen = false,
+  isOpen,
+  onToggle,
 }: CollapsibleSectionProps): React.JSX.Element | null {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
   if (count === 0) return null;
 
   return (
     <div className="pt-3 first:pt-0 first:border-t-0 border-t border-border-muted/50">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
         className="group flex w-full items-center gap-2.5 text-left py-1.5 px-2 -mx-2 rounded-md transition-all duration-200 hover:bg-surface-subtle"
       >
         <span className={cn('transition-transform duration-200 ease-out', isOpen && 'rotate-90')}>
@@ -170,7 +170,7 @@ function CollapsibleSection({
         )}
       >
         <div className="overflow-hidden">
-          <div className="pt-2 pb-1 pl-8 space-y-0.5 max-h-72 overflow-y-auto scrollbar-thin">
+          <div className="pt-2 pb-1 pl-8 space-y-0.5 max-h-96 overflow-y-auto scrollbar-thin">
             {children}
           </div>
         </div>
@@ -226,8 +226,20 @@ export function MarketplaceCard({
   // Count plugins by tag
   const officialCount = plugins.filter((p) => p.tags?.includes('official')).length;
   const externalCount = plugins.filter((p) => p.tags?.includes('external')).length;
+  const uncategorizedCount = plugins.filter((p) => !p.tags || p.tags.length === 0).length;
 
   const isOfficial = marketplace.isDefault;
+
+  // Track which sections are open for controlled expansion
+  const [openSections, setOpenSections] = useState({
+    official: officialCount > 0,
+    community: false,
+    available: false,
+  });
+
+  const toggleSection = (section: 'official' | 'community' | 'available') => {
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
 
   const cardContent = (
     <div
@@ -359,10 +371,11 @@ export function MarketplaceCard({
           <CollapsibleSection
             title="Official Plugins"
             icon={<ShieldCheck className="h-4 w-4 text-success" weight="fill" />}
-            count={plugins.filter((p) => p.tags?.includes('official')).length}
+            count={officialCount}
             colorClass="text-success"
             bgClass="bg-success-muted"
-            defaultOpen
+            isOpen={openSections.official}
+            onToggle={() => toggleSection('official')}
           >
             {plugins
               .filter((p) => p.tags?.includes('official'))
@@ -375,9 +388,11 @@ export function MarketplaceCard({
           <CollapsibleSection
             title="Community Plugins"
             icon={<Users className="h-4 w-4 text-accent" weight="fill" />}
-            count={plugins.filter((p) => p.tags?.includes('external')).length}
+            count={externalCount}
             colorClass="text-accent"
             bgClass="bg-accent-muted"
+            isOpen={openSections.community}
+            onToggle={() => toggleSection('community')}
           >
             {plugins
               .filter((p) => p.tags?.includes('external'))
@@ -390,9 +405,11 @@ export function MarketplaceCard({
           <CollapsibleSection
             title="Available Plugins"
             icon={<Lightning className="h-4 w-4 text-fg-muted" weight="fill" />}
-            count={plugins.filter((p) => !p.tags || p.tags.length === 0).length}
+            count={uncategorizedCount}
             colorClass="text-fg-muted"
             bgClass="bg-surface-muted"
+            isOpen={openSections.available}
+            onToggle={() => toggleSection('available')}
           >
             {plugins
               .filter((p) => !p.tags || p.tags.length === 0)
