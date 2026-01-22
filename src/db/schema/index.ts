@@ -4,6 +4,7 @@ export * from './api-keys';
 export * from './audit-logs';
 export * from './enums';
 export * from './github';
+export * from './marketplaces';
 export * from './plan-sessions';
 export * from './projects';
 export * from './relations';

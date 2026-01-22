@@ -234,6 +234,39 @@ CREATE TABLE IF NOT EXISTS "session_summaries" (
   "final_status" TEXT,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "marketplaces" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "name" TEXT NOT NULL,
+  "github_owner" TEXT NOT NULL,
+  "github_repo" TEXT NOT NULL,
+  "branch" TEXT DEFAULT 'main',
+  "plugins_path" TEXT DEFAULT 'plugins',
+  "is_default" INTEGER DEFAULT 0,
+  "is_enabled" INTEGER DEFAULT 1,
+  "status" TEXT DEFAULT 'active',
+  "last_sync_sha" TEXT,
+  "last_synced_at" TEXT,
+  "sync_error" TEXT,
+  "cached_plugins" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
+-- Seed the official Anthropic plugins marketplace (idempotent)
+INSERT OR IGNORE INTO "marketplaces" (
+  "id", "name", "github_owner", "github_repo", "branch", "plugins_path", "is_default", "is_enabled", "status"
+) VALUES (
+  'anthropic-official-marketplace',
+  'Claude Plugins Official',
+  'anthropics',
+  'claude-plugins-official',
+  'main',
+  'plugins',
+  1,
+  1,
+  'active'
+);
 `;
 
 // Additional migrations for existing databases

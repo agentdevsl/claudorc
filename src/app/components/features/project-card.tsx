@@ -119,6 +119,7 @@ export function ProjectCard({
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: Card needs div styling, not button semantics
     <div
       className="rounded-lg border border-border bg-surface overflow-hidden transition-all hover:border-fg-subtle hover:shadow-md cursor-pointer"
       data-testid="project-card"

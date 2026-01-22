@@ -14,6 +14,7 @@ import { tasks } from '../db/schema/tasks.js';
 import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
+import { MarketplaceService } from '../services/marketplace.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
 import { type DurableStreamsServer, SessionService } from '../services/session.service.js';
 import { TaskService } from '../services/task.service.js';
@@ -137,6 +138,9 @@ const bunCommandRunner: CommandRunner = {
 
 // WorktreeService for git worktree operations
 const worktreeService = new WorktreeService(db, bunCommandRunner);
+
+// MarketplaceService for plugin marketplace operations
+const marketplaceService = new MarketplaceService(db);
 
 // ============ Project Handlers ============
 
@@ -1121,6 +1125,156 @@ async function handleSyncTemplate(id: string): Promise<Response> {
       500
     );
   }
+}
+
+// ============ Marketplace Handlers ============
+
+async function handleListMarketplaces(url: URL): Promise<Response> {
+  const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+  const includeDisabled = url.searchParams.get('includeDisabled') === 'true';
+
+  const result = await marketplaceService.list({ limit, includeDisabled });
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({
+    ok: true,
+    data: {
+      items: result.value.map((m) => ({
+        id: m.id,
+        name: m.name,
+        githubOwner: m.githubOwner,
+        githubRepo: m.githubRepo,
+        branch: m.branch,
+        pluginsPath: m.pluginsPath,
+        isDefault: m.isDefault,
+        isEnabled: m.isEnabled,
+        status: m.status,
+        lastSyncedAt: m.lastSyncedAt,
+        syncError: m.syncError,
+        pluginCount: (m.cachedPlugins ?? []).length,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      })),
+      totalCount: result.value.length,
+    },
+  });
+}
+
+async function handleGetMarketplace(id: string): Promise<Response> {
+  const result = await marketplaceService.getById(id);
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  const m = result.value;
+  return json({
+    ok: true,
+    data: {
+      id: m.id,
+      name: m.name,
+      githubOwner: m.githubOwner,
+      githubRepo: m.githubRepo,
+      branch: m.branch,
+      pluginsPath: m.pluginsPath,
+      isDefault: m.isDefault,
+      isEnabled: m.isEnabled,
+      status: m.status,
+      lastSyncedAt: m.lastSyncedAt,
+      syncError: m.syncError,
+      plugins: m.cachedPlugins ?? [],
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+    },
+  });
+}
+
+async function handleCreateMarketplace(request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    name: string;
+    githubUrl?: string;
+    githubOwner?: string;
+    githubRepo?: string;
+    branch?: string;
+    pluginsPath?: string;
+  };
+
+  if (!body.name) {
+    return json({ ok: false, error: { code: 'MISSING_NAME', message: 'Name is required' } }, 400);
+  }
+
+  if (!body.githubUrl && (!body.githubOwner || !body.githubRepo)) {
+    return json(
+      { ok: false, error: { code: 'MISSING_REPO', message: 'GitHub URL or owner/repo required' } },
+      400
+    );
+  }
+
+  const result = await marketplaceService.create(body);
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({ ok: true, data: result.value });
+}
+
+async function handleDeleteMarketplace(id: string): Promise<Response> {
+  const result = await marketplaceService.delete(id);
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({ ok: true, data: { deleted: true } });
+}
+
+async function handleSyncMarketplace(id: string): Promise<Response> {
+  const result = await marketplaceService.sync(id);
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({ ok: true, data: result.value });
+}
+
+async function handleListPlugins(url: URL): Promise<Response> {
+  const search = url.searchParams.get('search') ?? undefined;
+  const category = url.searchParams.get('category') ?? undefined;
+  const marketplaceId = url.searchParams.get('marketplaceId') ?? undefined;
+
+  const result = await marketplaceService.listAllPlugins({ search, category, marketplaceId });
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({
+    ok: true,
+    data: {
+      items: result.value,
+      totalCount: result.value.length,
+    },
+  });
+}
+
+async function handleGetCategories(): Promise<Response> {
+  const result = await marketplaceService.getCategories();
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({
+    ok: true,
+    data: { categories: result.value },
+  });
+}
+
+async function handleSeedDefaultMarketplace(): Promise<Response> {
+  const result = await marketplaceService.seedDefaultMarketplace();
+  if (!result.ok) {
+    return json({ ok: false, error: result.error }, result.error.status);
+  }
+
+  return json({ ok: true, data: { seeded: result.value !== null } });
 }
 
 // ============ Task Handlers ============
@@ -2530,6 +2684,40 @@ async function handleRequest(request: Request): Promise<Response> {
         return handleDeleteTemplate(id);
       }
     }
+  }
+
+  // Marketplace routes
+  if (path === '/api/marketplaces' && method === 'GET') {
+    return handleListMarketplaces(url);
+  }
+  if (path === '/api/marketplaces' && method === 'POST') {
+    return handleCreateMarketplace(request);
+  }
+  if (path === '/api/marketplaces/seed' && method === 'POST') {
+    return handleSeedDefaultMarketplace();
+  }
+  if (path === '/api/marketplaces/plugins' && method === 'GET') {
+    return handleListPlugins(url);
+  }
+  if (path === '/api/marketplaces/categories' && method === 'GET') {
+    return handleGetCategories();
+  }
+
+  // Marketplace by ID routes
+  const marketplaceMatch = path.match(/^\/api\/marketplaces\/([^/]+)$/);
+  if (marketplaceMatch?.[1]) {
+    const marketplaceId = marketplaceMatch[1];
+    if (request.method === 'GET') {
+      return handleGetMarketplace(marketplaceId);
+    }
+    if (request.method === 'DELETE') {
+      return handleDeleteMarketplace(marketplaceId);
+    }
+  }
+
+  const marketplaceSyncMatch = path.match(/^\/api\/marketplaces\/([^/]+)\/sync$/);
+  if (marketplaceSyncMatch?.[1] && request.method === 'POST') {
+    return handleSyncMarketplace(marketplaceSyncMatch[1]);
   }
 
   // Task routes

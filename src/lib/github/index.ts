@@ -16,6 +16,13 @@ export {
   createGitHubIssueCreatorFromOctokit,
   GitHubIssueCreator,
 } from './issue-creator.js';
+// Marketplace Sync
+export type {
+  CachedPlugin,
+  MarketplaceSyncOptions,
+  MarketplaceSyncResult,
+} from './marketplace-sync.js';
+export { parseGitHubMarketplaceUrl, syncMarketplaceFromGitHub } from './marketplace-sync.js';
 export type { RateLimitInfo, RateLimitStatus } from './rate-limit.js';
 // Rate Limit
 export {

@@ -810,4 +810,136 @@ export const apiClient = {
     getStreamUrl: (sessionId: string) =>
       `${API_BASE}/api/tasks/create-with-ai/stream?sessionId=${encodeURIComponent(sessionId)}`,
   },
+
+  marketplaces: {
+    /**
+     * List all connected marketplaces
+     */
+    list: (options?: { limit?: number; includeDisabled?: boolean }) => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.includeDisabled) params.set('includeDisabled', 'true');
+      const query = params.toString();
+      return apiServerFetch<{
+        items: Array<{
+          id: string;
+          name: string;
+          githubOwner: string;
+          githubRepo: string;
+          branch: string;
+          pluginsPath: string;
+          isDefault: boolean;
+          isEnabled: boolean;
+          status: 'active' | 'syncing' | 'error';
+          lastSyncedAt: string | null;
+          syncError: string | null;
+          pluginCount: number;
+          createdAt: string;
+          updatedAt: string;
+        }>;
+        totalCount: number;
+      }>(`/api/marketplaces${query ? `?${query}` : ''}`);
+    },
+
+    /**
+     * Get a marketplace by ID
+     */
+    get: (id: string) =>
+      apiServerFetch<{
+        id: string;
+        name: string;
+        githubOwner: string;
+        githubRepo: string;
+        branch: string;
+        pluginsPath: string;
+        isDefault: boolean;
+        isEnabled: boolean;
+        status: 'active' | 'syncing' | 'error';
+        lastSyncedAt: string | null;
+        syncError: string | null;
+        plugins: Array<{
+          id: string;
+          name: string;
+          description?: string;
+          author?: string;
+          version?: string;
+          category?: string;
+          readme?: string;
+        }>;
+        createdAt: string;
+        updatedAt: string;
+      }>(`/api/marketplaces/${encodeURIComponent(id)}`),
+
+    /**
+     * Create a new marketplace
+     */
+    create: (data: {
+      name: string;
+      githubUrl?: string;
+      githubOwner?: string;
+      githubRepo?: string;
+      branch?: string;
+      pluginsPath?: string;
+    }) =>
+      apiServerFetch<{
+        id: string;
+        name: string;
+        githubOwner: string;
+        githubRepo: string;
+      }>('/api/marketplaces', { method: 'POST', body: data }),
+
+    /**
+     * Delete a marketplace
+     */
+    delete: (id: string) =>
+      apiServerFetch<{ deleted: boolean }>(`/api/marketplaces/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+
+    /**
+     * Sync a marketplace from GitHub
+     */
+    sync: (id: string) =>
+      apiServerFetch<{
+        marketplaceId: string;
+        pluginCount: number;
+        sha: string;
+        syncedAt: string;
+      }>(`/api/marketplaces/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+
+    /**
+     * Seed the default marketplace
+     */
+    seed: () => apiServerFetch<{ seeded: boolean }>('/api/marketplaces/seed', { method: 'POST' }),
+
+    /**
+     * List all plugins from all marketplaces
+     */
+    listPlugins: (options?: { search?: string; category?: string; marketplaceId?: string }) => {
+      const params = new URLSearchParams();
+      if (options?.search) params.set('search', options.search);
+      if (options?.category) params.set('category', options.category);
+      if (options?.marketplaceId) params.set('marketplaceId', options.marketplaceId);
+      const query = params.toString();
+      return apiServerFetch<{
+        items: Array<{
+          id: string;
+          name: string;
+          description?: string;
+          author?: string;
+          version?: string;
+          category?: string;
+          marketplaceId: string;
+          marketplaceName: string;
+          isEnabled: boolean;
+        }>;
+        totalCount: number;
+      }>(`/api/marketplaces/plugins${query ? `?${query}` : ''}`);
+    },
+
+    /**
+     * Get all plugin categories
+     */
+    getCategories: () => apiServerFetch<{ categories: string[] }>('/api/marketplaces/categories'),
+  },
 };
