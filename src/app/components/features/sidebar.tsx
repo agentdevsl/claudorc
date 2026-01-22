@@ -104,15 +104,13 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
     return () => clearInterval(interval);
   }, []);
 
-  // Dynamic admin nav items based on health status
+  // Admin nav items
   const adminNavItems: NavItem[] = [
     {
       label: 'Settings',
       to: '/settings',
       icon: Gear,
       testId: 'nav-settings',
-      badge: isHealthy ? undefined : 'Unhealthy',
-      badgeVariant: isHealthy ? undefined : 'warning',
     },
   ];
 
@@ -359,6 +357,19 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
           ))}
         </NavSection>
       </nav>
+
+      {/* System Status */}
+      <div data-testid="system-status" className="border-t border-border px-4 py-2">
+        <div className="flex items-center gap-2">
+          <div
+            className={`h-2 w-2 rounded-full ${isHealthy ? 'bg-success' : 'bg-warning'}`}
+            data-testid="health-indicator"
+          />
+          <span className="text-xs text-fg-muted">
+            {isHealthy ? 'System healthy' : 'System unhealthy'}
+          </span>
+        </div>
+      </div>
 
       {/* Footer */}
       <div data-testid="sidebar-footer" className="border-t border-border px-4 py-3">
