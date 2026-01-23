@@ -57,7 +57,7 @@ Generate a JSON object with this structure:
     {
       "id": "unique_node_id",
       "type": "start|skill|command|agent|conditional|loop|parallel|end",
-      "label": "Human-readable label",
+      "label": "Short Label (2-4 words max)",
       "position": { "x": 0, "y": 0 },
       "description": "Optional description",
       // Type-specific properties...
@@ -76,6 +76,17 @@ Generate a JSON object with this structure:
   "aiConfidence": 0.0-1.0
 }
 \`\`\`
+
+## IMPORTANT: Label and Command Formatting
+
+**Labels must be SHORT (2-4 words max)**:
+- Good: "Validate Issue", "Create Spec", "Run Tests", "Commit Changes"
+- Bad: "Validate GitHub Issue and Add Labels", "Create Feature Specification Document"
+
+**For skill/command nodes, use the EXACT /name as the command/skillId**:
+- For skills: skillId="/speckit.specify" or skillId="speckit.specify"
+- For commands: command="/commit" or the actual shell command like "git commit"
+- The /name should appear in the node's command or skillId field, NOT in the label
 
 ## Guidelines
 

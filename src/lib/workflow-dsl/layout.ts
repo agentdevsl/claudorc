@@ -38,10 +38,10 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 280, // Wider for full label visibility
-  nodeHeight: 32, // Compact node height
-  nodeSpacing: 8, // Minimal horizontal spacing between parallel nodes
-  layerSpacing: 12, // Tight vertical spacing between layers (just connector gap)
+  nodeWidth: 320, // Wide enough for full labels
+  nodeHeight: 26, // Compact node height
+  nodeSpacing: 12, // Horizontal spacing between parallel nodes
+  layerSpacing: 18, // Comfortable vertical gap between nodes
   edgeRouting: 'ORTHOGONAL',
 };
 
@@ -116,10 +116,26 @@ function simpleHierarchicalLayout(
   const isHorizontal = opts.direction === 'LEFT' || opts.direction === 'RIGHT';
   const isReverse = opts.direction === 'UP' || opts.direction === 'LEFT';
 
+  // Find the maximum layer width to center all layers
+  let maxLayerWidth = 0;
+  for (const layer of layers) {
+    if (!layer) continue;
+    const layerWidth = isHorizontal
+      ? layer.length * (opts.nodeHeight + opts.nodeSpacing) - opts.nodeSpacing
+      : layer.length * (opts.nodeWidth + opts.nodeSpacing) - opts.nodeSpacing;
+    maxLayerWidth = Math.max(maxLayerWidth, layerWidth);
+  }
+
   for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
     const layer = layers[layerIdx];
     if (!layer) continue;
     const actualLayerIdx = isReverse ? layers.length - 1 - layerIdx : layerIdx;
+
+    // Calculate this layer's width and center offset
+    const layerWidth = isHorizontal
+      ? layer.length * (opts.nodeHeight + opts.nodeSpacing) - opts.nodeSpacing
+      : layer.length * (opts.nodeWidth + opts.nodeSpacing) - opts.nodeSpacing;
+    const centerOffset = (maxLayerWidth - layerWidth) / 2;
 
     for (let nodeIdx = 0; nodeIdx < layer.length; nodeIdx++) {
       const nodeId = layer[nodeIdx];
@@ -130,9 +146,9 @@ function simpleHierarchicalLayout(
 
       if (isHorizontal) {
         x = actualLayerIdx * (opts.nodeWidth + opts.layerSpacing);
-        y = nodeIdx * (opts.nodeHeight + opts.nodeSpacing);
+        y = nodeIdx * (opts.nodeHeight + opts.nodeSpacing) + centerOffset;
       } else {
-        x = nodeIdx * (opts.nodeWidth + opts.nodeSpacing);
+        x = nodeIdx * (opts.nodeWidth + opts.nodeSpacing) + centerOffset;
         y = actualLayerIdx * (opts.nodeHeight + opts.layerSpacing);
       }
 
@@ -429,16 +445,9 @@ function extractEdgeSpecificData(edge: WorkflowEdge): Record<string, unknown> {
 
 /**
  * Maps workflow edge types to ReactFlow edge types.
+ * Uses 'straight' for compact vertical layouts.
  */
-function mapEdgeType(edgeType: WorkflowEdge['type']): string {
-  switch (edgeType) {
-    case 'conditional':
-      return 'smoothstep';
-    case 'handoff':
-      return 'step';
-    case 'dataflow':
-      return 'bezier';
-    default:
-      return 'default';
-  }
+function mapEdgeType(_edgeType: WorkflowEdge['type']): string {
+  // Use straight edges for compact layout - curves add visual bulk
+  return 'straight';
 }
