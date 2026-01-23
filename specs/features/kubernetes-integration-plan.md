@@ -1,7 +1,7 @@
 # Kubernetes Integration Plan
 
 > **Feature**: Kubernetes Sandbox Provider for AgentPane
-> **Status**: Phase 1 Complete
+> **Status**: Phase 3 Complete
 > **Created**: 2026-01-23
 > **Tasks**: See [kubernetes-integration-tasks.md](./kubernetes-integration-tasks.md)
 
@@ -29,6 +29,7 @@ This plan outlines the implementation of Kubernetes as a sandbox provider for Ag
 | K8s Config | ✅ Complete | `src/lib/sandbox/providers/k8s-config.ts` |
 | K8s Errors | ✅ Complete | `src/lib/errors/k8s-errors.ts` |
 | K8s Unit Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-provider.test.ts` |
+| K8s Integration Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-tmux.integration.test.ts` |
 | K8s Roadmap Spec | ✅ Complete | `specs/roadmap/phase2-sandbox-plugins.md` |
 
 ### 1.2 K8s Placeholder Verification
@@ -551,3 +552,5 @@ export const FEATURE_FLAGS = {
 | 2026-01-23 | Phase 1 implementation complete (K8sProvider, K8sSandbox, errors, tests) |
 | 2026-01-23 | Phase 1 review fixes applied (exports, execAsRoot docs, additional tests) |
 | 2026-01-23 | Created kubernetes-integration-tasks.md for detailed tracking |
+| 2026-01-23 | Phase 2 complete (UI integration, API endpoints, schema updates) |
+| 2026-01-23 | Phase 3 complete (tmux integration tests with real K8s cluster support) |

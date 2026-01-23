@@ -12,7 +12,7 @@
 |-------|--------|----------|
 | Phase 1: Core K8s Provider | ✅ Complete | 9/9 tasks |
 | Phase 2: UI Integration | ✅ Complete | 6/6 tasks |
-| Phase 3: tmux Session Support | ⚡ Bonus Complete | 7/7 tasks |
+| Phase 3: tmux Session Support | ✅ Complete | 7/7 tasks |
 | Phase 4: Network Policies & Security | 🔲 Not Started | 0/6 tasks |
 | Phase 5: Warm Pool | 🔲 Not Started | 0/5 tasks |
 
@@ -137,7 +137,7 @@ tests/e2e/settings/
 
 ---
 
-## Phase 3: tmux Session Support ⚡ BONUS COMPLETE
+## Phase 3: tmux Session Support ✅ COMPLETE
 
 **Goal**: Full parity with Docker provider for terminal sessions
 
@@ -147,18 +147,49 @@ tests/e2e/settings/
 
 | ID | Task | Status | Location | Notes |
 |----|------|--------|----------|-------|
-| T3.1 | Implement `createTmuxSession()` using K8s exec | ✅ Done | `k8s-sandbox.ts:117-140` | Creates tmux session via exec |
-| T3.2 | Implement `listTmuxSessions()` | ✅ Done | `k8s-sandbox.ts:142-176` | Parses tmux list-sessions output |
-| T3.3 | Implement `killTmuxSession()` | ✅ Done | `k8s-sandbox.ts:178-185` | Handles "session not found" gracefully |
-| T3.4 | Implement `sendKeysToTmux()` | ✅ Done | `k8s-sandbox.ts:187-194` | Sends keys with Enter |
-| T3.5 | Implement `captureTmuxPane()` | ✅ Done | `k8s-sandbox.ts:196-213` | Captures last N lines |
+| T3.1 | Implement `createTmuxSession()` using K8s exec | ✅ Done | `k8s-sandbox.ts:123-146` | Creates tmux session via exec |
+| T3.2 | Implement `listTmuxSessions()` | ✅ Done | `k8s-sandbox.ts:148-182` | Parses tmux list-sessions output |
+| T3.3 | Implement `killTmuxSession()` | ✅ Done | `k8s-sandbox.ts:184-191` | Handles "session not found" gracefully |
+| T3.4 | Implement `sendKeysToTmux()` | ✅ Done | `k8s-sandbox.ts:193-200` | Sends keys with Enter |
+| T3.5 | Implement `captureTmuxPane()` | ✅ Done | `k8s-sandbox.ts:202-219` | Captures last N lines |
 | T3.6 | Handle reconnection to existing tmux sessions | ✅ Done | Built into listTmuxSessions | Sessions persist in pod |
-| T3.7 | Integration tests for tmux operations | 🔲 Pending | - | Needs real K8s cluster |
+| T3.7 | Integration tests for tmux operations | ✅ Done | `k8s-tmux.integration.test.ts` | 10+ test cases |
 
-### Remaining for Phase 3
+### Phase 3 Deliverables
 
-- [ ] Integration tests with real K8s cluster (kind/minikube)
-- [ ] Test tmux reconnection after pod restart (not possible - pods are ephemeral)
+```
+src/lib/sandbox/providers/__tests__/
+└── k8s-tmux.integration.test.ts  # ✅ New: Integration tests (160+ lines)
+
+package.json
+└── scripts.test:k8s               # ✅ New: npm run test:k8s
+```
+
+### Integration Test Categories
+
+| Category | Test Count | Description |
+|----------|------------|-------------|
+| Session Lifecycle | 5 | Create, list, kill, duplicate detection |
+| tmux Interaction | 3 | Send keys, capture pane, command sequences |
+| Session Persistence | 2 | Sessions persist across calls, window counts |
+| Error Handling | 2 | Empty list when no server, exec failures |
+
+### Running Integration Tests
+
+```bash
+# Start a local K8s cluster
+minikube start  # or: kind create cluster
+
+# Run integration tests
+bun run test:k8s
+```
+
+### Notes
+
+- Integration tests are skipped by default (require `K8S_INTEGRATION_TESTS=true`)
+- Tests use a unique namespace per run to avoid conflicts
+- Alpine image is used with tmux installed at runtime
+- Cleanup deletes the test namespace after completion
 
 ---
 
@@ -365,3 +396,4 @@ jobs:
 | 2026-01-23 | - | Created tasks.md tracking document |
 | 2026-01-23 | 2 | UI integration complete: provider selection, K8s config panel, API endpoints |
 | 2026-01-23 | 2 | Fix: Dynamic imports for server-side K8s client to prevent client bundle errors |
+| 2026-01-23 | 3 | Integration tests complete: k8s-tmux.integration.test.ts with 10+ test cases |
