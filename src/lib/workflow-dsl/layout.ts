@@ -38,10 +38,10 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 200,
-  nodeHeight: 60,
-  nodeSpacing: 50,
-  layerSpacing: 80,
+  nodeWidth: 180,
+  nodeHeight: 32, // Compact node height
+  nodeSpacing: 16, // Tighter vertical spacing for compact nodes
+  layerSpacing: 24, // Connector height + gap
   edgeRouting: 'ORTHOGONAL',
 };
 
@@ -195,20 +195,60 @@ export async function layoutWorkflow(
 // =============================================================================
 
 /**
+ * Maps standard node types to compact node types for the v3 pill design.
+ * Note: A similar function exists in src/app/components/features/workflow-designer/index.tsx.
+ */
+function mapToCompactNodeType(type: WorkflowNode['type']): string {
+  switch (type) {
+    case 'start':
+      return 'compactStart';
+    case 'end':
+      return 'compactEnd';
+    case 'command':
+      return 'compactCommand';
+    case 'skill':
+      return 'compactSkill';
+    case 'agent':
+      return 'compactAgent';
+    default:
+      // Log that this type has no compact equivalent (e.g., conditional, loop, parallel)
+      console.warn(
+        `[layoutWorkflow] Node type "${type}" has no compact variant - using as-is. Node may render with default styling.`
+      );
+      return type;
+  }
+}
+
+export interface ToReactFlowNodesOptions {
+  /** Use compact node types (v3 design) - default: true */
+  useCompactNodes?: boolean;
+}
+
+/**
  * Converts WorkflowNode array to ReactFlow Node array.
  *
  * @param nodes - Array of workflow nodes
+ * @param options - Conversion options
  * @returns Array of ReactFlow-compatible nodes
  */
-export function toReactFlowNodes(nodes: WorkflowNode[]): ReactFlowNode[] {
-  return nodes.map((node) => ({
+export function toReactFlowNodes(
+  nodes: WorkflowNode[],
+  options: ToReactFlowNodesOptions = {}
+): ReactFlowNode[] {
+  const { useCompactNodes = true } = options;
+
+  return nodes.map((node, index) => ({
     id: node.id,
-    type: node.type,
+    type: useCompactNodes ? mapToCompactNodeType(node.type) : node.type,
     position: node.position,
     data: {
       label: node.label,
       description: node.description,
       metadata: node.metadata,
+      // Node index for staggered animation
+      nodeIndex: index,
+      // Original node type for reference
+      nodeType: node.type,
       // Spread node-specific properties
       ...extractNodeSpecificData(node),
     },
@@ -267,22 +307,28 @@ export function fromReactFlowNodes(
   });
 }
 
+export interface LayoutWorkflowForReactFlowOptions extends LayoutOptions {
+  /** Use compact node types (v3 design) - default: true */
+  useCompactNodes?: boolean;
+}
+
 /**
  * Applies layout to workflow and returns ReactFlow-compatible nodes and edges.
  *
  * @param nodes - Array of workflow nodes
  * @param edges - Array of workflow edges
- * @param options - Optional layout configuration
+ * @param options - Optional layout and conversion configuration
  * @returns Promise resolving to object containing ReactFlow nodes and edges
  */
 export async function layoutWorkflowForReactFlow(
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
-  options?: LayoutOptions
+  options?: LayoutWorkflowForReactFlowOptions
 ): Promise<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }> {
-  const layoutedNodes = await layoutWorkflow(nodes, edges, options);
+  const { useCompactNodes = true, ...layoutOptions } = options ?? {};
+  const layoutedNodes = await layoutWorkflow(nodes, edges, layoutOptions);
   return {
-    nodes: toReactFlowNodes(layoutedNodes),
+    nodes: toReactFlowNodes(layoutedNodes, { useCompactNodes }),
     edges: toReactFlowEdges(edges),
   };
 }

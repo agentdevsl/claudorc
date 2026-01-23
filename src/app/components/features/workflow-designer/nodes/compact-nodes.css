@@ -1,0 +1,333 @@
+/**
+ * Compact Workflow Nodes - v3 Design
+ * Ultra compact ~32px height, single-line full info, micro badges
+ */
+
+/* ===== Design Tokens ===== */
+:root {
+  --compact-node-bg: var(--bg-default);
+  --compact-node-border: var(--border-default);
+  --compact-node-fg: var(--fg-default);
+  --compact-node-fg-muted: var(--fg-muted);
+  --compact-node-start: var(--success-fg);
+  --compact-node-end: var(--danger-fg);
+  --compact-node-command: var(--attention-fg);
+  --compact-node-skill: var(--secondary-fg);
+  --compact-node-agent: var(--accent-fg);
+}
+
+/* ===== Keyframe Animations ===== */
+
+/* Staggered entry animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulsing glow for start node */
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px color-mix(in srgb, var(--compact-node-start) 25%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 12px color-mix(in srgb, var(--compact-node-start) 45%, transparent);
+  }
+}
+
+/* Flow animation for connectors */
+@keyframes flowDown {
+  0% {
+    top: -100%;
+  }
+  100% {
+    top: 200%;
+  }
+}
+
+/* ===== Connector Styles ===== */
+.compact-connector {
+  width: 2px;
+  height: 8px;
+  background: var(--compact-node-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.compact-connector::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, transparent, var(--compact-node-fg-muted), transparent);
+  animation: flowDown 2s ease-in-out infinite;
+}
+
+/* ===== Base Node Styles ===== */
+.compact-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 5px;
+  border-radius: 18px;
+  background: var(--compact-node-bg);
+  border: 1px solid var(--compact-node-border);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  min-width: 80px;
+  max-width: 200px;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: fadeSlideIn 0.35s ease forwards;
+}
+
+/* Staggered animation delays based on node index */
+.compact-node[data-node-index='0'] {
+  animation-delay: 0s;
+}
+.compact-node[data-node-index='1'] {
+  animation-delay: 0.05s;
+}
+.compact-node[data-node-index='2'] {
+  animation-delay: 0.1s;
+}
+.compact-node[data-node-index='3'] {
+  animation-delay: 0.15s;
+}
+.compact-node[data-node-index='4'] {
+  animation-delay: 0.2s;
+}
+.compact-node[data-node-index='5'] {
+  animation-delay: 0.25s;
+}
+.compact-node[data-node-index='6'] {
+  animation-delay: 0.3s;
+}
+.compact-node[data-node-index='7'] {
+  animation-delay: 0.35s;
+}
+.compact-node[data-node-index='8'] {
+  animation-delay: 0.4s;
+}
+.compact-node[data-node-index='9'] {
+  animation-delay: 0.45s;
+}
+
+/* Hover state */
+.compact-node:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Selected state */
+.compact-node.selected {
+  outline: 2px solid var(--accent-fg);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-fg) 20%, transparent);
+}
+
+/* ===== Icon Styles ===== */
+.compact-node-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.compact-node:hover .compact-node-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.compact-node-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ===== Content Styles ===== */
+.compact-node-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.compact-node-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--compact-node-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Separator dot */
+.compact-node-sep {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--compact-node-fg-muted);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.compact-node-cmd {
+  font-size: 9px;
+  color: var(--compact-node-fg-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+/* Type badge - micro */
+.compact-node-type {
+  font-size: 7px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ===== Start Node ===== */
+.compact-node.start {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--compact-node-start) 12%, var(--compact-node-bg)) 0%,
+    var(--compact-node-bg) 100%
+  );
+  border-color: color-mix(in srgb, var(--compact-node-start) 25%, var(--compact-node-border));
+}
+
+.compact-node.start .compact-node-icon {
+  background: var(--compact-node-start);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--compact-node-start) 35%, transparent);
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+
+.compact-node.start .compact-node-icon svg {
+  color: var(--bg-canvas);
+}
+
+.compact-node.start:hover {
+  border-color: var(--compact-node-start);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-start) 20%, transparent);
+}
+
+/* ===== End Node ===== */
+.compact-node.end {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--compact-node-end) 12%, var(--compact-node-bg)) 0%,
+    var(--compact-node-bg) 100%
+  );
+  border-color: color-mix(in srgb, var(--compact-node-end) 25%, var(--compact-node-border));
+}
+
+.compact-node.end .compact-node-icon {
+  background: var(--compact-node-end);
+}
+
+.compact-node.end .compact-node-icon svg {
+  color: var(--bg-canvas);
+}
+
+.compact-node.end:hover {
+  border-color: var(--compact-node-end);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-end) 20%, transparent);
+}
+
+/* ===== Command Node ===== */
+.compact-node.command .compact-node-icon {
+  background: color-mix(in srgb, var(--compact-node-command) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--compact-node-command) 35%, transparent);
+}
+
+.compact-node.command .compact-node-icon svg {
+  color: var(--compact-node-command);
+}
+
+.compact-node.command .compact-node-type {
+  background: color-mix(in srgb, var(--compact-node-command) 18%, transparent);
+  color: var(--compact-node-command);
+}
+
+.compact-node.command:hover {
+  border-color: color-mix(in srgb, var(--compact-node-command) 45%, var(--compact-node-border));
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-command) 12%, transparent);
+}
+
+/* ===== Skill Node ===== */
+.compact-node.skill .compact-node-icon {
+  background: color-mix(in srgb, var(--compact-node-skill) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--compact-node-skill) 35%, transparent);
+}
+
+.compact-node.skill .compact-node-icon svg {
+  color: var(--compact-node-skill);
+}
+
+.compact-node.skill .compact-node-type {
+  background: color-mix(in srgb, var(--compact-node-skill) 18%, transparent);
+  color: var(--compact-node-skill);
+}
+
+.compact-node.skill:hover {
+  border-color: color-mix(in srgb, var(--compact-node-skill) 45%, var(--compact-node-border));
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-skill) 12%, transparent);
+}
+
+/* ===== Agent Node ===== */
+.compact-node.agent .compact-node-icon {
+  background: color-mix(in srgb, var(--compact-node-agent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--compact-node-agent) 35%, transparent);
+}
+
+.compact-node.agent .compact-node-icon svg {
+  color: var(--compact-node-agent);
+}
+
+.compact-node.agent .compact-node-type {
+  background: color-mix(in srgb, var(--compact-node-agent) 18%, transparent);
+  color: var(--compact-node-agent);
+}
+
+.compact-node.agent:hover {
+  border-color: color-mix(in srgb, var(--compact-node-agent) 45%, var(--compact-node-border));
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-agent) 12%, transparent);
+}
+
+/* ===== Compact Handle Styles ===== */
+.compact-node .react-flow__handle {
+  width: 6px;
+  height: 6px;
+  background: var(--compact-node-border);
+  border: none;
+}
+
+.compact-node .react-flow__handle-top {
+  top: -3px;
+}
+
+.compact-node .react-flow__handle-bottom {
+  bottom: -3px;
+}
+
+.compact-node:hover .react-flow__handle {
+  background: var(--compact-node-fg-muted);
+}

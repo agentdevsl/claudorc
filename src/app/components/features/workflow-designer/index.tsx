@@ -54,20 +54,46 @@ export interface WorkflowDesignerProps {
 }
 
 /**
+ * Maps standard node types to compact node types for the v3 pill design.
+ * Note: A similar function exists in src/lib/workflow-dsl/layout.ts for DSL operations.
+ */
+function mapToCompactNodeType(type: string): string {
+  switch (type) {
+    case 'start':
+      return 'compactStart';
+    case 'end':
+      return 'compactEnd';
+    case 'command':
+      return 'compactCommand';
+    case 'skill':
+      return 'compactSkill';
+    case 'agent':
+      return 'compactAgent';
+    default:
+      // Warn about unmapped types - may indicate a bug or missing mapping
+      console.warn(
+        `[WorkflowDesigner] Unknown node type "${type}" not mapped to compact type. Node may not render correctly.`
+      );
+      return type;
+  }
+}
+
+/**
  * Default nodes for a new workflow (start and end nodes)
+ * Uses compact v3 node types for modern visual design
  */
 const getDefaultNodes = (): Node[] => [
   {
     id: 'start-1',
-    type: 'start',
+    type: 'compactStart',
     position: { x: 400, y: 80 },
-    data: { label: 'Start' },
+    data: { label: 'Start', nodeIndex: 0, nodeType: 'start' },
   },
   {
     id: 'end-1',
-    type: 'end',
-    position: { x: 400, y: 500 },
-    data: { label: 'End' },
+    type: 'compactEnd',
+    position: { x: 400, y: 200 },
+    data: { label: 'Done', nodeIndex: 1, nodeType: 'end' },
   },
 ];
 
@@ -79,19 +105,23 @@ const getDefaultNodes = (): Node[] => [
  * - Edges: sourceNodeId/targetNodeId instead of source/target
  *
  * ReactFlow expects:
- * - Nodes: generic `data` object
+ * - Nodes: generic `data` object with compact v3 types
  * - Edges: source/target fields
  */
 const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[] } => {
   const nodes: Node[] =
-    workflow.nodes?.map((n) => {
+    workflow.nodes?.map((n, index) => {
       // Extract common fields for ReactFlow data object
       const { id, type, position, ...rest } = n;
       return {
         id,
-        type,
+        type: mapToCompactNodeType(type), // Convert to compact v3 node type
         position,
-        data: rest, // Put remaining fields (label, description, etc.) into data
+        data: {
+          ...rest, // Put remaining fields (label, description, etc.) into data
+          nodeIndex: index, // For staggered animation
+          nodeType: type, // Original type for reference
+        },
       };
     }) ?? getDefaultNodes();
 
@@ -279,20 +309,26 @@ export function WorkflowDesigner({
       if (readOnly) return;
 
       // Calculate position - place between start and end, offset by existing nodes
-      const existingCount = nodes.filter((n) => !['start', 'end'].includes(n.type ?? '')).length;
-      const yOffset = 150 + existingCount * 120;
+      // Use compact spacing (56px = 32px node + 24px gap)
+      const existingCount = nodes.filter(
+        (n) => !['compactStart', 'compactEnd', 'start', 'end'].includes(n.type ?? '')
+      ).length;
+      const yOffset = 136 + existingCount * 56;
+      const nodeIndex = nodes.length; // Next index for animation
 
       const newNode: Node = {
         id: `${type}-${Date.now()}`,
-        type,
+        type: mapToCompactNodeType(type), // Use compact node type
         position: { x: 400, y: yOffset },
         data: {
           label: name,
           description: description ?? `${type} from ${templateName ?? 'template'}`,
-          // Store the slash command format for skills
+          nodeIndex, // For staggered animation
+          nodeType: type, // Original type for reference
+          // Store the identifier for the specific type
           ...(type === 'skill' && { skillId: name }),
-          ...(type === 'command' && { commandName: name }),
-          ...(type === 'agent' && { agentName: name }),
+          ...(type === 'command' && { command: name }),
+          ...(type === 'agent' && { agentConfigId: name }),
         },
       };
 
@@ -674,33 +710,48 @@ export function WorkflowDesigner({
         <div className="flex-1 overflow-y-auto p-[var(--space-4)]">
           {selectedNode ? (
             <div className="space-y-[var(--space-1)]">
-              {/* Node type badge */}
-              <div className={cn(inspectorFieldVariants())}>
-                <span className={cn(inspectorLabelVariants())}>Type</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      'px-[var(--space-2)] py-[2px] rounded-[var(--radius-sm)]',
-                      'text-[10px] font-[var(--font-medium)] uppercase',
-                      selectedNode.type === 'start' &&
-                        'bg-[var(--success-subtle)] text-[var(--success-fg)]',
-                      selectedNode.type === 'end' &&
-                        'bg-[var(--danger-subtle)] text-[var(--danger-fg)]',
-                      selectedNode.type === 'agent' &&
-                        'bg-[var(--accent-subtle)] text-[var(--accent-fg)]',
-                      selectedNode.type === 'skill' &&
-                        'bg-[var(--secondary-subtle)] text-[var(--secondary-fg)]',
-                      selectedNode.type === 'command' &&
-                        'bg-[var(--attention-subtle)] text-[var(--attention-fg)]',
-                      !['start', 'end', 'agent', 'skill', 'command'].includes(
-                        selectedNode.type ?? ''
-                      ) && 'bg-[var(--bg-muted)] text-[var(--fg-muted)]'
-                    )}
-                  >
-                    {selectedNode.type ?? 'Unknown'}
-                  </span>
-                </div>
-              </div>
+              {/* Node type badge - use nodeType from data for display */}
+              {(() => {
+                const nodeType =
+                  (selectedNode.data as { nodeType?: string })?.nodeType ?? selectedNode.type ?? '';
+                // Normalize compact types to base types for display
+                const displayType = nodeType
+                  .replace('compact', '')
+                  .replace('Start', 'start')
+                  .replace('End', 'end')
+                  .replace('Command', 'command')
+                  .replace('Skill', 'skill')
+                  .replace('Agent', 'agent')
+                  .toLowerCase();
+
+                return (
+                  <div className={cn(inspectorFieldVariants())}>
+                    <span className={cn(inspectorLabelVariants())}>Type</span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'px-[var(--space-2)] py-[2px] rounded-[var(--radius-sm)]',
+                          'text-[10px] font-[var(--font-medium)] uppercase',
+                          displayType === 'start' &&
+                            'bg-[var(--success-subtle)] text-[var(--success-fg)]',
+                          displayType === 'end' &&
+                            'bg-[var(--danger-subtle)] text-[var(--danger-fg)]',
+                          displayType === 'agent' &&
+                            'bg-[var(--accent-subtle)] text-[var(--accent-fg)]',
+                          displayType === 'skill' &&
+                            'bg-[var(--secondary-subtle)] text-[var(--secondary-fg)]',
+                          displayType === 'command' &&
+                            'bg-[var(--attention-subtle)] text-[var(--attention-fg)]',
+                          !['start', 'end', 'agent', 'skill', 'command'].includes(displayType) &&
+                            'bg-[var(--bg-muted)] text-[var(--fg-muted)]'
+                        )}
+                      >
+                        {displayType || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Label */}
               <div className={cn(inspectorFieldVariants())}>
