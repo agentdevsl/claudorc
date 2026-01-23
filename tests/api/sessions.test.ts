@@ -12,6 +12,7 @@ const sessionServiceMocks = vi.hoisted(() => ({
   updatePresence: vi.fn(),
   getActiveUsers: vi.fn(),
   getHistory: vi.fn(),
+  getSessionSummary: vi.fn(),
   subscribe: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ vi.mock('@/services/session.service', () => ({
     updatePresence = sessionServiceMocks.updatePresence;
     getActiveUsers = sessionServiceMocks.getActiveUsers;
     getHistory = sessionServiceMocks.getHistory;
+    getSessionSummary = sessionServiceMocks.getSessionSummary;
     subscribe = sessionServiceMocks.subscribe;
   },
 }));
@@ -66,6 +68,10 @@ describe('Session API', () => {
 
   it('lists sessions', async () => {
     sessionServiceMocks.list.mockResolvedValue(ok([sampleSession]));
+    // Mock getSessionSummary for enrichment (called for each session)
+    sessionServiceMocks.getSessionSummary.mockResolvedValue(
+      ok({ turnsCount: 0, tokensUsed: 0, filesModified: 0, linesAdded: 0, linesRemoved: 0 })
+    );
 
     const response = await SessionsRoute.options.server?.handlers?.GET({
       request: new Request('http://localhost/api/sessions'),
@@ -73,8 +79,11 @@ describe('Session API', () => {
     });
 
     expect(response?.status).toBe(200);
-    const data = await parseJson<{ ok: true; data: Session[] }>(response as Response);
-    expect(data.data).toHaveLength(1);
+    // API returns { ok: true, data: { data: [...], pagination: {...} } }
+    const result = await parseJson<{ ok: true; data: { data: Session[]; pagination: unknown } }>(
+      response as Response
+    );
+    expect(result.data.data).toHaveLength(1);
   });
 
   it('creates a session', async () => {

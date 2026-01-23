@@ -10,7 +10,7 @@ import {
   type TaskCounts,
 } from '@/app/components/features/project-card';
 
-// Mock TanStack Router Link component
+// Mock TanStack Router
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
@@ -25,6 +25,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 const mockProject = {
@@ -175,11 +176,12 @@ describe('ProjectCard', () => {
   describe('MiniKanbanBar', () => {
     it('renders all five column labels', () => {
       render(<ProjectCard {...defaultProps} />);
-      expect(screen.getByText('Backlog')).toBeInTheDocument();
-      expect(screen.getByText('Queued')).toBeInTheDocument();
-      expect(screen.getByText('In Progress')).toBeInTheDocument();
-      expect(screen.getByText('Approval')).toBeInTheDocument();
-      expect(screen.getByText('Verified')).toBeInTheDocument();
+      // Component uses abbreviated labels for compact display
+      expect(screen.getByText('Back')).toBeInTheDocument();
+      expect(screen.getByText('Queue')).toBeInTheDocument();
+      expect(screen.getByText('Prog')).toBeInTheDocument();
+      expect(screen.getByText('Appr')).toBeInTheDocument();
+      expect(screen.getByText('Done')).toBeInTheDocument();
     });
 
     it('renders correct counts', () => {
@@ -200,8 +202,8 @@ describe('ProjectCard', () => {
         total: 0,
       };
       render(<ProjectCard {...defaultProps} taskCounts={zeroTaskCounts} />);
-      // Should render without errors
-      expect(screen.getByText('Backlog')).toBeInTheDocument();
+      // Should render without errors (using abbreviated label)
+      expect(screen.getByText('Back')).toBeInTheDocument();
     });
   });
 

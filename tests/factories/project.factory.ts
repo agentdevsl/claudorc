@@ -30,6 +30,7 @@ export function buildProject(options: ProjectFactoryOptions = {}): NewProject {
     githubRepo: options.githubRepo ?? null,
     githubInstallationId: options.githubInstallationId ?? null,
     configPath: options.configPath ?? '.claude',
+    sandboxConfigId: options.sandboxConfigId ?? null,
   };
 }
 

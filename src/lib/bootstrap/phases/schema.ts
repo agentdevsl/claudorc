@@ -198,12 +198,14 @@ CREATE TABLE IF NOT EXISTS "sandbox_configs" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "name" TEXT NOT NULL,
   "description" TEXT,
+  "type" TEXT NOT NULL DEFAULT 'docker',
   "is_default" INTEGER DEFAULT 0,
   "base_image" TEXT NOT NULL DEFAULT 'node:22-slim',
   "memory_mb" INTEGER NOT NULL DEFAULT 4096,
   "cpu_cores" REAL NOT NULL DEFAULT 2.0,
   "max_processes" INTEGER NOT NULL DEFAULT 256,
   "timeout_minutes" INTEGER NOT NULL DEFAULT 60,
+  "volume_mount_path" TEXT,
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );

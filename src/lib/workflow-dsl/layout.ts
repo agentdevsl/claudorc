@@ -12,14 +12,19 @@
  */
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react';
-import ELK, {
-  type LayoutOptions as ElkLayoutOptions,
-  type ElkNode,
-} from 'elkjs/lib/elk.bundled.js';
+import type { LayoutOptions as ElkLayoutOptions, ElkNode } from 'elkjs/lib/elk.bundled.js';
 import type { Position, WorkflowEdge, WorkflowNode } from './types.js';
 
-// Initialize ELK instance
-const elk = new ELK();
+// Lazy-initialize ELK instance to avoid server-side worker issues
+let elkInstance: typeof import('elkjs/lib/elk.bundled.js').default.prototype | null = null;
+
+async function getElk(): Promise<typeof import('elkjs/lib/elk.bundled.js').default.prototype> {
+  if (!elkInstance) {
+    const ELKModule = await import('elkjs/lib/elk.bundled.js');
+    elkInstance = new ELKModule.default();
+  }
+  return elkInstance;
+}
 
 // =============================================================================
 // LAYOUT OPTIONS
@@ -60,34 +65,14 @@ const DEFAULT_OPTIONS: Required<LayoutOptions> = {
  * Converts our layout options to ELK layout options.
  */
 function toElkLayoutOptions(opts: Required<LayoutOptions>): ElkLayoutOptions {
-  const elkDirection = {
-    DOWN: 'DOWN',
-    UP: 'UP',
-    LEFT: 'LEFT',
-    RIGHT: 'RIGHT',
-  }[opts.direction];
-
-  const elkAlgorithm = {
-    layered: 'layered',
-    force: 'force',
-    box: 'box',
-    random: 'random',
-  }[opts.algorithm];
-
-  const elkEdgeRouting = {
-    ORTHOGONAL: 'ORTHOGONAL',
-    POLYLINE: 'POLYLINE',
-    SPLINES: 'SPLINES',
-  }[opts.edgeRouting];
-
   return {
-    'elk.algorithm': elkAlgorithm,
-    'elk.direction': elkDirection,
+    'elk.algorithm': opts.algorithm,
+    'elk.direction': opts.direction,
     // Node spacing
     'elk.spacing.nodeNode': String(opts.nodeSpacing),
     'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.layerSpacing),
     // Edge routing
-    'elk.edgeRouting': elkEdgeRouting,
+    'elk.edgeRouting': opts.edgeRouting,
     // Crossing minimization
     'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
     // Node placement - LINEAR_SEGMENTS for better vertical alignment
@@ -142,6 +127,7 @@ async function elkLayout(
   };
 
   try {
+    const elk = await getElk();
     const layoutedGraph = await elk.layout(elkGraph);
 
     // Extract positions from layouted graph
