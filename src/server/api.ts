@@ -44,6 +44,12 @@ import { startSyncScheduler } from '../services/template-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
+import {
+  loadKubeConfig,
+  resolveContext,
+  getClusterInfo,
+  K8S_PROVIDER_DEFAULTS,
+} from '../lib/sandbox/providers/k8s-config.js';
 
 declare const Bun: {
   spawn: (
@@ -1954,6 +1960,200 @@ async function handleDeleteSandboxConfig(id: string): Promise<Response> {
   }
 }
 
+// ============ Kubernetes API Handlers ============
+
+/**
+ * Handle GET /api/sandbox/k8s/status
+ * Returns K8s cluster health and connection status
+ */
+async function handleK8sStatus(url: URL): Promise<Response> {
+  const kubeconfigPath = url.searchParams.get('kubeconfigPath') || undefined;
+  const context = url.searchParams.get('context') || undefined;
+
+  try {
+    // Load kubeconfig
+    const kc = loadKubeConfig(kubeconfigPath, true); // skipTLSVerify for local dev
+
+    // Resolve context if specified
+    if (context) {
+      resolveContext(kc, context);
+    }
+
+    // Get cluster info
+    const clusterInfo = getClusterInfo(kc);
+    const currentContext = kc.getCurrentContext();
+
+    // Try to connect to the cluster
+    const k8s = await import('@kubernetes/client-node');
+    const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+
+    // Get server version using Node.js https module (bypasses Bun's TLS issues)
+    let serverVersion = 'unknown';
+    try {
+      const cluster = kc.getCurrentCluster();
+      if (cluster?.server) {
+        const https = await import('node:https');
+        const { URL } = await import('node:url');
+        const versionUrl = new URL('/version', cluster.server);
+
+        const versionData = await new Promise<{ gitVersion?: string; major?: string; minor?: string }>((resolve, reject) => {
+          const req = https.request(
+            versionUrl,
+            {
+              method: 'GET',
+              rejectUnauthorized: false, // Skip TLS verification for local dev
+            },
+            (res) => {
+              let data = '';
+              res.on('data', (chunk) => (data += chunk));
+              res.on('end', () => {
+                try {
+                  resolve(JSON.parse(data));
+                } catch {
+                  reject(new Error('Invalid JSON response'));
+                }
+              });
+            }
+          );
+          req.on('error', reject);
+          req.end();
+        });
+
+        serverVersion = versionData.gitVersion || `v${versionData.major}.${versionData.minor}`;
+      }
+    } catch (versionError) {
+      // Version API may fail - this is non-critical
+      console.debug('[K8s Status] Version fetch failed:', versionError instanceof Error ? versionError.message : versionError);
+    }
+
+    // Check namespace
+    const namespace = K8S_PROVIDER_DEFAULTS.namespace;
+    let namespaceExists = false;
+    let pods = 0;
+    let podsRunning = 0;
+
+    try {
+      await coreApi.readNamespace({ name: namespace });
+      namespaceExists = true;
+
+      // Count pods in namespace
+      const podList = await coreApi.listNamespacedPod({ namespace });
+      pods = podList.items.length;
+      podsRunning = podList.items.filter(
+        (p) => p.status?.phase === 'Running'
+      ).length;
+    } catch {
+      // Namespace doesn't exist yet
+    }
+
+    return json({
+      ok: true,
+      data: {
+        healthy: true,
+        context: currentContext,
+        cluster: clusterInfo?.name,
+        server: clusterInfo?.server,
+        serverVersion,
+        namespace,
+        namespaceExists,
+        pods,
+        podsRunning,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to connect to cluster';
+    console.error('[K8s Status] Error:', message);
+    return json({
+      ok: true,
+      data: {
+        healthy: false,
+        message,
+      },
+    });
+  }
+}
+
+/**
+ * Handle GET /api/sandbox/k8s/contexts
+ * Returns list of available K8s contexts
+ */
+async function handleK8sContexts(url: URL): Promise<Response> {
+  const kubeconfigPath = url.searchParams.get('kubeconfigPath') || undefined;
+
+  try {
+    const kc = loadKubeConfig(kubeconfigPath);
+    const contexts = kc.getContexts();
+    const currentContext = kc.getCurrentContext();
+
+    return json({
+      ok: true,
+      data: {
+        contexts: contexts.map((ctx) => ({
+          name: ctx.name,
+          cluster: ctx.cluster,
+          user: ctx.user,
+          namespace: ctx.namespace,
+        })),
+        current: currentContext,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load kubeconfig';
+    console.error('[K8s Contexts] Error:', message);
+    return json(
+      {
+        ok: false,
+        error: { code: 'K8S_CONFIG_ERROR', message },
+      },
+      400
+    );
+  }
+}
+
+/**
+ * Handle GET /api/sandbox/k8s/namespaces
+ * Returns list of available K8s namespaces
+ */
+async function handleK8sNamespaces(url: URL): Promise<Response> {
+  const kubeconfigPath = url.searchParams.get('kubeconfigPath') || undefined;
+  const context = url.searchParams.get('context') || undefined;
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+
+  try {
+    const kc = loadKubeConfig(kubeconfigPath, true); // skipTLSVerify for local dev
+
+    if (context) {
+      resolveContext(kc, context);
+    }
+
+    const k8s = await import('@kubernetes/client-node');
+    const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+
+    const namespaceList = await coreApi.listNamespace({ limit });
+
+    return json({
+      ok: true,
+      data: {
+        namespaces: namespaceList.items.map((ns) => ({
+          name: ns.metadata?.name,
+          status: ns.status?.phase,
+          createdAt: ns.metadata?.creationTimestamp,
+        })),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to list namespaces';
+    console.error('[K8s Namespaces] Error:', message);
+    return json(
+      {
+        ok: false,
+        error: { code: 'K8S_API_ERROR', message },
+      },
+      500
+    );
+  }
+}
+
 // ============ Task Creation with AI Handlers ============
 
 // Store active SSE connections for streaming
@@ -3694,6 +3894,17 @@ async function handleRequest(request: Request): Promise<Response> {
         return handleDeleteWorkflow(id);
       }
     }
+  }
+
+  // Kubernetes API routes
+  if (path === '/api/sandbox/k8s/status' && method === 'GET') {
+    return handleK8sStatus(url);
+  }
+  if (path === '/api/sandbox/k8s/contexts' && method === 'GET') {
+    return handleK8sContexts(url);
+  }
+  if (path === '/api/sandbox/k8s/namespaces' && method === 'GET') {
+    return handleK8sNamespaces(url);
   }
 
   // Health check

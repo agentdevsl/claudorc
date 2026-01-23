@@ -168,3 +168,90 @@ export interface K8sProviderOptions {
 - **volumeType**: `'pvc'` (changed from implicit `'hostPath'`)
 - **workspaceStorageSize**: `'1Gi'`
 - **storageClassName**: Uses cluster default (e.g., `hostpath` for Docker Desktop)
+
+---
+
+## Backend API Server Changes (src/server/api.ts)
+
+### Issue: UI Showing "Route not found"
+
+The K8s API routes were defined as TanStack Router file-based routes (`src/app/routes/api/sandbox/k8s/*.ts`), but:
+1. The Vite config has `routeFileIgnorePattern: '.*\\/api\\/.*'` which excludes API routes from TanStack Router
+2. All `/api/*` requests are proxied to the backend server at port 3001
+3. The backend server didn't have the K8s routes implemented
+
+### Fix: Added K8s API routes to backend server
+
+Added three handler functions and route matching:
+
+```typescript
+// Handler functions added:
+async function handleK8sStatus(url: URL): Promise<Response>
+async function handleK8sContexts(url: URL): Promise<Response>
+async function handleK8sNamespaces(url: URL): Promise<Response>
+
+// Route matching added:
+if (path === '/api/sandbox/k8s/status' && method === 'GET') {
+  return handleK8sStatus(url);
+}
+if (path === '/api/sandbox/k8s/contexts' && method === 'GET') {
+  return handleK8sContexts(url);
+}
+if (path === '/api/sandbox/k8s/namespaces' && method === 'GET') {
+  return handleK8sNamespaces(url);
+}
+```
+
+### Import added:
+
+```typescript
+import {
+  loadKubeConfig,
+  resolveContext,
+  getClusterInfo,
+  K8S_PROVIDER_DEFAULTS,
+} from '../lib/sandbox/providers/k8s-config.js';
+```
+
+### Endpoint Responses
+
+**GET /api/sandbox/k8s/status**
+```json
+{
+  "ok": true,
+  "data": {
+    "healthy": true,
+    "context": "docker-desktop",
+    "cluster": "docker-desktop",
+    "server": "https://127.0.0.1:65444",
+    "serverVersion": "v1.31.4",
+    "namespace": "agentpane-sandboxes",
+    "namespaceExists": false,
+    "pods": 0,
+    "podsRunning": 0
+  }
+}
+```
+
+**GET /api/sandbox/k8s/contexts**
+```json
+{
+  "ok": true,
+  "data": {
+    "contexts": [
+      { "name": "docker-desktop", "cluster": "docker-desktop", "user": "docker-desktop" }
+    ],
+    "current": "docker-desktop"
+  }
+}
+```
+
+---
+
+## UI Testing
+
+After the backend API changes, the Sandbox Settings page (`/settings/sandbox`) now correctly shows:
+- **Connected** status when Kubernetes provider is selected
+- Cluster details (context, server, version)
+- Namespace status
+- Context dropdown with available contexts
