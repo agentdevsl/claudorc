@@ -1235,4 +1235,1119 @@ describe('PlanModeService', () => {
       }
     });
   });
+
+  // ============================================
+  // Coverage Enhancement Tests (Lines 423-624, 636, 647)
+  // ============================================
+
+  describe('Coverage Enhancement - completeSession', () => {
+    it('should handle stream publish failure during turn event in completeSession', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test',
+        body: 'Content',
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        ok({
+          url: 'https://github.com/test/repo/issues/1',
+          number: 1,
+          id: 1,
+          nodeId: 'node-1',
+        } as GitHubIssueResult)
+      );
+
+      // Make publishPlanTurn fail (this covers line 636)
+      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Stream publish failed'));
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      // Session should still complete despite stream failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+      }
+    });
+
+    it('should handle stream publish failure during completion event', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test',
+        body: 'Content',
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        ok({
+          url: 'https://github.com/test/repo/issues/1',
+          number: 1,
+          id: 1,
+          nodeId: 'node-1',
+        } as GitHubIssueResult)
+      );
+
+      // Make publishPlanCompleted fail (this covers line 647)
+      vi.mocked(streams.publishPlanCompleted).mockRejectedValue(
+        new Error('Completion publish failed')
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      // Session should still complete despite stream failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+      }
+    });
+
+    it('should handle database update error in completeSession', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      // Make database update fail synchronously on the completeSession call
+      db.update.mockImplementation(() => {
+        throw new Error('DB write failed');
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test',
+        body: 'Content',
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        ok({
+          url: 'https://github.com/test/repo/issues/1',
+          number: 1,
+          id: 1,
+          nodeId: 'node-1',
+        } as GitHubIssueResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should complete session with empty final content', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      // Return CreateGitHubIssue with no streamed content (empty string)
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test',
+        body: 'Content',
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        ok({
+          url: 'https://github.com/test/repo/issues/1',
+          number: 1,
+          id: 1,
+          nodeId: 'node-1',
+        } as GitHubIssueResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+        // The final turn should have default content when empty
+        const lastTurn = result.value.turns[result.value.turns.length - 1];
+        expect(lastTurn?.content).toBe('Plan completed.');
+      }
+    });
+  });
+
+  describe('Coverage Enhancement - handleAskUserQuestion', () => {
+    it('should handle database update error in handleAskUserQuestion', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      // Make database update fail - simulate error in update operation
+      db.update.mockImplementation(() => {
+        throw new Error('DB connection lost');
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'AskUserQuestion',
+          toolId: 'tool-1',
+          input: {
+            questions: [
+              {
+                question: 'Test question?',
+                header: 'Test',
+                options: [{ label: 'A', description: 'Option A' }],
+                multiSelect: false,
+              },
+            ],
+          },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Need input',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should handle stream publish failure for interaction event', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'AskUserQuestion',
+          toolId: 'tool-1',
+          input: {
+            questions: [
+              {
+                question: 'Test?',
+                header: 'Q1',
+                options: [{ label: 'A', description: 'A' }],
+                multiSelect: false,
+              },
+            ],
+          },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
+
+      // Make interaction publish fail
+      vi.mocked(streams.publishPlanInteraction).mockRejectedValue(
+        new Error('Interaction publish failed')
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Need input',
+      });
+
+      // Should still succeed despite stream failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('waiting_user');
+      }
+    });
+
+    it('should handle stream publish failure for turn event in handleAskUserQuestion', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'AskUserQuestion',
+          toolId: 'tool-1',
+          input: {
+            questions: [
+              {
+                question: 'Test?',
+                header: 'Q1',
+                options: [{ label: 'A', description: 'A' }],
+                multiSelect: false,
+              },
+            ],
+          },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
+
+      // Make turn publish fail
+      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Need input',
+      });
+
+      // Should still succeed despite stream failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('waiting_user');
+      }
+    });
+
+    it('should create interaction turn with streamed content', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'AskUserQuestion',
+          toolId: 'tool-1',
+          input: {
+            questions: [
+              {
+                question: 'Test?',
+                header: 'Q1',
+                options: [{ label: 'A', description: 'A' }],
+                multiSelect: false,
+              },
+            ],
+          },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
+
+      // Call with token callback to test streaming path
+      const tokenCallback = vi.fn();
+      const result = await service.start(
+        {
+          projectId: project.id,
+          taskId: task.id,
+          initialPrompt: 'Need input',
+        },
+        tokenCallback
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('waiting_user');
+      }
+    });
+  });
+
+  describe('Coverage Enhancement - handleCreateGitHubIssue', () => {
+    it('should complete session with issue URL when GitHub issue created successfully', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test Issue', body: 'Issue Content', labels: ['plan'] },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test Issue',
+        body: 'Issue Content',
+        labels: ['plan'],
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        ok({
+          url: 'https://github.com/test/repo/issues/42',
+          number: 42,
+          id: 12345,
+          nodeId: 'node-42',
+        } as GitHubIssueResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+        expect(result.value.githubIssueUrl).toBe('https://github.com/test/repo/issues/42');
+        expect(result.value.githubIssueNumber).toBe(42);
+      }
+    });
+
+    it('should handle stream publish failure for error event when GitHub config missing', async () => {
+      // Create service without GitHub config
+      const serviceWithoutGitHub = new PlanModeService(
+        db,
+        streams,
+        null, // No issue creator
+        null, // No GitHub config
+        { maxTurns: 20 }
+      );
+
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      // Make error publish fail
+      vi.mocked(streams.publishPlanError).mockRejectedValue(new Error('Error publish failed'));
+
+      const result = await serviceWithoutGitHub.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      // Should still complete despite stream failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+      }
+    });
+
+    it('should handle stream publish failure for error event when GitHub issue creation fails', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({
+          type: 'tool_use',
+          toolName: 'CreateGitHubIssue',
+          toolId: 'tool-1',
+          input: { title: 'Test', body: 'Content' },
+        } as ToolCallResult)
+      );
+
+      vi.mocked(mockClaudeClient.parseCreateGitHubIssue).mockReturnValue({
+        title: 'Test',
+        body: 'Content',
+      });
+
+      vi.mocked(mockIssueCreator.createFromToolInput).mockResolvedValue(
+        err(PlanModeErrors.GITHUB_ERROR('Permission denied'))
+      );
+
+      // Make error publish fail
+      vi.mocked(streams.publishPlanError).mockRejectedValue(new Error('Error publish failed'));
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Create a plan',
+      });
+
+      // Session should still complete even if both GitHub and stream fail
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('completed');
+      }
+    });
+  });
+
+  describe('Coverage Enhancement - respondToInteraction', () => {
+    it('should handle database update error in respondToInteraction', async () => {
+      const sessionId = createId();
+      const interactionId = createId();
+      const interaction = createMockInteraction({ id: interactionId });
+      const turn = createMockTurn('assistant', 'Question', interaction);
+
+      const dbSession = createMockPlanSession({
+        id: sessionId,
+        status: 'waiting_user',
+        turns: [createMockTurn('user', 'Initial'), turn],
+      });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      // Make database update fail synchronously
+      db.update.mockImplementation(() => {
+        throw new Error('DB write failed');
+      });
+
+      const result = await service.respondToInteraction({
+        sessionId,
+        interactionId,
+        answers: { Approach: 'Option A' },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should handle stream publish failure for turn event in respondToInteraction', async () => {
+      const sessionId = createId();
+      const interactionId = createId();
+      const interaction = createMockInteraction({ id: interactionId });
+      const turn = createMockTurn('assistant', 'Question', interaction);
+
+      const dbSession = createMockPlanSession({
+        id: sessionId,
+        status: 'waiting_user',
+        turns: [createMockTurn('user', 'Initial'), turn],
+      });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({ type: 'text', text: 'Thank you' } as ClaudeResult)
+      );
+
+      // Make turn publish fail
+      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+
+      const result = await service.respondToInteraction({
+        sessionId,
+        interactionId,
+        answers: { Approach: 'Option A' },
+      });
+
+      // Should still succeed despite stream failure
+      expect(result.ok).toBe(true);
+    });
+
+    it('should return error for invalid interaction ID', async () => {
+      const sessionId = createId();
+      const turn = createMockTurn('assistant', 'Question', createMockInteraction());
+
+      const dbSession = createMockPlanSession({
+        id: sessionId,
+        status: 'waiting_user',
+        turns: [createMockTurn('user', 'Initial'), turn],
+      });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      const result = await service.respondToInteraction({
+        sessionId,
+        interactionId: 'invalid-interaction-id',
+        answers: { Approach: 'Option A' },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_INTERACTION_NOT_FOUND');
+      }
+    });
+  });
+
+  describe('Coverage Enhancement - processNextTurn', () => {
+    it('should handle stream publish failure for turn event in processNextTurn', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({ type: 'text', text: 'Response text' } as ClaudeResult)
+      );
+
+      // Make turn publish fail
+      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Test prompt',
+      });
+
+      // Should still succeed despite stream failure
+      expect(result.ok).toBe(true);
+    });
+
+    it('should handle database update error in processNextTurn', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      // Make database update fail synchronously
+      db.update.mockImplementation(() => {
+        throw new Error('DB write failed');
+      });
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({ type: 'text', text: 'Response text' } as ClaudeResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Test prompt',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should invoke token callback and publish token events when streaming', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      // Create a mock implementation that invokes the callback
+      vi.mocked(mockClaudeClient.sendMessage).mockImplementation(async (_turns, callback) => {
+        if (callback) {
+          callback('Hello', 'Hello');
+          callback(' World', 'Hello World');
+        }
+        return ok({ type: 'text', text: 'Hello World' } as ClaudeResult);
+      });
+
+      const tokenCallback = vi.fn();
+      const result = await service.start(
+        {
+          projectId: project.id,
+          taskId: task.id,
+          initialPrompt: 'Test prompt',
+        },
+        tokenCallback
+      );
+
+      expect(result.ok).toBe(true);
+      expect(tokenCallback).toHaveBeenCalledWith('Hello', 'Hello');
+      expect(tokenCallback).toHaveBeenCalledWith(' World', 'Hello World');
+      expect(streams.publishPlanToken).toHaveBeenCalled();
+    });
+
+    it('should handle token publish failure gracefully', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      // Make token publish fail
+      vi.mocked(streams.publishPlanToken).mockRejectedValue(new Error('Token publish failed'));
+
+      // Create a mock implementation that invokes the callback
+      vi.mocked(mockClaudeClient.sendMessage).mockImplementation(async (_turns, callback) => {
+        if (callback) {
+          callback('Hello', 'Hello');
+        }
+        return ok({ type: 'text', text: 'Hello' } as ClaudeResult);
+      });
+
+      const tokenCallback = vi.fn();
+      const result = await service.start(
+        {
+          projectId: project.id,
+          taskId: task.id,
+          initialPrompt: 'Test prompt',
+        },
+        tokenCallback
+      );
+
+      // Should still succeed despite token publish failure
+      expect(result.ok).toBe(true);
+      expect(tokenCallback).toHaveBeenCalled();
+    });
+  });
+
+  describe('Coverage Enhancement - cancel', () => {
+    it('should return error when cancelling non-existent session', async () => {
+      db.query.planSessions.findFirst.mockResolvedValue(null);
+
+      const result = await service.cancel('nonexistent-session');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_SESSION_NOT_FOUND');
+      }
+    });
+
+    it('should not allow cancelling already cancelled sessions', async () => {
+      const sessionId = createId();
+      const dbSession = createMockPlanSession({ id: sessionId, status: 'cancelled' });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      const result = await service.cancel(sessionId);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_SESSION_COMPLETED');
+      }
+    });
+
+    it('should handle database update error during cancel', async () => {
+      const sessionId = createId();
+      const dbSession = createMockPlanSession({ id: sessionId, status: 'active' });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      // Make database update fail
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockRejectedValue(new Error('DB write failed')),
+          }),
+        }),
+      });
+
+      const result = await service.cancel(sessionId);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should handle database returning no session after cancel update', async () => {
+      const sessionId = createId();
+      const dbSession = createMockPlanSession({ id: sessionId, status: 'active' });
+
+      db.query.planSessions.findFirst.mockResolvedValue(dbSession);
+
+      // Return empty array from update
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      const result = await service.cancel(sessionId);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+  });
+
+  describe('Coverage Enhancement - start', () => {
+    it('should handle database returning no session after insert', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      // Return empty array from insert
+      const insertReturning = vi.fn().mockResolvedValue([]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Test',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PLAN_DATABASE_ERROR');
+      }
+    });
+
+    it('should handle stream creation failure gracefully', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      // Make stream creation fail
+      vi.mocked(streams.createStream).mockRejectedValue(new Error('Stream creation failed'));
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({ type: 'text', text: 'Response' } as ClaudeResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Test',
+      });
+
+      // Should still succeed despite stream creation failure
+      expect(result.ok).toBe(true);
+    });
+
+    it('should handle plan started publish failure gracefully', async () => {
+      const project = createMockProject();
+      const task = createMockTask(project.id);
+      const sessionId = createId();
+
+      db.query.projects.findFirst.mockResolvedValue(project);
+      db.query.tasks.findFirst.mockResolvedValue(task);
+
+      const insertReturning = vi
+        .fn()
+        .mockResolvedValue([
+          createMockPlanSession({ id: sessionId, projectId: project.id, taskId: task.id }),
+        ]);
+      db.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({ returning: insertReturning }),
+      });
+
+      db.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+        }),
+      });
+
+      // Make plan started publish fail
+      vi.mocked(streams.publishPlanStarted).mockRejectedValue(new Error('Publish failed'));
+
+      vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
+        ok({ type: 'text', text: 'Response' } as ClaudeResult)
+      );
+
+      const result = await service.start({
+        projectId: project.id,
+        taskId: task.id,
+        initialPrompt: 'Test',
+      });
+
+      // Should still succeed despite publish failure
+      expect(result.ok).toBe(true);
+    });
+  });
 });

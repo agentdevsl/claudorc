@@ -566,5 +566,467 @@ describe('ProjectService', () => {
         expect(result.error.code).toBe('PROJECT_NOT_FOUND');
       }
     });
+
+    it('rejects updateConfig with invalid config', async () => {
+      const project = await createTestProject();
+
+      const result = await projectService.updateConfig(project.id, {
+        maxTurns: 1000, // Invalid: max is 500
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+      }
+    });
+  });
+
+  // =============================================================================
+  // Path Validation Edge Cases (3 tests - cover lines 488-489, 499-503)
+  // =============================================================================
+
+  describe('Path Validation Edge Cases', () => {
+    it('handles git symbolic-ref failure and defaults to main branch', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('git rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+        if (cmd.includes('git remote'))
+          return Promise.resolve({ stdout: 'git@github.com:test/repo.git', stderr: '' });
+        if (cmd.includes('git symbolic-ref')) {
+          return Promise.reject(new Error('HEAD is detached'));
+        }
+        if (cmd.includes('test -d .claude')) return Promise.resolve({ stdout: 'no', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.validatePath('/tmp/detached-head-repo');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.defaultBranch).toBe('main');
+        expect(result.value.name).toBe('detached-head-repo');
+      }
+    });
+
+    it('handles .claude directory check failure and returns error info', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('git rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+        if (cmd.includes('git remote'))
+          return Promise.resolve({ stdout: 'git@github.com:test/repo.git', stderr: '' });
+        if (cmd.includes('git symbolic-ref'))
+          return Promise.resolve({ stdout: 'main', stderr: '' });
+        if (cmd.includes('test -d .claude')) {
+          return Promise.reject(new Error('Permission denied'));
+        }
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.validatePath('/tmp/permission-error-repo');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.hasClaudeConfig).toBe(false);
+        expect(result.value.hasClaudeConfigError).toBeDefined();
+        expect(result.value.hasClaudeConfigError).toContain('Permission denied');
+      }
+    });
+
+    it('handles empty remote URL response', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('git rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+        if (cmd.includes('git remote')) return Promise.resolve({ stdout: '   ', stderr: '' }); // whitespace only
+        if (cmd.includes('git symbolic-ref'))
+          return Promise.resolve({ stdout: 'main', stderr: '' });
+        if (cmd.includes('test -d .claude')) return Promise.resolve({ stdout: 'no', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.validatePath('/tmp/empty-remote-repo');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.remoteUrl).toBeUndefined();
+      }
+    });
+  });
+
+  // =============================================================================
+  // List Options Edge Cases (3 tests)
+  // =============================================================================
+
+  describe('List Options Edge Cases', () => {
+    it('lists projects ordered by createdAt descending', async () => {
+      await createTestProjects(3);
+
+      const result = await projectService.list({
+        orderBy: 'createdAt',
+        orderDirection: 'desc',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.length).toBe(3);
+      }
+    });
+
+    it('lists projects ordered by updatedAt ascending', async () => {
+      await createTestProjects(3);
+
+      const result = await projectService.list({
+        orderBy: 'updatedAt',
+        orderDirection: 'asc',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.length).toBe(3);
+      }
+    });
+
+    it('uses default pagination when no options provided', async () => {
+      await createTestProjects(3);
+
+      const result = await projectService.list();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.length).toBe(3);
+      }
+    });
+  });
+
+  // =============================================================================
+  // Project Summaries Edge Cases (4 tests)
+  // =============================================================================
+
+  describe('Project Summaries Edge Cases', () => {
+    it('handles running agent without currentTaskId', async () => {
+      const project = await createTestProject();
+      const session = await createTestSession(project.id, {});
+      await createRunningAgent(project.id, null, session.id);
+
+      const result = await projectService.listWithSummaries();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const summary = result.value.find((s) => s.project.id === project.id);
+        expect(summary?.status).toBe('running');
+        expect(summary?.runningAgents.length).toBe(1);
+        expect(summary?.runningAgents[0].currentTaskId).toBeNull();
+        expect(summary?.runningAgents[0].currentTaskTitle).toBeUndefined();
+      }
+    });
+
+    it('returns idle status when no running agents and no approvals needed', async () => {
+      const project = await createTestProject();
+      await createTestTask(project.id, { column: 'backlog' });
+      await createTestTask(project.id, { column: 'verified' });
+
+      const result = await projectService.listWithSummaries();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const summary = result.value.find((s) => s.project.id === project.id);
+        expect(summary?.status).toBe('idle');
+      }
+    });
+
+    it('returns null lastActivityAt when project has no tasks', async () => {
+      const project = await createTestProject();
+
+      const result = await projectService.listWithSummaries();
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const summary = result.value.find((s) => s.project.id === project.id);
+        expect(summary?.lastActivityAt).toBeNull();
+        expect(summary?.taskCounts.total).toBe(0);
+      }
+    });
+
+    it('passes pagination options to listWithSummaries', async () => {
+      await createTestProjects(5);
+
+      const result = await projectService.listWithSummaries({
+        limit: 2,
+        offset: 1,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.length).toBeLessThanOrEqual(2);
+      }
+    });
+  });
+
+  // =============================================================================
+  // Config Validation Edge Cases (3 tests)
+  // =============================================================================
+
+  describe('Config Validation Edge Cases', () => {
+    it('rejects config with temperature out of range', async () => {
+      const invalidConfig = {
+        worktreeRoot: '.worktrees',
+        temperature: 1.5, // Max is 1
+      };
+
+      const result = projectService.validateConfig(invalidConfig as never);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+      }
+    });
+
+    it('rejects config with maxConcurrentAgents out of range', async () => {
+      const invalidConfig = {
+        worktreeRoot: '.worktrees',
+        maxConcurrentAgents: 15, // Max is 10
+      };
+
+      const result = projectService.validateConfig(invalidConfig as never);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+      }
+    });
+
+    it('accepts valid config with all optional fields', async () => {
+      const fullConfig = {
+        worktreeRoot: '.custom-worktrees',
+        initScript: './scripts/init.sh',
+        envFile: '.env.local',
+        defaultBranch: 'develop',
+        maxConcurrentAgents: 5,
+        allowedTools: ['Read', 'Write', 'Edit', 'Bash'],
+        maxTurns: 100,
+        model: 'claude-sonnet-4-20250514',
+        systemPrompt: 'You are a helpful assistant.',
+        temperature: 0.5,
+      };
+
+      const result = projectService.validateConfig(fullConfig);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.worktreeRoot).toBe('.custom-worktrees');
+        expect(result.value.initScript).toBe('./scripts/init.sh');
+        expect(result.value.envFile).toBe('.env.local');
+        expect(result.value.model).toBe('claude-sonnet-4-20250514');
+        expect(result.value.systemPrompt).toBe('You are a helpful assistant.');
+        expect(result.value.temperature).toBe(0.5);
+      }
+    });
+  });
+
+  // =============================================================================
+  // Clone Repository Edge Cases (2 tests)
+  // =============================================================================
+
+  describe('Clone Repository Edge Cases', () => {
+    it('extracts repo name from URL with .git suffix', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('mkdir -p')) return Promise.resolve({ stdout: '', stderr: '' });
+        if (cmd.includes('test -d')) return Promise.reject(new Error('Not found'));
+        if (cmd.includes('git clone')) return Promise.resolve({ stdout: '', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.cloneRepository(
+        'https://github.com/org/project-name.git',
+        '/home/user/repos'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.name).toBe('project-name');
+        expect(result.value.path).toBe('/home/user/repos/project-name');
+      }
+    });
+
+    it('handles tilde expansion in destination path', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('mkdir -p')) return Promise.resolve({ stdout: '', stderr: '' });
+        if (cmd.includes('test -d')) return Promise.reject(new Error('Not found'));
+        if (cmd.includes('git clone')) return Promise.resolve({ stdout: '', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.cloneRepository(
+        'https://github.com/org/tilde-test.git',
+        '~/projects'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.path).toBe('/Users/user/projects/tilde-test');
+      }
+    });
+  });
+
+  // =============================================================================
+  // Create Project Edge Cases (2 tests)
+  // =============================================================================
+
+  describe('Create Project Edge Cases', () => {
+    it('creates project with sandboxConfigId', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('git rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+        if (cmd.includes('git remote')) return Promise.resolve({ stdout: '', stderr: '' });
+        if (cmd.includes('git symbolic-ref'))
+          return Promise.resolve({ stdout: 'main', stderr: '' });
+        if (cmd.includes('test -d .claude')) return Promise.resolve({ stdout: 'no', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.create({
+        path: '/tmp/sandbox-project',
+        sandboxConfigId: 'sandbox-config-123',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.sandboxConfigId).toBe('sandbox-config-123');
+      }
+    });
+
+    it('rejects creation with invalid config', async () => {
+      mockCommandRunner.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('git rev-parse')) return Promise.resolve({ stdout: '.git', stderr: '' });
+        if (cmd.includes('git remote')) return Promise.resolve({ stdout: '', stderr: '' });
+        if (cmd.includes('git symbolic-ref'))
+          return Promise.resolve({ stdout: 'main', stderr: '' });
+        if (cmd.includes('test -d .claude')) return Promise.resolve({ stdout: 'no', stderr: '' });
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      const result = await projectService.create({
+        path: '/tmp/invalid-config-project',
+        config: {
+          maxTurns: 1000, // Invalid: max is 500
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+      }
+    });
+  });
+
+  // =============================================================================
+  // GitHub Sync (5 tests)
+  // =============================================================================
+
+  describe('GitHub Sync', () => {
+    it('returns error when project not found for syncFromGitHub', async () => {
+      const result = await projectService.syncFromGitHub('non-existent-id');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_NOT_FOUND');
+      }
+    });
+
+    it('handles GitHub sync exception gracefully', async () => {
+      // Create a GitHub installation to pass the initial checks
+      const db = getTestDb();
+      const { githubInstallations } = await import('../../src/db/schema/github');
+      await db.insert(githubInstallations).values({
+        id: 'test-installation',
+        installationId: '12345',
+        accountLogin: 'test-org',
+        accountType: 'Organization',
+        status: 'active',
+      });
+
+      const project = await createTestProject({
+        githubOwner: 'test-owner',
+        githubRepo: 'test-repo',
+        githubInstallationId: 'test-installation',
+      });
+
+      // The syncFromGitHub will fail because getInstallationOctokit will throw
+      // since there's no real GitHub App configured
+      const result = await projectService.syncFromGitHub(project.id);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+        expect(result.error.details?.validationErrors).toBeDefined();
+        const errors = result.error.details?.validationErrors as string[];
+        expect(errors.some((e) => e.includes('GitHub sync failed'))).toBe(true);
+      }
+    });
+
+    it('returns error when project has no githubOwner', async () => {
+      const project = await createTestProject({
+        githubOwner: null,
+        githubRepo: 'test-repo',
+      });
+
+      const result = await projectService.syncFromGitHub(project.id);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+        expect(result.error.details?.validationErrors).toContain(
+          'Missing GitHub repository metadata'
+        );
+      }
+    });
+
+    it('returns error when project has no githubRepo', async () => {
+      const project = await createTestProject({
+        githubOwner: 'test-owner',
+        githubRepo: null,
+      });
+
+      const result = await projectService.syncFromGitHub(project.id);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+        expect(result.error.details?.validationErrors).toContain(
+          'Missing GitHub repository metadata'
+        );
+      }
+    });
+
+    it('returns error when project has no githubInstallationId', async () => {
+      const project = await createTestProject({
+        githubOwner: 'test-owner',
+        githubRepo: 'test-repo',
+        githubInstallationId: null,
+      });
+
+      const result = await projectService.syncFromGitHub(project.id);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+        expect(result.error.details?.validationErrors).toContain(
+          'Missing GitHub App installation ID'
+        );
+      }
+    });
+
+    it('returns error when GitHub installation not found in database', async () => {
+      const project = await createTestProject({
+        githubOwner: 'test-owner',
+        githubRepo: 'test-repo',
+        githubInstallationId: 'non-existent-installation',
+      });
+
+      const result = await projectService.syncFromGitHub(project.id);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('PROJECT_CONFIG_INVALID');
+        expect(result.error.details?.validationErrors).toContain(
+          'GitHub App installation not found'
+        );
+      }
+    });
   });
 });
