@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Nodes - Pill Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --start: #3fb950;
+      --end: #f85149;
+      --command: #d29922;
+      --skill: #f778ba;
+      --agent: #58a6ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .workflow {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Connector dots */
+    .connector {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      position: relative;
+    }
+
+    .connector::before,
+    .connector::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1px;
+      height: 6px;
+      background: var(--border);
+    }
+
+    .connector::before { bottom: 100%; }
+    .connector::after { top: 100%; }
+
+    /* Pill node */
+    .node {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px 8px 12px;
+      border-radius: 50px;
+      background: var(--bg-default);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+      min-width: 160px;
+      max-width: 240px;
+    }
+
+    .node:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Icon circle */
+    .node-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .node-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Node content */
+    .node-content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .node-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .node-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .node-type {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .node-cmd {
+      font-size: 10px;
+      color: var(--fg-muted);
+      font-family: monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Start node */
+    .node.start {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--start) 20%, var(--bg-default)) 0%,
+        var(--bg-default) 100%
+      );
+      border-color: color-mix(in srgb, var(--start) 40%, var(--border));
+    }
+
+    .node.start .node-icon {
+      background: var(--start);
+    }
+
+    .node.start .node-icon svg {
+      color: var(--bg-canvas);
+    }
+
+    .node.start:hover {
+      border-color: var(--start);
+      box-shadow: 0 8px 24px color-mix(in srgb, var(--start) 20%, transparent);
+    }
+
+    /* End node */
+    .node.end {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--end) 20%, var(--bg-default)) 0%,
+        var(--bg-default) 100%
+      );
+      border-color: color-mix(in srgb, var(--end) 40%, var(--border));
+    }
+
+    .node.end .node-icon {
+      background: var(--end);
+    }
+
+    .node.end .node-icon svg {
+      color: var(--bg-canvas);
+    }
+
+    .node.end:hover {
+      border-color: var(--end);
+      box-shadow: 0 8px 24px color-mix(in srgb, var(--end) 20%, transparent);
+    }
+
+    /* Command node */
+    .node.command .node-icon {
+      background: color-mix(in srgb, var(--command) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--command) 40%, transparent);
+    }
+
+    .node.command .node-icon svg {
+      color: var(--command);
+    }
+
+    .node.command .node-type {
+      background: color-mix(in srgb, var(--command) 15%, transparent);
+      color: var(--command);
+    }
+
+    .node.command:hover {
+      border-color: color-mix(in srgb, var(--command) 60%, var(--border));
+    }
+
+    /* Skill node */
+    .node.skill .node-icon {
+      background: color-mix(in srgb, var(--skill) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--skill) 40%, transparent);
+    }
+
+    .node.skill .node-icon svg {
+      color: var(--skill);
+    }
+
+    .node.skill .node-type {
+      background: color-mix(in srgb, var(--skill) 15%, transparent);
+      color: var(--skill);
+    }
+
+    .node.skill:hover {
+      border-color: color-mix(in srgb, var(--skill) 60%, var(--border));
+    }
+
+    /* Agent node */
+    .node.agent .node-icon {
+      background: color-mix(in srgb, var(--agent) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--agent) 40%, transparent);
+    }
+
+    .node.agent .node-icon svg {
+      color: var(--agent);
+    }
+
+    .node.agent .node-type {
+      background: color-mix(in srgb, var(--agent) 15%, transparent);
+      color: var(--agent);
+    }
+
+    .node.agent:hover {
+      border-color: color-mix(in srgb, var(--agent) 60%, var(--border));
+    }
+
+    /* Title */
+    h1 {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .design-label {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      font-size: 10px;
+      color: var(--fg-muted);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pill Capsule</h1>
+
+  <div class="workflow">
+    <div class="node start">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Start Workflow</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node command">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Validate Issue</span>
+        <div class="node-meta">
+          <span class="node-type">cmd</span>
+          <span class="node-cmd">gh issue view</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node skill">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Create Spec</span>
+        <div class="node-meta">
+          <span class="node-type">skill</span>
+          <span class="node-cmd">speckit.specify</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node command">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Commit</span>
+        <div class="node-meta">
+          <span class="node-type">cmd</span>
+          <span class="node-cmd">git commit</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node skill">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Generate Plan</span>
+        <div class="node-meta">
+          <span class="node-type">skill</span>
+          <span class="node-cmd">speckit.plan</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node agent">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="10" rx="2"/>
+          <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+          <path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Code Review</span>
+        <div class="node-meta">
+          <span class="node-type">agent</span>
+          <span class="node-cmd">opus ×2</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node end">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+      </div>
+      <div class="node-content">
+        <span class="node-label">Complete</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="design-label">Pill capsule with inline badges • ~48px height</div>
+</body>
+</html>

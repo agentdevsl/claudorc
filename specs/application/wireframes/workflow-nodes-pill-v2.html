@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Nodes - Pill v2 (Compact + Animated)</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --start: #3fb950;
+      --end: #f85149;
+      --command: #d29922;
+      --skill: #f778ba;
+      --agent: #58a6ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .workflow {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Animated connector line */
+    .connector {
+      width: 2px;
+      height: 8px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .connector::after {
+      content: '';
+      position: absolute;
+      top: -100%;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, transparent, var(--fg-muted), transparent);
+      animation: flowDown 2s ease-in-out infinite;
+    }
+
+    @keyframes flowDown {
+      0% { top: -100%; }
+      100% { top: 200%; }
+    }
+
+    /* Compact pill node - 36px height */
+    .node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px 6px 8px;
+      border-radius: 20px;
+      background: var(--bg-default);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      min-width: 120px;
+      max-width: 200px;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeSlideIn 0.4s ease forwards;
+    }
+
+    .node:nth-child(1) { animation-delay: 0s; }
+    .node:nth-child(3) { animation-delay: 0.08s; }
+    .node:nth-child(5) { animation-delay: 0.16s; }
+    .node:nth-child(7) { animation-delay: 0.24s; }
+    .node:nth-child(9) { animation-delay: 0.32s; }
+    .node:nth-child(11) { animation-delay: 0.40s; }
+    .node:nth-child(13) { animation-delay: 0.48s; }
+
+    @keyframes fadeSlideIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .node:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .node:active {
+      transform: scale(0.98);
+    }
+
+    /* Compact icon circle - 24px */
+    .node-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.3s ease;
+    }
+
+    .node:hover .node-icon {
+      transform: scale(1.1);
+    }
+
+    .node-icon svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* Node content - single line */
+    .node-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Type indicator dot */
+    .node-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Start node */
+    .node.start {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--start) 15%, var(--bg-default)) 0%,
+        var(--bg-default) 100%
+      );
+      border-color: color-mix(in srgb, var(--start) 30%, var(--border));
+    }
+
+    .node.start .node-icon {
+      background: var(--start);
+    }
+
+    .node.start .node-icon svg {
+      color: var(--bg-canvas);
+    }
+
+    .node.start:hover {
+      border-color: var(--start);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--start) 20%, transparent);
+    }
+
+    /* End node */
+    .node.end {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--end) 15%, var(--bg-default)) 0%,
+        var(--bg-default) 100%
+      );
+      border-color: color-mix(in srgb, var(--end) 30%, var(--border));
+    }
+
+    .node.end .node-icon {
+      background: var(--end);
+    }
+
+    .node.end .node-icon svg {
+      color: var(--bg-canvas);
+    }
+
+    .node.end:hover {
+      border-color: var(--end);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--end) 20%, transparent);
+    }
+
+    /* Command node */
+    .node.command .node-icon {
+      background: color-mix(in srgb, var(--command) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--command) 40%, transparent);
+    }
+
+    .node.command .node-icon svg {
+      color: var(--command);
+    }
+
+    .node.command .node-dot {
+      background: var(--command);
+    }
+
+    .node.command:hover {
+      border-color: color-mix(in srgb, var(--command) 50%, var(--border));
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--command) 15%, transparent);
+    }
+
+    /* Skill node */
+    .node.skill .node-icon {
+      background: color-mix(in srgb, var(--skill) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--skill) 40%, transparent);
+    }
+
+    .node.skill .node-icon svg {
+      color: var(--skill);
+    }
+
+    .node.skill .node-dot {
+      background: var(--skill);
+    }
+
+    .node.skill:hover {
+      border-color: color-mix(in srgb, var(--skill) 50%, var(--border));
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--skill) 15%, transparent);
+    }
+
+    /* Agent node */
+    .node.agent .node-icon {
+      background: color-mix(in srgb, var(--agent) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--agent) 40%, transparent);
+    }
+
+    .node.agent .node-icon svg {
+      color: var(--agent);
+    }
+
+    .node.agent .node-dot {
+      background: var(--agent);
+    }
+
+    .node.agent:hover {
+      border-color: color-mix(in srgb, var(--agent) 50%, var(--border));
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--agent) 15%, transparent);
+    }
+
+    /* Title */
+    h1 {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .design-label {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      font-size: 10px;
+      color: var(--fg-muted);
+      opacity: 0.5;
+    }
+
+    /* Running state animation */
+    .node.running {
+      border-color: var(--agent);
+    }
+
+    .node.running::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 22px;
+      border: 2px solid transparent;
+      border-top-color: var(--agent);
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Pill v2 - Compact + Animated</h1>
+
+  <div class="workflow">
+    <div class="node start">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+      </div>
+      <span class="node-label">Start</span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node command">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <span class="node-label">Validate Issue</span>
+      <span class="node-dot"></span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node skill">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <span class="node-label">Create Spec</span>
+      <span class="node-dot"></span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node command">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <span class="node-label">Commit</span>
+      <span class="node-dot"></span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node skill">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <span class="node-label">Generate Plan</span>
+      <span class="node-dot"></span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node agent">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="10" rx="2"/>
+          <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+          <path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+        </svg>
+      </div>
+      <span class="node-label">Code Review</span>
+      <span class="node-dot"></span>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="node end">
+      <div class="node-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+      </div>
+      <span class="node-label">Complete</span>
+    </div>
+  </div>
+
+  <div class="design-label">Compact pills ~36px height • Staggered entry • Flow animation • Pulse dots</div>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Nodes - Metro Flat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --start: #3fb950;
+      --end: #f85149;
+      --command: #d29922;
+      --skill: #f778ba;
+      --agent: #58a6ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .workflow {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* Metro-style node */
+    .node {
+      display: flex;
+      align-items: stretch;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-default);
+    }
+
+    .node:hover {
+      transform: scale(1.02);
+    }
+
+    /* Color block */
+    .node-block {
+      width: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .node-block svg {
+      width: 20px;
+      height: 20px;
+      color: white;
+    }
+
+    /* Content area */
+    .node-body {
+      flex: 1;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .node-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .node-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg);
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .node-cmd {
+      font-size: 10px;
+      color: var(--fg-muted);
+      font-family: monospace;
+    }
+
+    .node-type {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    /* Edge connector */
+    .edge {
+      display: flex;
+      justify-content: center;
+      padding: 2px 0;
+    }
+
+    .edge-line {
+      width: 2px;
+      height: 12px;
+      background: var(--border);
+      border-radius: 1px;
+    }
+
+    /* START */
+    .node.start .node-block {
+      background: var(--start);
+    }
+
+    .node.start:hover {
+      box-shadow: 0 0 0 2px var(--start);
+    }
+
+    /* END */
+    .node.end .node-block {
+      background: var(--end);
+    }
+
+    .node.end:hover {
+      box-shadow: 0 0 0 2px var(--end);
+    }
+
+    /* COMMAND */
+    .node.command .node-block {
+      background: var(--command);
+    }
+
+    .node.command .node-type {
+      background: color-mix(in srgb, var(--command) 20%, transparent);
+      color: var(--command);
+    }
+
+    .node.command:hover {
+      box-shadow: 0 0 0 2px var(--command);
+    }
+
+    /* SKILL */
+    .node.skill .node-block {
+      background: var(--skill);
+    }
+
+    .node.skill .node-type {
+      background: color-mix(in srgb, var(--skill) 20%, transparent);
+      color: var(--skill);
+    }
+
+    .node.skill:hover {
+      box-shadow: 0 0 0 2px var(--skill);
+    }
+
+    /* AGENT */
+    .node.agent .node-block {
+      background: var(--agent);
+    }
+
+    .node.agent .node-type {
+      background: color-mix(in srgb, var(--agent) 20%, transparent);
+      color: var(--agent);
+    }
+
+    .node.agent:hover {
+      box-shadow: 0 0 0 2px var(--agent);
+    }
+
+    /* Step numbers */
+    .step-num {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* Title */
+    h1 {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .design-label {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      font-size: 10px;
+      color: var(--fg-muted);
+      opacity: 0.5;
+    }
+
+    /* Alternating layout for visual interest */
+    .workflow > .node:nth-child(odd) {
+      margin-right: 40px;
+    }
+
+    .workflow > .node:nth-child(even) {
+      margin-left: 40px;
+    }
+
+    .workflow > .node:first-child,
+    .workflow > .node:last-child {
+      margin: 0;
+    }
+
+    .edge:nth-child(odd) .edge-line {
+      margin-right: 40px;
+    }
+
+    .edge:nth-child(even) .edge-line {
+      margin-left: 40px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Metro Flat</h1>
+
+  <div class="workflow">
+    <div class="node start">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Start Workflow</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node command">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Validate Issue</span>
+          <span class="node-cmd">gh issue view</span>
+        </div>
+        <span class="node-type">cmd</span>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node skill">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Create Specification</span>
+          <span class="node-cmd">speckit.specify</span>
+        </div>
+        <span class="node-type">skill</span>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node command">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Commit Changes</span>
+          <span class="node-cmd">git commit</span>
+        </div>
+        <span class="node-type">cmd</span>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node skill">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Generate Plan</span>
+          <span class="node-cmd">speckit.plan</span>
+        </div>
+        <span class="node-type">skill</span>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node agent">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="10" rx="2"/>
+          <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+          <path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Code Review</span>
+          <span class="node-cmd">opus ×2</span>
+        </div>
+        <span class="node-type">agent</span>
+      </div>
+    </div>
+
+    <div class="edge"><div class="edge-line"></div></div>
+
+    <div class="node end">
+      <div class="node-block">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+      </div>
+      <div class="node-body">
+        <div class="node-info">
+          <span class="node-label">Complete</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="design-label">Metro color blocks with clean type • ~48px height</div>
+</body>
+</html>

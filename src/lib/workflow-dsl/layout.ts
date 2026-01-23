@@ -12,7 +12,14 @@
  */
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react';
+import ELK, {
+  type LayoutOptions as ElkLayoutOptions,
+  type ElkNode,
+} from 'elkjs/lib/elk.bundled.js';
 import type { Position, WorkflowEdge, WorkflowNode } from './types.js';
+
+// Initialize ELK instance
+const elk = new ELK();
 
 // =============================================================================
 // LAYOUT OPTIONS
@@ -38,125 +45,144 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 320, // Wide enough for full labels
-  nodeHeight: 26, // Compact node height
-  nodeSpacing: 12, // Horizontal spacing between parallel nodes
-  layerSpacing: 18, // Comfortable vertical gap between nodes
+  nodeWidth: 200, // Estimated width for compact nodes
+  nodeHeight: 32, // Compact node height
+  nodeSpacing: 30, // Horizontal spacing between parallel nodes
+  layerSpacing: 45, // Vertical gap between layers
   edgeRouting: 'ORTHOGONAL',
 };
 
 // =============================================================================
-// SIMPLE HIERARCHICAL LAYOUT
+// ELK LAYOUT
 // =============================================================================
 
 /**
- * Simple hierarchical layout algorithm that works without web workers.
- * Uses topological sorting to arrange nodes in layers.
+ * Converts our layout options to ELK layout options.
  */
-function simpleHierarchicalLayout(
+function toElkLayoutOptions(opts: Required<LayoutOptions>): ElkLayoutOptions {
+  const elkDirection = {
+    DOWN: 'DOWN',
+    UP: 'UP',
+    LEFT: 'LEFT',
+    RIGHT: 'RIGHT',
+  }[opts.direction];
+
+  const elkAlgorithm = {
+    layered: 'layered',
+    force: 'force',
+    box: 'box',
+    random: 'random',
+  }[opts.algorithm];
+
+  const elkEdgeRouting = {
+    ORTHOGONAL: 'ORTHOGONAL',
+    POLYLINE: 'POLYLINE',
+    SPLINES: 'SPLINES',
+  }[opts.edgeRouting];
+
+  return {
+    'elk.algorithm': elkAlgorithm,
+    'elk.direction': elkDirection,
+    // Node spacing
+    'elk.spacing.nodeNode': String(opts.nodeSpacing),
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.layerSpacing),
+    // Edge routing
+    'elk.edgeRouting': elkEdgeRouting,
+    // Crossing minimization
+    'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+    // Node placement - LINEAR_SEGMENTS for better vertical alignment
+    'elk.layered.nodePlacement.strategy': 'LINEAR_SEGMENTS',
+    // Spacing
+    'elk.layered.spacing.edgeNodeBetweenLayers': String(opts.layerSpacing),
+    'elk.layered.spacing.edgeEdgeBetweenLayers': String(opts.layerSpacing / 2),
+    // Preserve model order - important for sequential workflows
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+    // Merge edges for cleaner look
+    'elk.layered.mergeEdges': 'true',
+    // Center the graph
+    'elk.contentAlignment': 'H_CENTER V_TOP',
+  };
+}
+
+/**
+ * Uses ELK to calculate optimal node positions.
+ * Always uses ELK for consistent professional layouts with auto-centering.
+ */
+async function elkLayout(
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
   opts: Required<LayoutOptions>
-): Map<string, Position> {
+): Promise<Map<string, Position>> {
   const positions = new Map<string, Position>();
 
-  // Build adjacency map
-  const outgoing = new Map<string, string[]>();
-  const incoming = new Map<string, string[]>();
-  const nodeSet = new Set(nodes.map((n) => n.id));
-
-  for (const node of nodes) {
-    outgoing.set(node.id, []);
-    incoming.set(node.id, []);
+  if (nodes.length === 0) {
+    return positions;
   }
 
-  for (const edge of edges) {
-    if (nodeSet.has(edge.sourceNodeId) && nodeSet.has(edge.targetNodeId)) {
-      outgoing.get(edge.sourceNodeId)?.push(edge.targetNodeId);
-      incoming.get(edge.targetNodeId)?.push(edge.sourceNodeId);
-    }
-  }
+  // Always use ELK for layout
+  const elkGraph: ElkNode = {
+    id: 'root',
+    layoutOptions: toElkLayoutOptions(opts),
+    children: nodes.map((node) => ({
+      id: node.id,
+      width: opts.nodeWidth,
+      height: opts.nodeHeight,
+    })),
+    edges: edges
+      .filter((edge) => {
+        // Only include edges where both source and target exist
+        const nodeIds = new Set(nodes.map((n) => n.id));
+        return nodeIds.has(edge.sourceNodeId) && nodeIds.has(edge.targetNodeId);
+      })
+      .map((edge) => ({
+        id: edge.id,
+        sources: [edge.sourceNodeId],
+        targets: [edge.targetNodeId],
+      })),
+  };
 
-  // Find layers using topological sort (Kahn's algorithm)
-  const layers: string[][] = [];
-  const inDegree = new Map<string, number>();
+  try {
+    const layoutedGraph = await elk.layout(elkGraph);
 
-  for (const node of nodes) {
-    inDegree.set(node.id, incoming.get(node.id)?.length ?? 0);
-  }
-
-  // Start with nodes that have no incoming edges
-  let currentLayer = nodes.filter((n) => (inDegree.get(n.id) ?? 0) === 0).map((n) => n.id);
-
-  while (currentLayer.length > 0) {
-    layers.push(currentLayer);
-    const nextLayer: string[] = [];
-
-    for (const nodeId of currentLayer) {
-      for (const targetId of outgoing.get(nodeId) ?? []) {
-        const newDegree = (inDegree.get(targetId) ?? 0) - 1;
-        inDegree.set(targetId, newDegree);
-        if (newDegree === 0) {
-          nextLayer.push(targetId);
-        }
+    // Extract positions from layouted graph
+    for (const child of layoutedGraph.children ?? []) {
+      if (child.x !== undefined && child.y !== undefined) {
+        positions.set(child.id, { x: child.x, y: child.y });
       }
     }
 
-    currentLayer = nextLayer;
-  }
-
-  // Handle any remaining nodes (cycles or disconnected)
-  const assigned = new Set(layers.flat());
-  const remaining = nodes.filter((n) => !assigned.has(n.id)).map((n) => n.id);
-  if (remaining.length > 0) {
-    layers.push(remaining);
-  }
-
-  // Calculate positions based on layers
-  const isHorizontal = opts.direction === 'LEFT' || opts.direction === 'RIGHT';
-  const isReverse = opts.direction === 'UP' || opts.direction === 'LEFT';
-
-  // Find the maximum layer width to center all layers
-  let maxLayerWidth = 0;
-  for (const layer of layers) {
-    if (!layer) continue;
-    const layerWidth = isHorizontal
-      ? layer.length * (opts.nodeHeight + opts.nodeSpacing) - opts.nodeSpacing
-      : layer.length * (opts.nodeWidth + opts.nodeSpacing) - opts.nodeSpacing;
-    maxLayerWidth = Math.max(maxLayerWidth, layerWidth);
-  }
-
-  for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
-    const layer = layers[layerIdx];
-    if (!layer) continue;
-    const actualLayerIdx = isReverse ? layers.length - 1 - layerIdx : layerIdx;
-
-    // Calculate this layer's width and center offset
-    const layerWidth = isHorizontal
-      ? layer.length * (opts.nodeHeight + opts.nodeSpacing) - opts.nodeSpacing
-      : layer.length * (opts.nodeWidth + opts.nodeSpacing) - opts.nodeSpacing;
-    const centerOffset = (maxLayerWidth - layerWidth) / 2;
-
-    for (let nodeIdx = 0; nodeIdx < layer.length; nodeIdx++) {
-      const nodeId = layer[nodeIdx];
-      if (!nodeId) continue;
-
-      let x: number;
-      let y: number;
-
-      if (isHorizontal) {
-        x = actualLayerIdx * (opts.nodeWidth + opts.layerSpacing);
-        y = nodeIdx * (opts.nodeHeight + opts.nodeSpacing) + centerOffset;
-      } else {
-        x = nodeIdx * (opts.nodeWidth + opts.nodeSpacing) + centerOffset;
-        y = actualLayerIdx * (opts.nodeHeight + opts.layerSpacing);
-      }
-
-      positions.set(nodeId, { x, y });
-    }
+    // Post-process: center nodes horizontally if mostly linear
+    centerNodesHorizontally(positions);
+  } catch (error) {
+    console.error('[layoutWorkflow] ELK layout failed:', error);
+    // Fall back to simple positioning
+    nodes.forEach((node, index) => {
+      positions.set(node.id, {
+        x: 0,
+        y: index * (opts.nodeHeight + opts.layerSpacing),
+      });
+    });
   }
 
   return positions;
+}
+
+/**
+ * Centers nodes horizontally by finding the average x position and adjusting all nodes.
+ */
+function centerNodesHorizontally(positions: Map<string, Position>): void {
+  if (positions.size === 0) return;
+
+  // Find min x to shift all nodes to start at x=0
+  let minX = Infinity;
+  for (const pos of positions.values()) {
+    minX = Math.min(minX, pos.x);
+  }
+
+  // Shift all nodes so minimum x is 0
+  for (const [id, pos] of positions.entries()) {
+    positions.set(id, { x: pos.x - minX, y: pos.y });
+  }
 }
 
 // =============================================================================
@@ -165,7 +191,7 @@ function simpleHierarchicalLayout(
 
 /**
  * Calculates automatic layout positions for workflow nodes.
- * Uses a simple hierarchical layout algorithm that works in all environments.
+ * Uses ELK (Eclipse Layout Kernel) for professional-quality hierarchical layouts.
  *
  * @param nodes - Array of workflow nodes to layout
  * @param edges - Array of workflow edges defining connections
@@ -191,8 +217,8 @@ export async function layoutWorkflow(
 
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
-  // Use simple hierarchical layout (no external dependencies)
-  const positions = simpleHierarchicalLayout(nodes, edges, opts);
+  // Use ELK for professional layout
+  const positions = await elkLayout(nodes, edges, opts);
 
   return nodes.map((node) => {
     const newPosition = positions.get(node.id);

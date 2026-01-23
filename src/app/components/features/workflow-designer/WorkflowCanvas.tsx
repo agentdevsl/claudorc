@@ -105,11 +105,15 @@ export function WorkflowCanvas({
           maskColor="rgba(13, 17, 23, 0.6)"
           nodeStrokeWidth={3}
           nodeColor={(node) => {
-            if (node.type === 'start') return 'var(--success-fg)';
-            if (node.type === 'end') return 'var(--danger-fg)';
-            if (node.type === 'skill') return 'var(--secondary-fg)';
-            if (node.type === 'command') return 'var(--attention-fg)';
-            if (node.type === 'agent') return 'var(--accent-fg)';
+            // Handle both base types and compact types (e.g., 'start' and 'compactStart')
+            const nodeType =
+              typeof node.data?.nodeType === 'string' ? node.data.nodeType : node.type;
+            const t = nodeType ?? '';
+            if (t.includes('start') || t.includes('Start')) return 'var(--success-fg)';
+            if (t.includes('end') || t.includes('End')) return 'var(--danger-fg)';
+            if (t.includes('skill') || t.includes('Skill')) return 'var(--secondary-fg)';
+            if (t.includes('command') || t.includes('Command')) return 'var(--attention-fg)';
+            if (t.includes('agent') || t.includes('Agent')) return 'var(--accent-fg)';
             return 'var(--fg-muted)';
           }}
           pannable

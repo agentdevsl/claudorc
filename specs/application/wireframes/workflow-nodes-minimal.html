@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Nodes - Ultra Minimal</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --start: #3fb950;
+      --end: #f85149;
+      --command: #d29922;
+      --skill: #f778ba;
+      --agent: #58a6ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .workflow {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Vertical connector line */
+    .workflow::before {
+      content: '';
+      position: absolute;
+      top: 24px;
+      bottom: 24px;
+      left: 50%;
+      width: 1px;
+      background: linear-gradient(to bottom,
+        var(--start) 0%,
+        var(--border) 15%,
+        var(--border) 85%,
+        var(--end) 100%
+      );
+      transform: translateX(-50%);
+      z-index: 0;
+    }
+
+    .node {
+      position: relative;
+      z-index: 1;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+      background: var(--bg-default);
+      border: 1px solid var(--border);
+    }
+
+    .node:hover {
+      transform: scale(1.1);
+    }
+
+    .node:hover .tooltip {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    /* Node type indicators */
+    .node::before {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .node.start { background: color-mix(in srgb, var(--start) 15%, var(--bg-default)); }
+    .node.start::before { background: var(--start); }
+    .node.start:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--start) 30%, transparent); }
+
+    .node.end { background: color-mix(in srgb, var(--end) 15%, var(--bg-default)); }
+    .node.end::before { background: var(--end); }
+    .node.end:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--end) 30%, transparent); }
+
+    .node.command::before { background: var(--command); }
+    .node.command:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--command) 20%, transparent); }
+
+    .node.skill::before { background: var(--skill); }
+    .node.skill:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--skill) 20%, transparent); }
+
+    .node.agent::before { background: var(--agent); }
+    .node.agent:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--agent) 20%, transparent); }
+
+    /* Icons */
+    .icon {
+      width: 20px;
+      height: 20px;
+      opacity: 0.9;
+    }
+
+    .node.start .icon { color: var(--start); }
+    .node.end .icon { color: var(--end); }
+    .node.command .icon { color: var(--command); }
+    .node.skill .icon { color: var(--skill); }
+    .node.agent .icon { color: var(--agent); }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      left: calc(100% + 16px);
+      top: 50%;
+      transform: translateX(-8px) translateY(-50%);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+      z-index: 100;
+    }
+
+    .tooltip::before {
+      content: '';
+      position: absolute;
+      left: -6px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 10px;
+      height: 10px;
+      background: var(--bg-subtle);
+      border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tooltip-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg);
+      margin-bottom: 2px;
+    }
+
+    .tooltip-desc {
+      font-size: 10px;
+      color: var(--fg-muted);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tooltip-type {
+      display: inline-block;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+
+    .node.command .tooltip-type { background: color-mix(in srgb, var(--command) 20%, transparent); color: var(--command); }
+    .node.skill .tooltip-type { background: color-mix(in srgb, var(--skill) 20%, transparent); color: var(--skill); }
+    .node.agent .tooltip-type { background: color-mix(in srgb, var(--agent) 20%, transparent); color: var(--agent); }
+
+    /* Step numbers */
+    .step-num {
+      position: absolute;
+      right: -6px;
+      top: -6px;
+      width: 16px;
+      height: 16px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-muted);
+    }
+
+    /* Title */
+    h1 {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .design-label {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      font-size: 10px;
+      color: var(--fg-muted);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Ultra Minimal</h1>
+
+  <div class="workflow">
+    <div class="node start">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Start Workflow</div>
+        <div class="tooltip-desc">Entry point</div>
+      </div>
+    </div>
+
+    <div class="node command">
+      <span class="step-num">1</span>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="4,17 10,11 4,5"/>
+        <line x1="12" y1="19" x2="20" y2="19"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Validate Issue</div>
+        <div class="tooltip-desc">Check GitHub issue validity</div>
+        <span class="tooltip-type">command</span>
+      </div>
+    </div>
+
+    <div class="node skill">
+      <span class="step-num">2</span>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Create Specification</div>
+        <div class="tooltip-desc">/speckit.specify</div>
+        <span class="tooltip-type">skill</span>
+      </div>
+    </div>
+
+    <div class="node command">
+      <span class="step-num">3</span>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="4,17 10,11 4,5"/>
+        <line x1="12" y1="19" x2="20" y2="19"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Commit Changes</div>
+        <div class="tooltip-desc">git commit</div>
+        <span class="tooltip-type">command</span>
+      </div>
+    </div>
+
+    <div class="node skill">
+      <span class="step-num">4</span>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Generate Plan</div>
+        <div class="tooltip-desc">/speckit.plan</div>
+        <span class="tooltip-type">skill</span>
+      </div>
+    </div>
+
+    <div class="node agent">
+      <span class="step-num">5</span>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="10" rx="2"/>
+        <circle cx="8" cy="16" r="1" fill="currentColor"/>
+        <circle cx="16" cy="16" r="1" fill="currentColor"/>
+        <path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Code Review</div>
+        <div class="tooltip-desc">Concurrent Opus agents</div>
+        <span class="tooltip-type">agent</span>
+      </div>
+    </div>
+
+    <div class="node end">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="tooltip">
+        <div class="tooltip-label">Complete</div>
+        <div class="tooltip-desc">Workflow finished</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="design-label">Icon-only with hover tooltips • 48×48px nodes</div>
+</body>
+</html>
