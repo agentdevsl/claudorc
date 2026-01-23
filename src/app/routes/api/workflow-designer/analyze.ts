@@ -274,58 +274,79 @@ function correctNodeTypes(
       return node;
     }
 
-    // Collect all text to search for /name references
+    // Collect ALL text fields to search, regardless of current node type
+    // This is crucial because the AI might have misclassified the type
     const textsToSearch: string[] = [node.label];
     if (node.description) textsToSearch.push(node.description);
 
-    if (node.type === 'skill' && 'skillName' in node) {
-      textsToSearch.push(node.skillName);
-      if ('skillId' in node) textsToSearch.push(node.skillId);
+    // Always check skill-related fields (they might exist even if type is wrong)
+    if ('skillName' in node && node.skillName) {
+      textsToSearch.push(node.skillName as string);
     }
-    if (node.type === 'command' && 'command' in node) {
-      textsToSearch.push(node.command);
+    if ('skillId' in node && node.skillId) {
+      textsToSearch.push(node.skillId as string);
+    }
+
+    // Always check command field
+    if ('command' in node && node.command) {
+      textsToSearch.push(node.command as string);
     }
 
     // Extract any /name references from all text fields
     const slashRefs: string[] = [];
     for (const text of textsToSearch) {
-      slashRefs.push(...extractSlashReferences(text));
+      if (text) slashRefs.push(...extractSlashReferences(text));
     }
 
     // Also add the raw text values for direct matching
-    const namesToCheck = [...textsToSearch, ...slashRefs];
+    const namesToCheck = [...textsToSearch.filter(Boolean), ...slashRefs];
+
+    // Helper to find a match in the map (exact or prefix match)
+    const findInMap = (map: Map<string, string>, normalized: string): string | undefined => {
+      // Exact match
+      if (map.has(normalized)) {
+        return map.get(normalized);
+      }
+      // Check if normalized starts with any known name (e.g., "speckitspecifyparent" starts with "speckitspecify")
+      for (const [key, value] of map) {
+        if (normalized.startsWith(key) || key.startsWith(normalized)) {
+          return value;
+        }
+      }
+      return undefined;
+    };
 
     // Check each name against known lists
     for (const name of namesToCheck) {
       const normalized = normalizeForLookup(name);
 
       // Check if it's a known command FIRST (commands take precedence for slash commands)
-      if (commandMap.has(normalized)) {
-        const originalName = commandMap.get(normalized)!;
+      const matchedCommand = findInMap(commandMap, normalized);
+      if (matchedCommand) {
         if (node.type !== 'command') {
           console.log(
-            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to command (matched: ${originalName})`
+            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to command (matched: ${matchedCommand})`
           );
           return {
             ...node,
             type: 'command',
-            command: originalName,
+            command: matchedCommand,
           } as WorkflowNode;
         }
         return node;
       }
 
       // Check if it's a known skill
-      if (skillMap.has(normalized)) {
-        const originalName = skillMap.get(normalized)!;
+      const matchedSkill = findInMap(skillMap, normalized);
+      if (matchedSkill) {
         if (node.type !== 'skill') {
           console.log(
-            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to skill (matched: ${originalName})`
+            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to skill (matched: ${matchedSkill})`
           );
           return {
             ...node,
             type: 'skill',
-            skillId: originalName,
+            skillId: matchedSkill,
             skillName: node.label,
           } as WorkflowNode;
         }
