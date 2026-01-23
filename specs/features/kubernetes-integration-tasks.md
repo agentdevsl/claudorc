@@ -129,6 +129,12 @@ tests/e2e/settings/
    - Running pod count
 4. **Form Support**: K8s type option added to sandbox config editor modal
 
+### Phase 2 Review Fixes Applied
+
+| Fix | Description | Status |
+|-----|-------------|--------|
+| Dynamic imports | K8s API routes use dynamic imports for `@kubernetes/client-node` to prevent bundling server-only modules into client | ✅ Fixed |
+
 ---
 
 ## Phase 3: tmux Session Support ⚡ BONUS COMPLETE
@@ -357,3 +363,5 @@ jobs:
 | 2026-01-23 | 1 | Review fixes: exports, execAsRoot docs, additional tests |
 | 2026-01-23 | 3 | tmux methods implemented as bonus (interface requirement) |
 | 2026-01-23 | - | Created tasks.md tracking document |
+| 2026-01-23 | 2 | UI integration complete: provider selection, K8s config panel, API endpoints |
+| 2026-01-23 | 2 | Fix: Dynamic imports for server-side K8s client to prevent client bundle errors |
