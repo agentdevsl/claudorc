@@ -45,7 +45,7 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 200, // Estimated width for compact nodes
+  nodeWidth: 480, // Matches CSS min-width for uniform node sizing
   nodeHeight: 32, // Compact node height
   nodeSpacing: 30, // Horizontal spacing between parallel nodes
   layerSpacing: 45, // Vertical gap between layers
@@ -151,8 +151,8 @@ async function elkLayout(
       }
     }
 
-    // Post-process: center nodes horizontally if mostly linear
-    centerNodesHorizontally(positions);
+    // Post-process: normalize positions to start at x=0
+    normalizePositions(positions);
   } catch (error) {
     console.error('[layoutWorkflow] ELK layout failed:', error);
     // Fall back to simple positioning
@@ -168,9 +168,10 @@ async function elkLayout(
 }
 
 /**
- * Centers nodes horizontally by finding the average x position and adjusting all nodes.
+ * Normalizes node positions to start at x=0.
+ * With uniform node widths (enforced by CSS min-width), handles align automatically.
  */
-function centerNodesHorizontally(positions: Map<string, Position>): void {
+function normalizePositions(positions: Map<string, Position>): void {
   if (positions.size === 0) return;
 
   // Find min x to shift all nodes to start at x=0
@@ -180,7 +181,7 @@ function centerNodesHorizontally(positions: Map<string, Position>): void {
   }
 
   // Shift all nodes so minimum x is 0
-  for (const [id, pos] of positions.entries()) {
+  for (const [id, pos] of positions) {
     positions.set(id, { x: pos.x - minX, y: pos.y });
   }
 }

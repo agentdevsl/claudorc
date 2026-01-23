@@ -1,34 +1,11 @@
-import {
-  CaretDown,
-  CaretLeft,
-  CaretRight,
-  CloudArrowDown,
-  Command,
-  Cube,
-  FileCode,
-  Lightning,
-  Plus,
-  Robot,
-  Sparkle,
-  Terminal,
-  Warning,
-} from '@phosphor-icons/react';
+import { CaretLeft, Warning } from '@phosphor-icons/react';
 import { type Edge, type Node, useEdgesState, useNodesState, type Viewport } from '@xyflow/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 
-import { Button } from '@/app/components/ui/button';
 import type { Workflow } from '@/db/schema/workflows';
-import { cn } from '@/lib/utils/cn';
 import { AIGenerateDialog } from './AIGenerateDialog';
-import {
-  inspectorFieldVariants,
-  inspectorLabelVariants,
-  inspectorValueVariants,
-  panelHeaderVariants,
-  sidebarPanelVariants,
-  templateCardVariants,
-} from './styles';
+import { type SavedWorkflow, SavedWorkflowsPanel } from './SavedWorkflowsPanel';
 import { WorkflowCanvas } from './WorkflowCanvas';
 import { WorkflowToolbar } from './WorkflowToolbar';
 
@@ -143,12 +120,11 @@ const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[
 
 /**
  * WorkflowDesigner is the main container component for the visual workflow editor.
- * It orchestrates the canvas, toolbar, template picker, node inspector, and save dialog.
+ * It orchestrates the canvas, toolbar, saved workflows panel, and AI generation dialog.
  *
  * Layout:
- * - Left sidebar: Template picker with real org templates
  * - Main area: Canvas with toolbar overlay
- * - Right sidebar: Node inspector with properties
+ * - Right sidebar: Saved workflows catalog with save status
  */
 export function WorkflowDesigner({
   initialWorkflow,
@@ -164,8 +140,6 @@ export function WorkflowDesigner({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialState.edges);
 
   // UI state
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -180,15 +154,23 @@ export function WorkflowDesigner({
   );
 
   // Sidebar collapse state
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
-  // Org templates from API
-  const [templates, setTemplates] = useState<TemplateWithContent[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(true);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  // Saved workflows state
+  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>([]);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(
+    initialWorkflow?.id ?? null
+  );
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [workflowsLoading, setWorkflowsLoading] = useState(true);
 
-  // Fetch org templates on mount
+  // Track last saved state to detect changes
+  const lastSavedStateRef = useRef<string>('');
+
+  // Org templates from API (used by AIGenerateDialog)
+  const [templates, setTemplates] = useState<TemplateWithContent[]>([]);
+
+  // Fetch org templates on mount (for AI generation)
   useEffect(() => {
     async function fetchTemplates() {
       try {
@@ -197,35 +179,57 @@ export function WorkflowDesigner({
 
         if (result.ok && result.data?.items) {
           setTemplates(result.data.items);
-        } else {
-          setTemplatesError(result.error?.message ?? 'Failed to load templates');
         }
       } catch (err) {
         console.error('[Designer] Template fetch error:', err);
-        setTemplatesError(err instanceof Error ? err.message : 'Failed to load templates');
-      } finally {
-        setTemplatesLoading(false);
       }
     }
 
     fetchTemplates();
   }, []);
 
-  // Handle node selection
-  const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      if (!readOnly) {
-        setSelectedNode(node);
-      }
-    },
-    [readOnly]
-  );
+  // Fetch saved workflows on mount
+  useEffect(() => {
+    async function fetchWorkflows() {
+      try {
+        const response = await fetch('/api/workflows');
+        const result = await response.json();
 
-  // Handle edge selection
-  const handleEdgeClick = useCallback((_event: React.MouseEvent, _edge: Edge) => {
-    // Clear node selection when clicking an edge
-    setSelectedNode(null);
+        if (result.ok && result.data?.items) {
+          setSavedWorkflows(
+            result.data.items.map((w: Workflow) => ({
+              id: w.id,
+              name: w.name,
+              description: w.description,
+              updatedAt: new Date(w.updatedAt),
+              nodeCount: w.nodes?.length ?? 0,
+              edgeCount: w.edges?.length ?? 0,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error('[Designer] Workflows fetch error:', err);
+      } finally {
+        setWorkflowsLoading(false);
+      }
+    }
+
+    fetchWorkflows();
   }, []);
+
+  // Track unsaved changes by comparing current state to last saved state
+  useEffect(() => {
+    const currentState = JSON.stringify({ nodes, edges });
+    if (lastSavedStateRef.current && currentState !== lastSavedStateRef.current) {
+      setHasUnsavedChanges(true);
+    }
+  }, [nodes, edges]);
+
+  // Update last saved state when workflow is loaded or saved
+  const markAsSaved = useCallback(() => {
+    lastSavedStateRef.current = JSON.stringify({ nodes, edges });
+    setHasUnsavedChanges(false);
+  }, [nodes, edges]);
 
   // Handle viewport changes
   const handleViewportChange = useCallback((newViewport: Viewport) => {
@@ -243,8 +247,9 @@ export function WorkflowDesigner({
     (newNodes: Node[], newEdges: Edge[]) => {
       setNodes(newNodes);
       setEdges(newEdges);
-      setSelectedNode(null);
       setAiDialogOpen(false);
+      // Mark as unsaved since we have new content
+      setHasUnsavedChanges(true);
     },
     [setNodes, setEdges]
   );
@@ -257,28 +262,28 @@ export function WorkflowDesigner({
     setError(null);
     try {
       // TODO: Call save API endpoint when available
-      // const workflowData = {
-      //   nodes: nodes.map((n) => ({
-      //     id: n.id,
-      //     type: n.type ?? 'agent',
-      //     position: n.position,
-      //     data: n.data,
-      //   })),
-      //   edges: edges.map((e) => ({
-      //     id: e.id,
-      //     source: e.source,
-      //     target: e.target,
-      //     sourceHandle: e.sourceHandle,
-      //     targetHandle: e.targetHandle,
-      //     type: e.type,
-      //     data: e.data,
-      //   })),
-      //   viewport,
-      // };
-      // await apiClient.workflows.save(initialWorkflow?.id, workflowData);
       console.log('Saving workflow...', { nodes, edges, viewport });
       // Simulate API delay
       await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Mark as saved and update saved workflows list
+      markAsSaved();
+
+      // Update the workflow in the list if it exists
+      if (activeWorkflowId) {
+        setSavedWorkflows((prev) =>
+          prev.map((w) =>
+            w.id === activeWorkflowId
+              ? {
+                  ...w,
+                  updatedAt: new Date(),
+                  nodeCount: nodes.length,
+                  edgeCount: edges.length,
+                }
+              : w
+          )
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('Failed to save workflow:', err);
@@ -286,323 +291,77 @@ export function WorkflowDesigner({
     } finally {
       setIsSaving(false);
     }
-  }, [readOnly, nodes, edges, viewport]);
+  }, [readOnly, nodes, edges, viewport, markAsSaved, activeWorkflowId]);
 
-  // Clear handler
-  const handleClear = useCallback(() => {
+  // Clear handler / Create new workflow
+  const handleCreateNew = useCallback(() => {
     if (readOnly) return;
 
     setNodes(getDefaultNodes());
     setEdges([]);
-    setSelectedNode(null);
-    setSelectedTemplate(null);
+    setActiveWorkflowId(null);
+    setHasUnsavedChanges(false);
+    lastSavedStateRef.current = '';
   }, [readOnly, setNodes, setEdges]);
 
-  // Add primitive (skill/command/agent) to canvas
-  const handleAddPrimitive = useCallback(
-    (
-      type: 'skill' | 'command' | 'agent',
-      name: string,
-      description?: string,
-      templateName?: string
-    ) => {
+  // Select a saved workflow to load
+  const handleSelectWorkflow = useCallback(
+    async (workflow: SavedWorkflow) => {
       if (readOnly) return;
 
-      // Calculate position - place between start and end, offset by existing nodes
-      // Use compact spacing (56px = 32px node + 24px gap)
-      const existingCount = nodes.filter(
-        (n) => !['compactStart', 'compactEnd', 'start', 'end'].includes(n.type ?? '')
-      ).length;
-      const yOffset = 136 + existingCount * 56;
-      const nodeIndex = nodes.length; // Next index for animation
+      // TODO: Fetch full workflow data from API
+      // For now, simulate loading
+      try {
+        const response = await fetch(`/api/workflows/${workflow.id}`);
+        const result = await response.json();
 
-      const newNode: Node = {
-        id: `${type}-${Date.now()}`,
-        type: mapToCompactNodeType(type), // Use compact node type
-        position: { x: 400, y: yOffset },
-        data: {
-          label: name,
-          description: description ?? `${type} from ${templateName ?? 'template'}`,
-          nodeIndex, // For staggered animation
-          nodeType: type, // Original type for reference
-          // Store the identifier for the specific type
-          ...(type === 'skill' && { skillId: name }),
-          ...(type === 'command' && { command: name }),
-          ...(type === 'agent' && { agentConfigId: name }),
-        },
-      };
+        if (result.ok && result.data) {
+          const loaded = workflowToNodesEdges(result.data);
+          setNodes(loaded.nodes);
+          setEdges(loaded.edges);
+          setActiveWorkflowId(workflow.id);
 
-      setNodes((nds) => [...nds, newNode]);
-
-      // Select the newly added node
-      setSelectedNode(newNode);
+          // Mark initial state as saved
+          setTimeout(() => {
+            lastSavedStateRef.current = JSON.stringify({
+              nodes: loaded.nodes,
+              edges: loaded.edges,
+            });
+            setHasUnsavedChanges(false);
+          }, 0);
+        }
+      } catch (err) {
+        console.error('[Designer] Failed to load workflow:', err);
+        setError('Failed to load workflow');
+      }
     },
-    [readOnly, nodes, setNodes]
+    [readOnly, setNodes, setEdges]
   );
 
-  // Get content counts for selected template
-  const selectedTemplateData = templates.find((t) => t.id === selectedTemplate);
-  const skillCount = selectedTemplateData?.cachedSkills?.length ?? 0;
-  const commandCount = selectedTemplateData?.cachedCommands?.length ?? 0;
-  const agentCount = selectedTemplateData?.cachedAgents?.length ?? 0;
+  // Delete a saved workflow
+  const handleDeleteWorkflow = useCallback(
+    async (workflowId: string) => {
+      try {
+        // TODO: Call delete API endpoint
+        console.log('Deleting workflow:', workflowId);
+
+        // Remove from list
+        setSavedWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
+
+        // If deleting active workflow, clear the canvas
+        if (workflowId === activeWorkflowId) {
+          handleCreateNew();
+        }
+      } catch (err) {
+        console.error('[Designer] Failed to delete workflow:', err);
+        setError('Failed to delete workflow');
+      }
+    },
+    [activeWorkflowId, handleCreateNew]
+  );
 
   return (
     <div className="flex h-full w-full" data-testid="workflow-designer">
-      {/* Left sidebar - Template Picker with real org templates */}
-      <aside
-        className={cn(
-          sidebarPanelVariants({ side: 'left', collapsed: leftPanelCollapsed }),
-          'hidden lg:flex',
-          leftPanelCollapsed ? 'w-0' : 'w-72'
-        )}
-        data-testid="workflow-template-picker"
-      >
-        {/* Panel header */}
-        <div className={cn(panelHeaderVariants())}>
-          <div className="flex items-center gap-[var(--space-2)]">
-            <Cube className="h-4 w-4 text-[var(--fg-muted)]" weight="duotone" />
-            <h3 className="text-[var(--text-sm)] font-[var(--font-semibold)] text-[var(--fg-default)]">
-              Org Templates
-            </h3>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLeftPanelCollapsed(true)}
-            className="h-7 w-7"
-            aria-label="Collapse panel"
-          >
-            <CaretLeft className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Template list */}
-        <div className="flex-1 overflow-y-auto p-[var(--space-3)]">
-          {templatesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="flex items-center gap-2 text-[var(--fg-muted)]">
-                <CloudArrowDown className="h-4 w-4 animate-pulse" />
-                <span className="text-[var(--text-xs)]">Loading templates...</span>
-              </div>
-            </div>
-          ) : templatesError ? (
-            <div className="rounded-[var(--radius)] border border-[var(--danger-muted)] bg-[var(--danger-subtle)] p-[var(--space-3)]">
-              <div className="flex items-center gap-2 text-[var(--danger-fg)]">
-                <Warning className="h-4 w-4" />
-                <span className="text-[var(--text-xs)]">{templatesError}</span>
-              </div>
-            </div>
-          ) : templates.length === 0 ? (
-            <div className="text-center py-8">
-              <FileCode className="h-8 w-8 mx-auto mb-2 text-[var(--fg-subtle)]" />
-              <p className="text-[var(--text-sm)] text-[var(--fg-muted)]">No org templates</p>
-              <p className="text-[var(--text-xs)] text-[var(--fg-subtle)] mt-1">
-                Add templates in Org Templates
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-[var(--space-2)]">
-              {templates.map((template) => {
-                const tSkills = template.cachedSkills ?? [];
-                const tCommands = template.cachedCommands ?? [];
-                const tAgents = template.cachedAgents ?? [];
-                const isSelected = selectedTemplate === template.id;
-                const hasContent = tSkills.length > 0 || tCommands.length > 0 || tAgents.length > 0;
-
-                return (
-                  <div key={template.id} className="space-y-[var(--space-1)]">
-                    {/* Template header - collapsible */}
-                    <button
-                      type="button"
-                      className={cn(templateCardVariants({ selected: isSelected }))}
-                      onClick={() => setSelectedTemplate(isSelected ? null : template.id)}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-[var(--space-2)]">
-                          <CaretDown
-                            className={cn(
-                              'h-3 w-3 text-[var(--fg-muted)] transition-transform',
-                              !isSelected && '-rotate-90'
-                            )}
-                          />
-                          <span className="text-[var(--text-sm)] font-[var(--font-medium)] text-[var(--fg-default)]">
-                            {template.name}
-                          </span>
-                        </div>
-                        {template.status === 'syncing' && (
-                          <CloudArrowDown className="h-3 w-3 text-[var(--accent-fg)] animate-pulse" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-[var(--space-2)] text-[10px] text-[var(--fg-subtle)] ml-5">
-                        {tSkills.length > 0 && <span>{tSkills.length} skills</span>}
-                        {tCommands.length > 0 && <span>{tCommands.length} commands</span>}
-                        {tAgents.length > 0 && <span>{tAgents.length} agents</span>}
-                        {!hasContent && (
-                          <span className="text-[var(--attention-fg)]">Not synced</span>
-                        )}
-                      </div>
-                    </button>
-
-                    {/* Expanded content - Skills, Commands, Agents */}
-                    {isSelected && hasContent && (
-                      <div className="ml-2 pl-3 border-l-2 border-[var(--border-default)] space-y-[var(--space-3)]">
-                        {/* Skills section */}
-                        {tSkills.length > 0 && (
-                          <div className="space-y-[var(--space-1)]">
-                            <div className="flex items-center gap-[var(--space-1)] text-[10px] font-[var(--font-medium)] text-[var(--secondary-fg)] uppercase tracking-wide">
-                              <Lightning className="h-3 w-3" weight="fill" />
-                              <span>Skills</span>
-                            </div>
-                            <div className="space-y-[var(--space-1)]">
-                              {tSkills.map((skill) => (
-                                <button
-                                  key={skill.id}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddPrimitive(
-                                      'skill',
-                                      skill.name,
-                                      skill.description,
-                                      template.name
-                                    )
-                                  }
-                                  className="group w-full flex items-center gap-[var(--space-2)] p-[var(--space-2)] rounded-[var(--radius-sm)] text-left hover:bg-[var(--secondary-subtle)] transition-colors"
-                                >
-                                  <Terminal className="h-3.5 w-3.5 text-[var(--secondary-fg)] flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[var(--text-xs)] font-[var(--font-medium)] text-[var(--fg-default)] truncate">
-                                      /{skill.name}
-                                    </div>
-                                    {skill.description && (
-                                      <div className="text-[10px] text-[var(--fg-muted)] line-clamp-1">
-                                        {skill.description}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <Plus className="h-3.5 w-3.5 text-[var(--fg-subtle)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Commands section */}
-                        {tCommands.length > 0 && (
-                          <div className="space-y-[var(--space-1)]">
-                            <div className="flex items-center gap-[var(--space-1)] text-[10px] font-[var(--font-medium)] text-[var(--attention-fg)] uppercase tracking-wide">
-                              <Command className="h-3 w-3" weight="fill" />
-                              <span>Commands</span>
-                            </div>
-                            <div className="space-y-[var(--space-1)]">
-                              {tCommands.map((cmd) => (
-                                <button
-                                  key={cmd.name}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddPrimitive(
-                                      'command',
-                                      cmd.name,
-                                      cmd.description,
-                                      template.name
-                                    )
-                                  }
-                                  className="group w-full flex items-center gap-[var(--space-2)] p-[var(--space-2)] rounded-[var(--radius-sm)] text-left hover:bg-[var(--attention-subtle)] transition-colors"
-                                >
-                                  <Terminal className="h-3.5 w-3.5 text-[var(--attention-fg)] flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[var(--text-xs)] font-[var(--font-medium)] text-[var(--fg-default)] truncate">
-                                      /{cmd.name}
-                                    </div>
-                                    {cmd.description && (
-                                      <div className="text-[10px] text-[var(--fg-muted)] line-clamp-1">
-                                        {cmd.description}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <Plus className="h-3.5 w-3.5 text-[var(--fg-subtle)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Agents section */}
-                        {tAgents.length > 0 && (
-                          <div className="space-y-[var(--space-1)]">
-                            <div className="flex items-center gap-[var(--space-1)] text-[10px] font-[var(--font-medium)] text-[var(--accent-fg)] uppercase tracking-wide">
-                              <Robot className="h-3 w-3" weight="fill" />
-                              <span>Agents</span>
-                            </div>
-                            <div className="space-y-[var(--space-1)]">
-                              {tAgents.map((agent) => (
-                                <button
-                                  key={agent.name}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddPrimitive(
-                                      'agent',
-                                      agent.name,
-                                      agent.description,
-                                      template.name
-                                    )
-                                  }
-                                  className="group w-full flex items-center gap-[var(--space-2)] p-[var(--space-2)] rounded-[var(--radius-sm)] text-left hover:bg-[var(--accent-subtle)] transition-colors"
-                                >
-                                  <Robot className="h-3.5 w-3.5 text-[var(--accent-fg)] flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[var(--text-xs)] font-[var(--font-medium)] text-[var(--fg-default)] truncate">
-                                      {agent.name}
-                                    </div>
-                                    {agent.description && (
-                                      <div className="text-[10px] text-[var(--fg-muted)] line-clamp-1">
-                                        {agent.description}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <Plus className="h-3.5 w-3.5 text-[var(--fg-subtle)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Selected template summary */}
-        {selectedTemplateData && (
-          <div className="border-t border-[var(--border-default)] p-[var(--space-3)] bg-[var(--bg-subtle)]">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[var(--text-xs)] font-[var(--font-medium)] text-[var(--fg-muted)]">
-                Selected: {selectedTemplateData.name}
-              </span>
-            </div>
-            <div className="flex gap-3 text-[var(--text-xs)]">
-              <span className="text-[var(--secondary-fg)]">{skillCount} Skills</span>
-              <span className="text-[var(--attention-fg)]">{commandCount} Commands</span>
-              <span className="text-[var(--accent-fg)]">{agentCount} Agents</span>
-            </div>
-          </div>
-        )}
-      </aside>
-
-      {/* Collapse toggle for left panel */}
-      {leftPanelCollapsed && (
-        <button
-          type="button"
-          onClick={() => setLeftPanelCollapsed(false)}
-          className="hidden lg:flex items-center justify-center w-6 bg-[var(--bg-default)] border-r border-[var(--border-default)] hover:bg-[var(--bg-subtle)] transition-colors"
-          aria-label="Expand template panel"
-        >
-          <CaretRight className="h-4 w-4 text-[var(--fg-muted)]" />
-        </button>
-      )}
-
       {/* Main area - Canvas with Toolbar */}
       <div className="relative flex-1 min-w-0">
         {/* Error banner */}
@@ -645,7 +404,7 @@ export function WorkflowDesigner({
         <WorkflowToolbar
           onGenerateAI={handleGenerateAI}
           onSave={handleSave}
-          onClear={handleClear}
+          onClear={handleCreateNew}
           isGenerating={false}
           isSaving={isSaving}
           canUndo={false}
@@ -658,8 +417,6 @@ export function WorkflowDesigner({
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick}
-          onEdgeClick={handleEdgeClick}
           viewport={viewport}
           onViewportChange={handleViewportChange}
           readOnly={readOnly}
@@ -672,134 +429,25 @@ export function WorkflowDesigner({
           type="button"
           onClick={() => setRightPanelCollapsed(false)}
           className="hidden xl:flex items-center justify-center w-6 bg-[var(--bg-default)] border-l border-[var(--border-default)] hover:bg-[var(--bg-subtle)] transition-colors"
-          aria-label="Expand inspector panel"
+          aria-label="Expand workflows panel"
         >
           <CaretLeft className="h-4 w-4 text-[var(--fg-muted)]" />
         </button>
       )}
 
-      {/* Right sidebar - Node Inspector */}
-      <aside
-        className={cn(
-          sidebarPanelVariants({ side: 'right', collapsed: rightPanelCollapsed }),
-          'hidden xl:flex',
-          rightPanelCollapsed ? 'w-0' : 'w-80'
-        )}
-        data-testid="workflow-node-inspector"
-      >
-        {/* Panel header */}
-        <div className={cn(panelHeaderVariants())}>
-          <div className="flex items-center gap-[var(--space-2)]">
-            <Sparkle className="h-4 w-4 text-[var(--fg-muted)]" weight="duotone" />
-            <h3 className="text-[var(--text-sm)] font-[var(--font-semibold)] text-[var(--fg-default)]">
-              Node Inspector
-            </h3>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setRightPanelCollapsed(true)}
-            className="h-7 w-7"
-            aria-label="Collapse panel"
-          >
-            <CaretRight className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Inspector content */}
-        <div className="flex-1 overflow-y-auto p-[var(--space-4)]">
-          {selectedNode ? (
-            <div className="space-y-[var(--space-1)]">
-              {/* Node type badge - use nodeType from data for display */}
-              {(() => {
-                const nodeType =
-                  (selectedNode.data as { nodeType?: string })?.nodeType ?? selectedNode.type ?? '';
-                // Normalize compact types to base types for display
-                const displayType = nodeType
-                  .replace('compact', '')
-                  .replace('Start', 'start')
-                  .replace('End', 'end')
-                  .replace('Command', 'command')
-                  .replace('Skill', 'skill')
-                  .replace('Agent', 'agent')
-                  .toLowerCase();
-
-                return (
-                  <div className={cn(inspectorFieldVariants())}>
-                    <span className={cn(inspectorLabelVariants())}>Type</span>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          'px-[var(--space-2)] py-[2px] rounded-[var(--radius-sm)]',
-                          'text-[10px] font-[var(--font-medium)] uppercase',
-                          displayType === 'start' &&
-                            'bg-[var(--success-subtle)] text-[var(--success-fg)]',
-                          displayType === 'end' &&
-                            'bg-[var(--danger-subtle)] text-[var(--danger-fg)]',
-                          displayType === 'agent' &&
-                            'bg-[var(--accent-subtle)] text-[var(--accent-fg)]',
-                          displayType === 'skill' &&
-                            'bg-[var(--secondary-subtle)] text-[var(--secondary-fg)]',
-                          displayType === 'command' &&
-                            'bg-[var(--attention-subtle)] text-[var(--attention-fg)]',
-                          !['start', 'end', 'agent', 'skill', 'command'].includes(displayType) &&
-                            'bg-[var(--bg-muted)] text-[var(--fg-muted)]'
-                        )}
-                      >
-                        {displayType || 'Unknown'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Label */}
-              <div className={cn(inspectorFieldVariants())}>
-                <span className={cn(inspectorLabelVariants())}>Label</span>
-                <p className={cn(inspectorValueVariants())}>
-                  {(selectedNode.data as { label?: string })?.label ?? 'Untitled'}
-                </p>
-              </div>
-
-              {/* Description / AI Summary */}
-              {(selectedNode.data as { description?: string })?.description && (
-                <div className={cn(inspectorFieldVariants())}>
-                  <span className={cn(inspectorLabelVariants())}>AI Summary</span>
-                  <p className="text-[var(--text-xs)] text-[var(--fg-muted)] leading-relaxed">
-                    {(selectedNode.data as { description?: string }).description}
-                  </p>
-                </div>
-              )}
-
-              {/* Position */}
-              <div className={cn(inspectorFieldVariants())}>
-                <span className={cn(inspectorLabelVariants())}>Position</span>
-                <p className={cn(inspectorValueVariants(), 'font-mono text-[var(--text-xs)]')}>
-                  x: {Math.round(selectedNode.position.x)}, y: {Math.round(selectedNode.position.y)}
-                </p>
-              </div>
-
-              {/* Node ID */}
-              <div className={cn(inspectorFieldVariants())}>
-                <span className={cn(inspectorLabelVariants())}>Node ID</span>
-                <p className="text-[var(--text-xs)] text-[var(--fg-subtle)] font-mono truncate">
-                  {selectedNode.id}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--bg-subtle)] flex items-center justify-center">
-                <Sparkle className="h-5 w-5 text-[var(--fg-subtle)]" />
-              </div>
-              <p className="text-[var(--text-sm)] text-[var(--fg-muted)]">No node selected</p>
-              <p className="text-[var(--text-xs)] text-[var(--fg-subtle)] mt-1">
-                Click a node to view its properties
-              </p>
-            </div>
-          )}
-        </div>
-      </aside>
+      {/* Right sidebar - Saved Workflows */}
+      <SavedWorkflowsPanel
+        workflows={savedWorkflows}
+        activeWorkflowId={activeWorkflowId}
+        hasUnsavedChanges={hasUnsavedChanges}
+        isLoading={workflowsLoading}
+        collapsed={rightPanelCollapsed}
+        onCollapse={setRightPanelCollapsed}
+        onSelect={handleSelectWorkflow}
+        onCreateNew={handleCreateNew}
+        onDelete={handleDeleteWorkflow}
+        onSave={handleSave}
+      />
 
       {/* AI Generate Dialog */}
       <AIGenerateDialog

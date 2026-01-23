@@ -18,6 +18,12 @@
 
 /* ===== Keyframe Animations ===== */
 
+/* Terminal cursor blink for active workflow indicator */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* Staggered entry animation */
 @keyframes fadeSlideIn {
   from {
@@ -73,8 +79,9 @@
 
 /* ===== Base Node Styles ===== */
 .compact-node {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   padding: 3px 8px 3px 4px;
   border-radius: 14px;
@@ -86,6 +93,8 @@
   opacity: 0;
   transform: translateY(6px);
   animation: fadeSlideIn 0.3s ease forwards;
+  /* Uniform width ensures ReactFlow handles align for straight edges */
+  min-width: var(--compact-node-uniform-width, 480px);
 }
 
 /* Staggered animation delays based on node index */
