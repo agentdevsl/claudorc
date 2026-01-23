@@ -257,6 +257,25 @@ CREATE TABLE IF NOT EXISTS "marketplaces" (
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS "workflows" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "name" TEXT NOT NULL,
+  "description" TEXT,
+  "nodes" TEXT,
+  "edges" TEXT,
+  "source_template_id" TEXT REFERENCES "templates"("id") ON DELETE SET NULL,
+  "source_template_name" TEXT,
+  "viewport" TEXT,
+  "status" TEXT DEFAULT 'draft',
+  "tags" TEXT,
+  "thumbnail" TEXT,
+  "ai_generated" INTEGER,
+  "ai_model" TEXT,
+  "ai_confidence" INTEGER,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
 -- Seed the official Anthropic plugins marketplace (idempotent)
 INSERT OR IGNORE INTO "marketplaces" (
   "id", "name", "github_owner", "github_repo", "branch", "plugins_path", "is_default", "is_enabled", "status"

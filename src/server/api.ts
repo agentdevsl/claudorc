@@ -7,7 +7,7 @@
 
 import { Database as BunSQLite } from 'bun:sqlite';
 import { createId } from '@paralleldrive/cuid2';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { z } from 'zod';
 import { agents } from '../db/schema/agents.js';
@@ -15,6 +15,7 @@ import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
 import { tasks } from '../db/schema/tasks.js';
 import type { CachedAgent, CachedCommand, CachedSkill } from '../db/schema/templates.js';
+import { workflows } from '../db/schema/workflows.js';
 import { agentQuery } from '../lib/agents/agent-sdk-utils.js';
 import {
   MIGRATION_SQL,
@@ -523,6 +524,245 @@ async function handleListProjectsWithSummaries(url: URL): Promise<Response> {
     console.error('[Projects] List with summaries error:', error);
     return json(
       { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list projects with summaries' } },
+      500
+    );
+  }
+}
+
+// ============ Workflow Handlers ============
+
+async function handleListWorkflows(url: URL): Promise<Response> {
+  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+  const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+  const status = url.searchParams.get('status');
+  const search = url.searchParams.get('search');
+
+  try {
+    // Build where conditions
+    const conditions = [];
+
+    if (status && ['draft', 'published', 'archived'].includes(status)) {
+      conditions.push(eq(workflows.status, status as 'draft' | 'published' | 'archived'));
+    }
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        or(like(workflows.name, searchPattern), like(workflows.description, searchPattern))
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const [countResult] = await db.select({ total: count() }).from(workflows).where(whereClause);
+
+    const totalCount = countResult?.total ?? 0;
+
+    // Get paginated items
+    const items = await db.query.workflows.findMany({
+      where: whereClause,
+      orderBy: [desc(workflows.updatedAt)],
+      limit,
+      offset,
+    });
+
+    return json({
+      ok: true,
+      data: {
+        items,
+        totalCount,
+        limit,
+        offset,
+        hasMore: offset + items.length < totalCount,
+      },
+    });
+  } catch (error) {
+    console.error('[Workflows] List error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to list workflows' } },
+      500
+    );
+  }
+}
+
+async function handleGetWorkflow(id: string): Promise<Response> {
+  try {
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.id, id),
+    });
+
+    if (!workflow) {
+      return json(
+        { ok: false, error: { code: 'NOT_FOUND', message: `Workflow with id '${id}' not found` } },
+        404
+      );
+    }
+
+    return json({ ok: true, data: workflow });
+  } catch (error) {
+    console.error('[Workflows] Get error:', error);
+    return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to get workflow' } }, 500);
+  }
+}
+
+async function handleCreateWorkflow(request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    name: string;
+    description?: string;
+    nodes?: unknown[];
+    edges?: unknown[];
+    viewport?: { x: number; y: number; zoom: number };
+    status?: string;
+    tags?: string[];
+    sourceTemplateId?: string;
+    sourceTemplateName?: string;
+    thumbnail?: string;
+    aiGenerated?: boolean;
+    aiModel?: string;
+    aiConfidence?: number;
+  };
+
+  if (!body.name) {
+    return json({ ok: false, error: { code: 'MISSING_PARAMS', message: 'Name is required' } }, 400);
+  }
+
+  try {
+    const now = new Date().toISOString();
+
+    const [created] = await db
+      .insert(workflows)
+      .values({
+        name: body.name,
+        description: body.description,
+        nodes: body.nodes as typeof workflows.$inferInsert.nodes,
+        edges: body.edges as typeof workflows.$inferInsert.edges,
+        viewport: body.viewport,
+        status: (body.status as 'draft' | 'published' | 'archived') ?? 'draft',
+        tags: body.tags,
+        sourceTemplateId: body.sourceTemplateId,
+        sourceTemplateName: body.sourceTemplateName,
+        thumbnail: body.thumbnail,
+        aiGenerated: body.aiGenerated,
+        aiModel: body.aiModel,
+        aiConfidence: body.aiConfidence,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (!created) {
+      return json(
+        { ok: false, error: { code: 'CREATE_FAILED', message: 'Failed to create workflow' } },
+        500
+      );
+    }
+
+    return json({ ok: true, data: created }, 201);
+  } catch (error) {
+    console.error('[Workflows] Create error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to create workflow' } },
+      500
+    );
+  }
+}
+
+async function handleUpdateWorkflow(id: string, request: Request): Promise<Response> {
+  const body = (await request.json()) as {
+    name?: string;
+    description?: string;
+    nodes?: unknown[];
+    edges?: unknown[];
+    viewport?: { x: number; y: number; zoom: number };
+    status?: string;
+    tags?: string[];
+    sourceTemplateId?: string | null;
+    sourceTemplateName?: string | null;
+    thumbnail?: string | null;
+    aiGenerated?: boolean;
+    aiModel?: string | null;
+    aiConfidence?: number | null;
+  };
+
+  try {
+    // Check if workflow exists
+    const existing = await db.query.workflows.findFirst({
+      where: eq(workflows.id, id),
+    });
+
+    if (!existing) {
+      return json(
+        { ok: false, error: { code: 'NOT_FOUND', message: `Workflow with id '${id}' not found` } },
+        404
+      );
+    }
+
+    // Build update object with only provided fields
+    const updates: Record<string, unknown> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.description !== undefined) updates.description = body.description;
+    if (body.nodes !== undefined) updates.nodes = body.nodes;
+    if (body.edges !== undefined) updates.edges = body.edges;
+    if (body.viewport !== undefined) updates.viewport = body.viewport;
+    if (body.status !== undefined)
+      updates.status = body.status as 'draft' | 'published' | 'archived';
+    if (body.tags !== undefined) updates.tags = body.tags;
+    if (body.sourceTemplateId !== undefined) updates.sourceTemplateId = body.sourceTemplateId;
+    if (body.sourceTemplateName !== undefined) updates.sourceTemplateName = body.sourceTemplateName;
+    if (body.thumbnail !== undefined) updates.thumbnail = body.thumbnail;
+    if (body.aiGenerated !== undefined) updates.aiGenerated = body.aiGenerated;
+    if (body.aiModel !== undefined) updates.aiModel = body.aiModel;
+    if (body.aiConfidence !== undefined) updates.aiConfidence = body.aiConfidence;
+
+    const [updated] = await db
+      .update(workflows)
+      .set(updates)
+      .where(eq(workflows.id, id))
+      .returning();
+
+    if (!updated) {
+      return json(
+        { ok: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update workflow' } },
+        500
+      );
+    }
+
+    return json({ ok: true, data: updated });
+  } catch (error) {
+    console.error('[Workflows] Update error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update workflow' } },
+      500
+    );
+  }
+}
+
+async function handleDeleteWorkflow(id: string): Promise<Response> {
+  try {
+    // Check if workflow exists
+    const existing = await db.query.workflows.findFirst({
+      where: eq(workflows.id, id),
+    });
+
+    if (!existing) {
+      return json(
+        { ok: false, error: { code: 'NOT_FOUND', message: `Workflow with id '${id}' not found` } },
+        404
+      );
+    }
+
+    await db.delete(workflows).where(eq(workflows.id, id));
+
+    // Return 204 No Content for successful deletion
+    return new Response(null, { status: 204, headers: corsHeaders });
+  } catch (error) {
+    console.error('[Workflows] Delete error:', error);
+    return json(
+      { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete workflow' } },
       500
     );
   }
@@ -3430,6 +3670,30 @@ async function handleRequest(request: Request): Promise<Response> {
   }
   if (path === '/api/git/remote-branches' && method === 'GET') {
     return handleListGitRemoteBranches(url);
+  }
+
+  // Workflow routes
+  if (path === '/api/workflows' && method === 'GET') {
+    return handleListWorkflows(url);
+  }
+  if (path === '/api/workflows' && method === 'POST') {
+    return handleCreateWorkflow(request);
+  }
+  // Match /api/workflows/:id pattern
+  const workflowIdMatch = path.match(/^\/api\/workflows\/([^/]+)$/);
+  if (workflowIdMatch) {
+    const id = workflowIdMatch[1];
+    if (id) {
+      if (method === 'GET') {
+        return handleGetWorkflow(id);
+      }
+      if (method === 'PATCH') {
+        return handleUpdateWorkflow(id, request);
+      }
+      if (method === 'DELETE') {
+        return handleDeleteWorkflow(id);
+      }
+    }
   }
 
   // Health check
