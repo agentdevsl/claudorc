@@ -324,23 +324,34 @@ export class K8sRbacManager {
 
   /**
    * Delete all RBAC resources
+   * @returns Object with success status and any errors encountered
    */
-  async deleteRbac(): Promise<void> {
+  async deleteRbac(): Promise<{ success: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
     // Delete in reverse order of dependencies
     try {
       await this.rbacApi.deleteClusterRoleBinding({
         name: RBAC_NAMES.clusterRoleBinding,
       });
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[K8sRbacManager] Failed to delete ClusterRoleBinding: ${message}`);
+        errors.push(`ClusterRoleBinding: ${message}`);
+      }
     }
 
     try {
       await this.rbacApi.deleteClusterRole({
         name: RBAC_NAMES.clusterRole,
       });
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[K8sRbacManager] Failed to delete ClusterRole: ${message}`);
+        errors.push(`ClusterRole: ${message}`);
+      }
     }
 
     try {
@@ -348,8 +359,12 @@ export class K8sRbacManager {
         name: RBAC_NAMES.roleBinding,
         namespace: this.namespace,
       });
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[K8sRbacManager] Failed to delete RoleBinding: ${message}`);
+        errors.push(`RoleBinding: ${message}`);
+      }
     }
 
     try {
@@ -357,8 +372,12 @@ export class K8sRbacManager {
         name: RBAC_NAMES.role,
         namespace: this.namespace,
       });
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[K8sRbacManager] Failed to delete Role: ${message}`);
+        errors.push(`Role: ${message}`);
+      }
     }
 
     try {
@@ -366,9 +385,19 @@ export class K8sRbacManager {
         name: RBAC_NAMES.serviceAccount,
         namespace: this.namespace,
       });
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[K8sRbacManager] Failed to delete ServiceAccount: ${message}`);
+        errors.push(`ServiceAccount: ${message}`);
+      }
     }
+
+    if (errors.length > 0) {
+      console.warn(`[K8sRbacManager] RBAC deletion completed with ${errors.length} error(s)`);
+    }
+
+    return { success: errors.length === 0, errors };
   }
 
   /**
@@ -378,6 +407,17 @@ export class K8sRbacManager {
     if (error && typeof error === 'object' && 'body' in error) {
       const k8sError = error as { body?: { reason?: string } };
       return k8sError.body?.reason === 'AlreadyExists';
+    }
+    return false;
+  }
+
+  /**
+   * Check if error is a NotFound error (resource doesn't exist)
+   */
+  private isNotFoundError(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'body' in error) {
+      const k8sError = error as { body?: { reason?: string; code?: number } };
+      return k8sError.body?.reason === 'NotFound' || k8sError.body?.code === 404;
     }
     return false;
   }

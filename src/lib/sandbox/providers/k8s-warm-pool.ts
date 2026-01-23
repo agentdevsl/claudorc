@@ -1,4 +1,4 @@
-import * as k8s from '@kubernetes/client-node';
+import type * as k8s from '@kubernetes/client-node';
 import { createId } from '@paralleldrive/cuid2';
 import { K8sErrors } from '../../errors/k8s-errors.js';
 import { SANDBOX_DEFAULTS } from '../types.js';
@@ -46,6 +46,39 @@ export interface WarmPoolConfig {
   scaleDownThreshold: number;
   /** Time window (ms) for usage pattern analysis */
   usageWindowMs: number;
+}
+
+/**
+ * Validate warm pool configuration
+ * @throws Error if configuration is invalid
+ */
+export function validateWarmPoolConfig(config: WarmPoolConfig): void {
+  if (config.minSize < 0) {
+    throw new Error(`Invalid warm pool config: minSize must be >= 0, got ${config.minSize}`);
+  }
+  if (config.maxSize < 1) {
+    throw new Error(`Invalid warm pool config: maxSize must be >= 1, got ${config.maxSize}`);
+  }
+  if (config.minSize > config.maxSize) {
+    throw new Error(
+      `Invalid warm pool config: minSize (${config.minSize}) cannot exceed maxSize (${config.maxSize})`
+    );
+  }
+  if (config.scaleUpThreshold <= 0 || config.scaleUpThreshold > 1) {
+    throw new Error(
+      `Invalid warm pool config: scaleUpThreshold must be between 0 and 1, got ${config.scaleUpThreshold}`
+    );
+  }
+  if (config.scaleDownThreshold < 0 || config.scaleDownThreshold >= 1) {
+    throw new Error(
+      `Invalid warm pool config: scaleDownThreshold must be between 0 and 1, got ${config.scaleDownThreshold}`
+    );
+  }
+  if (config.scaleDownThreshold >= config.scaleUpThreshold) {
+    throw new Error(
+      `Invalid warm pool config: scaleDownThreshold (${config.scaleDownThreshold}) must be less than scaleUpThreshold (${config.scaleUpThreshold})`
+    );
+  }
 }
 
 /**
@@ -102,25 +135,61 @@ interface UsageSample {
 }
 
 /**
- * Warm pod info
+ * Base pod info shared by all states
  */
-export interface WarmPodInfo {
+interface WarmPodInfoBase {
   /** Pod name */
   podName: string;
   /** Pod UID */
   podUid: string;
-  /** Current state */
-  state: WarmPoolPodState;
   /** Image used */
   image: string;
   /** When the pod was created */
   createdAt: Date;
   /** When the pod became warm/ready */
   warmAt?: Date;
-  /** Project ID if allocated */
-  allocatedProjectId?: string;
-  /** When allocated */
-  allocatedAt?: Date;
+}
+
+/**
+ * Pod in warm (unallocated) state - ready to be assigned to a project
+ */
+export interface WarmPodInfoWarm extends WarmPodInfoBase {
+  state: 'warm';
+  /** Warm pods do not have project allocation */
+  allocatedProjectId?: never;
+  /** Warm pods do not have allocation time */
+  allocatedAt?: never;
+}
+
+/**
+ * Pod in allocated state - assigned to a specific project
+ */
+export interface WarmPodInfoAllocated extends WarmPodInfoBase {
+  state: 'allocated';
+  /** Project ID that this pod is allocated to (required for allocated pods) */
+  allocatedProjectId: string;
+  /** When the pod was allocated (required for allocated pods) */
+  allocatedAt: Date;
+}
+
+/**
+ * Warm pod info - discriminated union that makes illegal states unrepresentable.
+ * A warm pod cannot have allocation info, and an allocated pod must have allocation info.
+ */
+export type WarmPodInfo = WarmPodInfoWarm | WarmPodInfoAllocated;
+
+/**
+ * Type guard to check if a pod is in warm state
+ */
+export function isWarmPod(pod: WarmPodInfo): pod is WarmPodInfoWarm {
+  return pod.state === 'warm';
+}
+
+/**
+ * Type guard to check if a pod is in allocated state
+ */
+export function isAllocatedPod(pod: WarmPodInfo): pod is WarmPodInfoAllocated {
+  return pod.state === 'allocated';
 }
 
 /**
@@ -164,6 +233,9 @@ export class WarmPoolController {
   private replenishInterval: ReturnType<typeof setInterval> | null = null;
   private isReplenishing = false;
 
+  // Lock for atomic pod allocation to prevent race conditions
+  private allocationLock: Promise<void> = Promise.resolve();
+
   constructor(
     coreApi: k8s.CoreV1Api,
     namespace: string = K8S_PROVIDER_DEFAULTS.namespace,
@@ -172,6 +244,10 @@ export class WarmPoolController {
     this.coreApi = coreApi;
     this.namespace = namespace;
     this.config = { ...WARM_POOL_DEFAULTS, ...config };
+
+    // Validate configuration to catch invalid settings early
+    validateWarmPoolConfig(this.config);
+
     this.poolId = createId().slice(0, 8);
     this.auditLogger = getK8sAuditLogger();
   }
@@ -264,10 +340,34 @@ export class WarmPoolController {
    * Get a warm pod for allocation
    * Returns a pre-warmed pod if available, otherwise returns null
    *
+   * Uses a lock to prevent race conditions where concurrent callers
+   * could receive the same pod before it's removed from the warm pool.
+   *
    * @param projectId - Project to allocate the pod to
    * @returns Warm pod info if available, null otherwise
    */
   async getWarm(projectId: string): Promise<WarmPodInfo | null> {
+    // Use lock to serialize allocation and prevent concurrent callers getting same pod
+    const previousLock = this.allocationLock;
+    let releaseLock: () => void;
+    this.allocationLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    try {
+      // Wait for any previous allocation to complete
+      await previousLock;
+
+      return await this.allocateWarmPodInternal(projectId);
+    } finally {
+      releaseLock!();
+    }
+  }
+
+  /**
+   * Internal method to allocate a warm pod (must be called under lock)
+   */
+  private async allocateWarmPodInternal(projectId: string): Promise<WarmPodInfo | null> {
     const startTime = Date.now();
     this.totalAllocations++;
 
@@ -281,6 +381,9 @@ export class WarmPoolController {
     }
 
     const [podName, podInfo] = warmPodEntry.value;
+
+    // Remove from warm pool BEFORE making K8s API call to prevent race condition
+    this.warmPods.delete(podName);
 
     try {
       // Update pod labels to mark as allocated
@@ -297,10 +400,13 @@ export class WarmPoolController {
         },
       });
 
-      // Move from warm to allocated
-      this.warmPods.delete(podName);
-      const allocatedInfo: WarmPodInfo = {
-        ...podInfo,
+      // Move to allocated - create new object without warm-only fields
+      const allocatedInfo: WarmPodInfoAllocated = {
+        podName: podInfo.podName,
+        podUid: podInfo.podUid,
+        image: podInfo.image,
+        createdAt: podInfo.createdAt,
+        warmAt: podInfo.warmAt,
         state: 'allocated',
         allocatedProjectId: projectId,
         allocatedAt: new Date(),
@@ -334,7 +440,9 @@ export class WarmPoolController {
 
       return allocatedInfo;
     } catch (error) {
-      // Failed to allocate, leave pod in warm state
+      // Failed to allocate - pod was already removed from warm pool
+      // Return it to warm state so it can be retried
+      this.warmPods.set(podName, podInfo);
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[WarmPool] Failed to allocate pod ${podName}:`, message);
       this.warmPoolMisses++;
@@ -519,6 +627,7 @@ export class WarmPoolController {
 
   /**
    * Discover existing warm pool pods in the namespace
+   * @throws K8sErrors if discovery fails (prevents orphaned pods from being untracked)
    */
   private async discoverExistingPods(): Promise<void> {
     try {
@@ -542,26 +651,44 @@ export class WarmPoolController {
           ? new Date(pod.metadata.creationTimestamp)
           : new Date();
 
-        const podInfo: WarmPodInfo = {
-          podName,
-          podUid,
-          state: state ?? 'warm',
-          image,
-          createdAt,
-          warmAt: createdAt,
-          allocatedProjectId: projectId,
-          allocatedAt: projectId ? new Date() : undefined,
-        };
-
+        // Use discriminated union based on state and projectId
         if (state === 'allocated' && projectId) {
-          this.allocatedPods.set(podName, podInfo);
+          const allocatedPod: WarmPodInfoAllocated = {
+            podName,
+            podUid,
+            state: 'allocated',
+            image,
+            createdAt,
+            warmAt: createdAt,
+            allocatedProjectId: projectId,
+            allocatedAt: new Date(), // Best approximation for discovery
+          };
+          this.allocatedPods.set(podName, allocatedPod);
         } else {
-          this.warmPods.set(podName, podInfo);
+          const warmPod: WarmPodInfoWarm = {
+            podName,
+            podUid,
+            state: 'warm',
+            image,
+            createdAt,
+            warmAt: createdAt,
+          };
+          this.warmPods.set(podName, warmPod);
         }
       }
+
+      this.auditLogger.logWarmPoolDiscovery({
+        poolId: this.poolId,
+        namespace: this.namespace,
+        warmPodsDiscovered: this.warmPods.size,
+        allocatedPodsDiscovered: this.allocatedPods.size,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn('[WarmPool] Failed to discover existing pods:', message);
+      // Re-throw to prevent silent orphaning of pods
+      // If discovery fails, caller should handle the error appropriately
+      console.error('[WarmPool] Failed to discover existing pods:', message);
+      throw K8sErrors.WARM_POOL_DISCOVERY_FAILED(message);
     }
   }
 
@@ -585,7 +712,7 @@ export class WarmPoolController {
       // Wait for pod to be running
       await this.waitForPodRunning(podName);
 
-      const podInfo: WarmPodInfo = {
+      const podInfo: WarmPodInfoWarm = {
         podName,
         podUid,
         state: 'warm',
@@ -657,8 +784,10 @@ export class WarmPoolController {
                 drop: ['ALL'],
               },
             },
-            // Warm pods don't have workspace mounted yet
-            // It will be added when the pod is allocated
+            // Warm pods don't have a workspace volume mounted.
+            // IMPORTANT: K8s doesn't support adding volumes to running pods.
+            // When allocated, workspace content must be synced via exec commands
+            // or use pre-configured shared storage (NFS, CSI, etc.)
           },
         ],
       },

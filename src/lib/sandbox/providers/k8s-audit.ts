@@ -41,7 +41,11 @@ export type K8sAuditEventType =
   | 'warm_pool.prewarm'
   | 'warm_pool.allocation'
   | 'warm_pool.pod_created'
-  | 'warm_pool.pod_deleted';
+  | 'warm_pool.pod_deleted'
+  | 'warm_pool.discovery'
+  // PVC events
+  | 'pvc.created'
+  | 'pvc.deleted';
 
 /**
  * Severity levels for audit events
@@ -456,6 +460,28 @@ export class K8sAuditLogger {
       component: 'k8s-warm-pool',
       namespace: params.namespace,
       resourceName: params.podName,
+    });
+  }
+
+  /**
+   * Log warm pool discovery event
+   */
+  logWarmPoolDiscovery(params: {
+    poolId: string;
+    namespace: string;
+    warmPodsDiscovered: number;
+    allocatedPodsDiscovered: number;
+  }): void {
+    this.log({
+      event: 'warm_pool.discovery',
+      severity: 'info',
+      component: 'k8s-warm-pool',
+      namespace: params.namespace,
+      resourceName: params.poolId,
+      metadata: {
+        warmPodsDiscovered: params.warmPodsDiscovered,
+        allocatedPodsDiscovered: params.allocatedPodsDiscovered,
+      },
     });
   }
 

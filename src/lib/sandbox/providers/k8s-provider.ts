@@ -2,7 +2,6 @@ import * as k8s from '@kubernetes/client-node';
 import { createId } from '@paralleldrive/cuid2';
 import { K8sErrors } from '../../errors/k8s-errors.js';
 import type { SandboxConfig, SandboxHealthCheck, SandboxInfo } from '../types.js';
-import { SANDBOX_DEFAULTS } from '../types.js';
 import { getK8sAuditLogger, type K8sAuditLogger } from './k8s-audit.js';
 import {
   getClusterInfo,
@@ -19,7 +18,7 @@ import {
   NETWORK_POLICY_DEFAULTS,
 } from './k8s-network-policy.js';
 import { createRbacManager, type K8sRbacManager } from './k8s-rbac.js';
-import { K8sSandbox } from './k8s-sandbox.js';
+import { K8sSandbox, type K8sSandboxOptions } from './k8s-sandbox.js';
 import { getPodSecurityValidator } from './k8s-security.js';
 import {
   createWarmPoolController,
@@ -68,12 +67,17 @@ export class K8sProvider implements EventEmittingSandboxProvider {
   private readonly storageClassName?: string;
   private readonly workspaceStorageSize: string;
 
+  // Exec configuration
+  private readonly execTimeoutMs: number;
+
   private sandboxes = new Map<string, K8sSandbox>();
   private projectToSandbox = new Map<string, string>();
   private listeners = new Set<SandboxProviderEventListener>();
 
   // Track if security resources have been initialized
   private securityInitialized = false;
+  // Track partial security setup failures
+  private securitySetupWarnings: string[] = [];
 
   constructor(options: K8sProviderOptions = {}) {
     // Load kubeconfig
@@ -129,7 +133,11 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     // Volume configuration
     this.volumeType = options.volumeType ?? K8S_PROVIDER_DEFAULTS.volumeType;
     this.storageClassName = options.storageClassName;
-    this.workspaceStorageSize = options.workspaceStorageSize ?? K8S_PROVIDER_DEFAULTS.workspaceStorageSize;
+    this.workspaceStorageSize =
+      options.workspaceStorageSize ?? K8S_PROVIDER_DEFAULTS.workspaceStorageSize;
+
+    // Exec configuration
+    this.execTimeoutMs = options.execTimeoutMs ?? K8S_PROVIDER_DEFAULTS.execTimeoutMs;
   }
 
   async create(config: SandboxConfig): Promise<Sandbox> {
@@ -220,6 +228,13 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         });
       }
 
+      const sandboxOptions: K8sSandboxOptions = {
+        execTimeoutMs: this.execTimeoutMs,
+        image: config.image,
+        memoryMb: config.memoryMb,
+        cpuCores: config.cpuCores,
+      };
+
       const sandbox = new K8sSandbox(
         sandboxId,
         config.projectId,
@@ -228,7 +243,8 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         this.namespace,
         this.coreApi,
         this.kc,
-        'running'
+        'running',
+        sandboxOptions
       );
 
       this.sandboxes.set(sandboxId, sandbox);
@@ -307,11 +323,11 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         projectId: sandbox.projectId,
         containerId: sandbox.containerId,
         status: sandbox.status,
-        image: 'unknown', // Would need to store this or query the pod
-        createdAt: new Date().toISOString(),
+        image: sandbox.image,
+        createdAt: sandbox.createdAt.toISOString(),
         lastActivityAt: sandbox.getLastActivity().toISOString(),
-        memoryMb: SANDBOX_DEFAULTS.memoryMb,
-        cpuCores: SANDBOX_DEFAULTS.cpuCores,
+        memoryMb: sandbox.memoryMb,
+        cpuCores: sandbox.cpuCores,
       });
     }
 
@@ -360,8 +376,22 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       try {
         await this.coreApi.readNamespace({ name: this.namespace });
         namespaceExists = true;
-      } catch {
-        namespaceExists = false;
+      } catch (error) {
+        // Only treat 404 as "not found", other errors indicate access/connectivity issues
+        if (error && typeof error === 'object' && 'response' in error) {
+          const httpError = error as { response?: { statusCode?: number } };
+          if (httpError.response?.statusCode === 404) {
+            namespaceExists = false;
+          } else {
+            // Non-404 errors mean we can't determine namespace state
+            // Don't assume it doesn't exist
+            console.warn(
+              `[K8sProvider] Unable to check namespace ${this.namespace}: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          }
+        }
       }
 
       // Get version info
@@ -414,6 +444,12 @@ export class K8sProvider implements EventEmittingSandboxProvider {
                 avgWarmAllocationMs: warmPoolMetrics.avgWarmAllocationMs,
               }
             : { enabled: false },
+          security: {
+            initialized: this.securityInitialized,
+            rbacEnabled: this.setupRbac,
+            networkPolicyEnabled: this.networkPolicyEnabled,
+            warnings: this.securitySetupWarnings.length > 0 ? this.securitySetupWarnings : undefined,
+          },
         },
       };
     } catch (error) {
@@ -452,8 +488,12 @@ export class K8sProvider implements EventEmittingSandboxProvider {
                 namespace: this.namespace,
                 sandboxId,
               });
-            } catch {
-              // Ignore errors deleting network policy
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(
+                `[K8sProvider] Failed to delete network policy for sandbox ${sandboxId}: ${message}`
+              );
+              // Continue cleanup - log but don't fail the entire operation
             }
           }
 
@@ -461,8 +501,12 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           if (this.volumeType === 'pvc') {
             try {
               await this.deleteWorkspacePvc(sandboxId);
-            } catch {
-              // Ignore errors deleting PVC
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(
+                `[K8sProvider] Failed to delete PVC for sandbox ${sandboxId}: ${message}`
+              );
+              // Continue cleanup - log but don't fail the entire operation
             }
           }
 
@@ -570,6 +614,13 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           });
         }
 
+        const sandboxOptions: K8sSandboxOptions = {
+          execTimeoutMs: this.execTimeoutMs,
+          image: config.image,
+          memoryMb: config.memoryMb,
+          cpuCores: config.cpuCores,
+        };
+
         const sandbox = new K8sSandbox(
           sandboxId,
           config.projectId,
@@ -578,7 +629,8 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           this.namespace,
           this.coreApi,
           this.kc,
-          'running'
+          'running',
+          sandboxOptions
         );
 
         this.sandboxes.set(sandboxId, sandbox);
@@ -697,11 +749,15 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
   /**
    * Ensure security resources (RBAC, NetworkPolicy) are initialized
+   * Tracks any setup failures in securitySetupWarnings
    */
   private async ensureSecurityResources(): Promise<void> {
     if (this.securityInitialized) {
       return;
     }
+
+    // Reset warnings for fresh initialization attempt
+    this.securitySetupWarnings = [];
 
     // Setup RBAC if enabled
     if (this.setupRbac) {
@@ -713,8 +769,10 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           namespace: this.namespace,
         });
       } catch (error) {
-        // Log but don't fail - RBAC may already exist or user may have custom setup
-        console.warn('[K8sProvider] RBAC setup warning:', error);
+        // Track the failure - RBAC may already exist or user may have custom setup
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('[K8sProvider] RBAC setup warning:', message);
+        this.securitySetupWarnings.push(`RBAC: ${message}`);
       }
     }
 
@@ -731,12 +789,30 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           namespace: this.namespace,
         });
       } catch (error) {
-        // Log but don't fail - network policies may already exist
-        console.warn('[K8sProvider] NetworkPolicy setup warning:', error);
+        // Track the failure - network policies may already exist
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('[K8sProvider] NetworkPolicy setup warning:', message);
+        this.securitySetupWarnings.push(`NetworkPolicy: ${message}`);
       }
     }
 
+    // Mark as initialized even with warnings - sandbox can still function
+    // Warnings are tracked for diagnostic purposes
     this.securityInitialized = true;
+
+    if (this.securitySetupWarnings.length > 0) {
+      console.warn(
+        `[K8sProvider] Security setup completed with ${this.securitySetupWarnings.length} warning(s). ` +
+          'Some security features may not be fully configured.'
+      );
+    }
+  }
+
+  /**
+   * Get any warnings from security setup
+   */
+  getSecuritySetupWarnings(): string[] {
+    return [...this.securitySetupWarnings];
   }
 
   private async ensureNamespace(): Promise<void> {
@@ -764,7 +840,7 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     const namespaceLabels = {
       'agentpane.io/managed': 'true',
       // Pod Security Standards enforcement - privileged allows hostPath volumes
-      // Note: In K8s 1.35+, even baseline restricts hostPath
+      // See: https://kubernetes.io/docs/concepts/security/pod-security-standards/
       'pod-security.kubernetes.io/enforce': 'privileged',
       'pod-security.kubernetes.io/enforce-version': 'latest',
       'pod-security.kubernetes.io/warn': 'baseline',
@@ -811,7 +887,7 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     const workspaceVolume = this.buildWorkspaceVolume(sandboxId, config.projectPath);
 
     // Build additional volumes (always use emptyDir for portability)
-    const additionalVolumes: k8s.V1Volume[] = config.volumeMounts.map((v, i) => ({
+    const additionalVolumes: k8s.V1Volume[] = config.volumeMounts.map((_, i) => ({
       name: `volume-${i}`,
       emptyDir: {},
     }));

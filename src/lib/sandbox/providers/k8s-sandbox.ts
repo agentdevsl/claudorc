@@ -5,12 +5,38 @@ import type { ExecResult, SandboxMetrics, SandboxStatus, TmuxSession } from '../
 import { SANDBOX_DEFAULTS } from '../types.js';
 import type { Sandbox } from './sandbox-provider.js';
 
+/** Default exec timeout in milliseconds */
+const DEFAULT_EXEC_TIMEOUT_MS = 60000;
+
+/**
+ * Options for K8sSandbox
+ */
+export interface K8sSandboxOptions {
+  /** Exec timeout in milliseconds */
+  execTimeoutMs?: number;
+  /** Image used for this sandbox */
+  image?: string;
+  /** Memory limit in MB */
+  memoryMb?: number;
+  /** CPU cores limit */
+  cpuCores?: number;
+}
+
 /**
  * Kubernetes-based sandbox implementation
  */
 export class K8sSandbox implements Sandbox {
   private _lastActivity: Date;
   private _status: SandboxStatus;
+  private readonly execTimeoutMs: number;
+  /** Image used for this sandbox */
+  readonly image: string;
+  /** Memory limit in MB */
+  readonly memoryMb: number;
+  /** CPU cores limit */
+  readonly cpuCores: number;
+  /** When the sandbox was created */
+  readonly createdAt: Date;
 
   constructor(
     public readonly id: string,
@@ -20,10 +46,16 @@ export class K8sSandbox implements Sandbox {
     private readonly namespace: string,
     private readonly coreApi: k8s.CoreV1Api,
     private readonly kc: k8s.KubeConfig,
-    initialStatus: SandboxStatus = 'running'
+    initialStatus: SandboxStatus = 'running',
+    options: K8sSandboxOptions = {}
   ) {
     this._lastActivity = new Date();
     this._status = initialStatus;
+    this.execTimeoutMs = options.execTimeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
+    this.image = options.image ?? SANDBOX_DEFAULTS.image;
+    this.memoryMb = options.memoryMb ?? SANDBOX_DEFAULTS.memoryMb;
+    this.cpuCores = options.cpuCores ?? SANDBOX_DEFAULTS.cpuCores;
+    this.createdAt = new Date();
   }
 
   get status(): SandboxStatus {
@@ -60,7 +92,7 @@ export class K8sSandbox implements Sandbox {
     // Build the full command
     const fullCommand = [cmd, ...args];
 
-    return new Promise<ExecResult>((resolve, reject) => {
+    const execPromise = new Promise<ExecResult>((resolve, reject) => {
       let stdout = '';
       let stderr = '';
       let exitCode = 0;
@@ -118,6 +150,15 @@ export class K8sSandbox implements Sandbox {
           reject(K8sErrors.EXEC_FAILED(cmd, message));
         });
     });
+
+    // Race between exec and timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(K8sErrors.EXEC_TIMEOUT(cmd, this.execTimeoutMs));
+      }, this.execTimeoutMs);
+    });
+
+    return Promise.race([execPromise, timeoutPromise]);
   }
 
   async createTmuxSession(sessionName: string, taskId?: string): Promise<TmuxSession> {
@@ -185,8 +226,13 @@ export class K8sSandbox implements Sandbox {
     this.touch();
 
     const result = await this.exec('tmux', ['kill-session', '-t', sessionName]);
-    if (result.exitCode !== 0 && !result.stderr.includes('session not found')) {
-      throw K8sErrors.TMUX_SESSION_NOT_FOUND(sessionName);
+    if (result.exitCode !== 0) {
+      // If session not found, it's already gone - not an error
+      if (result.stderr.includes('session not found') || result.stderr.includes("can't find session")) {
+        return;
+      }
+      // Any other error is a real failure
+      throw K8sErrors.EXEC_FAILED(`tmux kill-session -t ${sessionName}`, result.stderr);
     }
   }
 
@@ -266,8 +312,15 @@ export class K8sSandbox implements Sandbox {
         networkTxBytes: 0,
         uptime,
       };
-    } catch {
-      // Return default metrics on error
+    } catch (error) {
+      // Log the error - returning placeholder metrics but operators should know there was an issue
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[K8sSandbox] Failed to get metrics for pod ${this.podName}: ${message}. ` +
+          'Returning placeholder values - metrics may be unavailable.'
+      );
+      // Return placeholder metrics to maintain interface compatibility
+      // The warning above indicates these values are not real
       return {
         cpuUsagePercent: 0,
         memoryUsageMb: 0,
