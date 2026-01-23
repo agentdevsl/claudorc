@@ -10,15 +10,40 @@ interface MockCoreApi {
   readNamespacedPod: ReturnType<typeof vi.fn>;
   deleteNamespacedPod: ReturnType<typeof vi.fn>;
   listNamespacedPod: ReturnType<typeof vi.fn>;
+  createNamespacedServiceAccount: ReturnType<typeof vi.fn>;
+  deleteNamespacedServiceAccount: ReturnType<typeof vi.fn>;
 }
 
 interface MockVersionApi {
   getCode: ReturnType<typeof vi.fn>;
 }
 
+interface MockNetworkingApi {
+  createNamespacedNetworkPolicy: ReturnType<typeof vi.fn>;
+  replaceNamespacedNetworkPolicy: ReturnType<typeof vi.fn>;
+  deleteNamespacedNetworkPolicy: ReturnType<typeof vi.fn>;
+  listNamespacedNetworkPolicy: ReturnType<typeof vi.fn>;
+  readNamespacedNetworkPolicy: ReturnType<typeof vi.fn>;
+}
+
+interface MockRbacApi {
+  createNamespacedRole: ReturnType<typeof vi.fn>;
+  replaceNamespacedRole: ReturnType<typeof vi.fn>;
+  deleteNamespacedRole: ReturnType<typeof vi.fn>;
+  createNamespacedRoleBinding: ReturnType<typeof vi.fn>;
+  deleteNamespacedRoleBinding: ReturnType<typeof vi.fn>;
+  createClusterRole: ReturnType<typeof vi.fn>;
+  replaceClusterRole: ReturnType<typeof vi.fn>;
+  deleteClusterRole: ReturnType<typeof vi.fn>;
+  createClusterRoleBinding: ReturnType<typeof vi.fn>;
+  deleteClusterRoleBinding: ReturnType<typeof vi.fn>;
+}
+
 // Shared mock instances
 let mockCoreApi: MockCoreApi;
 let mockVersionApi: MockVersionApi;
+let mockNetworkingApi: MockNetworkingApi;
+let mockRbacApi: MockRbacApi;
 
 const initMocks = () => {
   mockCoreApi = {
@@ -29,9 +54,30 @@ const initMocks = () => {
     readNamespacedPod: vi.fn(),
     deleteNamespacedPod: vi.fn(),
     listNamespacedPod: vi.fn(() => Promise.resolve({ items: [] })),
+    createNamespacedServiceAccount: vi.fn(),
+    deleteNamespacedServiceAccount: vi.fn(),
   };
   mockVersionApi = {
     getCode: vi.fn(() => Promise.resolve({ gitVersion: 'v1.28.0' })),
+  };
+  mockNetworkingApi = {
+    createNamespacedNetworkPolicy: vi.fn(),
+    replaceNamespacedNetworkPolicy: vi.fn(),
+    deleteNamespacedNetworkPolicy: vi.fn(),
+    listNamespacedNetworkPolicy: vi.fn(() => Promise.resolve({ items: [] })),
+    readNamespacedNetworkPolicy: vi.fn(),
+  };
+  mockRbacApi = {
+    createNamespacedRole: vi.fn(),
+    replaceNamespacedRole: vi.fn(),
+    deleteNamespacedRole: vi.fn(),
+    createNamespacedRoleBinding: vi.fn(),
+    deleteNamespacedRoleBinding: vi.fn(),
+    createClusterRole: vi.fn(),
+    replaceClusterRole: vi.fn(),
+    deleteClusterRole: vi.fn(),
+    createClusterRoleBinding: vi.fn(),
+    deleteClusterRoleBinding: vi.fn(),
   };
 };
 
@@ -50,6 +96,8 @@ vi.mock('@kubernetes/client-node', () => {
     makeApiClient = vi.fn((ApiClass: { name?: string }) => {
       if (ApiClass?.name === 'CoreV1Api') return mockCoreApi;
       if (ApiClass?.name === 'VersionApi') return mockVersionApi;
+      if (ApiClass?.name === 'NetworkingV1Api') return mockNetworkingApi;
+      if (ApiClass?.name === 'RbacAuthorizationV1Api') return mockRbacApi;
       return {};
     });
   }
@@ -58,6 +106,8 @@ vi.mock('@kubernetes/client-node', () => {
     KubeConfig: MockKubeConfig,
     CoreV1Api: class CoreV1Api { static name = 'CoreV1Api'; },
     VersionApi: class VersionApi { static name = 'VersionApi'; },
+    NetworkingV1Api: class NetworkingV1Api { static name = 'NetworkingV1Api'; },
+    RbacAuthorizationV1Api: class RbacAuthorizationV1Api { static name = 'RbacAuthorizationV1Api'; },
     Exec: vi.fn(),
     V1Status: vi.fn(),
   };

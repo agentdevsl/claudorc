@@ -1,7 +1,7 @@
 # Kubernetes Integration Plan
 
 > **Feature**: Kubernetes Sandbox Provider for AgentPane
-> **Status**: Phase 3 Complete
+> **Status**: Phase 4 Complete
 > **Created**: 2026-01-23
 > **Tasks**: See [kubernetes-integration-tasks.md](./kubernetes-integration-tasks.md)
 
@@ -31,6 +31,12 @@ This plan outlines the implementation of Kubernetes as a sandbox provider for Ag
 | K8s Unit Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-provider.test.ts` |
 | K8s Integration Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-tmux.integration.test.ts` |
 | K8s Roadmap Spec | ✅ Complete | `specs/roadmap/phase2-sandbox-plugins.md` |
+| K8s Network Policy | ✅ Complete | `src/lib/sandbox/providers/k8s-network-policy.ts` |
+| K8s RBAC Manager | ✅ Complete | `src/lib/sandbox/providers/k8s-rbac.ts` |
+| K8s Audit Logger | ✅ Complete | `src/lib/sandbox/providers/k8s-audit.ts` |
+| K8s Security Validator | ✅ Complete | `src/lib/sandbox/providers/k8s-security.ts` |
+| K8s Manifests | ✅ Complete | `k8s/manifests/*.yaml` |
+| K8s Security Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-security.test.ts` |
 
 ### 1.2 K8s Placeholder Verification
 
@@ -554,3 +560,4 @@ export const FEATURE_FLAGS = {
 | 2026-01-23 | Created kubernetes-integration-tasks.md for detailed tracking |
 | 2026-01-23 | Phase 2 complete (UI integration, API endpoints, schema updates) |
 | 2026-01-23 | Phase 3 complete (tmux integration tests with real K8s cluster support) |
+| 2026-01-23 | Phase 4 complete (NetworkPolicy, RBAC, security audit logging, Pod Security Standards) |

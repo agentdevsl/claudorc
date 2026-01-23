@@ -1,0 +1,76 @@
+# AgentPane Sandbox LimitRange
+# This LimitRange sets default resource constraints for sandbox pods,
+# preventing resource exhaustion and ensuring fair scheduling.
+#
+# Resource Model:
+# - Default limits ensure pods have bounded resource usage
+# - Minimum limits prevent under-provisioned pods
+# - Maximum limits prevent resource hogging
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sandbox-limits
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: resource-management
+  annotations:
+    agentpane.io/description: "Default resource limits for sandbox pods"
+spec:
+  limits:
+    # Container-level limits
+    - type: Container
+      # Default values applied when not specified in pod spec
+      default:
+        memory: "4Gi"
+        cpu: "2"
+      # Default requests (scheduling)
+      defaultRequest:
+        memory: "2Gi"
+        cpu: "1"
+      # Minimum resources (prevent under-provisioned containers)
+      min:
+        memory: "256Mi"
+        cpu: "100m"
+      # Maximum resources (prevent resource hogging)
+      max:
+        memory: "32Gi"
+        cpu: "16"
+
+    # Pod-level aggregate limits
+    - type: Pod
+      # Maximum total resources per pod (sum of all containers)
+      max:
+        memory: "64Gi"
+        cpu: "32"
+
+---
+# ResourceQuota for namespace-level limits (optional)
+# Uncomment to enforce namespace-wide resource quotas
+# apiVersion: v1
+# kind: ResourceQuota
+# metadata:
+#   name: sandbox-quota
+#   namespace: agentpane-sandboxes
+#   labels:
+#     agentpane.io/managed: "true"
+#     agentpane.io/component: resource-management
+#   annotations:
+#     agentpane.io/description: "Namespace-level resource quota for all sandboxes"
+# spec:
+#   hard:
+#     # Maximum total CPU across all pods
+#     requests.cpu: "64"
+#     limits.cpu: "128"
+#     # Maximum total memory across all pods
+#     requests.memory: "128Gi"
+#     limits.memory: "256Gi"
+#     # Maximum number of pods
+#     pods: "50"
+#     # Maximum number of services (should be 0 for sandboxes)
+#     services: "0"
+#     # Maximum number of secrets
+#     secrets: "100"
+#     # Maximum number of configmaps
+#     configmaps: "100"

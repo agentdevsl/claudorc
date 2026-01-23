@@ -16,7 +16,7 @@ export class K8sSandbox implements Sandbox {
     public readonly id: string,
     public readonly projectId: string,
     public readonly containerId: string, // Pod UID
-    private readonly podName: string,
+    public readonly podName: string,
     private readonly namespace: string,
     private readonly coreApi: k8s.CoreV1Api,
     private readonly kc: k8s.KubeConfig,

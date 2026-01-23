@@ -25,6 +25,18 @@ export interface K8sProviderOptions {
 
   /** Default timeout for exec operations (milliseconds) */
   execTimeoutMs?: number;
+
+  /** Whether to enable network policies (default: true) */
+  networkPolicyEnabled?: boolean;
+
+  /** List of allowed egress hosts (IPs or CIDRs) */
+  allowedEgressHosts?: string[];
+
+  /** Whether to setup RBAC resources (default: true) */
+  setupRbac?: boolean;
+
+  /** Whether to enable security audit logging (default: true) */
+  enableAuditLogging?: boolean;
 }
 
 /**
@@ -35,6 +47,9 @@ export const K8S_PROVIDER_DEFAULTS = {
   createNamespace: true,
   podStartupTimeoutSeconds: 120,
   execTimeoutMs: 60000,
+  networkPolicyEnabled: true,
+  setupRbac: true,
+  enableAuditLogging: true,
 } as const;
 
 /**

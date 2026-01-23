@@ -3,6 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { K8sErrors } from '../../errors/k8s-errors.js';
 import type { SandboxConfig, SandboxHealthCheck, SandboxInfo } from '../types.js';
 import { SANDBOX_DEFAULTS } from '../types.js';
+import { getK8sAuditLogger, type K8sAuditLogger } from './k8s-audit.js';
 import {
   getClusterInfo,
   K8S_POD_LABELS,
@@ -11,7 +12,14 @@ import {
   loadKubeConfig,
   resolveContext,
 } from './k8s-config.js';
+import {
+  createNetworkPolicyManager,
+  type K8sNetworkPolicyManager,
+  NETWORK_POLICY_DEFAULTS,
+} from './k8s-network-policy.js';
+import { createRbacManager, type K8sRbacManager } from './k8s-rbac.js';
 import { K8sSandbox } from './k8s-sandbox.js';
+import { getPodSecurityValidator } from './k8s-security.js';
 import type {
   EventEmittingSandboxProvider,
   Sandbox,
@@ -28,13 +36,28 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
   private kc: k8s.KubeConfig;
   private coreApi: k8s.CoreV1Api;
+  private networkingApi: k8s.NetworkingV1Api;
+  private rbacApi: k8s.RbacAuthorizationV1Api;
   private readonly namespace: string;
   private readonly createNamespace: boolean;
   private readonly podStartupTimeoutSeconds: number;
 
+  // Security managers
+  private networkPolicyManager: K8sNetworkPolicyManager;
+  private rbacManager: K8sRbacManager;
+  private auditLogger: K8sAuditLogger;
+
+  // Security configuration
+  private readonly networkPolicyEnabled: boolean;
+  private readonly allowedEgressHosts: string[];
+  private readonly setupRbac: boolean;
+
   private sandboxes = new Map<string, K8sSandbox>();
   private projectToSandbox = new Map<string, string>();
   private listeners = new Set<SandboxProviderEventListener>();
+
+  // Track if security resources have been initialized
+  private securityInitialized = false;
 
   constructor(options: K8sProviderOptions = {}) {
     // Load kubeconfig
@@ -45,17 +68,37 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       resolveContext(this.kc, options.context);
     }
 
-    // Create API client
+    // Create API clients
     this.coreApi = this.kc.makeApiClient(k8s.CoreV1Api);
+    this.networkingApi = this.kc.makeApiClient(k8s.NetworkingV1Api);
+    this.rbacApi = this.kc.makeApiClient(k8s.RbacAuthorizationV1Api);
 
     // Configuration
     this.namespace = options.namespace ?? K8S_PROVIDER_DEFAULTS.namespace;
     this.createNamespace = options.createNamespace ?? K8S_PROVIDER_DEFAULTS.createNamespace;
     this.podStartupTimeoutSeconds =
       options.podStartupTimeoutSeconds ?? K8S_PROVIDER_DEFAULTS.podStartupTimeoutSeconds;
+
+    // Security configuration
+    this.networkPolicyEnabled =
+      options.networkPolicyEnabled ?? K8S_PROVIDER_DEFAULTS.networkPolicyEnabled;
+    this.allowedEgressHosts = options.allowedEgressHosts ?? [];
+    this.setupRbac = options.setupRbac ?? K8S_PROVIDER_DEFAULTS.setupRbac;
+
+    // Initialize security managers
+    this.networkPolicyManager = createNetworkPolicyManager(this.networkingApi, this.namespace);
+    this.rbacManager = createRbacManager(this.coreApi, this.rbacApi, this.namespace);
+
+    // Initialize audit logger
+    this.auditLogger = getK8sAuditLogger();
+    this.auditLogger.setEnabled(
+      options.enableAuditLogging ?? K8S_PROVIDER_DEFAULTS.enableAuditLogging
+    );
   }
 
   async create(config: SandboxConfig): Promise<Sandbox> {
+    const startTime = Date.now();
+
     // Check if sandbox already exists for project
     const existing = this.projectToSandbox.get(config.projectId);
     if (existing) {
@@ -77,11 +120,32 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     });
 
     try {
-      // Ensure namespace exists
+      // Ensure namespace and security resources exist
       await this.ensureNamespace();
+      await this.ensureSecurityResources();
 
       // Build pod spec
       const podSpec = this.buildPodSpec(podName, sandboxId, config);
+
+      // Validate pod security
+      const validator = getPodSecurityValidator();
+      const validationResult = validator.validateRestricted(podSpec);
+      if (!validationResult.valid) {
+        this.auditLogger.logPssValidation({
+          podName,
+          namespace: this.namespace,
+          passed: false,
+          profile: 'restricted',
+          violations: validationResult.violations,
+        });
+        throw K8sErrors.POD_SECURITY_VIOLATION(podName, validationResult.violations.join('; '));
+      }
+      this.auditLogger.logPssValidation({
+        podName,
+        namespace: this.namespace,
+        passed: true,
+        profile: 'restricted',
+      });
 
       // Create pod
       const response = await this.coreApi.createNamespacedPod({
@@ -93,6 +157,27 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
       // Wait for pod to be running
       await this.waitForPodRunning(podName);
+
+      const durationMs = Date.now() - startTime;
+
+      // Log pod creation
+      this.auditLogger.logPodCreated({
+        podName,
+        namespace: this.namespace,
+        sandboxId,
+        projectId: config.projectId,
+        image: config.image,
+        durationMs,
+      });
+
+      // Create per-sandbox network policy if enabled
+      if (this.networkPolicyEnabled) {
+        await this.networkPolicyManager.createSandboxPolicy(sandboxId, config.projectId, {
+          ...NETWORK_POLICY_DEFAULTS,
+          enabled: true,
+          allowedEgressHosts: this.allowedEgressHosts,
+        });
+      }
 
       const sandbox = new K8sSandbox(
         sandboxId,
@@ -117,9 +202,23 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
       this.emit({ type: 'sandbox:started', sandboxId });
 
+      this.auditLogger.logPodStarted({
+        podName,
+        namespace: this.namespace,
+        sandboxId,
+      });
+
       return sandbox;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+
+      this.auditLogger.logPodFailed({
+        podName,
+        namespace: this.namespace,
+        sandboxId,
+        error: message,
+      });
+
       this.emit({
         type: 'sandbox:error',
         sandboxId,
@@ -290,6 +389,27 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           if (sandbox.status !== 'stopped') {
             await sandbox.stop();
           }
+
+          // Delete sandbox-specific network policy
+          if (this.networkPolicyEnabled) {
+            try {
+              await this.networkPolicyManager.deleteSandboxPolicy(sandboxId);
+              this.auditLogger.logNetworkPolicyDeleted({
+                policyName: `sandbox-${sandboxId}-policy`,
+                namespace: this.namespace,
+                sandboxId,
+              });
+            } catch {
+              // Ignore errors deleting network policy
+            }
+          }
+
+          this.auditLogger.logPodDeleted({
+            podName: sandbox.podName,
+            namespace: this.namespace,
+            sandboxId,
+          });
+
           this.sandboxes.delete(sandboxId);
           this.projectToSandbox.delete(sandbox.projectId);
           cleaned++;
@@ -322,6 +442,50 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     }
   }
 
+  /**
+   * Ensure security resources (RBAC, NetworkPolicy) are initialized
+   */
+  private async ensureSecurityResources(): Promise<void> {
+    if (this.securityInitialized) {
+      return;
+    }
+
+    // Setup RBAC if enabled
+    if (this.setupRbac) {
+      try {
+        await this.rbacManager.ensureRbac();
+        this.auditLogger.logRbacCreated({
+          resourceType: 'service_account',
+          resourceName: 'agentpane-sandbox-controller',
+          namespace: this.namespace,
+        });
+      } catch (error) {
+        // Log but don't fail - RBAC may already exist or user may have custom setup
+        console.warn('[K8sProvider] RBAC setup warning:', error);
+      }
+    }
+
+    // Setup default network policy if enabled
+    if (this.networkPolicyEnabled) {
+      try {
+        await this.networkPolicyManager.ensureDefaultPolicy({
+          ...NETWORK_POLICY_DEFAULTS,
+          enabled: true,
+          allowedEgressHosts: this.allowedEgressHosts,
+        });
+        this.auditLogger.logNetworkPolicyCreated({
+          policyName: 'sandbox-default-policy',
+          namespace: this.namespace,
+        });
+      } catch (error) {
+        // Log but don't fail - network policies may already exist
+        console.warn('[K8sProvider] NetworkPolicy setup warning:', error);
+      }
+    }
+
+    this.securityInitialized = true;
+  }
+
   private async ensureNamespace(): Promise<void> {
     try {
       await this.coreApi.readNamespace({ name: this.namespace });
@@ -341,17 +505,31 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       throw K8sErrors.NAMESPACE_NOT_FOUND(this.namespace);
     }
 
-    // Create namespace
+    // Create namespace with Pod Security Standards labels
+    const namespaceLabels = {
+      'agentpane.io/managed': 'true',
+      // Pod Security Standards enforcement
+      'pod-security.kubernetes.io/enforce': 'restricted',
+      'pod-security.kubernetes.io/enforce-version': 'latest',
+      'pod-security.kubernetes.io/warn': 'restricted',
+      'pod-security.kubernetes.io/warn-version': 'latest',
+      'pod-security.kubernetes.io/audit': 'restricted',
+      'pod-security.kubernetes.io/audit-version': 'latest',
+    };
+
     try {
       await this.coreApi.createNamespace({
         body: {
           metadata: {
             name: this.namespace,
-            labels: {
-              'agentpane.io/managed': 'true',
-            },
+            labels: namespaceLabels,
           },
         },
+      });
+
+      this.auditLogger.logNamespaceCreated({
+        namespace: this.namespace,
+        labels: namespaceLabels,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -141,4 +141,77 @@ export const K8sErrors = {
 
   // Generic internal error
   INTERNAL_ERROR: (message: string) => createError('K8S_INTERNAL_ERROR', message, 500),
+
+  // NetworkPolicy errors
+  NETWORK_POLICY_CREATION_FAILED: (policyName: string, message: string) =>
+    createError(
+      'K8S_NETWORK_POLICY_CREATION_FAILED',
+      `Failed to create network policy ${policyName}: ${message}`,
+      500,
+      { policyName }
+    ),
+
+  NETWORK_POLICY_NOT_FOUND: (policyName: string, namespace: string) =>
+    createError(
+      'K8S_NETWORK_POLICY_NOT_FOUND',
+      `Network policy not found: ${policyName} in namespace ${namespace}`,
+      404,
+      { policyName, namespace }
+    ),
+
+  NETWORK_POLICY_UPDATE_FAILED: (policyName: string, message: string) =>
+    createError(
+      'K8S_NETWORK_POLICY_UPDATE_FAILED',
+      `Failed to update network policy ${policyName}: ${message}`,
+      500,
+      { policyName }
+    ),
+
+  NETWORK_POLICY_DELETION_FAILED: (policyName: string, message: string) =>
+    createError(
+      'K8S_NETWORK_POLICY_DELETION_FAILED',
+      `Failed to delete network policy ${policyName}: ${message}`,
+      500,
+      { policyName }
+    ),
+
+  // RBAC errors
+  SERVICE_ACCOUNT_CREATION_FAILED: (name: string, message: string) =>
+    createError(
+      'K8S_SERVICE_ACCOUNT_CREATION_FAILED',
+      `Failed to create service account ${name}: ${message}`,
+      500,
+      { name }
+    ),
+
+  ROLE_CREATION_FAILED: (name: string, message: string) =>
+    createError('K8S_ROLE_CREATION_FAILED', `Failed to create role ${name}: ${message}`, 500, {
+      name,
+    }),
+
+  ROLE_BINDING_CREATION_FAILED: (name: string, message: string) =>
+    createError(
+      'K8S_ROLE_BINDING_CREATION_FAILED',
+      `Failed to create role binding ${name}: ${message}`,
+      500,
+      { name }
+    ),
+
+  // LimitRange errors
+  LIMIT_RANGE_CREATION_FAILED: (name: string, message: string) =>
+    createError(
+      'K8S_LIMIT_RANGE_CREATION_FAILED',
+      `Failed to create limit range ${name}: ${message}`,
+      500,
+      { name }
+    ),
+
+  // Security validation errors
+  POD_SECURITY_VIOLATION: (podName: string, violation: string) =>
+    createError(
+      'K8S_POD_SECURITY_VIOLATION',
+      `Pod ${podName} violates security policy: ${violation}`,
+      400,
+      { podName, violation }
+    ),
 };

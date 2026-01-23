@@ -1,0 +1,21 @@
+# AgentPane Sandbox Namespace
+# This namespace isolates agent sandbox pods from the rest of the cluster
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agentpane-sandboxes
+  labels:
+    # Identify this namespace as managed by AgentPane
+    agentpane.io/managed: "true"
+    # Enable Pod Security Standards enforcement
+    # Restricted profile enforces the most security-hardened baseline
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+  annotations:
+    # Documentation reference
+    agentpane.io/description: "Isolated namespace for AI agent sandbox pods"
+    agentpane.io/created-by: "agentpane"
