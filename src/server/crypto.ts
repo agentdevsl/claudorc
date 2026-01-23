@@ -37,12 +37,23 @@ function getOrCreateKeyMaterial(): Uint8Array {
 }
 
 /**
+ * Convert a Uint8Array to a proper ArrayBuffer.
+ * This is needed because in Node.js, Uint8Array.buffer may be a shared buffer
+ * that's larger than the actual data, which causes crypto.subtle to fail.
+ */
+function toArrayBuffer(data: Uint8Array): ArrayBuffer {
+  // In Node.js, ArrayBuffer.prototype.slice returns ArrayBuffer | SharedArrayBuffer
+  // but we know it's always an ArrayBuffer for regular Uint8Array buffers
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+}
+
+/**
  * Derive an encryption key from the key material and salt
  */
 async function deriveKey(keyMaterial: Uint8Array, salt: Uint8Array): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey(
     'raw',
-    keyMaterial.buffer as ArrayBuffer,
+    toArrayBuffer(keyMaterial),
     'PBKDF2',
     false,
     ['deriveKey']
@@ -51,7 +62,7 @@ async function deriveKey(keyMaterial: Uint8Array, salt: Uint8Array): Promise<Cry
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
+      salt: toArrayBuffer(salt),
       iterations: 100000,
       hash: 'SHA-256',
     },
