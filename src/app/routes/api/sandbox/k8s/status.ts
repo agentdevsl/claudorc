@@ -4,7 +4,6 @@ import { failure, success } from '@/lib/api/response';
 import { k8sStatusQuerySchema } from '@/lib/api/schemas';
 import { parseQuery } from '@/lib/api/validation';
 import { K8sErrors } from '@/lib/errors/k8s-errors';
-import { createK8sProvider } from '@/lib/sandbox/providers/k8s-provider';
 
 export const Route = createFileRoute('/api/sandbox/k8s/status')({
   server: {
@@ -26,6 +25,9 @@ export const Route = createFileRoute('/api/sandbox/k8s/status')({
         }
 
         try {
+          // Dynamic import for server-side-only K8s client
+          const { createK8sProvider } = await import('@/lib/sandbox/providers/k8s-provider');
+
           const provider = createK8sProvider({
             kubeconfigPath: parsed.value.kubeconfigPath,
             context: parsed.value.context,

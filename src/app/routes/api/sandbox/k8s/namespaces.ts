@@ -1,11 +1,9 @@
-import * as k8s from '@kubernetes/client-node';
 import { createFileRoute } from '@tanstack/react-router';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { k8sNamespacesQuerySchema } from '@/lib/api/schemas';
 import { parseQuery } from '@/lib/api/validation';
 import { K8sErrors } from '@/lib/errors/k8s-errors';
-import { loadKubeConfig, resolveContext } from '@/lib/sandbox/providers/k8s-config';
 
 export interface K8sNamespace {
   /** Namespace name */
@@ -39,6 +37,12 @@ export const Route = createFileRoute('/api/sandbox/k8s/namespaces')({
         }
 
         try {
+          // Dynamic imports for server-side-only K8s client
+          const k8s = await import('@kubernetes/client-node');
+          const { loadKubeConfig, resolveContext } = await import(
+            '@/lib/sandbox/providers/k8s-config'
+          );
+
           const kc = loadKubeConfig(parsed.value.kubeconfigPath);
 
           // Set context if specified

@@ -4,7 +4,6 @@ import { failure, success } from '@/lib/api/response';
 import { k8sContextsQuerySchema } from '@/lib/api/schemas';
 import { parseQuery } from '@/lib/api/validation';
 import { K8sErrors } from '@/lib/errors/k8s-errors';
-import { loadKubeConfig } from '@/lib/sandbox/providers/k8s-config';
 
 export interface K8sContext {
   /** Context name */
@@ -36,6 +35,9 @@ export const Route = createFileRoute('/api/sandbox/k8s/contexts')({
         }
 
         try {
+          // Dynamic import for server-side-only K8s client
+          const { loadKubeConfig } = await import('@/lib/sandbox/providers/k8s-config');
+
           const kc = loadKubeConfig(parsed.value.kubeconfigPath);
 
           const contexts = kc.getContexts();

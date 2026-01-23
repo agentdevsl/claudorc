@@ -79,6 +79,9 @@ import { Route as ApiSessionsIdHistoryRouteImport } from './routes/api/sessions/
 import { Route as ApiSessionsIdExportRouteImport } from './routes/api/sessions/$id/export'
 import { Route as ApiSessionsIdEventsRouteImport } from './routes/api/sessions/$id/events'
 import { Route as ApiSessionsIdCloseRouteImport } from './routes/api/sessions/$id/close'
+import { Route as ApiSandboxK8sStatusRouteImport } from './routes/api/sandbox/k8s/status'
+import { Route as ApiSandboxK8sNamespacesRouteImport } from './routes/api/sandbox/k8s/namespaces'
+import { Route as ApiSandboxK8sContextsRouteImport } from './routes/api/sandbox/k8s/contexts'
 import { Route as ApiPlansTaskIdStreamRouteImport } from './routes/api/plans/$taskId/stream'
 import { Route as ApiPlansTaskIdStartRouteImport } from './routes/api/plans/$taskId/start'
 import { Route as ApiPlansTaskIdMessageRouteImport } from './routes/api/plans/$taskId/message'
@@ -450,6 +453,21 @@ const ApiSessionsIdCloseRoute = ApiSessionsIdCloseRouteImport.update({
   path: '/close',
   getParentRoute: () => ApiSessionsIdRoute,
 } as any)
+const ApiSandboxK8sStatusRoute = ApiSandboxK8sStatusRouteImport.update({
+  id: '/api/sandbox/k8s/status',
+  path: '/api/sandbox/k8s/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSandboxK8sNamespacesRoute = ApiSandboxK8sNamespacesRouteImport.update({
+  id: '/api/sandbox/k8s/namespaces',
+  path: '/api/sandbox/k8s/namespaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSandboxK8sContextsRoute = ApiSandboxK8sContextsRouteImport.update({
+  id: '/api/sandbox/k8s/contexts',
+  path: '/api/sandbox/k8s/contexts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlansTaskIdStreamRoute = ApiPlansTaskIdStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -561,6 +579,9 @@ export interface FileRoutesByFullPath {
   '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
+  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
+  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
+  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
   '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
   '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
@@ -642,6 +663,9 @@ export interface FileRoutesByTo {
   '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
+  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
+  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
+  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
   '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
   '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
@@ -725,6 +749,9 @@ export interface FileRoutesById {
   '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
   '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
   '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
+  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
+  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
+  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
   '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
   '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
   '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
@@ -809,6 +836,9 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/message'
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
+    | '/api/sandbox/k8s/contexts'
+    | '/api/sandbox/k8s/namespaces'
+    | '/api/sandbox/k8s/status'
     | '/api/sessions/$id/close'
     | '/api/sessions/$id/events'
     | '/api/sessions/$id/export'
@@ -890,6 +920,9 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/message'
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
+    | '/api/sandbox/k8s/contexts'
+    | '/api/sandbox/k8s/namespaces'
+    | '/api/sandbox/k8s/status'
     | '/api/sessions/$id/close'
     | '/api/sessions/$id/events'
     | '/api/sessions/$id/export'
@@ -972,6 +1005,9 @@ export interface FileRouteTypes {
     | '/api/plans/$taskId/message'
     | '/api/plans/$taskId/start'
     | '/api/plans/$taskId/stream'
+    | '/api/sandbox/k8s/contexts'
+    | '/api/sandbox/k8s/namespaces'
+    | '/api/sandbox/k8s/status'
     | '/api/sessions/$id/close'
     | '/api/sessions/$id/events'
     | '/api/sessions/$id/export'
@@ -1030,6 +1066,9 @@ export interface RootRouteChildren {
   ApiStreamsIndexRoute: typeof ApiStreamsIndexRoute
   ApiWorktreesIndexRoute: typeof ApiWorktreesIndexRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
+  ApiSandboxK8sContextsRoute: typeof ApiSandboxK8sContextsRoute
+  ApiSandboxK8sNamespacesRoute: typeof ApiSandboxK8sNamespacesRoute
+  ApiSandboxK8sStatusRoute: typeof ApiSandboxK8sStatusRoute
   ProjectsProjectIdTasksTaskIdRoute: typeof ProjectsProjectIdTasksTaskIdRoute
 }
 
@@ -1525,6 +1564,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsIdCloseRouteImport
       parentRoute: typeof ApiSessionsIdRoute
     }
+    '/api/sandbox/k8s/status': {
+      id: '/api/sandbox/k8s/status'
+      path: '/api/sandbox/k8s/status'
+      fullPath: '/api/sandbox/k8s/status'
+      preLoaderRoute: typeof ApiSandboxK8sStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox/k8s/namespaces': {
+      id: '/api/sandbox/k8s/namespaces'
+      path: '/api/sandbox/k8s/namespaces'
+      fullPath: '/api/sandbox/k8s/namespaces'
+      preLoaderRoute: typeof ApiSandboxK8sNamespacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox/k8s/contexts': {
+      id: '/api/sandbox/k8s/contexts'
+      path: '/api/sandbox/k8s/contexts'
+      fullPath: '/api/sandbox/k8s/contexts'
+      preLoaderRoute: typeof ApiSandboxK8sContextsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/plans/$taskId/stream': {
       id: '/api/plans/$taskId/stream'
       path: '/stream'
@@ -1862,6 +1922,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStreamsIndexRoute: ApiStreamsIndexRoute,
   ApiWorktreesIndexRoute: ApiWorktreesIndexRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
+  ApiSandboxK8sContextsRoute: ApiSandboxK8sContextsRoute,
+  ApiSandboxK8sNamespacesRoute: ApiSandboxK8sNamespacesRoute,
+  ApiSandboxK8sStatusRoute: ApiSandboxK8sStatusRoute,
   ProjectsProjectIdTasksTaskIdRoute: ProjectsProjectIdTasksTaskIdRoute,
 }
 export const routeTree = rootRouteImport
