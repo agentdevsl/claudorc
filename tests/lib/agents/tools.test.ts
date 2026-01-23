@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolContext, ToolResponse } from '@/lib/agents/types';
+import type { ToolContext } from '@/lib/agents/types';
 
 // =============================================================================
 // Test Context

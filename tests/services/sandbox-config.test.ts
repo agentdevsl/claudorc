@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { SandboxConfig } from '../../src/db/schema/sandbox-configs';
-import { SandboxConfigErrors } from '../../src/lib/errors/sandbox-config-errors';
 import { SandboxConfigService } from '../../src/services/sandbox-config.service';
 import { createTestProject } from '../factories/project.factory';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';

@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectConfig } from '../../src/db/schema/projects';
-import { ProjectErrors } from '../../src/lib/errors/project-errors';
-import { err, ok } from '../../src/lib/utils/result';
+import { ok } from '../../src/lib/utils/result';
 import { ProjectService } from '../../src/services/project.service';
-import { createRunningAgent, createTestAgent } from '../factories/agent.factory';
+import { createRunningAgent } from '../factories/agent.factory';
 import { createTestProject, createTestProjects } from '../factories/project.factory';
 import { createTestSession } from '../factories/session.factory';
 import { createTasksInColumns, createTestTask } from '../factories/task.factory';
@@ -317,7 +316,7 @@ describe('ProjectService', () => {
 
     it('calculates last activity from task updates', async () => {
       const project = await createTestProject();
-      const oldDate = new Date('2025-01-01T00:00:00Z');
+      const _oldDate = new Date('2025-01-01T00:00:00Z');
       const recentDate = new Date('2025-06-15T12:00:00Z');
 
       await createTestTask(project.id, { title: 'Old Task' });

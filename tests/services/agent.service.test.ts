@@ -1,11 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { agentRuns } from '../../src/db/schema/agent-runs';
 import { agents } from '../../src/db/schema/agents';
-import { tasks } from '../../src/db/schema/tasks';
 import { AgentErrors } from '../../src/lib/errors/agent-errors';
-import { ConcurrencyErrors } from '../../src/lib/errors/concurrency-errors';
-import { ValidationErrors } from '../../src/lib/errors/validation-errors';
 import { AgentService } from '../../src/services/agent.service';
 import { createRunningAgent, createTestAgent } from '../factories/agent.factory';
 import { createTestProject } from '../factories/project.factory';
@@ -683,6 +679,312 @@ describe('AgentService', () => {
       if (!result.ok) {
         expect(result.error.code).toBe('AGENT_NOT_FOUND');
       }
+    });
+  });
+
+  // =============================================================================
+  // Agent Execution Result Scenarios (5 tests)
+  // =============================================================================
+
+  describe('Agent Execution Result Scenarios', () => {
+    it('handles completed status from agent execution', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockResolvedValue({
+        runId: 'run-1',
+        status: 'completed',
+        turnCount: 15,
+        result: 'Task completed successfully',
+      });
+
+      const result = await agentService.start(agent.id, task.id);
+
+      expect(result.ok).toBe(true);
+      // Wait for async execution to complete
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        // Agent should return to idle after completion
+        expect(updatedAgent?.currentTurn).toBe(15);
+      });
+    });
+
+    it('handles turn_limit status from agent execution', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockResolvedValue({
+        runId: 'run-1',
+        status: 'turn_limit',
+        turnCount: 50,
+        result: 'Turn limit reached',
+      });
+
+      const result = await agentService.start(agent.id, task.id);
+
+      expect(result.ok).toBe(true);
+      // Wait for async execution to complete
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.currentTurn).toBe(50);
+      });
+    });
+
+    it('handles paused status from agent execution', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockResolvedValue({
+        runId: 'run-1',
+        status: 'paused',
+        turnCount: 25,
+      });
+
+      const result = await agentService.start(agent.id, task.id);
+
+      expect(result.ok).toBe(true);
+      // Wait for async execution to complete
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.currentTurn).toBe(25);
+      });
+    });
+
+    it('handles error status from agent execution', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockResolvedValue({
+        runId: 'run-1',
+        status: 'error',
+        turnCount: 5,
+        error: 'Something went wrong',
+      });
+
+      const result = await agentService.start(agent.id, task.id);
+
+      expect(result.ok).toBe(true);
+      // Wait for async execution to complete
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.status).toBe('error');
+      });
+    });
+
+    it('handles exception thrown during agent execution', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockRejectedValue(new Error('Execution failed'));
+
+      const result = await agentService.start(agent.id, task.id);
+
+      expect(result.ok).toBe(true);
+      // Wait for async execution error handling to complete
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.status).toBe('error');
+      });
+    });
+  });
+
+  // =============================================================================
+  // Agent Execution Error Recovery (3 tests)
+  // =============================================================================
+
+  describe('Agent Execution Error Recovery', () => {
+    it('pauses agent on rate limit error', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockRejectedValue(new Error('Rate limit exceeded'));
+
+      await agentService.start(agent.id, task.id);
+
+      // Wait for async execution error handling
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.status).toBe('paused');
+      });
+    });
+
+    it('sets error status on unknown error', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockRejectedValue(new Error('Unknown error'));
+
+      await agentService.start(agent.id, task.id);
+
+      // Wait for async execution error handling
+      await vi.waitFor(async () => {
+        const db = getTestDb();
+        const updatedAgent = await db.query.agents.findFirst({
+          where: eq(agents.id, agent.id),
+        });
+        expect(updatedAgent?.status).toBe('error');
+      });
+    });
+
+    it('publishes error event on execution failure', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+      const task = await createTestTask(project.id, { column: 'backlog' });
+      const worktree = await createTestWorktree(project.id, { taskId: task.id });
+      const session = await createTestSession(project.id, { taskId: task.id, agentId: agent.id });
+
+      mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
+      mockSessionService.create.mockResolvedValue({ ok: true, value: session });
+      mockRunAgentWithStreaming.mockRejectedValue(new Error('Test error'));
+
+      await agentService.start(agent.id, task.id);
+
+      // Wait for async execution error handling
+      await vi.waitFor(() => {
+        expect(mockSessionService.publish).toHaveBeenCalledWith(
+          session.id,
+          expect.objectContaining({
+            type: 'agent:error',
+            data: expect.objectContaining({
+              agentId: agent.id,
+              error: 'Test error',
+            }),
+          })
+        );
+      });
+    });
+  });
+
+  // =============================================================================
+  // Update Edge Cases (1 test)
+  // =============================================================================
+
+  describe('Update Edge Cases', () => {
+    it('returns not found error when agent deleted between read and update', async () => {
+      const project = await createTestProject();
+      const agent = await createTestAgent(project.id);
+
+      const db = getTestDb();
+
+      // First call getById to verify agent exists
+      const getResult = await agentService.getById(agent.id);
+      expect(getResult.ok).toBe(true);
+
+      // Delete the agent
+      await db.delete(agents).where(eq(agents.id, agent.id));
+
+      // Now try to update - getById will fail since agent is deleted
+      const result = await agentService.update(agent.id, { maxTurns: 100 });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('AGENT_NOT_FOUND');
+      }
+    });
+  });
+
+  // =============================================================================
+  // Running Agent Model Update Prevention (1 test)
+  // =============================================================================
+
+  describe('Running Agent Update Prevention', () => {
+    it('prevents updating model of running agent', async () => {
+      const project = await createTestProject();
+      const task = await createTestTask(project.id);
+      const session = await createTestSession(project.id, { taskId: task.id });
+      const agent = await createRunningAgent(project.id, task.id, session.id);
+
+      const result = await agentService.update(agent.id, {
+        model: 'claude-opus-4-20250514',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('AGENT_ALREADY_RUNNING');
+      }
+    });
+  });
+
+  // =============================================================================
+  // Resume Without Session (1 test)
+  // =============================================================================
+
+  describe('Resume Without Session', () => {
+    it('resumes agent without current session', async () => {
+      const project = await createTestProject();
+      const task = await createTestTask(project.id);
+      const agent = await createTestAgent(project.id, {
+        status: 'paused',
+        currentTaskId: task.id,
+        currentSessionId: null,
+        currentTurn: 10,
+      });
+
+      const result = await agentService.resume(agent.id, 'Continue');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.turnCount).toBe(10);
+      }
+
+      // Session publish should not be called when no session
+      expect(mockSessionService.publish).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ type: 'approval:rejected' })
+      );
     });
   });
 });

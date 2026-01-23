@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubTokens } from '../../src/db/schema/github';
 import { clearTestDatabase, execRawSql, getTestDb, setupTestDatabase } from '../helpers/database';
 
 // ============================================================================

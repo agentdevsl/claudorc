@@ -10,7 +10,7 @@ import type {
   ClaudeResult,
   ToolCallResult,
 } from '../../src/lib/plan-mode/claude-client';
-import type { PlanSession, PlanTurn, UserInteraction } from '../../src/lib/plan-mode/types';
+import type { PlanTurn, UserInteraction } from '../../src/lib/plan-mode/types';
 import { err, ok } from '../../src/lib/utils/result';
 import type { DurableStreamsService } from '../../src/services/durable-streams.service';
 import { PlanModeService } from '../../src/services/plan-mode.service';

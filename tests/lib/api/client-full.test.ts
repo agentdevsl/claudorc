@@ -374,7 +374,7 @@ describe('API Client', () => {
     });
 
     it('passes AbortSignal to fetch', async () => {
-      const controller = new AbortController();
+      const _controller = new AbortController();
       const mockResponse = createMockResponse(successResponse({ items: [] }));
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 

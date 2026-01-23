@@ -856,7 +856,7 @@ describe('ClaudeClient Edge Cases', () => {
     client = new ClaudeClient(credentials);
   });
 
-  function createMockCredentials(overrides: Partial<OAuthCredentials> = {}): OAuthCredentials {
+  function _createMockCredentials(overrides: Partial<OAuthCredentials> = {}): OAuthCredentials {
     return {
       accessToken: 'test-api-key-12345',
       refreshToken: 'test-refresh-token',

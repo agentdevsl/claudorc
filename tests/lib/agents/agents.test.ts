@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { AgentHooks, ToolContext, ToolResponse } from '@/lib/agents/types';
 
 // =============================================================================
@@ -831,7 +831,7 @@ describe('Recovery', () => {
 // =============================================================================
 
 describe('Tools', () => {
-  const context: ToolContext = { cwd: '/test/cwd' };
+  const _context: ToolContext = { cwd: '/test/cwd' };
 
   describe('Bash Tool - isDangerousCommand', () => {
     it('detects rm -rf as dangerous', async () => {

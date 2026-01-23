@@ -18,7 +18,7 @@
  */
 
 import { createId } from '@paralleldrive/cuid2';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { Agent } from '@/db/schema/agents';
 import type { Project } from '@/db/schema/projects';
 import type { Session } from '@/db/schema/sessions';

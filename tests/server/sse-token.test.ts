@@ -10,13 +10,8 @@
  * - Error cases and edge cases
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  type GenerateTokenOptions,
-  type SSEToken,
-  type SSETokenError,
-  SSETokenService,
-} from '../../src/server/sse-token.service';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { SSETokenService } from '../../src/server/sse-token.service';
 
 describe('SSETokenService', () => {
   let service: SSETokenService;
@@ -205,7 +200,7 @@ describe('SSETokenService', () => {
     });
 
     it('fails for invalid token format - wrong prefix', () => {
-      const result = service.validate('xyz_' + 'a'.repeat(64));
+      const result = service.validate(`xyz_${'a'.repeat(64)}`);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -224,7 +219,7 @@ describe('SSETokenService', () => {
 
     it('fails for token not found', () => {
       // Valid format but not generated
-      const fakeToken = 'sse_' + 'a'.repeat(64);
+      const fakeToken = `sse_${'a'.repeat(64)}`;
       const result = service.validate(fakeToken);
 
       expect(result.ok).toBe(false);
@@ -333,7 +328,7 @@ describe('SSETokenService', () => {
     });
 
     it('fails to revoke non-existent token', () => {
-      const fakeToken = 'sse_' + 'a'.repeat(64);
+      const fakeToken = `sse_${'a'.repeat(64)}`;
       const result = service.revoke(fakeToken);
 
       expect(result.ok).toBe(false);
@@ -583,7 +578,7 @@ describe('SSETokenService', () => {
     });
 
     it('returns false for non-existent token', () => {
-      const fakeToken = 'sse_' + 'a'.repeat(64);
+      const fakeToken = `sse_${'a'.repeat(64)}`;
       expect(service.hasScope(fakeToken, 'stream:read')).toBe(false);
     });
   });

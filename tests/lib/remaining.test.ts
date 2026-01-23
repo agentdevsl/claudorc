@@ -522,8 +522,7 @@ describe('Crypto Module', () => {
 
       const { encryptToken, decryptToken } = await import('@/server/crypto');
 
-      const longToken =
-        'github_pat_' + 'a'.repeat(200) + '_' + 'b'.repeat(200) + '_' + 'c'.repeat(200);
+      const longToken = `github_pat_${'a'.repeat(200)}_${'b'.repeat(200)}_${'c'.repeat(200)}`;
       const encrypted = await encryptToken(longToken);
       const decrypted = await decryptToken(encrypted);
 
@@ -554,7 +553,7 @@ describe('Crypto Module', () => {
       const token = 'ghp_1234567890abcdef';
       const masked = maskToken(token);
 
-      expect(masked).toBe('ghp_' + '\u2022'.repeat(8) + 'cdef');
+      expect(masked).toBe(`ghp_${'\u2022'.repeat(8)}cdef`);
       expect(masked.length).toBe(16); // 4 + 8 + 4
     });
 

@@ -112,15 +112,8 @@ vi.mock('octokit', () => {
 });
 
 import * as schema from '../../src/db/schema';
-import { SandboxConfigErrors } from '../../src/lib/errors/sandbox-config-errors';
-import { SandboxErrors } from '../../src/lib/errors/sandbox-errors';
 import type { Sandbox, SandboxProvider } from '../../src/lib/sandbox/providers/sandbox-provider';
-import type {
-  SandboxConfig,
-  SandboxInfo,
-  SandboxMetrics,
-  TmuxSession,
-} from '../../src/lib/sandbox/types';
+import type { SandboxConfig } from '../../src/lib/sandbox/types';
 import { ApiKeyService } from '../../src/services/api-key.service';
 import { DurableStreamsService } from '../../src/services/durable-streams.service';
 import { GitHubTokenService } from '../../src/services/github-token.service';

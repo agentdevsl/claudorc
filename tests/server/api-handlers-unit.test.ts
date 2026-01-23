@@ -16,10 +16,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Agent } from '../../src/db/schema/agents';
 import type { Project } from '../../src/db/schema/projects';
-import type { Session } from '../../src/db/schema/sessions';
-import type { Task } from '../../src/db/schema/tasks';
 import { err, ok } from '../../src/lib/utils/result';
 import {
   createHandlers,
@@ -119,7 +116,7 @@ describe('Project Handlers', () => {
 
     it('returns projects ordered by updatedAt descending', async () => {
       const db = getTestDb();
-      const [p1, p2] = await createTestProjects(2);
+      const [p1, _p2] = await createTestProjects(2);
 
       // Update p1 to be more recent
       const { projects } = await import('../../src/db/schema');
@@ -127,12 +124,12 @@ describe('Project Handlers', () => {
       await db
         .update(projects)
         .set({ updatedAt: new Date().toISOString() })
-        .where(eq(projects.id, p1!.id));
+        .where(eq(projects.id, p1?.id));
 
       const result = await listProjects(db);
 
       expect(result.ok).toBe(true);
-      expect(result.data?.items[0]?.id).toBe(p1!.id);
+      expect(result.data?.items[0]?.id).toBe(p1?.id);
     });
 
     it('includes project fields in response', async () => {
@@ -523,7 +520,7 @@ describe('Task Handlers', () => {
     });
 
     it('respects offset parameter', async () => {
-      const tasks = await createTestTasks(testProject.id, 10);
+      const _tasks = await createTestTasks(testProject.id, 10);
 
       const result = await listTasks(taskService, {
         projectId: testProject.id,
@@ -732,7 +729,7 @@ describe('Template Handlers', () => {
       const mockService = createMockTemplateService();
       mockService.list.mockResolvedValue(ok([{ id: 't1', name: 'Org Template', scope: 'org' }]));
 
-      const result = await listTemplates(mockService as any, { scope: 'org' });
+      const _result = await listTemplates(mockService as any, { scope: 'org' });
 
       expect(mockService.list).toHaveBeenCalledWith({
         scope: 'org',
@@ -745,7 +742,7 @@ describe('Template Handlers', () => {
       const mockService = createMockTemplateService();
       mockService.list.mockResolvedValue(ok([]));
 
-      const result = await listTemplates(mockService as any, { projectId: 'proj-1' });
+      const _result = await listTemplates(mockService as any, { projectId: 'proj-1' });
 
       expect(mockService.list).toHaveBeenCalledWith({
         scope: undefined,
@@ -758,7 +755,7 @@ describe('Template Handlers', () => {
       const mockService = createMockTemplateService();
       mockService.list.mockResolvedValue(ok([]));
 
-      const result = await listTemplates(mockService as any, { limit: 10 });
+      const _result = await listTemplates(mockService as any, { limit: 10 });
 
       expect(mockService.list).toHaveBeenCalledWith({
         scope: undefined,
@@ -1778,10 +1775,10 @@ describe('Error Paths and Edge Cases', () => {
   });
 
   describe('Task Handlers - Error Paths', () => {
-    let testProject: Project;
+    let _testProject: Project;
 
     beforeEach(async () => {
-      testProject = await createTestProject();
+      _testProject = await createTestProject();
     });
 
     it('listTasks handles service error', async () => {

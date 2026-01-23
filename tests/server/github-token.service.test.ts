@@ -15,7 +15,6 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubTokens } from '@/db/schema';
 import { GitHubTokenService, type TokenInfo } from '@/server/github-token.service';
 import { getTestDb } from '../helpers/database';
 

@@ -5,7 +5,6 @@ import { tasks } from '../../src/db/schema/tasks';
 import type { DurableStreamsService } from '../../src/services/durable-streams.service';
 import type { SessionService } from '../../src/services/session.service';
 import {
-  TaskCreationErrors,
   TaskCreationService,
   type TaskCreationSession,
   type TaskSuggestion,

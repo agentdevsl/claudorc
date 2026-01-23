@@ -585,7 +585,7 @@ describe('InteractionHandler', () => {
     it('should handle sparse array where turn is undefined at matched index (line 79 coverage)', () => {
       // Create a session with a turn that has interaction, then manipulate to make it sparse
       // This tests the defensive guard at line 78-79
-      const session = createMockSession({ turns: [] });
+      const _session = createMockSession({ turns: [] });
 
       // Create sparse array scenario: findIndex will find index 0 because the callback
       // checks t.interaction?.id, and undefined?.id === undefined !== 'target-id'

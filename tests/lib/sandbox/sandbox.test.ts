@@ -1,15 +1,11 @@
-import type { Container, ContainerInspectInfo, Exec } from 'dockerode';
+import type { Container, Exec } from 'dockerode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SandboxError } from '@/lib/errors/sandbox-errors';
-import { SandboxErrors } from '@/lib/errors/sandbox-errors';
 import type {
   Sandbox,
   SandboxProvider,
   SandboxProviderEvent,
 } from '@/lib/sandbox/providers/sandbox-provider';
-import type { ExecResult, OAuthCredentials, SandboxConfig, TmuxSession } from '@/lib/sandbox/types';
-import { SANDBOX_DEFAULTS } from '@/lib/sandbox/types';
-import type { Result } from '@/lib/utils/result';
+import type { OAuthCredentials, SandboxConfig, TmuxSession } from '@/lib/sandbox/types';
 
 // ============================================================================
 // Mock Setup
