@@ -73,20 +73,19 @@
 
 /* ===== Base Node Styles ===== */
 .compact-node {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 6px;
-  border-radius: 18px;
+  gap: 5px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 14px;
   background: var(--compact-node-bg);
   border: 1px solid var(--compact-node-border);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  min-width: 80px;
-  max-width: 320px; /* Wider to show full labels */
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  white-space: nowrap;
   opacity: 0;
-  transform: translateY(8px);
-  animation: fadeSlideIn 0.35s ease forwards;
+  transform: translateY(6px);
+  animation: fadeSlideIn 0.3s ease forwards;
 }
 
 /* Staggered animation delays based on node index */
@@ -123,8 +122,8 @@
 
 /* Hover state */
 .compact-node:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Selected state */
@@ -136,29 +135,27 @@
 
 /* ===== Icon Styles ===== */
 .compact-node-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: transform 0.25s ease;
+  transition: transform 0.2s ease;
 }
 
 .compact-node:hover .compact-node-icon {
-  transform: scale(1.1) rotate(5deg);
+  transform: scale(1.08) rotate(3deg);
 }
 
 .compact-node-icon svg {
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
 }
 
 /* ===== Content Styles ===== */
 .compact-node-content {
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -169,9 +166,6 @@
   font-weight: 500;
   color: var(--compact-node-fg);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px; /* Allow long labels before truncating */
 }
 
 /* Separator dot */
@@ -189,21 +183,19 @@
   color: var(--compact-node-fg-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.85;
-  max-width: 120px; /* Truncate long command names */
+  opacity: 0.7;
 }
 
 /* Type badge - micro */
 .compact-node-type {
-  font-size: 7px;
-  font-weight: 600;
+  font-size: 6px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.2px;
-  padding: 1px 4px;
+  letter-spacing: 0.3px;
+  padding: 2px 4px;
   border-radius: 3px;
   flex-shrink: 0;
+  margin-left: 2px;
 }
 
 /* ===== Start Node ===== */
@@ -316,20 +308,22 @@
 
 /* ===== Compact Handle Styles ===== */
 .compact-node .react-flow__handle {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   background: var(--compact-node-border);
   border: none;
+  opacity: 0.6;
 }
 
 .compact-node .react-flow__handle-top {
-  top: -3px;
+  top: -2px;
 }
 
 .compact-node .react-flow__handle-bottom {
-  bottom: -3px;
+  bottom: -2px;
 }
 
 .compact-node:hover .react-flow__handle {
   background: var(--compact-node-fg-muted);
+  opacity: 1;
 }

@@ -17,7 +17,7 @@ import type { Edge, Node } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/lib/utils/cn';
-import { toReactFlowEdges, toReactFlowNodes } from '@/lib/workflow-dsl/layout';
+import { layoutWorkflowForReactFlow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
 
 /** Skill/Command/Agent with content */
@@ -308,12 +308,14 @@ export function AIGenerateDialog({
   );
 
   // Handle generate button click
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     if (!aiWorkflow) return;
 
-    // Convert DSL nodes/edges to ReactFlow format
-    const reactFlowNodes = toReactFlowNodes(aiWorkflow.nodes as WorkflowNode[]);
-    const reactFlowEdges = toReactFlowEdges(aiWorkflow.edges as WorkflowEdge[]);
+    // Apply layout algorithm and convert DSL nodes/edges to ReactFlow format
+    const { nodes: reactFlowNodes, edges: reactFlowEdges } = await layoutWorkflowForReactFlow(
+      aiWorkflow.nodes as WorkflowNode[],
+      aiWorkflow.edges as WorkflowEdge[]
+    );
 
     onGenerate(reactFlowNodes, reactFlowEdges);
 

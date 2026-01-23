@@ -75,9 +75,10 @@ export function WorkflowCanvas({
         onViewportChange={onViewportChange}
         fitView
         fitViewOptions={{
-          padding: 0.1,
+          padding: 0.15,
           minZoom: 0.5,
           maxZoom: 1.2,
+          includeHiddenNodes: false,
         }}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
@@ -85,11 +86,12 @@ export function WorkflowCanvas({
         panOnDrag
         zoomOnScroll
         zoomOnPinch
-        minZoom={0.25}
+        minZoom={0.4}
         maxZoom={2}
         defaultEdgeOptions={{
           animated: false,
-          type: 'smoothstep',
+          type: 'straight',
+          style: { strokeWidth: 1, stroke: 'var(--border-muted)' },
         }}
         proOptions={{
           hideAttribution: true,
