@@ -6,11 +6,13 @@ import {
   FolderOpen,
   Gear,
   GitFork,
+  GridFour,
   Hourglass,
   Kanban,
   Plus,
   PuzzlePiece,
   Robot,
+  TreeStructure,
 } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -38,12 +40,14 @@ const organizationNavItems: readonly NavItem[] = [
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
 ] as const;
 
-// CONTENT section - organization-wide templates and marketplace
+// CONTENT section - organization-wide templates, workflows, and marketplace
 // Marketplace syncs with: https://github.com/anthropics/claude-plugins-official
 //   - /plugins (internal Anthropic plugins)
 //   - /external_plugins (third-party community plugins)
 const contentNavItems: readonly NavItem[] = [
   { label: 'Org Templates', to: '/templates/org', icon: Files, testId: 'nav-org-templates' },
+  { label: 'Designer', to: '/designer', icon: TreeStructure, testId: 'nav-designer' },
+  { label: 'Catalog', to: '/catalog', icon: GridFour, testId: 'nav-catalog' },
   { label: 'Marketplace', to: '/marketplace', icon: PuzzlePiece, testId: 'nav-marketplace' },
 ] as const;
 

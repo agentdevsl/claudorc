@@ -17,6 +17,8 @@ import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace/index'
+import { Route as DesignerIndexRouteImport } from './routes/designer/index'
+import { Route as CatalogIndexRouteImport } from './routes/catalog/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
 import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
@@ -29,6 +31,8 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
+import { Route as CatalogWorkflowIdRouteImport } from './routes/catalog/$workflowId'
+import { Route as ApiWorkflowsRouteImport } from './routes/api/workflows'
 import { Route as ApiTemplatesRouteImport } from './routes/api/templates'
 import { Route as ApiTasksRouteImport } from './routes/api/tasks'
 import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
@@ -44,6 +48,8 @@ import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects
 import { Route as ProjectsProjectIdGitRouteImport } from './routes/projects/$projectId/git'
 import { Route as ApiWorktreesPruneRouteImport } from './routes/api/worktrees/prune'
 import { Route as ApiWorktreesIdRouteImport } from './routes/api/worktrees/$id'
+import { Route as ApiWorkflowsIdRouteImport } from './routes/api/workflows/$id'
+import { Route as ApiWorkflowDesignerAnalyzeRouteImport } from './routes/api/workflow-designer/analyze'
 import { Route as ApiWebhooksGithubRouteImport } from './routes/api/webhooks/github'
 import { Route as ApiTemplatesIdRouteImport } from './routes/api/templates/$id'
 import { Route as ApiTasksIdRouteImport } from './routes/api/tasks/$id'
@@ -124,6 +130,16 @@ const MarketplaceIndexRoute = MarketplaceIndexRouteImport.update({
   path: '/marketplace/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DesignerIndexRoute = DesignerIndexRouteImport.update({
+  id: '/designer/',
+  path: '/designer/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogIndexRoute = CatalogIndexRouteImport.update({
+  id: '/catalog/',
+  path: '/catalog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -182,6 +198,16 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
 const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/sessions/$sessionId',
   path: '/sessions/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogWorkflowIdRoute = CatalogWorkflowIdRouteImport.update({
+  id: '/catalog/$workflowId',
+  path: '/catalog/$workflowId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkflowsRoute = ApiWorkflowsRouteImport.update({
+  id: '/api/workflows',
+  path: '/api/workflows',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTemplatesRoute = ApiTemplatesRouteImport.update({
@@ -261,6 +287,17 @@ const ApiWorktreesIdRoute = ApiWorktreesIdRouteImport.update({
   path: '/api/worktrees/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowsIdRoute = ApiWorkflowsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiWorkflowsRoute,
+} as any)
+const ApiWorkflowDesignerAnalyzeRoute =
+  ApiWorkflowDesignerAnalyzeRouteImport.update({
+    id: '/api/workflow-designer/analyze',
+    path: '/api/workflow-designer/analyze',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWebhooksGithubRoute = ApiWebhooksGithubRouteImport.update({
   id: '/api/webhooks/github',
   path: '/api/webhooks/github',
@@ -474,6 +511,8 @@ export interface FileRoutesByFullPath {
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
+  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
+  '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -486,6 +525,8 @@ export interface FileRoutesByFullPath {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
+  '/catalog/': typeof CatalogIndexRoute
+  '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -500,6 +541,8 @@ export interface FileRoutesByFullPath {
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
   '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
+  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
+  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
@@ -549,6 +592,8 @@ export interface FileRoutesByTo {
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
+  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
+  '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -561,6 +606,8 @@ export interface FileRoutesByTo {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents': typeof AgentsIndexRoute
+  '/catalog': typeof CatalogIndexRoute
+  '/designer': typeof DesignerIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/queue': typeof QueueIndexRoute
@@ -575,6 +622,8 @@ export interface FileRoutesByTo {
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
   '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
+  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
+  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
@@ -626,6 +675,8 @@ export interface FileRoutesById {
   '/api/sessions': typeof ApiSessionsRouteWithChildren
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
+  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
+  '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
@@ -638,6 +689,8 @@ export interface FileRoutesById {
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
+  '/catalog/': typeof CatalogIndexRoute
+  '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/queue/': typeof QueueIndexRoute
@@ -652,6 +705,8 @@ export interface FileRoutesById {
   '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
   '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
   '/api/webhooks/github': typeof ApiWebhooksGithubRoute
+  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
+  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
   '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
   '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
@@ -704,6 +759,8 @@ export interface FileRouteTypes {
     | '/api/sessions'
     | '/api/tasks'
     | '/api/templates'
+    | '/api/workflows'
+    | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -716,6 +773,8 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents/'
+    | '/catalog/'
+    | '/designer/'
     | '/marketplace/'
     | '/projects/'
     | '/queue/'
@@ -730,6 +789,8 @@ export interface FileRouteTypes {
     | '/api/tasks/$id'
     | '/api/templates/$id'
     | '/api/webhooks/github'
+    | '/api/workflow-designer/analyze'
+    | '/api/workflows/$id'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
     | '/projects/$projectId/git'
@@ -779,6 +840,8 @@ export interface FileRouteTypes {
     | '/api/sessions'
     | '/api/tasks'
     | '/api/templates'
+    | '/api/workflows'
+    | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -791,6 +854,8 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents'
+    | '/catalog'
+    | '/designer'
     | '/marketplace'
     | '/projects'
     | '/queue'
@@ -805,6 +870,8 @@ export interface FileRouteTypes {
     | '/api/tasks/$id'
     | '/api/templates/$id'
     | '/api/webhooks/github'
+    | '/api/workflow-designer/analyze'
+    | '/api/workflows/$id'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
     | '/projects/$projectId/git'
@@ -855,6 +922,8 @@ export interface FileRouteTypes {
     | '/api/sessions'
     | '/api/tasks'
     | '/api/templates'
+    | '/api/workflows'
+    | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
@@ -867,6 +936,8 @@ export interface FileRouteTypes {
     | '/templates/org'
     | '/templates/project'
     | '/agents/'
+    | '/catalog/'
+    | '/designer/'
     | '/marketplace/'
     | '/projects/'
     | '/queue/'
@@ -881,6 +952,8 @@ export interface FileRouteTypes {
     | '/api/tasks/$id'
     | '/api/templates/$id'
     | '/api/webhooks/github'
+    | '/api/workflow-designer/analyze'
+    | '/api/workflows/$id'
     | '/api/worktrees/$id'
     | '/api/worktrees/prune'
     | '/projects/$projectId/git'
@@ -932,10 +1005,14 @@ export interface RootRouteChildren {
   ApiSessionsRoute: typeof ApiSessionsRouteWithChildren
   ApiTasksRoute: typeof ApiTasksRouteWithChildren
   ApiTemplatesRoute: typeof ApiTemplatesRouteWithChildren
+  ApiWorkflowsRoute: typeof ApiWorkflowsRouteWithChildren
+  CatalogWorkflowIdRoute: typeof CatalogWorkflowIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
   TemplatesOrgRoute: typeof TemplatesOrgRoute
   TemplatesProjectRoute: typeof TemplatesProjectRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  CatalogIndexRoute: typeof CatalogIndexRoute
+  DesignerIndexRoute: typeof DesignerIndexRoute
   MarketplaceIndexRoute: typeof MarketplaceIndexRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   QueueIndexRoute: typeof QueueIndexRoute
@@ -944,6 +1021,7 @@ export interface RootRouteChildren {
   ApiPlansTaskIdRoute: typeof ApiPlansTaskIdRouteWithChildren
   ApiStreamsStreamIdRoute: typeof ApiStreamsStreamIdRouteWithChildren
   ApiWebhooksGithubRoute: typeof ApiWebhooksGithubRoute
+  ApiWorkflowDesignerAnalyzeRoute: typeof ApiWorkflowDesignerAnalyzeRoute
   ApiWorktreesIdRoute: typeof ApiWorktreesIdRouteWithChildren
   ApiWorktreesPruneRoute: typeof ApiWorktreesPruneRoute
   ProjectsProjectIdGitRoute: typeof ProjectsProjectIdGitRoute
@@ -1011,6 +1089,20 @@ declare module '@tanstack/react-router' {
       path: '/marketplace'
       fullPath: '/marketplace/'
       preLoaderRoute: typeof MarketplaceIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/designer/': {
+      id: '/designer/'
+      path: '/designer'
+      fullPath: '/designer/'
+      preLoaderRoute: typeof DesignerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalog/': {
+      id: '/catalog/'
+      path: '/catalog'
+      fullPath: '/catalog/'
+      preLoaderRoute: typeof CatalogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agents/': {
@@ -1095,6 +1187,20 @@ declare module '@tanstack/react-router' {
       path: '/sessions/$sessionId'
       fullPath: '/sessions/$sessionId'
       preLoaderRoute: typeof SessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalog/$workflowId': {
+      id: '/catalog/$workflowId'
+      path: '/catalog/$workflowId'
+      fullPath: '/catalog/$workflowId'
+      preLoaderRoute: typeof CatalogWorkflowIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflows': {
+      id: '/api/workflows'
+      path: '/api/workflows'
+      fullPath: '/api/workflows'
+      preLoaderRoute: typeof ApiWorkflowsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/templates': {
@@ -1200,6 +1306,20 @@ declare module '@tanstack/react-router' {
       path: '/api/worktrees/$id'
       fullPath: '/api/worktrees/$id'
       preLoaderRoute: typeof ApiWorktreesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflows/$id': {
+      id: '/api/workflows/$id'
+      path: '/$id'
+      fullPath: '/api/workflows/$id'
+      preLoaderRoute: typeof ApiWorkflowsIdRouteImport
+      parentRoute: typeof ApiWorkflowsRoute
+    }
+    '/api/workflow-designer/analyze': {
+      id: '/api/workflow-designer/analyze'
+      path: '/api/workflow-designer/analyze'
+      fullPath: '/api/workflow-designer/analyze'
+      preLoaderRoute: typeof ApiWorkflowDesignerAnalyzeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/github': {
@@ -1648,6 +1768,18 @@ const ApiTemplatesRouteWithChildren = ApiTemplatesRoute._addFileChildren(
   ApiTemplatesRouteChildren,
 )
 
+interface ApiWorkflowsRouteChildren {
+  ApiWorkflowsIdRoute: typeof ApiWorkflowsIdRoute
+}
+
+const ApiWorkflowsRouteChildren: ApiWorkflowsRouteChildren = {
+  ApiWorkflowsIdRoute: ApiWorkflowsIdRoute,
+}
+
+const ApiWorkflowsRouteWithChildren = ApiWorkflowsRoute._addFileChildren(
+  ApiWorkflowsRouteChildren,
+)
+
 interface ApiPlansTaskIdRouteChildren {
   ApiPlansTaskIdAnswerRoute: typeof ApiPlansTaskIdAnswerRoute
   ApiPlansTaskIdCancelRoute: typeof ApiPlansTaskIdCancelRoute
@@ -1705,10 +1837,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSessionsRoute: ApiSessionsRouteWithChildren,
   ApiTasksRoute: ApiTasksRouteWithChildren,
   ApiTemplatesRoute: ApiTemplatesRouteWithChildren,
+  ApiWorkflowsRoute: ApiWorkflowsRouteWithChildren,
+  CatalogWorkflowIdRoute: CatalogWorkflowIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRoute,
   TemplatesOrgRoute: TemplatesOrgRoute,
   TemplatesProjectRoute: TemplatesProjectRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  CatalogIndexRoute: CatalogIndexRoute,
+  DesignerIndexRoute: DesignerIndexRoute,
   MarketplaceIndexRoute: MarketplaceIndexRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   QueueIndexRoute: QueueIndexRoute,
@@ -1717,6 +1853,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlansTaskIdRoute: ApiPlansTaskIdRouteWithChildren,
   ApiStreamsStreamIdRoute: ApiStreamsStreamIdRouteWithChildren,
   ApiWebhooksGithubRoute: ApiWebhooksGithubRoute,
+  ApiWorkflowDesignerAnalyzeRoute: ApiWorkflowDesignerAnalyzeRoute,
   ApiWorktreesIdRoute: ApiWorktreesIdRouteWithChildren,
   ApiWorktreesPruneRoute: ApiWorktreesPruneRoute,
   ProjectsProjectIdGitRoute: ProjectsProjectIdGitRoute,

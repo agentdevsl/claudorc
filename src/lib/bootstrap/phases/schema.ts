@@ -178,6 +178,8 @@ CREATE TABLE IF NOT EXISTS "templates" (
   "last_sync_sha" TEXT,
   "last_synced_at" TEXT,
   "sync_error" TEXT,
+  "sync_interval_minutes" INTEGER,
+  "next_sync_at" TEXT,
   "cached_skills" TEXT,
   "cached_commands" TEXT,
   "cached_agents" TEXT,
@@ -274,6 +276,13 @@ export const SANDBOX_MIGRATION_SQL = `
 -- Add sandbox_config_id to projects if it doesn't exist
 -- This runs separately because SQLite doesn't support IF NOT EXISTS for ALTER TABLE
 ALTER TABLE projects ADD COLUMN sandbox_config_id TEXT;
+`;
+
+// Migration for template sync interval columns (for existing databases)
+export const TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL = `
+-- Add sync_interval_minutes and next_sync_at to templates if they don't exist
+ALTER TABLE templates ADD COLUMN sync_interval_minutes INTEGER;
+ALTER TABLE templates ADD COLUMN next_sync_at TEXT;
 `;
 
 export const validateSchema = async (ctx: BootstrapContext) => {

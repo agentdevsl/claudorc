@@ -159,7 +159,7 @@ When performing any research, concurrent subagents can be used for performance a
 | ------------------ | ---------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
 | Runtime            | Bun              | https://bun.sh                                                                                      | 1.3.6            |
 | Framework          | TanStack Start   | @tanstack/react-start (https://github.com/TanStack/router)                                          | 1.150.0          |
-| Database           | PGlite           | @electric-sql/pglite (https://github.com/electric-sql/pglite)                                       | 0.3.15           |
+| Database           | SQLite           | better-sqlite3 (https://github.com/WiseLibs/better-sqlite3)                                         | 12.6.2           |
 | ORM                | Drizzle          | drizzle-orm + drizzle-kit (https://github.com/drizzle-team/drizzle-orm)                             | 0.45.1           |
 | Client State       | TanStack DB      | @tanstack/db + @tanstack/react-db (https://github.com/TanStack/db)                                  | 0.5.20 / 0.1.64  |
 | Agent Events       | Durable Streams  | @durable-streams/client + @durable-streams/state (https://github.com/durable-streams/durable-streams) | 0.1.5            |

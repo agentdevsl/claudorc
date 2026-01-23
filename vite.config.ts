@@ -352,6 +352,13 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 3000,
     host: process.env.HOST || 'localhost',
+    proxy: {
+      // Proxy API requests to the backend server
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     tailwindcss(),
