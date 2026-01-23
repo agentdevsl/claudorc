@@ -24,6 +24,7 @@
     "test:e2e": "vitest --config vitest.e2e.config.ts",
     "test:ui": "bun scripts/run-ui-tests.ts",
     "test:integration": "vitest --include 'tests/integration/**'",
+    "test:k8s": "K8S_INTEGRATION_TESTS=true vitest run --include 'src/lib/sandbox/providers/__tests__/k8s-tmux.integration.test.ts'",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
