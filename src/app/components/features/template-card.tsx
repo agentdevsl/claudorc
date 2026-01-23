@@ -8,11 +8,20 @@ import {
   Pencil,
   Robot,
   Terminal,
+  Timer,
   Trash,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select';
 import type { CachedAgent, CachedCommand, CachedSkill, Template } from '@/db/schema/templates';
+import { SYNC_INTERVAL_OPTIONS } from '@/db/schema/templates';
 import { cn } from '@/lib/utils/cn';
 
 export interface TemplateCardProps {
@@ -20,7 +29,9 @@ export interface TemplateCardProps {
   onSync: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onUpdateSyncInterval?: (intervalMinutes: number | null) => void;
   isSyncing?: boolean;
+  isUpdatingSyncInterval?: boolean;
 }
 
 const STATUS_CONFIG = {
@@ -62,6 +73,39 @@ function formatRelativeTime(date: Date | string | null | undefined): string {
     return `${minutes}m ago`;
   }
   return 'just now';
+}
+
+function formatFutureTime(date: Date | string | null | undefined): string {
+  if (!date) {
+    return '';
+  }
+  const now = Date.now();
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const diff = dateObj.getTime() - now;
+
+  if (diff < 0) {
+    return 'now';
+  }
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor(diff / (1000 * 60));
+
+  if (hours > 24) {
+    return `in ${Math.floor(hours / 24)}d`;
+  }
+  if (hours > 0) {
+    return `in ${hours}h`;
+  }
+  if (minutes > 0) {
+    return `in ${minutes}m`;
+  }
+  return 'soon';
+}
+
+function getSyncIntervalLabel(intervalMinutes: number | null | undefined): string {
+  if (!intervalMinutes) return 'Disabled';
+  const option = SYNC_INTERVAL_OPTIONS.find((o) => o.value === intervalMinutes);
+  return option?.label ?? `${intervalMinutes} minutes`;
 }
 
 // Collapsible section component
@@ -140,10 +184,13 @@ export function TemplateCard({
   onSync,
   onEdit,
   onDelete,
+  onUpdateSyncInterval,
   isSyncing = false,
+  isUpdatingSyncInterval = false,
 }: TemplateCardProps): React.JSX.Element {
   const effectiveStatus = isSyncing ? 'syncing' : (template.status ?? 'active');
   const statusConfig = STATUS_CONFIG[effectiveStatus];
+  const currentIntervalValue = template.syncIntervalMinutes?.toString() ?? 'disabled';
 
   const skills = (template.cachedSkills ?? []) as CachedSkill[];
   const commands = (template.cachedCommands ?? []) as CachedCommand[];
@@ -199,6 +246,50 @@ export function TemplateCard({
             <Clock className="h-4 w-4" />
             <span>Synced {formatRelativeTime(template.lastSyncedAt)}</span>
           </div>
+        </div>
+
+        {/* Auto-sync interval selector */}
+        <div className="mt-3 flex items-center gap-2" data-testid="template-sync-interval">
+          <Timer className="h-4 w-4 text-fg-muted" />
+          <span className="text-xs text-fg-muted">Auto-sync:</span>
+          {onUpdateSyncInterval ? (
+            <Select
+              value={currentIntervalValue}
+              onValueChange={(value) => {
+                const intervalMinutes = value === 'disabled' ? null : Number.parseInt(value, 10);
+                onUpdateSyncInterval(intervalMinutes);
+              }}
+              disabled={isUpdatingSyncInterval}
+            >
+              <SelectTrigger className="h-6 w-28 text-xs" data-testid="sync-interval-trigger">
+                <SelectValue placeholder="Select interval">
+                  {isUpdatingSyncInterval
+                    ? 'Updating...'
+                    : getSyncIntervalLabel(template.syncIntervalMinutes)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SYNC_INTERVAL_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.value?.toString() ?? 'disabled'}
+                    value={option.value?.toString() ?? 'disabled'}
+                    data-testid={`sync-interval-option-${option.value ?? 'disabled'}`}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-xs text-fg" data-testid="sync-interval-display">
+              {getSyncIntervalLabel(template.syncIntervalMinutes)}
+            </span>
+          )}
+          {template.syncIntervalMinutes && template.nextSyncAt && (
+            <span className="text-xs text-fg-subtle" data-testid="next-sync-time">
+              (next {formatFutureTime(template.nextSyncAt)})
+            </span>
+          )}
         </div>
 
         {/* Summary counts as badges - height 20px, px-2 (8px), rounded-full */}

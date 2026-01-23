@@ -4,14 +4,30 @@
  * Handles API requests that need database access.
  * Runs alongside Vite dev server.
  */
+
 import { Database as BunSQLite } from 'bun:sqlite';
+import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { z } from 'zod';
 import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
 import { projects } from '../db/schema/projects.js';
 import { tasks } from '../db/schema/tasks.js';
-import { MIGRATION_SQL, SANDBOX_MIGRATION_SQL } from '../lib/bootstrap/phases/schema.js';
+import type { CachedAgent, CachedCommand, CachedSkill } from '../db/schema/templates.js';
+import { agentQuery } from '../lib/agents/agent-sdk-utils.js';
+import {
+  MIGRATION_SQL,
+  SANDBOX_MIGRATION_SQL,
+  TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
+} from '../lib/bootstrap/phases/schema.js';
+import {
+  createWorkflowAnalysisPrompt,
+  WORKFLOW_GENERATION_SYSTEM_PROMPT,
+} from '../lib/workflow-dsl/ai-prompts.js';
+import { layoutWorkflow } from '../lib/workflow-dsl/layout.js';
+import type { Workflow, WorkflowEdge, WorkflowNode } from '../lib/workflow-dsl/types.js';
+import { workflowEdgeSchema, workflowNodeSchema } from '../lib/workflow-dsl/types.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { MarketplaceService } from '../services/marketplace.service.js';
@@ -23,6 +39,7 @@ import {
   type TaskCreationService,
 } from '../services/task-creation.service.js';
 import { TemplateService } from '../services/template.service.js';
+import { startSyncScheduler } from '../services/template-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
@@ -67,6 +84,19 @@ try {
   // Ignore error if column already exists
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
     console.warn('[API Server] Sandbox migration skipped (column may already exist)');
+  }
+}
+
+// Run template sync interval migration (may fail if columns already exist)
+try {
+  sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
+  console.log('[API Server] Template sync interval migration applied');
+} catch (error) {
+  // Ignore error if columns already exist
+  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+    console.warn(
+      '[API Server] Template sync interval migration skipped (columns may already exist)'
+    );
   }
 }
 
@@ -2654,6 +2684,416 @@ function handleTaskCreationStream(url: URL): Response {
   });
 }
 
+// =============================================================================
+// Workflow Designer Handlers
+// =============================================================================
+
+const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-sonnet-4-20250514';
+
+// Request schema for workflow analysis
+const analyzeWorkflowRequestSchema = z
+  .object({
+    templateId: z.string().optional(),
+    skills: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          description: z.string().optional(),
+          content: z.string(),
+        })
+      )
+      .optional(),
+    commands: z
+      .array(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          content: z.string(),
+        })
+      )
+      .optional(),
+    agents: z
+      .array(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          content: z.string(),
+        })
+      )
+      .optional(),
+    name: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      data.templateId ||
+      (data.skills && data.skills.length > 0) ||
+      (data.commands && data.commands.length > 0) ||
+      (data.agents && data.agents.length > 0),
+    {
+      message: 'Either templateId or at least one of skills, commands, or agents must be provided',
+    }
+  );
+
+// AI Response schema
+const aiWorkflowResponseSchema = z.object({
+  nodes: z.array(z.unknown()),
+  edges: z.array(z.unknown()),
+  aiGenerated: z.boolean().optional(),
+  aiConfidence: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Builds the template content string from skills, commands, and agents
+ */
+function buildTemplateContent(
+  skills: CachedSkill[],
+  commands: CachedCommand[],
+  agents: CachedAgent[]
+): string {
+  const sections: string[] = [];
+
+  if (skills.length > 0) {
+    sections.push('## Skills\n');
+    for (const skill of skills) {
+      sections.push(`### ${skill.name}`);
+      if (skill.description) {
+        sections.push(skill.description);
+      }
+      sections.push(`\`\`\`\n${skill.content}\n\`\`\`\n`);
+    }
+  }
+
+  if (commands.length > 0) {
+    sections.push('## Commands\n');
+    for (const command of commands) {
+      sections.push(`### ${command.name}`);
+      if (command.description) {
+        sections.push(command.description);
+      }
+      sections.push(`\`\`\`\n${command.content}\n\`\`\`\n`);
+    }
+  }
+
+  if (agents.length > 0) {
+    sections.push('## Agents\n');
+    for (const agent of agents) {
+      sections.push(`### ${agent.name}`);
+      if (agent.description) {
+        sections.push(agent.description);
+      }
+      sections.push(`\`\`\`\n${agent.content}\n\`\`\`\n`);
+    }
+  }
+
+  return sections.join('\n');
+}
+
+/**
+ * Parses and validates the AI response into workflow nodes and edges
+ */
+function parseAIResponse(responseText: string): {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  aiConfidence: number;
+} {
+  // Extract JSON from the response (handle markdown code blocks)
+  let jsonStr = responseText.trim();
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch?.[1]) {
+    jsonStr = jsonMatch[1].trim();
+  }
+
+  // Parse JSON
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    throw new Error(`Invalid JSON in AI response: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // Validate basic structure
+  const validated = aiWorkflowResponseSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(`Invalid workflow structure: ${validated.error.message}`);
+  }
+
+  // Parse and validate individual nodes
+  const nodes: WorkflowNode[] = [];
+  for (const nodeData of validated.data.nodes) {
+    const nodeResult = workflowNodeSchema.safeParse(nodeData);
+    if (nodeResult.success) {
+      nodes.push(nodeResult.data);
+    } else {
+      // Log warning but continue - AI might generate slightly malformed nodes
+      console.warn('[workflow-analyze] Skipping invalid node:', nodeResult.error.message, nodeData);
+    }
+  }
+
+  // Parse and validate individual edges
+  const edges: WorkflowEdge[] = [];
+  for (const edgeData of validated.data.edges) {
+    const edgeResult = workflowEdgeSchema.safeParse(edgeData);
+    if (edgeResult.success) {
+      edges.push(edgeResult.data);
+    } else {
+      // Log warning but continue
+      console.warn('[workflow-analyze] Skipping invalid edge:', edgeResult.error.message, edgeData);
+    }
+  }
+
+  // Ensure we have at least start and end nodes
+  if (nodes.length === 0) {
+    throw new Error('AI generated no valid nodes');
+  }
+
+  const hasStart = nodes.some((n) => n.type === 'start');
+  const hasEnd = nodes.some((n) => n.type === 'end');
+
+  // Auto-generate start/end nodes if missing (AI sometimes omits them)
+  if (!hasStart) {
+    console.warn('[workflow-analyze] AI did not generate start node, adding one');
+    const firstNode = nodes[0];
+    nodes.unshift({
+      id: `start-${createId().slice(0, 8)}`,
+      type: 'start',
+      label: 'Start',
+      position: { x: 0, y: 0 },
+      inputs: [],
+    });
+    // Add edge from new start to first node
+    const startNode = nodes[0];
+    if (firstNode && startNode) {
+      edges.unshift({
+        id: `edge-start-${createId().slice(0, 8)}`,
+        type: 'sequential',
+        sourceNodeId: startNode.id,
+        targetNodeId: firstNode.id,
+      });
+    }
+  }
+
+  if (!hasEnd) {
+    console.warn('[workflow-analyze] AI did not generate end node, adding one');
+    const lastNode = nodes[nodes.length - 1];
+    const newEndNode = {
+      id: `end-${createId().slice(0, 8)}`,
+      type: 'end' as const,
+      label: 'End',
+      position: { x: 0, y: 0 },
+      outputs: [],
+    };
+    nodes.push(newEndNode);
+    // Add edge from last node to new end
+    if (lastNode && lastNode.type !== 'start') {
+      edges.push({
+        id: `edge-end-${createId().slice(0, 8)}`,
+        type: 'sequential',
+        sourceNodeId: lastNode.id,
+        targetNodeId: newEndNode.id,
+      });
+    }
+  }
+
+  return {
+    nodes,
+    edges,
+    aiConfidence: validated.data.aiConfidence ?? 0.5,
+  };
+}
+
+/**
+ * Handler for POST /api/workflow-designer/analyze
+ */
+async function handleWorkflowAnalyze(request: Request): Promise<Response> {
+  // Parse request body
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json(
+      { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+      400
+    );
+  }
+
+  // Validate request
+  const parseResult = analyzeWorkflowRequestSchema.safeParse(body);
+  if (!parseResult.success) {
+    return json(
+      {
+        ok: false,
+        error: { code: 'VALIDATION_ERROR', message: parseResult.error.message },
+      },
+      400
+    );
+  }
+
+  const { templateId, skills, commands, agents: agentsData, name } = parseResult.data;
+
+  // Gather template data
+  let templateSkills: CachedSkill[] = (skills as CachedSkill[]) ?? [];
+  let templateCommands: CachedCommand[] = (commands as CachedCommand[]) ?? [];
+  let templateAgents: CachedAgent[] = (agentsData as CachedAgent[]) ?? [];
+  let templateName = name ?? 'Generated Workflow';
+  let templateDescription: string | undefined;
+
+  // If templateId provided, fetch template from database
+  if (templateId) {
+    const templateResult = await templateService.getById(templateId);
+    if (!templateResult.ok) {
+      return json(
+        { ok: false, error: { code: 'TEMPLATE_NOT_FOUND', message: 'Template not found' } },
+        404
+      );
+    }
+
+    const template = templateResult.value;
+    templateName = template.name;
+    templateDescription = template.description ?? undefined;
+    templateSkills = template.cachedSkills ?? [];
+    templateCommands = template.cachedCommands ?? [];
+    templateAgents = template.cachedAgents ?? [];
+  }
+
+  // Ensure we have content to analyze
+  if (templateSkills.length === 0 && templateCommands.length === 0 && templateAgents.length === 0) {
+    return json(
+      {
+        ok: false,
+        error: {
+          code: 'WORKFLOW_NO_CONTENT',
+          message:
+            'No template content provided. Provide either templateId or skills/commands/agents data.',
+        },
+      },
+      400
+    );
+  }
+
+  // Build template content and prompt
+  const templateContent = buildTemplateContent(templateSkills, templateCommands, templateAgents);
+
+  const userPrompt = createWorkflowAnalysisPrompt({
+    name: templateName,
+    description: templateDescription,
+    content: templateContent,
+    skills: templateSkills.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+    })),
+    commands: templateCommands.map((c) => ({
+      name: c.name,
+      command: c.content,
+      description: c.description,
+    })),
+    agents: templateAgents.map((a) => ({
+      id: a.name, // Use name as id since CachedAgent doesn't have id
+      name: a.name,
+      description: a.description,
+      systemPrompt: a.content,
+    })),
+  });
+
+  // Use Claude Agent SDK (same as task creation) - automatically reads ANTHROPIC_API_KEY env var
+  let aiResponse: string;
+  try {
+    // Build full prompt with system context
+    const fullPrompt = `${WORKFLOW_GENERATION_SYSTEM_PROMPT}\n\n---\n\n${userPrompt}`;
+
+    // Use shared agentQuery utility
+    const result = await agentQuery(fullPrompt, { model: WORKFLOW_AI_MODEL });
+    aiResponse = result.text;
+
+    if (!aiResponse) {
+      return json(
+        {
+          ok: false,
+          error: { code: 'WORKFLOW_AI_GENERATION_FAILED', message: 'Empty response from AI' },
+        },
+        500
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[workflow-analyze] Agent SDK error:', message);
+
+    // Check for authentication errors
+    if (
+      message.includes('401') ||
+      message.includes('authentication_error') ||
+      message.includes('invalid x-api-key') ||
+      message.includes('ANTHROPIC_API_KEY')
+    ) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'WORKFLOW_API_KEY_NOT_FOUND',
+            message:
+              'Anthropic API key not configured. Please set ANTHROPIC_API_KEY environment variable.',
+          },
+        },
+        401
+      );
+    }
+
+    return json({ ok: false, error: { code: 'WORKFLOW_AI_GENERATION_FAILED', message } }, 500);
+  }
+
+  // Parse AI response into workflow structure
+  let nodes: WorkflowNode[];
+  let edges: WorkflowEdge[];
+  let aiConfidence: number;
+
+  try {
+    const result = parseAIResponse(aiResponse);
+    nodes = result.nodes;
+    edges = result.edges;
+    aiConfidence = result.aiConfidence;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[workflow-analyze] AI response parsing error:', message);
+    return json({ ok: false, error: { code: 'WORKFLOW_INVALID_AI_RESPONSE', message } }, 422);
+  }
+
+  // Apply ELK layout to position nodes
+  try {
+    nodes = await layoutWorkflow(nodes, edges, {
+      algorithm: 'layered',
+      direction: 'DOWN',
+      nodeWidth: 200,
+      nodeHeight: 60,
+      nodeSpacing: 50,
+      layerSpacing: 80,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[workflow-analyze] Layout error:', message);
+    return json({ ok: false, error: { code: 'WORKFLOW_LAYOUT_FAILED', message } }, 500);
+  }
+
+  // Build final workflow object
+  const workflow: Workflow = {
+    id: createId(),
+    name: templateName,
+    description: templateDescription,
+    nodes,
+    edges,
+    sourceTemplateId: templateId,
+    sourceTemplateName: templateName,
+    status: 'draft',
+    aiGenerated: true,
+    aiModel: WORKFLOW_AI_MODEL,
+    aiConfidence,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  return json({ ok: true, data: { workflow } }, 200);
+}
+
 // Main request handler
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -2666,6 +3106,11 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   console.log(`[API] ${method} ${path}`);
+
+  // Workflow Designer routes
+  if (path === '/api/workflow-designer/analyze' && method === 'POST') {
+    return handleWorkflowAnalyze(request);
+  }
 
   // GitHub routes
   if (path === '/api/github/orgs' && method === 'GET') {
@@ -3004,3 +3449,7 @@ Bun.serve({
 });
 
 console.log(`[API Server] Running on http://localhost:${PORT}`);
+
+// Start the template sync scheduler
+startSyncScheduler(db, templateService);
+console.log('[API Server] Template sync scheduler started');

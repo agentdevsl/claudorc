@@ -25,6 +25,8 @@ export type CreateTemplateInput = {
   projectId?: string;
   /** Project IDs to associate with this template (for project-scoped templates) */
   projectIds?: string[];
+  /** Auto-sync interval in minutes (null = disabled, minimum 5 minutes) */
+  syncIntervalMinutes?: number | null;
 };
 
 /** Template with associated project IDs */
@@ -39,6 +41,8 @@ export type UpdateTemplateInput = {
   configPath?: string;
   /** Update the project associations (replaces existing) */
   projectIds?: string[];
+  /** Auto-sync interval in minutes (null = disabled, minimum 5 minutes) */
+  syncIntervalMinutes?: number | null;
 };
 
 export type ListTemplatesOptions = {
@@ -67,6 +71,15 @@ export class TemplateService {
 
   private updateTimestamp(): string {
     return new Date().toISOString();
+  }
+
+  /**
+   * Calculate the next sync time based on an interval in minutes
+   */
+  private calculateNextSyncAt(intervalMinutes: number): string {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + intervalMinutes);
+    return now.toISOString();
   }
 
   async create(input: CreateTemplateInput): Promise<Result<TemplateWithProjects, TemplateError>> {
@@ -101,6 +114,10 @@ export class TemplateService {
 
     const now = this.updateTimestamp();
 
+    // Calculate nextSyncAt if syncIntervalMinutes is provided
+    const syncIntervalMinutes = input.syncIntervalMinutes ?? null;
+    const nextSyncAt = syncIntervalMinutes ? this.calculateNextSyncAt(syncIntervalMinutes) : null;
+
     const [template] = await this.db
       .insert(templates)
       .values({
@@ -113,6 +130,8 @@ export class TemplateService {
         configPath: input.configPath ?? '.claude',
         projectId: projectIds[0], // Keep legacy field for backward compatibility
         status: 'active',
+        syncIntervalMinutes,
+        nextSyncAt,
         createdAt: now,
         updatedAt: now,
       } satisfies NewTemplate)
@@ -239,6 +258,14 @@ export class TemplateService {
     }
     if (input.configPath !== undefined) {
       updates.configPath = input.configPath;
+    }
+
+    // Handle sync interval updates
+    if (input.syncIntervalMinutes !== undefined) {
+      const intervalMinutes = input.syncIntervalMinutes;
+      updates.syncIntervalMinutes = intervalMinutes;
+      // Update nextSyncAt: if interval is set, schedule next sync; if null, clear it
+      updates.nextSyncAt = intervalMinutes ? this.calculateNextSyncAt(intervalMinutes) : null;
     }
 
     const [updated] = await this.db

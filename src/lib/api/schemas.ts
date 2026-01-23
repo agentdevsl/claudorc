@@ -1,5 +1,6 @@
 import { isCuid } from '@paralleldrive/cuid2';
 import { z } from 'zod';
+import { workflowEdgeSchema, workflowNodeSchema } from '@/lib/workflow-dsl/types.js';
 import { projectConfigSchema } from '../config/schemas.js';
 
 const cuidSchema = z.string().refine(isCuid, { message: 'Invalid ID format' });
@@ -186,6 +187,14 @@ const githubUrlSchema = z.string().refine(
   { message: 'Must be a GitHub repository URL or owner/repo format' }
 );
 
+/** Sync interval validation: must be >= 5 minutes or null (disabled) */
+const syncIntervalSchema = z
+  .number()
+  .int()
+  .min(5, 'Sync interval must be at least 5 minutes')
+  .nullable()
+  .optional();
+
 export const createTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
@@ -197,6 +206,8 @@ export const createTemplateSchema = z.object({
   projectId: cuidSchema.optional(),
   /** Project IDs to associate with this template (for project-scoped templates) */
   projectIds: z.array(cuidSchema).optional(),
+  /** Auto-sync interval in minutes (null = disabled, minimum 5 minutes) */
+  syncIntervalMinutes: syncIntervalSchema,
 });
 
 export const updateTemplateSchema = z.object({
@@ -206,6 +217,8 @@ export const updateTemplateSchema = z.object({
   configPath: z.string().max(500).optional(),
   /** Update the project associations (replaces existing) */
   projectIds: z.array(cuidSchema).optional(),
+  /** Auto-sync interval in minutes (null = disabled, minimum 5 minutes) */
+  syncIntervalMinutes: syncIntervalSchema,
 });
 
 // Sandbox Config schemas
@@ -291,4 +304,83 @@ export const sessionEventsSchema = z.object({
 export const sessionExportSchema = z.object({
   /** Export format */
   format: z.enum(['json', 'markdown', 'csv']),
+});
+
+// Workflow schemas
+// Note: workflowNodeSchema and workflowEdgeSchema imported from @/lib/workflow-dsl/types.js
+const workflowStatusSchema = z.enum(['draft', 'published', 'archived']);
+
+const workflowViewportSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  zoom: z.number(),
+});
+
+export const listWorkflowsSchema = z.object({
+  /** Pagination limit */
+  limit: z.coerce.number().min(1).max(100).default(50),
+  /** Pagination offset */
+  offset: z.coerce.number().min(0).default(0),
+  /** Filter by status (draft, published, archived) */
+  status: workflowStatusSchema.optional(),
+  /** Search in name and description */
+  search: z.string().optional(),
+});
+
+export const createWorkflowSchema = z.object({
+  /** Workflow name (required) */
+  name: z.string().min(1).max(200),
+  /** Workflow description */
+  description: z.string().max(2000).optional(),
+  /** Workflow nodes */
+  nodes: z.array(workflowNodeSchema).optional(),
+  /** Workflow edges */
+  edges: z.array(workflowEdgeSchema).optional(),
+  /** Canvas viewport state */
+  viewport: workflowViewportSchema.optional(),
+  /** Workflow status */
+  status: workflowStatusSchema.optional(),
+  /** Tags for categorization */
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  /** Source template ID (if created from a template) */
+  sourceTemplateId: cuidSchema.optional(),
+  /** Source template name */
+  sourceTemplateName: z.string().max(200).optional(),
+  /** Thumbnail image URL or data */
+  thumbnail: z.string().max(5000).optional(),
+  /** Whether this workflow was AI-generated */
+  aiGenerated: z.boolean().optional(),
+  /** AI model used for generation */
+  aiModel: z.string().max(100).optional(),
+  /** AI confidence score (0-100) */
+  aiConfidence: z.number().min(0).max(100).optional(),
+});
+
+export const updateWorkflowSchema = z.object({
+  /** Workflow name */
+  name: z.string().min(1).max(200).optional(),
+  /** Workflow description */
+  description: z.string().max(2000).optional(),
+  /** Workflow nodes */
+  nodes: z.array(workflowNodeSchema).optional(),
+  /** Workflow edges */
+  edges: z.array(workflowEdgeSchema).optional(),
+  /** Canvas viewport state */
+  viewport: workflowViewportSchema.optional(),
+  /** Workflow status */
+  status: workflowStatusSchema.optional(),
+  /** Tags for categorization */
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  /** Source template ID */
+  sourceTemplateId: cuidSchema.nullable().optional(),
+  /** Source template name */
+  sourceTemplateName: z.string().max(200).nullable().optional(),
+  /** Thumbnail image URL or data */
+  thumbnail: z.string().max(5000).nullable().optional(),
+  /** Whether this workflow was AI-generated */
+  aiGenerated: z.boolean().optional(),
+  /** AI model used for generation */
+  aiModel: z.string().max(100).nullable().optional(),
+  /** AI confidence score (0-100) */
+  aiConfidence: z.number().min(0).max(100).nullable().optional(),
 });

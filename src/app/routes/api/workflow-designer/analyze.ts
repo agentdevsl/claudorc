@@ -1,0 +1,439 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { createId } from '@paralleldrive/cuid2';
+import { createFileRoute } from '@tanstack/react-router';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { z } from 'zod';
+import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
+import { sqlite } from '@/db/client';
+import * as schema from '@/db/schema/index.js';
+import type { CachedAgent, CachedCommand, CachedSkill } from '@/db/schema/templates';
+import { withErrorHandling } from '@/lib/api/middleware';
+import { failure, success } from '@/lib/api/response';
+import { parseBody } from '@/lib/api/validation';
+import { createError } from '@/lib/errors/base';
+import {
+  createWorkflowAnalysisPrompt,
+  WORKFLOW_GENERATION_SYSTEM_PROMPT,
+} from '@/lib/workflow-dsl/ai-prompts';
+import { layoutWorkflow } from '@/lib/workflow-dsl/layout';
+import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
+import { workflowEdgeSchema, workflowNodeSchema } from '@/lib/workflow-dsl/types';
+import { ApiKeyService } from '@/services/api-key.service';
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-haiku-4-20250414';
+
+// =============================================================================
+// Workflow Errors
+// =============================================================================
+
+const WorkflowErrors = {
+  TEMPLATE_NOT_FOUND: createError('WORKFLOW_TEMPLATE_NOT_FOUND', 'Template not found', 404),
+  NO_CONTENT: createError(
+    'WORKFLOW_NO_CONTENT',
+    'No template content provided. Provide either templateId or skills/commands/agents data.',
+    400
+  ),
+  API_KEY_NOT_FOUND: createError(
+    'WORKFLOW_API_KEY_NOT_FOUND',
+    'Anthropic API key not configured. Please add your API key in settings.',
+    401
+  ),
+  AI_GENERATION_FAILED: (reason: string) =>
+    createError('WORKFLOW_AI_GENERATION_FAILED', `AI workflow generation failed: ${reason}`, 500, {
+      reason,
+    }),
+  INVALID_AI_RESPONSE: (reason: string) =>
+    createError('WORKFLOW_INVALID_AI_RESPONSE', `AI returned invalid workflow: ${reason}`, 422, {
+      reason,
+    }),
+  LAYOUT_FAILED: (reason: string) =>
+    createError('WORKFLOW_LAYOUT_FAILED', `Failed to layout workflow: ${reason}`, 500, { reason }),
+} as const;
+
+// =============================================================================
+// Request Schema
+// =============================================================================
+
+const cachedSkillSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  content: z.string(),
+});
+
+const cachedCommandSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  content: z.string(),
+});
+
+const cachedAgentSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  content: z.string(),
+});
+
+const analyzeWorkflowSchema = z
+  .object({
+    templateId: z.string().optional(),
+    skills: z.array(cachedSkillSchema).optional(),
+    commands: z.array(cachedCommandSchema).optional(),
+    agents: z.array(cachedAgentSchema).optional(),
+    name: z.string().optional(),
+    // Known skill/command names for cross-referencing during analysis
+    knownSkills: z.array(z.string()).optional(),
+    knownCommands: z.array(z.string()).optional(),
+    knownAgents: z.array(z.string()).optional(),
+  })
+  .refine(
+    (data) =>
+      data.templateId ||
+      (data.skills && data.skills.length > 0) ||
+      (data.commands && data.commands.length > 0) ||
+      (data.agents && data.agents.length > 0),
+    {
+      message: 'Either templateId or at least one of skills, commands, or agents must be provided',
+    }
+  );
+
+// =============================================================================
+// AI Response Schema
+// =============================================================================
+
+const aiWorkflowResponseSchema = z.object({
+  nodes: z.array(z.unknown()),
+  edges: z.array(z.unknown()),
+  aiGenerated: z.boolean().optional(),
+  aiConfidence: z.number().min(0).max(1).optional(),
+});
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Builds the template content string from skills, commands, and agents
+ */
+function buildTemplateContent(
+  skills: CachedSkill[],
+  commands: CachedCommand[],
+  agents: CachedAgent[]
+): string {
+  const sections: string[] = [];
+
+  if (skills.length > 0) {
+    sections.push('## Skills\n');
+    for (const skill of skills) {
+      sections.push(`### ${skill.name}`);
+      if (skill.description) {
+        sections.push(skill.description);
+      }
+      sections.push(`\`\`\`\n${skill.content}\n\`\`\`\n`);
+    }
+  }
+
+  if (commands.length > 0) {
+    sections.push('## Commands\n');
+    for (const command of commands) {
+      sections.push(`### ${command.name}`);
+      if (command.description) {
+        sections.push(command.description);
+      }
+      sections.push(`\`\`\`\n${command.content}\n\`\`\`\n`);
+    }
+  }
+
+  if (agents.length > 0) {
+    sections.push('## Agents\n');
+    for (const agent of agents) {
+      sections.push(`### ${agent.name}`);
+      if (agent.description) {
+        sections.push(agent.description);
+      }
+      sections.push(`\`\`\`\n${agent.content}\n\`\`\`\n`);
+    }
+  }
+
+  return sections.join('\n');
+}
+
+/**
+ * Parses and validates the AI response into workflow nodes and edges
+ */
+function parseAIResponse(responseText: string): {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  aiConfidence: number;
+} {
+  // Extract JSON from the response (handle markdown code blocks)
+  let jsonStr = responseText.trim();
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch?.[1]) {
+    jsonStr = jsonMatch[1].trim();
+  }
+
+  // Parse JSON
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    throw new Error(`Invalid JSON in AI response: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // Validate basic structure
+  const validated = aiWorkflowResponseSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(`Invalid workflow structure: ${validated.error.message}`);
+  }
+
+  // Parse and validate individual nodes
+  const nodes: WorkflowNode[] = [];
+  for (const nodeData of validated.data.nodes) {
+    const nodeResult = workflowNodeSchema.safeParse(nodeData);
+    if (nodeResult.success) {
+      nodes.push(nodeResult.data);
+    } else {
+      // Log warning but continue - AI might generate slightly malformed nodes
+      console.warn('[workflow-analyze] Skipping invalid node:', nodeResult.error.message, nodeData);
+    }
+  }
+
+  // Parse and validate individual edges
+  const edges: WorkflowEdge[] = [];
+  for (const edgeData of validated.data.edges) {
+    const edgeResult = workflowEdgeSchema.safeParse(edgeData);
+    if (edgeResult.success) {
+      edges.push(edgeResult.data);
+    } else {
+      // Log warning but continue
+      console.warn('[workflow-analyze] Skipping invalid edge:', edgeResult.error.message, edgeData);
+    }
+  }
+
+  // Ensure we have at least start and end nodes
+  if (nodes.length === 0) {
+    throw new Error('AI generated no valid nodes');
+  }
+
+  const hasStart = nodes.some((n) => n.type === 'start');
+  const hasEnd = nodes.some((n) => n.type === 'end');
+
+  if (!hasStart || !hasEnd) {
+    throw new Error('AI response missing required start or end nodes');
+  }
+
+  return {
+    nodes,
+    edges,
+    aiConfidence: validated.data.aiConfidence ?? 0.5,
+  };
+}
+
+/**
+ * Creates the Anthropic client with the stored API key
+ */
+async function createAnthropicClient(): Promise<Anthropic | null> {
+  // Try to get API key from database
+  if (!sqlite) {
+    return null;
+  }
+
+  const db = drizzle(sqlite, { schema });
+  const apiKeyService = new ApiKeyService(db);
+  const apiKey = await apiKeyService.getDecryptedKey('anthropic');
+
+  if (!apiKey) {
+    return null;
+  }
+
+  return new Anthropic({ apiKey });
+}
+
+// =============================================================================
+// Route Handler
+// =============================================================================
+
+export const Route = createFileRoute('/api/workflow-designer/analyze')({
+  server: {
+    handlers: {
+      POST: withErrorHandling(async ({ request }) => {
+        // Parse and validate request body
+        const parsed = await parseBody(request, analyzeWorkflowSchema);
+        if (!parsed.ok) {
+          return Response.json(failure(parsed.error), { status: 400 });
+        }
+
+        const { templateId, skills, commands, agents, name, knownSkills, knownCommands } =
+          parsed.value;
+
+        // Gather template data - use passed items if provided, otherwise empty
+        let templateSkills: CachedSkill[] = skills ?? [];
+        let templateCommands: CachedCommand[] = commands ?? [];
+        let templateAgents: CachedAgent[] = agents ?? [];
+        let templateName = name ?? 'Generated Workflow';
+        let templateDescription: string | undefined;
+
+        // If templateId provided, fetch template for name/description only
+        // Selected items (skills/commands/agents) take precedence over template's full list
+        if (templateId) {
+          const { templateService } = getApiServicesOrThrow();
+          const templateResult = await templateService.getById(templateId);
+
+          if (!templateResult.ok) {
+            return Response.json(failure(WorkflowErrors.TEMPLATE_NOT_FOUND), { status: 404 });
+          }
+
+          const template = templateResult.value;
+          templateName = name ?? template.name;
+          templateDescription = template.description ?? undefined;
+
+          // Only use template's items if none were explicitly provided
+          // This allows the frontend to send only selected items
+          if (
+            templateSkills.length === 0 &&
+            templateCommands.length === 0 &&
+            templateAgents.length === 0
+          ) {
+            templateSkills = template.cachedSkills ?? [];
+            templateCommands = template.cachedCommands ?? [];
+            templateAgents = template.cachedAgents ?? [];
+          }
+        }
+
+        // Ensure we have content to analyze
+        if (
+          templateSkills.length === 0 &&
+          templateCommands.length === 0 &&
+          templateAgents.length === 0
+        ) {
+          return Response.json(failure(WorkflowErrors.NO_CONTENT), { status: 400 });
+        }
+
+        // Create Anthropic client
+        const anthropic = await createAnthropicClient();
+        if (!anthropic) {
+          return Response.json(failure(WorkflowErrors.API_KEY_NOT_FOUND), { status: 401 });
+        }
+
+        // Build template content and prompt
+        const templateContent = buildTemplateContent(
+          templateSkills,
+          templateCommands,
+          templateAgents
+        );
+
+        const userPrompt = createWorkflowAnalysisPrompt({
+          name: templateName,
+          description: templateDescription,
+          content: templateContent,
+          skills: templateSkills.map((s) => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+          })),
+          commands: templateCommands.map((c) => ({
+            name: c.name,
+            command: c.content,
+            description: c.description,
+          })),
+          agents: templateAgents.map((a) => ({
+            id: a.name, // Use name as id since CachedAgent doesn't have id
+            name: a.name,
+            description: a.description,
+            systemPrompt: a.content,
+          })),
+          // Pass known names for cross-referencing
+          knownSkillNames: knownSkills,
+          knownCommandNames: knownCommands,
+        });
+
+        // Call Anthropic API
+        let aiResponse: string;
+        try {
+          const message = await anthropic.messages.create({
+            model: WORKFLOW_AI_MODEL,
+            max_tokens: 8192,
+            system: WORKFLOW_GENERATION_SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userPrompt }],
+          });
+
+          // Extract text content from response
+          const textBlocks = message.content.filter(
+            (block): block is Anthropic.TextBlock => block.type === 'text'
+          );
+          aiResponse = textBlocks.map((b) => b.text).join('');
+
+          if (!aiResponse) {
+            return Response.json(
+              failure(WorkflowErrors.AI_GENERATION_FAILED('Empty response from AI')),
+              { status: 500 }
+            );
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[workflow-analyze] Anthropic API error:', message);
+          return Response.json(failure(WorkflowErrors.AI_GENERATION_FAILED(message)), {
+            status: 500,
+          });
+        }
+
+        // Parse AI response into workflow structure
+        let nodes: WorkflowNode[];
+        let edges: WorkflowEdge[];
+        let aiConfidence: number;
+
+        try {
+          const result = parseAIResponse(aiResponse);
+          nodes = result.nodes;
+          edges = result.edges;
+          aiConfidence = result.aiConfidence;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[workflow-analyze] AI response parsing error:', message);
+          return Response.json(failure(WorkflowErrors.INVALID_AI_RESPONSE(message)), {
+            status: 422,
+          });
+        }
+
+        // Apply ELK layout to position nodes
+        try {
+          nodes = await layoutWorkflow(nodes, edges, {
+            algorithm: 'layered',
+            direction: 'DOWN',
+            nodeWidth: 200,
+            nodeHeight: 60,
+            nodeSpacing: 50,
+            layerSpacing: 80,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[workflow-analyze] Layout error:', message);
+          return Response.json(failure(WorkflowErrors.LAYOUT_FAILED(message)), { status: 500 });
+        }
+
+        // Build final workflow object
+        const workflow: Workflow = {
+          id: createId(),
+          name: templateName,
+          description: templateDescription,
+          nodes,
+          edges,
+          sourceTemplateId: templateId,
+          sourceTemplateName: templateName,
+          status: 'draft',
+          aiGenerated: true,
+          aiModel: WORKFLOW_AI_MODEL,
+          aiConfidence,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        return Response.json(success({ workflow }), { status: 200 });
+      }),
+    },
+  },
+});

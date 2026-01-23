@@ -16,4 +16,5 @@ export * from './sessions';
 export * from './tasks';
 export * from './template-projects';
 export * from './templates';
+export * from './workflows';
 export * from './worktrees';

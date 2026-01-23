@@ -63,6 +63,7 @@ export const Route = createFileRoute('/api/templates')({
           branch: parsed.value.branch,
           configPath: parsed.value.configPath,
           projectId: parsed.value.projectId,
+          syncIntervalMinutes: parsed.value.syncIntervalMinutes,
         });
 
         if (!result.ok) {
