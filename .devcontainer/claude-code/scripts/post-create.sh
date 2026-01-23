@@ -4,7 +4,7 @@ set -e
 
 echo "=== Post-Create Setup Starting ==="
 
-# 0. Fix permissions on mounted .claude volume
+# 0a. Fix permissions on mounted .claude volume
 echo "[0/4] Fixing .claude directory permissions..."
 CLAUDE_DIR="/home/node/.claude"
 if [ -d "$CLAUDE_DIR" ]; then
@@ -38,6 +38,20 @@ else
   echo '{}' > "$CLAUDE_DIR/.claude.json"
   echo '{"statusLine": "ccstatusline"}' > "$CLAUDE_DIR/settings.json"
   chmod 600 "$CLAUDE_DIR/.claude.json" "$CLAUDE_DIR/settings.json"
+fi
+
+# 0b. Fix permissions on mounted command history volume
+echo "[0b/4] Fixing command history permissions..."
+HISTORY_DIR="/commandhistory"
+if [ -d "$HISTORY_DIR" ]; then
+  if [ "$(find "$HISTORY_DIR" -not -user "$(whoami)" 2>/dev/null | head -1)" ]; then
+    echo "      History volume has files with incorrect ownership - fixing with sudo..."
+    sudo chown -R node:node "$HISTORY_DIR"
+  fi
+  # Ensure history file exists and is writable
+  touch "$HISTORY_DIR/.bash_history"
+  chmod 600 "$HISTORY_DIR/.bash_history"
+  echo "      Command history permissions fixed"
 fi
 
 # 1. Configure Terraform credentials

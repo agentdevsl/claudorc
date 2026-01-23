@@ -11,7 +11,7 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2.13.0": {}
   },
 
-  "initializeCommand": "docker volume inspect claude-code-config >/dev/null 2>&1 && docker run --rm -v claude-code-config:/data alpine chown -R 1001:1001 /data || true",
+  "initializeCommand": "(docker volume inspect claude-code-config >/dev/null 2>&1 && docker run --rm -v claude-code-config:/data alpine chown -R 1001:1001 /data || true) && (docker volume inspect claude-code-bashhistory >/dev/null 2>&1 && docker run --rm -v claude-code-bashhistory:/data alpine chown -R 1001:1001 /data || true)",
   "postCreateCommand": "bash /workspace/.devcontainer/claude-code/scripts/post-create.sh",
 
   "customizations": {
