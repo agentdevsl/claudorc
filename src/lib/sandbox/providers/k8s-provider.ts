@@ -9,6 +9,7 @@ import {
   K8S_POD_LABELS,
   K8S_PROVIDER_DEFAULTS,
   type K8sProviderOptions,
+  type K8sVolumeType,
   loadKubeConfig,
   resolveContext,
 } from './k8s-config.js';
@@ -62,6 +63,11 @@ export class K8sProvider implements EventEmittingSandboxProvider {
   private readonly warmPoolEnabled: boolean;
   private warmPoolController: WarmPoolController | null = null;
 
+  // Volume configuration
+  private readonly volumeType: K8sVolumeType;
+  private readonly storageClassName?: string;
+  private readonly workspaceStorageSize: string;
+
   private sandboxes = new Map<string, K8sSandbox>();
   private projectToSandbox = new Map<string, string>();
   private listeners = new Set<SandboxProviderEventListener>();
@@ -71,7 +77,7 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
   constructor(options: K8sProviderOptions = {}) {
     // Load kubeconfig
-    this.kc = loadKubeConfig(options.kubeconfigPath);
+    this.kc = loadKubeConfig(options.kubeconfigPath, options.skipTLSVerify);
 
     // Resolve context if specified
     if (options.context) {
@@ -119,6 +125,11 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         warmPoolConfig
       );
     }
+
+    // Volume configuration
+    this.volumeType = options.volumeType ?? K8S_PROVIDER_DEFAULTS.volumeType;
+    this.storageClassName = options.storageClassName;
+    this.workspaceStorageSize = options.workspaceStorageSize ?? K8S_PROVIDER_DEFAULTS.workspaceStorageSize;
   }
 
   async create(config: SandboxConfig): Promise<Sandbox> {
@@ -148,6 +159,11 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       // Ensure namespace and security resources exist
       await this.ensureNamespace();
       await this.ensureSecurityResources();
+
+      // Create workspace PVC if using PVC volume type
+      if (this.volumeType === 'pvc') {
+        await this.createWorkspacePvc(sandboxId);
+      }
 
       // Build pod spec
       const podSpec = this.buildPodSpec(podName, sandboxId, config);
@@ -252,8 +268,8 @@ export class K8sProvider implements EventEmittingSandboxProvider {
 
       // Re-throw K8s errors directly (they're already properly formatted)
       if (error && typeof error === 'object' && 'code' in error) {
-        const appError = error as { code: string };
-        if (appError.code.startsWith('K8S_')) {
+        const appError = error as { code: string | number };
+        if (typeof appError.code === 'string' && appError.code.startsWith('K8S_')) {
           throw error;
         }
       }
@@ -438,6 +454,15 @@ export class K8sProvider implements EventEmittingSandboxProvider {
               });
             } catch {
               // Ignore errors deleting network policy
+            }
+          }
+
+          // Delete workspace PVC if using PVC volume type
+          if (this.volumeType === 'pvc') {
+            try {
+              await this.deleteWorkspacePvc(sandboxId);
+            } catch {
+              // Ignore errors deleting PVC
             }
           }
 
@@ -734,14 +759,17 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     }
 
     // Create namespace with Pod Security Standards labels
+    // Using "privileged" to allow hostPath volumes for local development
+    // Production deployments should use PVCs and consider "baseline" or "restricted" mode
     const namespaceLabels = {
       'agentpane.io/managed': 'true',
-      // Pod Security Standards enforcement
-      'pod-security.kubernetes.io/enforce': 'restricted',
+      // Pod Security Standards enforcement - privileged allows hostPath volumes
+      // Note: In K8s 1.35+, even baseline restricts hostPath
+      'pod-security.kubernetes.io/enforce': 'privileged',
       'pod-security.kubernetes.io/enforce-version': 'latest',
-      'pod-security.kubernetes.io/warn': 'restricted',
+      'pod-security.kubernetes.io/warn': 'baseline',
       'pod-security.kubernetes.io/warn-version': 'latest',
-      'pod-security.kubernetes.io/audit': 'restricted',
+      'pod-security.kubernetes.io/audit': 'baseline',
       'pod-security.kubernetes.io/audit-version': 'latest',
     };
 
@@ -779,23 +807,16 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       })),
     ];
 
-    // Build volumes
-    const volumes: k8s.V1Volume[] = [
-      {
-        name: 'workspace',
-        hostPath: {
-          path: config.projectPath,
-          type: 'Directory',
-        },
-      },
-      ...config.volumeMounts.map((v, i) => ({
-        name: `volume-${i}`,
-        hostPath: {
-          path: v.hostPath,
-          type: 'Directory',
-        },
-      })),
-    ];
+    // Build workspace volume based on volume type
+    const workspaceVolume = this.buildWorkspaceVolume(sandboxId, config.projectPath);
+
+    // Build additional volumes (always use emptyDir for portability)
+    const additionalVolumes: k8s.V1Volume[] = config.volumeMounts.map((v, i) => ({
+      name: `volume-${i}`,
+      emptyDir: {},
+    }));
+
+    const volumes: k8s.V1Volume[] = [workspaceVolume, ...additionalVolumes];
 
     // Build environment variables
     const env: k8s.V1EnvVar[] = Object.entries(config.env ?? {}).map(([name, value]) => ({
@@ -854,6 +875,107 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         volumes,
       },
     };
+  }
+
+  /**
+   * Build workspace volume based on configured volume type
+   */
+  private buildWorkspaceVolume(sandboxId: string, projectPath: string): k8s.V1Volume {
+    switch (this.volumeType) {
+      case 'hostPath':
+        return {
+          name: 'workspace',
+          hostPath: {
+            path: projectPath,
+            type: 'Directory',
+          },
+        };
+
+      case 'pvc':
+        return {
+          name: 'workspace',
+          persistentVolumeClaim: {
+            claimName: `workspace-${sandboxId}`,
+          },
+        };
+
+      case 'emptyDir':
+      default:
+        return {
+          name: 'workspace',
+          emptyDir: {},
+        };
+    }
+  }
+
+  /**
+   * Create a PVC for sandbox workspace storage
+   */
+  private async createWorkspacePvc(sandboxId: string): Promise<void> {
+    const pvcName = `workspace-${sandboxId}`;
+
+    const pvc: k8s.V1PersistentVolumeClaim = {
+      apiVersion: 'v1',
+      kind: 'PersistentVolumeClaim',
+      metadata: {
+        name: pvcName,
+        namespace: this.namespace,
+        labels: {
+          [K8S_POD_LABELS.sandbox]: 'true',
+          [K8S_POD_LABELS.sandboxId]: sandboxId,
+        },
+      },
+      spec: {
+        accessModes: ['ReadWriteOnce'],
+        resources: {
+          requests: {
+            storage: this.workspaceStorageSize,
+          },
+        },
+        ...(this.storageClassName && { storageClassName: this.storageClassName }),
+      },
+    };
+
+    await this.coreApi.createNamespacedPersistentVolumeClaim({
+      namespace: this.namespace,
+      body: pvc,
+    });
+
+    this.auditLogger.logPvcCreated({
+      pvcName,
+      namespace: this.namespace,
+      sandboxId,
+      storageSize: this.workspaceStorageSize,
+    });
+  }
+
+  /**
+   * Delete a PVC for sandbox workspace storage
+   */
+  private async deleteWorkspacePvc(sandboxId: string): Promise<void> {
+    const pvcName = `workspace-${sandboxId}`;
+
+    try {
+      await this.coreApi.deleteNamespacedPersistentVolumeClaim({
+        name: pvcName,
+        namespace: this.namespace,
+      });
+
+      this.auditLogger.logPvcDeleted({
+        pvcName,
+        namespace: this.namespace,
+        sandboxId,
+      });
+    } catch (error) {
+      // Ignore 404 errors (PVC doesn't exist)
+      if (error && typeof error === 'object' && 'response' in error) {
+        const httpError = error as { response?: { statusCode?: number } };
+        if (httpError.response?.statusCode === 404) {
+          return;
+        }
+      }
+      throw error;
+    }
   }
 
   private async waitForPodRunning(podName: string): Promise<void> {

@@ -460,6 +460,35 @@ export class K8sAuditLogger {
   }
 
   /**
+   * Log PVC creation event
+   */
+  logPvcCreated(params: { pvcName: string; namespace: string; sandboxId: string; storageSize: string }): void {
+    this.log({
+      event: 'pvc.created',
+      severity: 'info',
+      component: 'k8s-provider',
+      namespace: params.namespace,
+      resourceName: params.pvcName,
+      sandboxId: params.sandboxId,
+      metadata: { storageSize: params.storageSize },
+    });
+  }
+
+  /**
+   * Log PVC deletion event
+   */
+  logPvcDeleted(params: { pvcName: string; namespace: string; sandboxId: string }): void {
+    this.log({
+      event: 'pvc.deleted',
+      severity: 'info',
+      component: 'k8s-provider',
+      namespace: params.namespace,
+      resourceName: params.pvcName,
+      sandboxId: params.sandboxId,
+    });
+  }
+
+  /**
    * Enable or disable logging
    */
   setEnabled(enabled: boolean): void {

@@ -7,6 +7,9 @@ import { K8sErrors } from '../../errors/k8s-errors.js';
 /**
  * Kubernetes provider configuration options
  */
+/** Volume type for sandbox workspaces */
+export type K8sVolumeType = 'hostPath' | 'pvc' | 'emptyDir';
+
 export interface K8sProviderOptions {
   /** Path to kubeconfig file (overrides auto-discovery) */
   kubeconfigPath?: string;
@@ -14,8 +17,20 @@ export interface K8sProviderOptions {
   /** Kubernetes context to use (defaults to current-context) */
   context?: string;
 
+  /** Skip TLS verification (useful for local development with Docker Desktop) */
+  skipTLSVerify?: boolean;
+
   /** Namespace for sandbox pods */
   namespace?: string;
+
+  /** Volume type for workspace storage (default: 'pvc') */
+  volumeType?: K8sVolumeType;
+
+  /** Storage class for PVCs (default: uses cluster default) */
+  storageClassName?: string;
+
+  /** Default storage size for workspace PVCs (default: '1Gi') */
+  workspaceStorageSize?: string;
 
   /** Whether to auto-create the namespace if it doesn't exist */
   createNamespace?: boolean;
@@ -66,6 +81,8 @@ export const K8S_PROVIDER_DEFAULTS = {
   warmPoolMinSize: 2,
   warmPoolMaxSize: 10,
   warmPoolAutoScaling: true,
+  volumeType: 'pvc' as const,
+  workspaceStorageSize: '1Gi',
 } as const;
 
 /**
@@ -91,8 +108,9 @@ export const K8S_POD_LABELS = {
  * @returns Loaded KubeConfig instance
  * @throws K8sError if no valid kubeconfig found
  */
-export function loadKubeConfig(explicitPath?: string): KubeConfig {
+export function loadKubeConfig(explicitPath?: string, skipTLSVerify = false): KubeConfig {
   const kc = new KubeConfig();
+  let loaded = false;
 
   // Tier 1: Explicit path provided
   if (explicitPath) {
@@ -101,7 +119,7 @@ export function loadKubeConfig(explicitPath?: string): KubeConfig {
     }
     try {
       kc.loadFromFile(explicitPath);
-      return kc;
+      loaded = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw K8sErrors.KUBECONFIG_INVALID(message);
@@ -109,60 +127,79 @@ export function loadKubeConfig(explicitPath?: string): KubeConfig {
   }
 
   // Tier 2: K8S_KUBECONFIG env var
-  const k8sKubeconfigEnv = process.env.K8S_KUBECONFIG;
-  if (k8sKubeconfigEnv) {
-    if (!existsSync(k8sKubeconfigEnv)) {
-      throw K8sErrors.KUBECONFIG_NOT_FOUND(k8sKubeconfigEnv);
-    }
-    try {
-      kc.loadFromFile(k8sKubeconfigEnv);
-      return kc;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw K8sErrors.KUBECONFIG_INVALID(message);
-    }
-  }
-
-  // Tier 3: KUBECONFIG env var (standard)
-  const kubeconfigEnv = process.env.KUBECONFIG;
-  if (kubeconfigEnv) {
-    // KUBECONFIG can contain multiple paths separated by :
-    const paths = kubeconfigEnv.split(':').filter(Boolean);
-    const existingPath = paths.find((p) => existsSync(p));
-    if (existingPath) {
+  if (!loaded) {
+    const k8sKubeconfigEnv = process.env.K8S_KUBECONFIG;
+    if (k8sKubeconfigEnv) {
+      if (!existsSync(k8sKubeconfigEnv)) {
+        throw K8sErrors.KUBECONFIG_NOT_FOUND(k8sKubeconfigEnv);
+      }
       try {
-        kc.loadFromFile(existingPath);
-        return kc;
+        kc.loadFromFile(k8sKubeconfigEnv);
+        loaded = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw K8sErrors.KUBECONFIG_INVALID(message);
       }
     }
-    // Fall through to default path if KUBECONFIG paths don't exist
+  }
+
+  // Tier 3: KUBECONFIG env var (standard)
+  if (!loaded) {
+    const kubeconfigEnv = process.env.KUBECONFIG;
+    if (kubeconfigEnv) {
+      // KUBECONFIG can contain multiple paths separated by :
+      const paths = kubeconfigEnv.split(':').filter(Boolean);
+      const existingPath = paths.find((p) => existsSync(p));
+      if (existingPath) {
+        try {
+          kc.loadFromFile(existingPath);
+          loaded = true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw K8sErrors.KUBECONFIG_INVALID(message);
+        }
+      }
+    }
   }
 
   // Tier 4: Default path ~/.kube/config
-  const defaultPath = join(homedir(), '.kube', 'config');
-  if (existsSync(defaultPath)) {
-    try {
-      kc.loadFromFile(defaultPath);
-      return kc;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw K8sErrors.KUBECONFIG_INVALID(message);
+  if (!loaded) {
+    const defaultPath = join(homedir(), '.kube', 'config');
+    if (existsSync(defaultPath)) {
+      try {
+        kc.loadFromFile(defaultPath);
+        loaded = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw K8sErrors.KUBECONFIG_INVALID(message);
+      }
     }
   }
 
   // Tier 5: In-cluster config (running inside Kubernetes)
-  try {
-    kc.loadFromCluster();
-    return kc;
-  } catch {
-    // In-cluster config not available
+  if (!loaded) {
+    try {
+      kc.loadFromCluster();
+      loaded = true;
+    } catch {
+      // In-cluster config not available
+    }
   }
 
   // No config found
-  throw K8sErrors.KUBECONFIG_NOT_FOUND();
+  if (!loaded) {
+    throw K8sErrors.KUBECONFIG_NOT_FOUND();
+  }
+
+  // Apply skipTLSVerify if requested (useful for local development with Docker Desktop)
+  if (skipTLSVerify) {
+    const cluster = kc.getCurrentCluster();
+    if (cluster) {
+      cluster.skipTLSVerify = true;
+    }
+  }
+
+  return kc;
 }
 
 /**
