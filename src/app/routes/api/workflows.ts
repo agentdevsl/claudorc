@@ -3,7 +3,12 @@ import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { sqlite } from '@/db/client';
 import * as schema from '@/db/schema/index.js';
-import { type NewWorkflow, workflows } from '@/db/schema/workflows.js';
+import {
+  type NewWorkflow,
+  type WorkflowEdge,
+  type WorkflowNode,
+  workflows,
+} from '@/db/schema/workflows.js';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { createWorkflowSchema, listWorkflowsSchema } from '@/lib/api/schemas';
@@ -26,7 +31,7 @@ export const Route = createFileRoute('/api/workflows')({
         }
 
         const db = getDb();
-        const { limit, offset, status, search } = parsed.value;
+        const { limit, offset = 0, status, search } = parsed.value;
 
         // Build where conditions
         const conditions = [];
@@ -82,8 +87,9 @@ export const Route = createFileRoute('/api/workflows')({
         const newWorkflow: NewWorkflow = {
           name: parsed.value.name,
           description: parsed.value.description,
-          nodes: parsed.value.nodes,
-          edges: parsed.value.edges,
+          // Cast to DB types - Zod has validated the structure
+          nodes: parsed.value.nodes as WorkflowNode[] | undefined,
+          edges: parsed.value.edges as WorkflowEdge[] | undefined,
           viewport: parsed.value.viewport,
           status: parsed.value.status ?? 'draft',
           tags: parsed.value.tags,

@@ -3,7 +3,12 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { sqlite } from '@/db/client';
 import * as schema from '@/db/schema/index.js';
-import { type Workflow, workflows } from '@/db/schema/workflows.js';
+import {
+  type Workflow,
+  type WorkflowEdge,
+  type WorkflowNode,
+  workflows,
+} from '@/db/schema/workflows.js';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { updateWorkflowSchema } from '@/lib/api/schemas';
@@ -98,10 +103,12 @@ export const Route = createFileRoute('/api/workflows/$id')({
           updates.description = parsed.value.description;
         }
         if (parsed.value.nodes !== undefined) {
-          updates.nodes = parsed.value.nodes;
+          // Cast to DB types - Zod has validated the structure
+          updates.nodes = parsed.value.nodes as WorkflowNode[];
         }
         if (parsed.value.edges !== undefined) {
-          updates.edges = parsed.value.edges;
+          // Cast to DB types - Zod has validated the structure
+          updates.edges = parsed.value.edges as WorkflowEdge[];
         }
         if (parsed.value.viewport !== undefined) {
           updates.viewport = parsed.value.viewport;
