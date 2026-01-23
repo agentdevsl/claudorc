@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { SessionHistory, type RawSession } from '@/app/components/features/session-history';
+import { type RawSession, SessionHistory } from '@/app/components/features/session-history';
 
 // Mock the API client
 vi.mock('@/lib/api/client', () => ({
@@ -90,7 +90,9 @@ describe('SessionHistory', () => {
       { id: 'project-2', name: 'Another Project' },
     ];
 
-    render(<SessionHistory sessions={mockSessions} projects={projects} onProjectChange={vi.fn()} />);
+    render(
+      <SessionHistory sessions={mockSessions} projects={projects} onProjectChange={vi.fn()} />
+    );
 
     // Should show project filter input
     expect(screen.getByPlaceholderText('All projects')).toBeInTheDocument();

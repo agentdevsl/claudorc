@@ -55,9 +55,7 @@ const createTask = (overrides: Partial<Task> = {}): Task =>
 describe('TaskHeader', () => {
   describe('Priority controls', () => {
     it('renders priority selector', () => {
-      renderWithDialog(
-        <TaskHeader task={createTask()} viewers={[]} onPriorityChange={vi.fn()} />
-      );
+      renderWithDialog(<TaskHeader task={createTask()} viewers={[]} onPriorityChange={vi.fn()} />);
 
       expect(screen.getByText('Priority')).toBeInTheDocument();
       expect(screen.getByText(/high/i)).toBeInTheDocument();
