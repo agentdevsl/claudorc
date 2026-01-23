@@ -38,10 +38,10 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 180,
+  nodeWidth: 280, // Wider for full label visibility
   nodeHeight: 32, // Compact node height
-  nodeSpacing: 16, // Tighter vertical spacing for compact nodes
-  layerSpacing: 24, // Connector height + gap
+  nodeSpacing: 8, // Minimal horizontal spacing between parallel nodes
+  layerSpacing: 12, // Tight vertical spacing between layers (just connector gap)
   edgeRouting: 'ORTHOGONAL',
 };
 

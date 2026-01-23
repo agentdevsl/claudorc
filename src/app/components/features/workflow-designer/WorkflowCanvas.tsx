@@ -75,8 +75,9 @@ export function WorkflowCanvas({
         onViewportChange={onViewportChange}
         fitView
         fitViewOptions={{
-          padding: 0.2,
-          maxZoom: 1.5,
+          padding: 0.1,
+          minZoom: 0.5,
+          maxZoom: 1.2,
         }}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}

@@ -76,14 +76,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px 4px 5px;
+  padding: 4px 10px 4px 6px;
   border-radius: 18px;
   background: var(--compact-node-bg);
   border: 1px solid var(--compact-node-border);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   min-width: 80px;
-  max-width: 200px;
+  max-width: 320px; /* Wider to show full labels */
   opacity: 0;
   transform: translateY(8px);
   animation: fadeSlideIn 0.35s ease forwards;
@@ -165,12 +165,13 @@
 }
 
 .compact-node-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--compact-node-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 180px; /* Allow long labels before truncating */
 }
 
 /* Separator dot */
@@ -184,13 +185,14 @@
 }
 
 .compact-node-cmd {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--compact-node-fg-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.85;
+  max-width: 120px; /* Truncate long command names */
 }
 
 /* Type badge - micro */
