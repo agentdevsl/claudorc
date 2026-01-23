@@ -1,8 +1,9 @@
 # Kubernetes Integration Plan
 
 > **Feature**: Kubernetes Sandbox Provider for AgentPane
-> **Status**: Planning
+> **Status**: Phase 1 Complete
 > **Created**: 2026-01-23
+> **Tasks**: See [kubernetes-integration-tasks.md](./kubernetes-integration-tasks.md)
 
 ---
 
@@ -23,7 +24,11 @@ This plan outlines the implementation of Kubernetes as a sandbox provider for Ag
 | Sandbox Service | ✅ Complete | `src/services/sandbox.service.ts` |
 | UI Settings Page | ✅ Complete | `src/app/routes/settings/sandbox.tsx` |
 | K8s UI Placeholder | ✅ Exists | Lines 285-307 in sandbox.tsx |
-| K8s Provider | ❌ Not Started | - |
+| K8s Provider | ✅ Complete | `src/lib/sandbox/providers/k8s-provider.ts` |
+| K8s Sandbox | ✅ Complete | `src/lib/sandbox/providers/k8s-sandbox.ts` |
+| K8s Config | ✅ Complete | `src/lib/sandbox/providers/k8s-config.ts` |
+| K8s Errors | ✅ Complete | `src/lib/errors/k8s-errors.ts` |
+| K8s Unit Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-provider.test.ts` |
 | K8s Roadmap Spec | ✅ Complete | `specs/roadmap/phase2-sandbox-plugins.md` |
 
 ### 1.2 K8s Placeholder Verification
@@ -543,3 +548,6 @@ export const FEATURE_FLAGS = {
 | Date | Change |
 |------|--------|
 | 2026-01-23 | Initial plan created |
+| 2026-01-23 | Phase 1 implementation complete (K8sProvider, K8sSandbox, errors, tests) |
+| 2026-01-23 | Phase 1 review fixes applied (exports, execAsRoot docs, additional tests) |
+| 2026-01-23 | Created kubernetes-integration-tasks.md for detailed tracking |
