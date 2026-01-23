@@ -39,12 +39,13 @@ function getOrCreateKeyMaterial(): Uint8Array {
 /**
  * Convert a Uint8Array to a proper ArrayBuffer.
  * This is needed because in Node.js, Uint8Array.buffer may be a shared buffer
- * that's larger than the actual data, which causes crypto.subtle to fail.
+ * that's larger than the actual data, which causes crypto.subtle.importKey to fail.
+ * We create a fresh ArrayBuffer by copying the data to ensure compatibility.
  */
 function toArrayBuffer(data: Uint8Array): ArrayBuffer {
-  // In Node.js, ArrayBuffer.prototype.slice returns ArrayBuffer | SharedArrayBuffer
-  // but we know it's always an ArrayBuffer for regular Uint8Array buffers
-  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const buffer = new ArrayBuffer(data.byteLength);
+  new Uint8Array(buffer).set(data);
+  return buffer;
 }
 
 /**
