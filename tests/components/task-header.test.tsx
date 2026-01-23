@@ -4,12 +4,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { TaskHeader } from '@/app/components/features/task-detail-dialog/task-header';
 import type { Task } from '@/db/schema/tasks';
 
-// Wrapper component to provide Dialog context
+// Wrapper component to provide Dialog context with accessibility elements
 function DialogWrapper({ children }: { children: React.ReactNode }) {
   return (
     <DialogPrimitive.Root open>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Content>{children}</DialogPrimitive.Content>
+        <DialogPrimitive.Content aria-describedby="dialog-description">
+          <DialogPrimitive.Title className="sr-only">Test Dialog</DialogPrimitive.Title>
+          <DialogPrimitive.Description id="dialog-description" className="sr-only">
+            Test dialog description
+          </DialogPrimitive.Description>
+          {children}
+        </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
@@ -47,92 +53,18 @@ const createTask = (overrides: Partial<Task> = {}): Task =>
   }) as Task;
 
 describe('TaskHeader', () => {
-  describe('ModeToggle rendering', () => {
-    it('renders ModeToggle when onModeChange is provided', () => {
-      renderWithDialog(
-        <TaskHeader
-          task={createTask()}
-          viewers={[]}
-          onPriorityChange={vi.fn()}
-          onModeChange={vi.fn()}
-        />
-      );
-
-      expect(screen.getByText('Execution Mode')).toBeInTheDocument();
-      expect(screen.getByText('Plan')).toBeInTheDocument();
-      expect(screen.getByText('Implement')).toBeInTheDocument();
-    });
-
-    it('does not render ModeToggle when onModeChange is undefined', () => {
-      renderWithDialog(<TaskHeader task={createTask()} viewers={[]} onPriorityChange={vi.fn()} />);
-
-      expect(screen.queryByText('Execution Mode')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('ModeToggle behavior', () => {
-    it('calls onModeChange with "plan" when Plan button is clicked', () => {
-      const onModeChange = vi.fn();
-      renderWithDialog(
-        <TaskHeader
-          task={createTask({ mode: 'implement' })}
-          viewers={[]}
-          onPriorityChange={vi.fn()}
-          onModeChange={onModeChange}
-        />
-      );
-
-      fireEvent.click(screen.getByText('Plan'));
-      expect(onModeChange).toHaveBeenCalledWith('plan');
-    });
-
-    it('calls onModeChange with "implement" when Implement button is clicked', () => {
-      const onModeChange = vi.fn();
-      renderWithDialog(
-        <TaskHeader
-          task={createTask({ mode: 'plan' })}
-          viewers={[]}
-          onPriorityChange={vi.fn()}
-          onModeChange={onModeChange}
-        />
-      );
-
-      fireEvent.click(screen.getByText('Implement'));
-      expect(onModeChange).toHaveBeenCalledWith('implement');
-    });
-
-    it('displays current mode correctly for plan mode', () => {
-      renderWithDialog(
-        <TaskHeader
-          task={createTask({ mode: 'plan' })}
-          viewers={[]}
-          onPriorityChange={vi.fn()}
-          onModeChange={vi.fn()}
-        />
-      );
-
-      // Plan button should have the active class (text-secondary)
-      const planButton = screen.getByText('Plan').closest('button');
-      expect(planButton).toHaveClass('text-secondary');
-    });
-
-    it('displays current mode correctly for implement mode', () => {
-      renderWithDialog(
-        <TaskHeader
-          task={createTask({ mode: 'implement' })}
-          viewers={[]}
-          onPriorityChange={vi.fn()}
-          onModeChange={vi.fn()}
-        />
-      );
-
-      // Implement button should have the active class (text-accent)
-      const implementButton = screen.getByText('Implement').closest('button');
-      expect(implementButton).toHaveClass('text-accent');
-    });
-  });
-
   describe('Priority controls', () => {
+    it('renders priority selector', () => {
+      renderWithDialog(
+        <TaskHeader task={createTask()} viewers={[]} onPriorityChange={vi.fn()} />
+      );
+
+      expect(screen.getByText('Priority')).toBeInTheDocument();
+      expect(screen.getByText(/high/i)).toBeInTheDocument();
+      expect(screen.getByText(/medium/i)).toBeInTheDocument();
+      expect(screen.getByText(/low/i)).toBeInTheDocument();
+    });
+
     it('calls onPriorityChange when priority is clicked', () => {
       const onPriorityChange = vi.fn();
       renderWithDialog(
@@ -226,6 +158,20 @@ describe('TaskHeader', () => {
       );
 
       expect(screen.getByText('+1')).toBeInTheDocument();
+    });
+  });
+
+  describe('Title display', () => {
+    it('displays task title', () => {
+      renderWithDialog(
+        <TaskHeader
+          task={createTask({ title: 'My Test Task' })}
+          viewers={[]}
+          onPriorityChange={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('My Test Task')).toBeInTheDocument();
     });
   });
 });

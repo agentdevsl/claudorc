@@ -29,6 +29,17 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
   return testDb;
 }
 
+/**
+ * Execute raw SQL on the test database
+ * Useful for creating additional tables or running custom migrations
+ */
+export function execRawSql(sql: string): void {
+  if (!testSqlite) {
+    throw new Error('Test database not initialized');
+  }
+  testSqlite.exec(sql);
+}
+
 export async function clearTestDatabase(): Promise<void> {
   if (!testDb) {
     return;
@@ -43,7 +54,10 @@ export async function clearTestDatabase(): Promise<void> {
   await testDb.delete(schema.agents);
   await testDb.delete(schema.repositoryConfigs);
   await testDb.delete(schema.githubInstallations);
+  await testDb.delete(schema.githubTokens);
   await testDb.delete(schema.projects);
+  await testDb.delete(schema.sandboxConfigs);
+  await testDb.delete(schema.marketplaces);
 }
 
 export async function closeTestDatabase(): Promise<void> {

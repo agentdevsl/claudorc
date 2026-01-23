@@ -218,38 +218,7 @@ describe('TaskDetailDialog', () => {
     });
   });
 
-  describe('mode toggle', () => {
-    it('renders mode toggle when onModeChange is provided', () => {
-      render(
-        <TaskDetailDialog
-          task={createTask({ mode: 'implement' })}
-          open
-          onOpenChange={vi.fn()}
-          onSave={vi.fn()}
-          onDelete={vi.fn()}
-          onModeChange={vi.fn()}
-        />
-      );
-
-      expect(screen.getByText('Execution Mode')).toBeInTheDocument();
-      expect(screen.getByText('Plan')).toBeInTheDocument();
-      expect(screen.getByText('Implement')).toBeInTheDocument();
-    });
-
-    it('does not render mode toggle when onModeChange is not provided', () => {
-      render(
-        <TaskDetailDialog
-          task={createTask()}
-          open
-          onOpenChange={vi.fn()}
-          onSave={vi.fn()}
-          onDelete={vi.fn()}
-        />
-      );
-
-      expect(screen.queryByText('Execution Mode')).not.toBeInTheDocument();
-    });
-  });
+  // Note: Mode toggle functionality has been removed from TaskDetailDialog
 
   describe('priority display', () => {
     it('displays priority buttons', () => {
