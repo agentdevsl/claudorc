@@ -36,7 +36,12 @@ export type K8sAuditEventType =
   | 'security.pss_validation_failed'
   // Namespace events
   | 'namespace.created'
-  | 'namespace.deleted';
+  | 'namespace.deleted'
+  // Warm pool events
+  | 'warm_pool.prewarm'
+  | 'warm_pool.allocation'
+  | 'warm_pool.pod_created'
+  | 'warm_pool.pod_deleted';
 
 /**
  * Severity levels for audit events
@@ -57,7 +62,13 @@ export interface K8sAuditEvent {
   severity: K8sAuditSeverity;
 
   /** Component that generated the event */
-  component: 'k8s-provider' | 'k8s-sandbox' | 'k8s-network-policy' | 'k8s-rbac' | 'k8s-security';
+  component:
+    | 'k8s-provider'
+    | 'k8s-sandbox'
+    | 'k8s-network-policy'
+    | 'k8s-rbac'
+    | 'k8s-security'
+    | 'k8s-warm-pool';
 
   /** Kubernetes namespace */
   namespace?: string;
@@ -371,6 +382,80 @@ export class K8sAuditLogger {
       namespace: params.namespace,
       resourceName: params.namespace,
       metadata: { labels: params.labels },
+    });
+  }
+
+  /**
+   * Log warm pool prewarm event
+   */
+  logWarmPoolPrewarm(params: {
+    poolId: string;
+    namespace: string;
+    requested: number;
+    created: number;
+    currentPoolSize: number;
+  }): void {
+    this.log({
+      event: 'warm_pool.prewarm',
+      severity: 'info',
+      component: 'k8s-warm-pool',
+      namespace: params.namespace,
+      resourceName: params.poolId,
+      metadata: {
+        requested: params.requested,
+        created: params.created,
+        currentPoolSize: params.currentPoolSize,
+      },
+    });
+  }
+
+  /**
+   * Log warm pool allocation event
+   */
+  logWarmPoolAllocation(params: {
+    podName: string;
+    namespace: string;
+    projectId: string;
+    allocationTimeMs: number;
+    remainingWarmPods: number;
+  }): void {
+    this.log({
+      event: 'warm_pool.allocation',
+      severity: 'info',
+      component: 'k8s-warm-pool',
+      namespace: params.namespace,
+      resourceName: params.podName,
+      projectId: params.projectId,
+      metadata: {
+        allocationTimeMs: params.allocationTimeMs,
+        remainingWarmPods: params.remainingWarmPods,
+      },
+    });
+  }
+
+  /**
+   * Log warm pool pod creation event
+   */
+  logWarmPoolPodCreated(params: { podName: string; namespace: string }): void {
+    this.log({
+      event: 'warm_pool.pod_created',
+      severity: 'info',
+      component: 'k8s-warm-pool',
+      namespace: params.namespace,
+      resourceName: params.podName,
+    });
+  }
+
+  /**
+   * Log warm pool pod deletion event
+   */
+  logWarmPoolPodDeleted(params: { podName: string; namespace: string }): void {
+    this.log({
+      event: 'warm_pool.pod_deleted',
+      severity: 'info',
+      component: 'k8s-warm-pool',
+      namespace: params.namespace,
+      resourceName: params.podName,
     });
   }
 

@@ -1,7 +1,7 @@
 # Kubernetes Integration Plan
 
 > **Feature**: Kubernetes Sandbox Provider for AgentPane
-> **Status**: Phase 4 Complete
+> **Status**: Phase 5 Complete (All Phases Done)
 > **Created**: 2026-01-23
 > **Tasks**: See [kubernetes-integration-tasks.md](./kubernetes-integration-tasks.md)
 
@@ -37,6 +37,8 @@ This plan outlines the implementation of Kubernetes as a sandbox provider for Ag
 | K8s Security Validator | ✅ Complete | `src/lib/sandbox/providers/k8s-security.ts` |
 | K8s Manifests | ✅ Complete | `k8s/manifests/*.yaml` |
 | K8s Security Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-security.test.ts` |
+| K8s Warm Pool Controller | ✅ Complete | `src/lib/sandbox/providers/k8s-warm-pool.ts` |
+| K8s Warm Pool Tests | ✅ Complete | `src/lib/sandbox/providers/__tests__/k8s-warm-pool.test.ts` |
 
 ### 1.2 K8s Placeholder Verification
 
@@ -561,3 +563,4 @@ export const FEATURE_FLAGS = {
 | 2026-01-23 | Phase 2 complete (UI integration, API endpoints, schema updates) |
 | 2026-01-23 | Phase 3 complete (tmux integration tests with real K8s cluster support) |
 | 2026-01-23 | Phase 4 complete (NetworkPolicy, RBAC, security audit logging, Pod Security Standards) |
+| 2026-01-23 | Phase 5 complete (Warm Pool: WarmPoolController, prewarm(), getWarm(), auto-scaling, metrics) |

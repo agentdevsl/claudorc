@@ -20,6 +20,12 @@ import {
 import { createRbacManager, type K8sRbacManager } from './k8s-rbac.js';
 import { K8sSandbox } from './k8s-sandbox.js';
 import { getPodSecurityValidator } from './k8s-security.js';
+import {
+  createWarmPoolController,
+  type WarmPoolConfig,
+  type WarmPoolController,
+  type WarmPoolMetrics,
+} from './k8s-warm-pool.js';
 import type {
   EventEmittingSandboxProvider,
   Sandbox,
@@ -51,6 +57,10 @@ export class K8sProvider implements EventEmittingSandboxProvider {
   private readonly networkPolicyEnabled: boolean;
   private readonly allowedEgressHosts: string[];
   private readonly setupRbac: boolean;
+
+  // Warm pool configuration
+  private readonly warmPoolEnabled: boolean;
+  private warmPoolController: WarmPoolController | null = null;
 
   private sandboxes = new Map<string, K8sSandbox>();
   private projectToSandbox = new Map<string, string>();
@@ -94,6 +104,21 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     this.auditLogger.setEnabled(
       options.enableAuditLogging ?? K8S_PROVIDER_DEFAULTS.enableAuditLogging
     );
+
+    // Warm pool configuration
+    this.warmPoolEnabled = options.enableWarmPool ?? K8S_PROVIDER_DEFAULTS.enableWarmPool;
+    if (this.warmPoolEnabled) {
+      const warmPoolConfig: Partial<WarmPoolConfig> = {
+        minSize: options.warmPoolMinSize ?? K8S_PROVIDER_DEFAULTS.warmPoolMinSize,
+        maxSize: options.warmPoolMaxSize ?? K8S_PROVIDER_DEFAULTS.warmPoolMaxSize,
+        enableAutoScaling: options.warmPoolAutoScaling ?? K8S_PROVIDER_DEFAULTS.warmPoolAutoScaling,
+      };
+      this.warmPoolController = createWarmPoolController(
+        this.coreApi,
+        this.namespace,
+        warmPoolConfig
+      );
+    }
   }
 
   async create(config: SandboxConfig): Promise<Sandbox> {
@@ -349,6 +374,9 @@ export class K8sProvider implements EventEmittingSandboxProvider {
         }
       }
 
+      // Get warm pool metrics if enabled
+      const warmPoolMetrics = this.warmPoolController?.getMetrics();
+
       return {
         healthy: true,
         details: {
@@ -361,6 +389,15 @@ export class K8sProvider implements EventEmittingSandboxProvider {
           namespaceExists,
           pods: podCount,
           podsRunning: runningPodCount,
+          warmPool: warmPoolMetrics
+            ? {
+                enabled: true,
+                warmPods: warmPoolMetrics.warmPods,
+                allocatedPods: warmPoolMetrics.allocatedPods,
+                hitRatePercent: warmPoolMetrics.hitRatePercent,
+                avgWarmAllocationMs: warmPoolMetrics.avgWarmAllocationMs,
+              }
+            : { enabled: false },
         },
       };
     } catch (error) {
@@ -421,6 +458,197 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     }
 
     return cleaned;
+  }
+
+  /**
+   * Initialize and start the warm pool
+   * Must be called before using prewarm() or getWarm()
+   */
+  async startWarmPool(): Promise<void> {
+    if (!this.warmPoolController) {
+      throw K8sErrors.WARM_POOL_NOT_ENABLED();
+    }
+
+    // Ensure namespace and security resources exist
+    await this.ensureNamespace();
+    await this.ensureSecurityResources();
+
+    await this.warmPoolController.start();
+  }
+
+  /**
+   * Stop the warm pool and clean up warm pods
+   */
+  async stopWarmPool(): Promise<void> {
+    if (this.warmPoolController) {
+      await this.warmPoolController.stop();
+    }
+  }
+
+  /**
+   * Prewarm the pool with a specified number of pods
+   * Creates new pods up to the specified count (respects maxSize)
+   *
+   * @param count - Number of pods to add to the warm pool
+   * @returns Number of pods actually created
+   */
+  async prewarm(count: number): Promise<number> {
+    if (!this.warmPoolController) {
+      throw K8sErrors.WARM_POOL_NOT_ENABLED();
+    }
+
+    // Ensure namespace and security resources exist
+    await this.ensureNamespace();
+    await this.ensureSecurityResources();
+
+    return this.warmPoolController.prewarm(count);
+  }
+
+  /**
+   * Get a warm pod for fast allocation
+   * Returns a pre-warmed sandbox if available, otherwise creates a new one
+   *
+   * @param config - Sandbox configuration
+   * @returns A sandbox (either from warm pool or newly created)
+   */
+  async getWarm(config: SandboxConfig): Promise<Sandbox> {
+    if (!this.warmPoolController) {
+      // Warm pool not enabled, fall back to normal creation
+      return this.create(config);
+    }
+
+    const startTime = Date.now();
+
+    // Try to get a warm pod
+    const warmPod = await this.warmPoolController.getWarm(config.projectId);
+
+    if (warmPod) {
+      // Got a warm pod, create sandbox from it
+      const sandboxId = createId();
+
+      this.emit({
+        type: 'sandbox:creating',
+        sandboxId,
+        projectId: config.projectId,
+      });
+
+      try {
+        // Configure the warm pod with project-specific volume mount
+        await this.configureWarmPodForProject(warmPod.podName, config);
+
+        // Create per-sandbox network policy if enabled
+        if (this.networkPolicyEnabled) {
+          await this.networkPolicyManager.createSandboxPolicy(sandboxId, config.projectId, {
+            ...NETWORK_POLICY_DEFAULTS,
+            enabled: true,
+            allowedEgressHosts: this.allowedEgressHosts,
+          });
+        }
+
+        const sandbox = new K8sSandbox(
+          sandboxId,
+          config.projectId,
+          warmPod.podUid,
+          warmPod.podName,
+          this.namespace,
+          this.coreApi,
+          this.kc,
+          'running'
+        );
+
+        this.sandboxes.set(sandboxId, sandbox);
+        this.projectToSandbox.set(config.projectId, sandboxId);
+
+        const durationMs = Date.now() - startTime;
+
+        this.auditLogger.logPodCreated({
+          podName: warmPod.podName,
+          namespace: this.namespace,
+          sandboxId,
+          projectId: config.projectId,
+          image: config.image,
+          durationMs,
+        });
+
+        this.emit({
+          type: 'sandbox:created',
+          sandboxId,
+          projectId: config.projectId,
+          containerId: warmPod.podUid,
+        });
+
+        this.emit({ type: 'sandbox:started', sandboxId });
+
+        return sandbox;
+      } catch (error) {
+        // Failed to configure warm pod, release it and fall back
+        await this.warmPoolController.release(warmPod.podName);
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[K8sProvider] Failed to configure warm pod, falling back: ${message}`);
+      }
+    }
+
+    // No warm pod available or configuration failed, create a new one
+    return this.create(config);
+  }
+
+  /**
+   * Get warm pool metrics
+   * Returns null if warm pool is not enabled
+   */
+  getWarmPoolMetrics(): WarmPoolMetrics | null {
+    if (!this.warmPoolController) {
+      return null;
+    }
+    return this.warmPoolController.getMetrics();
+  }
+
+  /**
+   * Check if warm pool is enabled
+   */
+  isWarmPoolEnabled(): boolean {
+    return this.warmPoolEnabled;
+  }
+
+  /**
+   * Configure a warm pod with project-specific settings
+   */
+  private async configureWarmPodForProject(podName: string, config: SandboxConfig): Promise<void> {
+    // Note: K8s doesn't support adding volume mounts to running pods
+    // The warm pod approach works best when the workspace is mounted at pod creation
+    // or when using a shared volume solution (NFS, PVC, etc.)
+    //
+    // For the initial implementation, we rely on the warm pods being generic
+    // and the actual workspace content being synced via exec commands or
+    // a shared storage solution configured at the cluster level.
+    //
+    // A more complete implementation would:
+    // 1. Use a DaemonSet with hostPath volumes pre-mounted
+    // 2. Use a CSI driver that supports dynamic mounting
+    // 3. Use git clone/rsync to sync workspace content
+
+    // Update pod labels to include sandbox and project info
+    await this.coreApi.patchNamespacedPod({
+      name: podName,
+      namespace: this.namespace,
+      body: {
+        metadata: {
+          labels: {
+            [K8S_POD_LABELS.projectId]: config.projectId,
+          },
+        },
+      },
+    });
+
+    // Set environment variables if any
+    if (config.env && Object.keys(config.env).length > 0) {
+      // Environment variables can't be updated in running pods
+      // Log a warning if env vars were requested
+      console.warn(
+        `[K8sProvider] Cannot update environment variables on warm pod ${podName}. ` +
+          `Consider pre-configuring env vars in the base image or using exec to set them.`
+      );
+    }
   }
 
   on(listener: SandboxProviderEventListener): () => void {

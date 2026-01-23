@@ -214,4 +214,27 @@ export const K8sErrors = {
       400,
       { podName, violation }
     ),
+
+  // Warm pool errors
+  WARM_POOL_EMPTY: () =>
+    createError('K8S_WARM_POOL_EMPTY', 'No warm pods available in the pool', 503),
+
+  WARM_POOL_EXHAUSTED: (maxSize: number) =>
+    createError('K8S_WARM_POOL_EXHAUSTED', `Warm pool has reached maximum size (${maxSize})`, 503, {
+      maxSize,
+    }),
+
+  WARM_POOL_ALLOCATION_FAILED: (podName: string, message: string) =>
+    createError(
+      'K8S_WARM_POOL_ALLOCATION_FAILED',
+      `Failed to allocate warm pod ${podName}: ${message}`,
+      500,
+      { podName }
+    ),
+
+  WARM_POOL_NOT_ENABLED: () =>
+    createError('K8S_WARM_POOL_NOT_ENABLED', 'Warm pool is not enabled', 400),
+
+  WARM_POD_NOT_FOUND: (podName: string) =>
+    createError('K8S_WARM_POD_NOT_FOUND', `Warm pod not found: ${podName}`, 404, { podName }),
 };

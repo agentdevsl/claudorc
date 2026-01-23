@@ -37,6 +37,18 @@ export interface K8sProviderOptions {
 
   /** Whether to enable security audit logging (default: true) */
   enableAuditLogging?: boolean;
+
+  /** Whether to enable warm pool for faster sandbox startup */
+  enableWarmPool?: boolean;
+
+  /** Minimum number of warm pods to maintain (default: 2) */
+  warmPoolMinSize?: number;
+
+  /** Maximum number of warm pods allowed (default: 10) */
+  warmPoolMaxSize?: number;
+
+  /** Whether to enable auto-scaling of the warm pool (default: true) */
+  warmPoolAutoScaling?: boolean;
 }
 
 /**
@@ -50,6 +62,10 @@ export const K8S_PROVIDER_DEFAULTS = {
   networkPolicyEnabled: true,
   setupRbac: true,
   enableAuditLogging: true,
+  enableWarmPool: false,
+  warmPoolMinSize: 2,
+  warmPoolMaxSize: 10,
+  warmPoolAutoScaling: true,
 } as const;
 
 /**

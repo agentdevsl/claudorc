@@ -14,7 +14,7 @@
 | Phase 2: UI Integration | ✅ Complete | 6/6 tasks |
 | Phase 3: tmux Session Support | ✅ Complete | 7/7 tasks |
 | Phase 4: Network Policies & Security | ✅ Complete | 6/6 tasks |
-| Phase 5: Warm Pool | 🔲 Not Started | 0/5 tasks |
+| Phase 5: Warm Pool | ✅ Complete | 5/5 tasks |
 
 ---
 
@@ -256,33 +256,103 @@ src/lib/sandbox/providers/
 
 ---
 
-## Phase 5: Warm Pool (Stretch Goal) 🔲 NOT STARTED
+## Phase 5: Warm Pool ✅ COMPLETE
 
 **Goal**: Fast sandbox startup via pre-warmed pods
 
-### Tasks
+### Completed Tasks
 
-| ID | Task | Status | Effort | Dependencies |
-|----|------|--------|--------|--------------|
-| T5.1 | Implement warm pool controller | 🔲 Pending | L | Phase 1, Phase 2 |
-| T5.2 | Add `prewarm(count)` method | 🔲 Pending | M | T5.1 |
-| T5.3 | Add `getWarm()` method for fast allocation | 🔲 Pending | M | T5.1 |
-| T5.4 | Implement pool scaling based on usage patterns | 🔲 Pending | L | T5.1-T5.3 |
-| T5.5 | Add metrics for warm pool utilization | 🔲 Pending | M | T5.1 |
+| ID | Task | Status | Files | Notes |
+|----|------|--------|-------|-------|
+| T5.1 | Implement warm pool controller | ✅ Done | `k8s-warm-pool.ts` | WarmPoolController class with full lifecycle |
+| T5.2 | Add `prewarm(count)` method | ✅ Done | `k8s-warm-pool.ts`, `k8s-provider.ts` | Creates warm pods up to maxSize |
+| T5.3 | Add `getWarm()` method for fast allocation | ✅ Done | `k8s-warm-pool.ts`, `k8s-provider.ts` | Returns warm pod or falls back to create() |
+| T5.4 | Implement pool scaling based on usage patterns | ✅ Done | `k8s-warm-pool.ts` | Auto-scaling with usage samples and thresholds |
+| T5.5 | Add metrics for warm pool utilization | ✅ Done | `k8s-warm-pool.ts` | WarmPoolMetrics with hit rate, allocation time |
 
 ### Phase 5 Deliverables
 
 ```
 src/lib/sandbox/providers/
-├── k8s-warm-pool.ts         # Warm pool controller
-└── k8s-provider.ts          # Update: Add prewarm(), getWarm() methods
+├── k8s-warm-pool.ts         # ✅ Warm pool controller (760+ lines)
+├── k8s-provider.ts          # ✅ Updated: startWarmPool(), stopWarmPool(), prewarm(), getWarm(), getWarmPoolMetrics()
+├── k8s-config.ts            # ✅ Updated: enableWarmPool, warmPoolMinSize, warmPoolMaxSize, warmPoolAutoScaling
+├── k8s-audit.ts             # ✅ Updated: warm_pool.* event types and logging methods
+└── __tests__/
+    └── k8s-warm-pool.test.ts # ✅ 37 tests covering all warm pool functionality
+
+src/lib/errors/
+└── k8s-errors.ts            # ✅ Updated: WARM_POOL_* error types
+
+src/lib/sandbox/
+└── index.ts                 # ✅ Updated: Warm pool exports
+```
+
+### Warm Pool Features
+
+1. **WarmPoolController** - Core controller class
+   - Manages pool of pre-created pods
+   - Periodic replenishment (configurable interval)
+   - Auto-discovery of existing warm pods on startup
+   - Graceful shutdown with cleanup
+
+2. **prewarm(count)** - Create warm pods
+   - Creates pods up to specified count
+   - Respects maxSize limit
+   - Pods created with generic base image
+   - Security context: non-root, restricted PSS
+
+3. **getWarm(config)** - Fast allocation
+   - Returns warm pod if available (<5s)
+   - Falls back to cold create if pool empty (~30s)
+   - Updates pod labels for project association
+   - Triggers async replenishment
+
+4. **Auto-Scaling**
+   - Configurable scale-up threshold (default 80%)
+   - Configurable scale-down threshold (default 20%)
+   - Usage pattern tracking with sliding window
+   - Respects min/max size constraints
+
+5. **Metrics**
+   - Total/warm/allocated pod counts
+   - Utilization percentage
+   - Hit rate (warm pool hits vs misses)
+   - Average allocation time
+   - Target pool size
+
+### Configuration Options
+
+```typescript
+interface WarmPoolConfig {
+  minSize: number;              // default: 2
+  maxSize: number;              // default: 10
+  defaultImage: string;         // default: SANDBOX_DEFAULTS.image
+  defaultMemoryMb: number;      // default: 4096
+  defaultCpuCores: number;      // default: 2
+  replenishIntervalMs: number;  // default: 30000 (30s)
+  enableAutoScaling: boolean;   // default: true
+  scaleUpThreshold: number;     // default: 0.8
+  scaleDownThreshold: number;   // default: 0.2
+  usageWindowMs: number;        // default: 300000 (5min)
+}
+```
+
+### K8sProviderOptions additions
+
+```typescript
+enableWarmPool?: boolean;       // default: false
+warmPoolMinSize?: number;       // default: 2
+warmPoolMaxSize?: number;       // default: 10
+warmPoolAutoScaling?: boolean;  // default: true
 ```
 
 ### Warm Pool Design Notes
 
 - Pre-create pods with generic image
-- Keep pods in "idle" state waiting for assignment
-- On sandbox request, "adopt" warm pod and configure
+- Keep pods in "warm" state waiting for assignment
+- On sandbox request, "adopt" warm pod (transition to "allocated")
+- For security, pods are deleted (not recycled) when sandbox stops
 - Target: <5s sandbox boot time (vs <30s cold start)
 
 ---

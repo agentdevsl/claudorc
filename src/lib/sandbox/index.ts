@@ -41,6 +41,20 @@ export {
 } from './providers/k8s-security.js';
 export type { PssProfile, PssValidationResult } from './providers/k8s-security.js';
 
+// Kubernetes Warm Pool (Phase 5)
+export {
+  createWarmPoolController,
+  K8S_WARM_POOL_LABELS,
+  WARM_POOL_DEFAULTS,
+  WarmPoolController,
+} from './providers/k8s-warm-pool.js';
+export type {
+  WarmPodInfo,
+  WarmPoolConfig,
+  WarmPoolMetrics,
+  WarmPoolPodState,
+} from './providers/k8s-warm-pool.js';
+
 // Provider Interface
 export type {
   EventEmittingSandboxProvider,
