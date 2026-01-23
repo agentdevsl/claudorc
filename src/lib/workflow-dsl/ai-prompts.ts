@@ -120,17 +120,22 @@ For content like:
 5. Create PR with summary
 \`\`\`
 
-Generate nodes:
+If /speckit.specify and /speckit.plan are in the COMMANDS list, generate:
 1. start node
-2. skill node: skillId="speckit.specify", skillName="Specify", description="Create feature specification"
-3. command node: command="git commit", description="Commit changes"
-4. skill node: skillId="speckit.plan", skillName="Plan", description="Generate implementation plan"
-5. loop node: description="Perform code review using concurrent opus agents", maxIterations=2, containing:
-   - parallel node with agent nodes for "concurrent opus agents"
+2. command node: command="speckit.specify", label="Create Feature Specification", description="/speckit.specify - Create feature specification"
+3. command node: command="git commit", label="Commit Changes", description="Commit changes"
+4. command node: command="speckit.plan", label="Generate Implementation Plan", description="/speckit.plan - Generate implementation plan"
+5. loop node: description="Perform code review using concurrent opus agents", maxIterations=2
 6. command node: command="gh pr create", description="Create PR with summary"
 7. end node
 
-IMPORTANT: Each step in the source becomes a separate node. Do not combine or simplify steps.`;
+If /speckit.specify and /speckit.plan are in the SKILLS list, generate skill nodes instead:
+2. skill node: skillId="speckit.specify", skillName="Create Feature Specification", description="/speckit.specify - Create feature specification"
+
+IMPORTANT:
+- Each step in the source becomes a separate node. Do not combine or simplify steps.
+- ALWAYS preserve the original /name in the command or skillId field (without the leading slash).
+- The type (skill vs command) is determined by which list the /name appears in above.`;
 
 /**
  * User prompt template for analyzing a specific template
@@ -240,6 +245,7 @@ CRITICAL RULES:
 - Use "loop" type for "repeat X times" or iterations
 - Use "parallel" type for "concurrent" operations
 - PRESERVE the full description text from each step
+- IMPORTANT: When a step references a /name (like /speckit.specify), PRESERVE the exact /name in the skillId or command field. Do NOT convert it to a human-readable label only - keep the original reference.
 
 Steps:
 1. Count all numbered items/bullets in the source - you need at least that many nodes

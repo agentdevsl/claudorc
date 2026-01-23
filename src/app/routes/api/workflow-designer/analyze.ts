@@ -234,6 +234,111 @@ function parseAIResponse(responseText: string): {
 }
 
 /**
+ * Post-process nodes to correct types based on known skill/command lists.
+ * This ensures deterministic type identification rather than relying on AI interpretation.
+ */
+function correctNodeTypes(
+  nodes: WorkflowNode[],
+  knownSkills: string[],
+  knownCommands: string[]
+): WorkflowNode[] {
+  // Normalize names for comparison (lowercase, remove separators)
+  const normalizeForLookup = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/^\//, '') // Remove leading slash
+      .replace(/[_\-.]/g, '') // Remove separators
+      .trim();
+  };
+
+  // Create lookup maps with original names preserved
+  const skillMap = new Map<string, string>();
+  for (const skill of knownSkills) {
+    skillMap.set(normalizeForLookup(skill), skill);
+  }
+
+  const commandMap = new Map<string, string>();
+  for (const cmd of knownCommands) {
+    commandMap.set(normalizeForLookup(cmd), cmd);
+  }
+
+  // Extract /name references from text
+  const extractSlashReferences = (text: string): string[] => {
+    const matches = text.match(/\/[\w.\-_]+/g) || [];
+    return matches.map((m) => m.replace(/^\//, ''));
+  };
+
+  return nodes.map((node) => {
+    // Skip start/end nodes
+    if (node.type === 'start' || node.type === 'end') {
+      return node;
+    }
+
+    // Collect all text to search for /name references
+    const textsToSearch: string[] = [node.label];
+    if (node.description) textsToSearch.push(node.description);
+
+    if (node.type === 'skill' && 'skillName' in node) {
+      textsToSearch.push(node.skillName);
+      if ('skillId' in node) textsToSearch.push(node.skillId);
+    }
+    if (node.type === 'command' && 'command' in node) {
+      textsToSearch.push(node.command);
+    }
+
+    // Extract any /name references from all text fields
+    const slashRefs: string[] = [];
+    for (const text of textsToSearch) {
+      slashRefs.push(...extractSlashReferences(text));
+    }
+
+    // Also add the raw text values for direct matching
+    const namesToCheck = [...textsToSearch, ...slashRefs];
+
+    // Check each name against known lists
+    for (const name of namesToCheck) {
+      const normalized = normalizeForLookup(name);
+
+      // Check if it's a known command FIRST (commands take precedence for slash commands)
+      if (commandMap.has(normalized)) {
+        const originalName = commandMap.get(normalized)!;
+        if (node.type !== 'command') {
+          console.log(
+            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to command (matched: ${originalName})`
+          );
+          return {
+            ...node,
+            type: 'command',
+            command: originalName,
+          } as WorkflowNode;
+        }
+        return node;
+      }
+
+      // Check if it's a known skill
+      if (skillMap.has(normalized)) {
+        const originalName = skillMap.get(normalized)!;
+        if (node.type !== 'skill') {
+          console.log(
+            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to skill (matched: ${originalName})`
+          );
+          return {
+            ...node,
+            type: 'skill',
+            skillId: originalName,
+            skillName: node.label,
+          } as WorkflowNode;
+        }
+        return node;
+      }
+    }
+
+    // No match found - keep original type
+    return node;
+  });
+}
+
+/**
  * Creates the Anthropic client with the stored API key
  */
 async function createAnthropicClient(): Promise<Anthropic | null> {
@@ -397,6 +502,22 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
           return Response.json(failure(WorkflowErrors.INVALID_AI_RESPONSE(message)), {
             status: 422,
           });
+        }
+
+        // Post-process nodes to correct types based on known skill/command lists
+        // This ensures deterministic type identification
+        if (knownSkills?.length || knownCommands?.length) {
+          console.log('[workflow-analyze] Known skills:', knownSkills);
+          console.log('[workflow-analyze] Known commands:', knownCommands);
+          console.log(
+            '[workflow-analyze] Nodes before correction:',
+            nodes.map((n) => ({ label: n.label, type: n.type }))
+          );
+          nodes = correctNodeTypes(nodes, knownSkills ?? [], knownCommands ?? []);
+          console.log(
+            '[workflow-analyze] Nodes after correction:',
+            nodes.map((n) => ({ label: n.label, type: n.type }))
+          );
         }
 
         // Apply ELK layout to position nodes
