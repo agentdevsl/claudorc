@@ -1,19 +1,15 @@
-import { createId } from '@paralleldrive/cuid2';
 import * as k8s from '@kubernetes/client-node';
+import { createId } from '@paralleldrive/cuid2';
 import { K8sErrors } from '../../errors/k8s-errors.js';
-import type {
-  SandboxConfig,
-  SandboxHealthCheck,
-  SandboxInfo,
-} from '../types.js';
+import type { SandboxConfig, SandboxHealthCheck, SandboxInfo } from '../types.js';
 import { SANDBOX_DEFAULTS } from '../types.js';
 import {
   getClusterInfo,
   K8S_POD_LABELS,
   K8S_PROVIDER_DEFAULTS,
+  type K8sProviderOptions,
   loadKubeConfig,
   resolveContext,
-  type K8sProviderOptions,
 } from './k8s-config.js';
 import { K8sSandbox } from './k8s-sandbox.js';
 import type {
@@ -70,7 +66,9 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     }
 
     const sandboxId = createId();
-    const podName = `agentpane-${config.projectId.slice(0, 20)}-${sandboxId.slice(0, 8)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const podName = `agentpane-${config.projectId.slice(0, 20)}-${sandboxId.slice(0, 8)}`
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-');
 
     this.emit({
       type: 'sandbox:creating',
@@ -246,9 +244,7 @@ export class K8sProvider implements EventEmittingSandboxProvider {
             labelSelector: `${K8S_POD_LABELS.sandbox}=true`,
           });
           podCount = pods.items.length;
-          runningPodCount = pods.items.filter(
-            (p) => p.status?.phase === 'Running'
-          ).length;
+          runningPodCount = pods.items.filter((p) => p.status?.phase === 'Running').length;
         } catch {
           // Ignore errors counting pods
         }
@@ -363,11 +359,7 @@ export class K8sProvider implements EventEmittingSandboxProvider {
     }
   }
 
-  private buildPodSpec(
-    podName: string,
-    sandboxId: string,
-    config: SandboxConfig
-  ): k8s.V1Pod {
+  private buildPodSpec(podName: string, sandboxId: string, config: SandboxConfig): k8s.V1Pod {
     // Build volume mounts
     const volumeMounts: k8s.V1VolumeMount[] = [
       {
@@ -488,7 +480,10 @@ export class K8sProvider implements EventEmittingSandboxProvider {
       const waitingReason = containerStatuses?.[0]?.state?.waiting?.reason;
       if (waitingReason === 'ImagePullBackOff' || waitingReason === 'ErrImagePull') {
         const message = containerStatuses?.[0]?.state?.waiting?.message ?? 'Unknown error';
-        throw K8sErrors.IMAGE_PULL_BACKOFF(response.spec?.containers[0]?.image ?? 'unknown', message);
+        throw K8sErrors.IMAGE_PULL_BACKOFF(
+          response.spec?.containers[0]?.image ?? 'unknown',
+          message
+        );
       }
 
       // Wait before checking again

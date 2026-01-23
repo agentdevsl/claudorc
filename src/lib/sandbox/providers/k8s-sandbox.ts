@@ -1,5 +1,5 @@
-import * as k8s from '@kubernetes/client-node';
 import { Writable } from 'node:stream';
+import * as k8s from '@kubernetes/client-node';
 import { K8sErrors } from '../../errors/k8s-errors.js';
 import type { ExecResult, SandboxMetrics, SandboxStatus, TmuxSession } from '../types.js';
 import { SANDBOX_DEFAULTS } from '../types.js';
@@ -35,22 +35,30 @@ export class K8sSandbox implements Sandbox {
   }
 
   async exec(cmd: string, args: string[] = []): Promise<ExecResult> {
-    return this.execInternal(cmd, args, false);
+    return this.execInternal(cmd, args);
   }
 
   async execAsRoot(cmd: string, args: string[] = []): Promise<ExecResult> {
-    return this.execInternal(cmd, args, true);
+    // K8s pods run with securityContext.runAsNonRoot=true by default.
+    // Root execution would require either:
+    // 1. A privileged init container or sidecar
+    // 2. A separate pod with elevated privileges
+    // 3. Using nsenter from a privileged container
+    //
+    // For security reasons, we execute as the container's default user (UID 1000).
+    // Most operations that need "root" inside a sandbox (like apt install) can be
+    // handled by configuring the base image with sudo or by pre-installing packages.
+    console.warn(
+      `[K8sSandbox] execAsRoot called but K8s pods run as non-root. Executing as default user.`
+    );
+    return this.execInternal(cmd, args);
   }
 
-  private async execInternal(cmd: string, args: string[], _asRoot: boolean): Promise<ExecResult> {
+  private async execInternal(cmd: string, args: string[]): Promise<ExecResult> {
     this.touch();
 
     // Build the full command
     const fullCommand = [cmd, ...args];
-
-    // For root execution, we'd need to configure the container security context
-    // or use a privileged sidecar. For now, we execute as the container's default user.
-    // In production, you might use nsenter or a privileged init container.
 
     return new Promise<ExecResult>((resolve, reject) => {
       let stdout = '';
@@ -88,9 +96,7 @@ export class K8sSandbox implements Sandbox {
             if (status.status === 'Success') {
               exitCode = 0;
             } else if (status.details?.causes) {
-              const exitCause = status.details.causes.find(
-                (c) => c.reason === 'ExitCode'
-              );
+              const exitCause = status.details.causes.find((c) => c.reason === 'ExitCode');
               if (exitCause?.message) {
                 exitCode = parseInt(exitCause.message, 10) || 1;
               } else {

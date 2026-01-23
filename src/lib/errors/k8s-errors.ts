@@ -102,12 +102,10 @@ export const K8sErrors = {
     }),
 
   IMAGE_PULL_BACKOFF: (image: string, reason: string) =>
-    createError(
-      'K8S_IMAGE_PULL_BACKOFF',
-      `Image pull backoff for ${image}: ${reason}`,
-      500,
-      { image, reason }
-    ),
+    createError('K8S_IMAGE_PULL_BACKOFF', `Image pull backoff for ${image}: ${reason}`, 500, {
+      image,
+      reason,
+    }),
 
   IMAGE_NOT_FOUND: (image: string) =>
     createError('K8S_IMAGE_NOT_FOUND', `Image not found: ${image}`, 404, { image }),

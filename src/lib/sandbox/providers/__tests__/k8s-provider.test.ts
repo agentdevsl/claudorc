@@ -486,4 +486,110 @@ describe('K8sProvider', () => {
       unsubscribe();
     });
   });
+
+  describe('K8sSandbox tmux operations', () => {
+    // Helper to create a sandbox for tmux tests
+    const createTestSandbox = async () => {
+      const provider = createK8sProvider();
+
+      mockCoreApi.readNamespace.mockResolvedValue({});
+      mockCoreApi.createNamespacedPod.mockResolvedValue({
+        metadata: { uid: 'pod-uid-123' },
+      });
+      mockCoreApi.readNamespacedPod.mockResolvedValue({
+        status: { phase: 'Running', containerStatuses: [{ ready: true }] },
+      });
+
+      return provider.create(sampleConfig);
+    };
+
+    // Note: These tests verify the interface and error handling.
+    // The actual exec() calls are tested through the K8s Exec mock.
+    // Integration tests with a real cluster would test actual tmux behavior.
+
+    it('sandbox has tmux session methods', async () => {
+      const sandbox = await createTestSandbox();
+
+      expect(sandbox.createTmuxSession).toBeDefined();
+      expect(sandbox.listTmuxSessions).toBeDefined();
+      expect(sandbox.killTmuxSession).toBeDefined();
+      expect(sandbox.sendKeysToTmux).toBeDefined();
+      expect(sandbox.captureTmuxPane).toBeDefined();
+    });
+
+    it('sandbox has exec methods', async () => {
+      const sandbox = await createTestSandbox();
+
+      expect(sandbox.exec).toBeDefined();
+      expect(sandbox.execAsRoot).toBeDefined();
+    });
+
+    it('sandbox has lifecycle methods', async () => {
+      const sandbox = await createTestSandbox();
+
+      expect(sandbox.stop).toBeDefined();
+      expect(sandbox.getMetrics).toBeDefined();
+      expect(sandbox.touch).toBeDefined();
+      expect(sandbox.getLastActivity).toBeDefined();
+    });
+
+    it('touch updates last activity time', async () => {
+      const sandbox = await createTestSandbox();
+
+      const before = sandbox.getLastActivity();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      sandbox.touch();
+      const after = sandbox.getLastActivity();
+
+      expect(after.getTime()).toBeGreaterThan(before.getTime());
+    });
+
+    it('stop deletes the pod', async () => {
+      const sandbox = await createTestSandbox();
+      mockCoreApi.deleteNamespacedPod.mockResolvedValue({});
+
+      await sandbox.stop();
+
+      expect(mockCoreApi.deleteNamespacedPod).toHaveBeenCalledWith(
+        expect.objectContaining({
+          namespace: K8S_PROVIDER_DEFAULTS.namespace,
+          gracePeriodSeconds: 10,
+        })
+      );
+      expect(sandbox.status).toBe('stopped');
+    });
+
+    it('stop throws on deletion failure', async () => {
+      const sandbox = await createTestSandbox();
+      mockCoreApi.deleteNamespacedPod.mockRejectedValue(new Error('Delete failed'));
+
+      await expect(sandbox.stop()).rejects.toMatchObject({
+        code: 'K8S_POD_DELETION_FAILED',
+      });
+      expect(sandbox.status).toBe('error');
+    });
+
+    it('getMetrics returns metrics object', async () => {
+      const sandbox = await createTestSandbox();
+      mockCoreApi.readNamespacedPod.mockResolvedValue({
+        status: {
+          containerStatuses: [{
+            name: 'sandbox',
+            state: {
+              running: {
+                startedAt: new Date(Date.now() - 60000).toISOString(),
+              },
+            },
+          }],
+        },
+      });
+
+      const metrics = await sandbox.getMetrics();
+
+      expect(metrics).toHaveProperty('cpuUsagePercent');
+      expect(metrics).toHaveProperty('memoryUsageMb');
+      expect(metrics).toHaveProperty('uptime');
+      expect(metrics.uptime).toBeGreaterThan(0);
+    });
+  });
 });
