@@ -8,6 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
+    wget \
     unzip \
     zsh \
     sudo \
@@ -119,5 +120,10 @@ RUN mkdir -p /home/node/.config/ccstatusline && \
     chmod 700 /home/node/.config/ccstatusline && \
     chmod 600 /home/node/.config/ccstatusline/settings.json
 
-# Set up zshrc with aliases
-RUN echo 'alias clauded="claude --dangerously-skip-permissions"' >> /home/node/.zshrc
+# Install oh-my-zsh with proper prompt theme and git plugin
+# Using zsh-in-docker for consistent setup with base-image
+RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
+        -p git \
+        -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
+        -x && \
+    echo 'alias clauded="claude --dangerously-skip-permissions"' >> /home/node/.zshrc
