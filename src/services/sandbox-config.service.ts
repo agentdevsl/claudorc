@@ -20,6 +20,18 @@ export type CreateSandboxConfigInput = {
   timeoutMinutes?: number;
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath?: string;
+
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file (e.g., ~/.kube/config) */
+  kubeConfigPath?: string;
+  /** Kubernetes context name to use */
+  kubeContext?: string;
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace?: string;
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled?: boolean;
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts?: string[];
 };
 
 export type UpdateSandboxConfigInput = {
@@ -34,6 +46,18 @@ export type UpdateSandboxConfigInput = {
   timeoutMinutes?: number;
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath?: string;
+
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file (e.g., ~/.kube/config) */
+  kubeConfigPath?: string;
+  /** Kubernetes context name to use */
+  kubeContext?: string;
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace?: string;
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled?: boolean;
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts?: string[];
 };
 
 export type ListSandboxConfigsOptions = {
@@ -126,6 +150,12 @@ export class SandboxConfigService {
         maxProcesses: input.maxProcesses ?? 256,
         timeoutMinutes: input.timeoutMinutes ?? 60,
         volumeMountPath: input.volumeMountPath,
+        // Kubernetes-specific fields
+        kubeConfigPath: input.kubeConfigPath,
+        kubeContext: input.kubeContext,
+        kubeNamespace: input.kubeNamespace ?? 'agentpane-sandboxes',
+        networkPolicyEnabled: input.networkPolicyEnabled ?? true,
+        allowedEgressHosts: input.allowedEgressHosts,
         createdAt: now,
         updatedAt: now,
       } satisfies NewSandboxConfig)
@@ -231,6 +261,14 @@ export class SandboxConfigService {
     if (input.maxProcesses !== undefined) updates.maxProcesses = input.maxProcesses;
     if (input.timeoutMinutes !== undefined) updates.timeoutMinutes = input.timeoutMinutes;
     if (input.volumeMountPath !== undefined) updates.volumeMountPath = input.volumeMountPath;
+    // Kubernetes-specific fields
+    if (input.kubeConfigPath !== undefined) updates.kubeConfigPath = input.kubeConfigPath;
+    if (input.kubeContext !== undefined) updates.kubeContext = input.kubeContext;
+    if (input.kubeNamespace !== undefined) updates.kubeNamespace = input.kubeNamespace;
+    if (input.networkPolicyEnabled !== undefined)
+      updates.networkPolicyEnabled = input.networkPolicyEnabled;
+    if (input.allowedEgressHosts !== undefined)
+      updates.allowedEgressHosts = input.allowedEgressHosts;
 
     const [updated] = await this.db
       .update(sandboxConfigs)

@@ -222,12 +222,21 @@ export const updateTemplateSchema = z.object({
 });
 
 // Sandbox Config schemas
-export const sandboxTypeSchema = z.enum(['docker', 'devcontainer']);
+export const sandboxTypeSchema = z.enum(['docker', 'devcontainer', 'kubernetes']);
 
 export const listSandboxConfigsSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
 });
+
+/** Kubernetes namespace validation: RFC 1123 DNS label (lowercase alphanumeric, dashes, max 63 chars) */
+const k8sNamespaceSchema = z
+  .string()
+  .max(63)
+  .regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/, {
+    message: 'Namespace must be a valid DNS label (lowercase letters, numbers, dashes)',
+  })
+  .optional();
 
 export const createSandboxConfigSchema = z.object({
   name: z.string().min(1).max(100),
@@ -241,6 +250,18 @@ export const createSandboxConfigSchema = z.object({
   timeoutMinutes: z.coerce.number().min(1).max(1440).optional().default(60),
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath: z.string().max(500).optional(),
+
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file (e.g., ~/.kube/config) */
+  kubeConfigPath: z.string().max(500).optional(),
+  /** Kubernetes context name to use */
+  kubeContext: z.string().max(256).optional(),
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace: k8sNamespaceSchema.default('agentpane-sandboxes'),
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled: z.boolean().optional().default(true),
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts: z.array(z.string().max(256)).max(50).optional(),
 });
 
 export const updateSandboxConfigSchema = z.object({
@@ -255,6 +276,40 @@ export const updateSandboxConfigSchema = z.object({
   timeoutMinutes: z.coerce.number().min(1).max(1440).optional(),
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath: z.string().max(500).optional(),
+
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file (e.g., ~/.kube/config) */
+  kubeConfigPath: z.string().max(500).optional(),
+  /** Kubernetes context name to use */
+  kubeContext: z.string().max(256).optional(),
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace: k8sNamespaceSchema,
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled: z.boolean().optional(),
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts: z.array(z.string().max(256)).max(50).optional(),
+});
+
+// Kubernetes API schemas
+export const k8sStatusQuerySchema = z.object({
+  /** Optional kubeconfig path to check status for */
+  kubeconfigPath: z.string().max(500).optional(),
+  /** Optional context to use */
+  context: z.string().max(256).optional(),
+});
+
+export const k8sContextsQuerySchema = z.object({
+  /** Optional kubeconfig path to list contexts from */
+  kubeconfigPath: z.string().max(500).optional(),
+});
+
+export const k8sNamespacesQuerySchema = z.object({
+  /** Optional kubeconfig path */
+  kubeconfigPath: z.string().max(500).optional(),
+  /** Optional context to use */
+  context: z.string().max(256).optional(),
+  /** Pagination limit */
+  limit: z.coerce.number().min(1).max(100).default(50),
 });
 
 // Session history schemas

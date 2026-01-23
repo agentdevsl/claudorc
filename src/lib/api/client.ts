@@ -195,7 +195,7 @@ export type UpdateTemplateInput = {
 };
 
 // Sandbox Config types
-export type SandboxType = 'docker' | 'devcontainer';
+export type SandboxType = 'docker' | 'devcontainer' | 'kubernetes';
 
 export type SandboxConfigItem = {
   id: string;
@@ -210,6 +210,17 @@ export type SandboxConfigItem = {
   timeoutMinutes: number;
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath?: string | null;
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file */
+  kubeConfigPath?: string | null;
+  /** Kubernetes context name */
+  kubeContext?: string | null;
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace?: string | null;
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled?: boolean | null;
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts?: string[] | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -226,6 +237,17 @@ export type CreateSandboxConfigInput = {
   timeoutMinutes?: number;
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath?: string;
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file */
+  kubeConfigPath?: string;
+  /** Kubernetes context name */
+  kubeContext?: string;
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace?: string;
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled?: boolean;
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts?: string[];
 };
 
 export type UpdateSandboxConfigInput = {
@@ -240,6 +262,17 @@ export type UpdateSandboxConfigInput = {
   timeoutMinutes?: number;
   /** Volume mount path from local host for docker sandboxes */
   volumeMountPath?: string;
+  // Kubernetes-specific configuration
+  /** Path to kubeconfig file */
+  kubeConfigPath?: string;
+  /** Kubernetes context name */
+  kubeContext?: string;
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace?: string;
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled?: boolean;
+  /** Allowed egress hosts for network policies */
+  allowedEgressHosts?: string[];
 };
 
 // API client methods

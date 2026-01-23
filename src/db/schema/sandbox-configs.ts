@@ -2,7 +2,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-export const SANDBOX_TYPES = ['docker', 'devcontainer'] as const;
+export const SANDBOX_TYPES = ['docker', 'devcontainer', 'kubernetes'] as const;
 export type SandboxType = (typeof SANDBOX_TYPES)[number];
 
 export const sandboxConfigs = sqliteTable('sandbox_configs', {
@@ -20,6 +20,19 @@ export const sandboxConfigs = sqliteTable('sandbox_configs', {
   timeoutMinutes: integer('timeout_minutes').notNull().default(60),
   /** Volume mount path from local host for docker sandboxes (e.g., /home/user/projects) */
   volumeMountPath: text('volume_mount_path'),
+
+  // Kubernetes-specific configuration fields
+  /** Path to kubeconfig file (e.g., ~/.kube/config) */
+  kubeConfigPath: text('kube_config_path'),
+  /** Kubernetes context name to use */
+  kubeContext: text('kube_context'),
+  /** Kubernetes namespace for sandbox pods */
+  kubeNamespace: text('kube_namespace').default('agentpane-sandboxes'),
+  /** Enable network policies for K8s sandboxes */
+  networkPolicyEnabled: integer('network_policy_enabled', { mode: 'boolean' }).default(true),
+  /** JSON array of allowed egress hosts for network policies */
+  allowedEgressHosts: text('allowed_egress_hosts', { mode: 'json' }).$type<string[]>(),
+
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 });
