@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useTaskCreation } from '@/app/components/features/new-task-dialog/use-task-creation';
+import { useTaskCreation } from '@/lib/task-creation/hooks';
 
 // Mock the API client
 vi.mock('@/lib/api/client', () => ({
