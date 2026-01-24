@@ -346,6 +346,12 @@ function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
       };
 
     default:
+      console.warn(
+        '[DurableStreamsClient] Unknown event type received:',
+        raw.type,
+        'data:',
+        raw.data
+      );
       return null;
   }
 }

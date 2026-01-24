@@ -73,9 +73,14 @@ export async function sendTerminalInput(
     const result = (await response.json()) as { ok: boolean; offset?: number };
     options.onConfirm(optimisticEvent, result.offset ?? 0);
   } catch (error) {
+    const wrappedError = error instanceof Error ? error : new Error(String(error));
+    console.error('[Terminal] Failed to send input:', {
+      sessionId,
+      error: wrappedError.message,
+    });
     // Rollback: remove from collection
     terminalCollection.delete(optimisticEvent.id);
-    options.onRollback(optimisticEvent, error as Error);
+    options.onRollback(optimisticEvent, wrappedError);
   }
 }
 
@@ -194,7 +199,12 @@ export async function sendPresenceJoin(
     });
 
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.error('[Presence] Failed to join session:', {
+      sessionId,
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 }
@@ -218,7 +228,12 @@ export async function sendPresenceLeave(sessionId: string, userId: string): Prom
     });
 
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.error('[Presence] Failed to leave session:', {
+      sessionId,
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 }

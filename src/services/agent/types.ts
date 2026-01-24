@@ -6,7 +6,7 @@ import type { AgentError } from '../../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../../lib/errors/concurrency-errors.js';
 import type { ValidationError } from '../../lib/errors/validation-errors.js';
 import type { Result } from '../../lib/utils/result.js';
-import type { SessionEvent, SessionWithPresence } from '../session.service.js';
+import type { SessionEvent, SessionWithPresence } from '../session/types.js';
 
 // Re-export schema types for convenience
 export type { Agent, AgentConfig, NewAgent };

@@ -35,7 +35,7 @@ const activeSyncs = new Map<string, Subscription>();
 
 /**
  * Message accumulator for deriving messages from chunks
- * Key: `${agentId}-${turn}`
+ * Key: `${sessionId}:${agentId}-${turn}` (includes sessionId for proper cleanup)
  */
 const messageAccumulators = new Map<string, { text: string; lastTimestamp: number }>();
 
@@ -70,7 +70,7 @@ export function syncSessionToCollections(sessionId: string): () => void {
       // Accumulate for derived messages
       const agentId = chunk.agentId ?? 'unknown';
       const turn = 0; // Default turn if not provided
-      const key = `${agentId}-${turn}`;
+      const key = `${sessionId}:${agentId}-${turn}`;
 
       const existing = messageAccumulators.get(key);
       if (existing) {
@@ -206,9 +206,9 @@ export function stopSessionSync(sessionId: string): void {
     console.log(`[SessionSync] Stopped sync for session ${sessionId}`);
   }
 
-  // Clear accumulators for this session
+  // Clear accumulators for this session (keys are formatted as `${sessionId}:${agentId}-${turn}`)
   for (const key of messageAccumulators.keys()) {
-    if (key.startsWith(sessionId)) {
+    if (key.startsWith(`${sessionId}:`)) {
       messageAccumulators.delete(key);
     }
   }
@@ -241,7 +241,7 @@ export function stopAllSyncs(): void {
  * Update derived message from accumulated chunks
  */
 function updateDerivedMessage(sessionId: string, agentId: string, turn: number): void {
-  const key = `${agentId}-${turn}`;
+  const key = `${sessionId}:${agentId}-${turn}`;
   const accumulated = messageAccumulators.get(key);
 
   if (!accumulated) return;

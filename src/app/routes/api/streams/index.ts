@@ -138,19 +138,18 @@ export const Route = createFileRoute('/api/streams/')({
           // Map channel to event type
           const eventType = mapChannelToEventType(channel, data);
 
-          // Publish to the stream
-          await provider.publish(sessionId, eventType, data);
-
-          // Offset is returned for client reference
-          // The actual offset is managed internally by the stream provider
-          const offset = Date.now(); // Use timestamp as a proxy for offset
+          // Publish to the stream and get the actual offset
+          const offset = await provider.publish(sessionId, eventType, data);
 
           return new Response(JSON.stringify({ ok: true, offset }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          console.error('[/api/streams] Error publishing:', error);
+          console.error(
+            '[/api/streams] Error publishing:',
+            error instanceof Error ? error.message : String(error)
+          );
 
           return new Response(
             JSON.stringify({
