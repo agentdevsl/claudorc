@@ -26,6 +26,7 @@ import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsSandboxRouteImport } from './routes/settings/sandbox'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
+import { Route as SettingsModelOptimizationsRouteImport } from './routes/settings/model-optimizations'
 import { Route as SettingsGithubRouteImport } from './routes/settings/github'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
@@ -179,6 +180,12 @@ const SettingsPreferencesRoute = SettingsPreferencesRouteImport.update({
   path: '/preferences',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsModelOptimizationsRoute =
+  SettingsModelOptimizationsRouteImport.update({
+    id: '/model-optimizations',
+    path: '/model-optimizations',
+    getParentRoute: () => SettingsRoute,
+  } as any)
 const SettingsGithubRoute = SettingsGithubRouteImport.update({
   id: '/github',
   path: '/github',
@@ -542,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/github': typeof SettingsGithubRoute
+  '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
@@ -627,6 +635,7 @@ export interface FileRoutesByTo {
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/github': typeof SettingsGithubRoute
+  '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
@@ -714,6 +723,7 @@ export interface FileRoutesById {
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/github': typeof SettingsGithubRoute
+  '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
@@ -802,6 +812,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/github'
+    | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/sandbox'
@@ -887,6 +898,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/github'
+    | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/sandbox'
@@ -973,6 +985,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/github'
+    | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
     | '/settings/sandbox'
@@ -1204,6 +1217,13 @@ declare module '@tanstack/react-router' {
       path: '/preferences'
       fullPath: '/settings/preferences'
       preLoaderRoute: typeof SettingsPreferencesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/model-optimizations': {
+      id: '/settings/model-optimizations'
+      path: '/model-optimizations'
+      fullPath: '/settings/model-optimizations'
+      preLoaderRoute: typeof SettingsModelOptimizationsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/github': {
@@ -1683,6 +1703,7 @@ interface SettingsRouteChildren {
   SettingsApiKeysRoute: typeof SettingsApiKeysRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsGithubRoute: typeof SettingsGithubRoute
+  SettingsModelOptimizationsRoute: typeof SettingsModelOptimizationsRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
   SettingsProjectsRoute: typeof SettingsProjectsRoute
   SettingsSandboxRoute: typeof SettingsSandboxRoute
@@ -1695,6 +1716,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsApiKeysRoute: SettingsApiKeysRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGithubRoute: SettingsGithubRoute,
+  SettingsModelOptimizationsRoute: SettingsModelOptimizationsRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
   SettingsProjectsRoute: SettingsProjectsRoute,
   SettingsSandboxRoute: SettingsSandboxRoute,

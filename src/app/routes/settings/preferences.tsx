@@ -2,13 +2,6 @@ import { Check, Gear } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { ModelSelector } from '@/app/components/ui/model-selector';
-import {
-  DEFAULT_AGENT_MODEL,
-  DEFAULT_ANTHROPIC_BASE_URL,
-  DEFAULT_TASK_CREATION_MODEL,
-  DEFAULT_WORKFLOW_MODEL,
-} from '@/lib/constants/models';
 
 export const Route = createFileRoute('/settings/preferences')({
   component: PreferencesSettingsPage,
@@ -23,26 +16,6 @@ function PreferencesSettingsPage(): React.JSX.Element {
   const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(() => {
     if (typeof window === 'undefined') return '3';
     return localStorage.getItem('default_max_concurrent_agents') || '3';
-  });
-
-  const [defaultModel, setDefaultModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_AGENT_MODEL;
-    return localStorage.getItem('default_model') || DEFAULT_AGENT_MODEL;
-  });
-
-  const [workflowModel, setWorkflowModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_WORKFLOW_MODEL;
-    return localStorage.getItem('workflow_model') || DEFAULT_WORKFLOW_MODEL;
-  });
-
-  const [taskCreationModel, setTaskCreationModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_MODEL;
-    return localStorage.getItem('task_creation_model') || DEFAULT_TASK_CREATION_MODEL;
-  });
-
-  const [apiEndpoint, setApiEndpoint] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_ANTHROPIC_BASE_URL;
-    return localStorage.getItem('anthropic_base_url') || DEFAULT_ANTHROPIC_BASE_URL;
   });
 
   const [autoStartAgents, setAutoStartAgents] = useState(() => {
@@ -60,10 +33,6 @@ function PreferencesSettingsPage(): React.JSX.Element {
   const handleSave = () => {
     localStorage.setItem('default_max_turns', maxTurns);
     localStorage.setItem('default_max_concurrent_agents', maxConcurrentAgents);
-    localStorage.setItem('default_model', defaultModel ?? DEFAULT_AGENT_MODEL);
-    localStorage.setItem('workflow_model', workflowModel ?? DEFAULT_WORKFLOW_MODEL);
-    localStorage.setItem('task_creation_model', taskCreationModel ?? DEFAULT_TASK_CREATION_MODEL);
-    localStorage.setItem('anthropic_base_url', apiEndpoint);
     localStorage.setItem('auto_start_agents', String(autoStartAgents));
     localStorage.setItem('sound_enabled', String(soundEnabled));
     setSaved(true);
@@ -76,9 +45,15 @@ function PreferencesSettingsPage(): React.JSX.Element {
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
           <Gear className="h-7 w-7 text-fg-muted" />
-          Preferences
+          Defaults
         </h1>
-        <p className="mt-2 text-fg-muted">Configure default settings for agents and projects.</p>
+        <p className="mt-2 text-fg-muted">
+          Configure default settings for agents and projects. For model selection, see{' '}
+          <a href="/settings/model-optimizations" className="text-accent hover:underline">
+            Model Optimizations
+          </a>
+          .
+        </p>
       </header>
 
       <div className="space-y-6">
@@ -95,21 +70,6 @@ function PreferencesSettingsPage(): React.JSX.Element {
           </div>
 
           <div className="space-y-6 p-5">
-            {/* Default Model */}
-            <div>
-              <label htmlFor="default-model" className="block text-sm font-medium text-fg">
-                Default Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                Default AI model used for agent execution
-              </p>
-              <ModelSelector
-                value={defaultModel}
-                onChange={setDefaultModel}
-                data-testid="default-model-selector"
-              />
-            </div>
-
             {/* Max Turns */}
             <div>
               <label htmlFor="max-turns" className="block text-sm font-medium text-fg">
@@ -147,70 +107,6 @@ function PreferencesSettingsPage(): React.JSX.Element {
                 min={1}
                 max={10}
                 className="w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* AI Features */}
-        <div
-          data-testid="ai-features-section"
-          className="rounded-lg border border-border bg-surface"
-        >
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold text-fg">AI Features</h2>
-            <p className="text-sm text-fg-muted">
-              Configure AI-powered features like workflow generation
-            </p>
-          </div>
-
-          <div className="space-y-6 p-5">
-            {/* Task Creation Model */}
-            <div>
-              <label htmlFor="task-creation-model" className="block text-sm font-medium text-fg">
-                Task Creation Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                AI model used for generating tasks with AI assistant
-              </p>
-              <ModelSelector
-                value={taskCreationModel}
-                onChange={setTaskCreationModel}
-                data-testid="task-creation-model-selector"
-              />
-            </div>
-
-            {/* Workflow Designer Model */}
-            <div>
-              <label htmlFor="workflow-model" className="block text-sm font-medium text-fg">
-                Workflow Designer Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                AI model used for generating workflows from skill content
-              </p>
-              <ModelSelector
-                value={workflowModel}
-                onChange={setWorkflowModel}
-                data-testid="workflow-model-selector"
-              />
-            </div>
-
-            {/* API Base URL */}
-            <div>
-              <label htmlFor="api-endpoint" className="block text-sm font-medium text-fg">
-                API Base URL
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                Anthropic API base URL. Can also be set via ANTHROPIC_BASE_URL env var.
-              </p>
-              <input
-                id="api-endpoint"
-                data-testid="api-endpoint-input"
-                type="url"
-                value={apiEndpoint}
-                onChange={(e) => setApiEndpoint(e.target.value)}
-                placeholder={DEFAULT_ANTHROPIC_BASE_URL}
-                className="w-full max-w-md rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
           </div>

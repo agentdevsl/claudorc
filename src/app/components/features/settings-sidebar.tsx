@@ -1,4 +1,5 @@
 import {
+  Brain,
   Cube,
   Folder,
   Gear,
@@ -60,6 +61,28 @@ function useSettingsSections(): SettingsSection[] {
           badge: hasApiKey ? 'Set' : undefined,
           badgeVariant: hasApiKey ? 'success' : undefined,
         },
+        { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
+        { id: 'sandbox', label: 'Sandbox', to: '/settings/sandbox', icon: Cube },
+        { id: 'preferences', label: 'Defaults', to: '/settings/preferences', icon: Gear },
+      ],
+    },
+    {
+      id: 'agent-config',
+      title: 'Agent Configuration',
+      items: [
+        {
+          id: 'model-optimizations',
+          label: 'Model Optimizations',
+          to: '/settings/model-optimizations',
+          icon: Brain,
+        },
+      ],
+    },
+    {
+      id: 'health',
+      title: 'Health',
+      items: [
+        { id: 'system', label: 'System Health', to: '/settings/system', icon: Heartbeat },
         {
           id: 'github',
           label: 'GitHub',
@@ -68,10 +91,6 @@ function useSettingsSections(): SettingsSection[] {
           badge: githubConnected ? 'Connected' : undefined,
           badgeVariant: githubConnected ? 'success' : undefined,
         },
-        { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
-        { id: 'sandbox', label: 'Sandbox', to: '/settings/sandbox', icon: Cube },
-        { id: 'preferences', label: 'Defaults', to: '/settings/preferences', icon: Gear },
-        { id: 'system', label: 'System Health', to: '/settings/system', icon: Heartbeat },
       ],
     },
     {
