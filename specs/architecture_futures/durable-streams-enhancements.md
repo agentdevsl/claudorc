@@ -249,13 +249,13 @@ id: z.string().cuid2(),
 |------|----------|--------|--------|
 | Auth on POST /api/streams | High | 4-6h | **Done** |
 | Type fragmentation consolidation | Medium | 6-8h | Pending |
-| Zod validation in client | Medium | 2-3h | Pending |
+| Zod validation in client | Medium | 2-3h | **Done** |
 | Reconnection attempt limit | Medium | 1-2h | Pending |
 | SessionWithPresence enum | Low | 30min | Pending |
 | Persistence retry queue | Low | 4-6h | Pending |
 | Structured logging migration | Low | 2-3h | Pending |
 | Remove redundant comments | Low | 30min | Pending |
-| Zod ID constraints | Low | 30min | Pending |
+| Zod ID constraints | Low | 30min | **Done** |
 
 ---
 

@@ -12,9 +12,9 @@ import { z } from 'zod';
  * Token chunk schema - streaming text from agent
  */
 export const chunkSchema = z.object({
-  id: z.string(),
-  agentId: z.string().optional(),
-  sessionId: z.string(),
+  id: z.string().min(1),
+  agentId: z.string().min(1).optional(),
+  sessionId: z.string().min(1),
   text: z.string(),
   accumulated: z.string().optional(),
   turn: z.number().optional(),
@@ -25,9 +25,9 @@ export const chunkSchema = z.object({
  * Tool call schema - agent tool invocations
  */
 export const toolCallSchema = z.object({
-  id: z.string(),
-  agentId: z.string().optional(),
-  sessionId: z.string(),
+  id: z.string().min(1),
+  agentId: z.string().min(1).optional(),
+  sessionId: z.string().min(1),
   tool: z.string(),
   input: z.unknown(),
   output: z.unknown().optional(),
@@ -40,8 +40,8 @@ export const toolCallSchema = z.object({
  * Presence schema - who's watching the session
  */
 export const presenceSchema = z.object({
-  userId: z.string(),
-  sessionId: z.string(),
+  userId: z.string().min(1),
+  sessionId: z.string().min(1),
   displayName: z.string().optional(),
   avatarUrl: z.string().optional(),
   cursor: z
@@ -58,8 +58,8 @@ export const presenceSchema = z.object({
  * Terminal I/O schema - interactive input/output
  */
 export const terminalSchema = z.object({
-  id: z.string(),
-  sessionId: z.string(),
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
   type: z.enum(['input', 'output', 'error']),
   data: z.string(),
   source: z.enum(['user', 'agent', 'system']).optional(),
@@ -70,9 +70,9 @@ export const terminalSchema = z.object({
  * Workflow events schema - approval workflow
  */
 export const workflowSchema = z.object({
-  id: z.string(),
-  sessionId: z.string(),
-  taskId: z.string().optional(),
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
+  taskId: z.string().min(1).optional(),
   type: z.enum([
     'approval:requested',
     'approval:approved',
@@ -90,10 +90,10 @@ export const workflowSchema = z.object({
  * Agent state schema - overall agent status
  */
 export const agentStateSchema = z.object({
-  agentId: z.string(),
-  sessionId: z.string(),
+  agentId: z.string().min(1),
+  sessionId: z.string().min(1),
   status: z.enum(['idle', 'starting', 'running', 'paused', 'error', 'completed']),
-  taskId: z.string().optional(),
+  taskId: z.string().min(1).optional(),
   turn: z.number().optional(),
   progress: z.number().optional(),
   currentTool: z.string().optional(),
@@ -106,9 +106,9 @@ export const agentStateSchema = z.object({
  * Derived message schema - aggregated from chunks
  */
 export const messageSchema = z.object({
-  id: z.string(),
-  agentId: z.string(),
-  sessionId: z.string(),
+  id: z.string().min(1),
+  agentId: z.string().min(1),
+  sessionId: z.string().min(1),
   text: z.string(),
   turn: z.number(),
   timestamp: z.number(),

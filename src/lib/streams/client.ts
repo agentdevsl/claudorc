@@ -9,6 +9,7 @@
  * @module lib/streams/client
  */
 
+import { z } from 'zod';
 import type {
   SessionAgentState,
   SessionChunk,
@@ -19,6 +20,48 @@ import type {
 
 // Re-export types for convenience
 export type { SessionChunk, SessionToolCall, SessionPresence, SessionTerminal, SessionAgentState };
+
+/**
+ * Zod schemas for validating raw event data from server
+ * These are partial schemas since some fields come from the event envelope
+ */
+const rawChunkDataSchema = z.object({
+  text: z.string().default(''),
+  agentId: z.string().optional(),
+});
+
+const rawToolCallDataSchema = z.object({
+  id: z.string().min(1).optional(),
+  tool: z.string().default('unknown'),
+  input: z.unknown().optional(),
+  output: z.unknown().optional(),
+});
+
+const rawPresenceDataSchema = z.object({
+  userId: z.string().min(1),
+  cursor: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+    })
+    .optional(),
+});
+
+const rawTerminalDataSchema = z.object({
+  data: z.string().default(''),
+});
+
+const rawAgentStateDataSchema = z.object({
+  agentId: z.string().min(1).optional(),
+  sessionId: z.string().min(1).optional(),
+  status: z.enum(['idle', 'starting', 'running', 'paused', 'error', 'completed']).optional(),
+  taskId: z.string().optional(),
+  turn: z.number().optional(),
+  progress: z.number().optional(),
+  currentTool: z.string().optional(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+});
 
 /**
  * Reconnection configuration
@@ -269,81 +312,145 @@ export class DurableStreamsClient {
 }
 
 /**
- * Map raw server event to typed channel event
+ * Map raw server event to typed channel event with Zod validation
  */
 function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
-  const data = raw.data as Record<string, unknown>;
-
   switch (raw.type) {
-    case 'chunk':
+    case 'chunk': {
+      const parsed = rawChunkDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid chunk event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'chunks',
         data: {
-          text: (data.text as string) ?? '',
+          text: parsed.data.text,
           timestamp: raw.timestamp,
-          agentId: data.agentId as string | undefined,
+          agentId: parsed.data.agentId,
         },
         offset: raw.offset,
       };
+    }
 
-    case 'tool:start':
+    case 'tool:start': {
+      const parsed = rawToolCallDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid tool:start event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'toolCalls',
         data: {
-          id: (data.id as string) ?? crypto.randomUUID(),
-          tool: (data.tool as string) ?? 'unknown',
-          input: data.input,
+          id: parsed.data.id ?? crypto.randomUUID(),
+          tool: parsed.data.tool,
+          input: parsed.data.input,
           status: 'running',
           timestamp: raw.timestamp,
         },
         offset: raw.offset,
       };
+    }
 
-    case 'tool:result':
+    case 'tool:result': {
+      const parsed = rawToolCallDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid tool:result event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'toolCalls',
         data: {
-          id: (data.id as string) ?? '',
-          tool: (data.tool as string) ?? 'unknown',
-          input: data.input,
-          output: data.output,
+          id: parsed.data.id ?? '',
+          tool: parsed.data.tool,
+          input: parsed.data.input,
+          output: parsed.data.output,
           status: 'complete',
           timestamp: raw.timestamp,
         },
         offset: raw.offset,
       };
+    }
 
     case 'presence:joined':
     case 'presence:left':
-    case 'presence:cursor':
+    case 'presence:cursor': {
+      const parsed = rawPresenceDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid presence event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'presence',
         data: {
-          userId: (data.userId as string) ?? '',
+          userId: parsed.data.userId,
           lastSeen: raw.timestamp,
-          cursor: data.cursor as { x: number; y: number } | undefined,
+          cursor: parsed.data.cursor,
         },
         offset: raw.offset,
       };
+    }
 
     case 'terminal:input':
-    case 'terminal:output':
+    case 'terminal:output': {
+      const parsed = rawTerminalDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid terminal event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'terminal',
         data: {
           type: raw.type === 'terminal:input' ? 'input' : 'output',
-          data: (data.data as string) ?? '',
+          data: parsed.data.data,
           timestamp: raw.timestamp,
         },
         offset: raw.offset,
       };
+    }
 
-    case 'state:update':
+    case 'state:update': {
+      const parsed = rawAgentStateDataSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid state:update event data:',
+          parsed.error.message,
+          'raw:',
+          raw.data
+        );
+        return null;
+      }
       return {
         channel: 'agentState',
-        data: data as SessionAgentState,
+        data: parsed.data as SessionAgentState,
         offset: raw.offset,
       };
+    }
 
     default:
       console.warn(
