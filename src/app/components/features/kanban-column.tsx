@@ -1,11 +1,56 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CaretDown, CaretRight, Plus } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import {
+  CaretDown,
+  CaretRight,
+  CheckCircle,
+  Clock,
+  Lightning,
+  Plus,
+  Stack,
+  User,
+} from '@phosphor-icons/react';
 import { Skeleton } from '@/app/components/ui/skeleton';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import type { ColumnConfig, Priority } from './kanban-board/constants';
 import { KanbanCard } from './kanban-card';
+
+/**
+ * Semantic icons for each Kanban column
+ */
+const COLUMN_ICONS: Record<TaskColumn, Icon> = {
+  backlog: Stack,
+  queued: Clock,
+  in_progress: Lightning,
+  waiting_approval: User,
+  verified: CheckCircle,
+};
+
+/**
+ * Icon badge background colors (12% opacity)
+ */
+const ICON_BADGE_STYLES: Record<TaskColumn, string> = {
+  backlog: 'bg-[rgba(139,148,158,0.12)] text-[#8b949e]',
+  queued: 'bg-[rgba(88,166,255,0.12)] text-[#58a6ff]',
+  in_progress: 'bg-[rgba(210,153,34,0.12)] text-[#d29922]',
+  waiting_approval: 'bg-[rgba(163,113,247,0.12)] text-[#a371f7]',
+  verified: 'bg-[rgba(63,185,80,0.12)] text-[#3fb950]',
+};
+
+/**
+ * Subtle diagonal gradients for column headers (8% opacity)
+ */
+const HEADER_GRADIENT_STYLES: Record<TaskColumn, React.CSSProperties> = {
+  backlog: { background: 'linear-gradient(135deg, rgba(139,148,158,0.08) 0%, transparent 60%)' },
+  queued: { background: 'linear-gradient(135deg, rgba(88,166,255,0.08) 0%, transparent 60%)' },
+  in_progress: { background: 'linear-gradient(135deg, rgba(210,153,34,0.08) 0%, transparent 60%)' },
+  waiting_approval: {
+    background: 'linear-gradient(135deg, rgba(163,113,247,0.08) 0%, transparent 60%)',
+  },
+  verified: { background: 'linear-gradient(135deg, rgba(63,185,80,0.08) 0%, transparent 60%)' },
+};
 
 interface KanbanColumnProps {
   id: TaskColumn;
@@ -35,13 +80,8 @@ export function KanbanColumn({
   onToggleCollapse,
   onAddTask,
   headerAction,
-  config,
 }: KanbanColumnProps): React.JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id });
-
-  // Default accent classes if no config provided
-  const accentClass = config?.accentClass ?? 'border-t-[var(--fg-muted)]';
-  const indicatorColor = config?.indicatorColor ?? 'bg-[var(--fg-muted)]';
 
   if (isCollapsed) {
     return (
@@ -49,8 +89,6 @@ export function KanbanColumn({
         ref={setNodeRef}
         className={cn(
           'flex w-12 flex-shrink-0 flex-col rounded-lg border border-[var(--border-default)] bg-[var(--bg-default)]',
-          accentClass,
-          'border-t-2',
           isOver && 'ring-2 ring-[var(--accent-muted)]'
         )}
         data-testid={`column-${id}`}
@@ -78,8 +116,6 @@ export function KanbanColumn({
       ref={setNodeRef}
       className={cn(
         'flex min-w-[200px] flex-1 flex-col rounded-lg border border-[var(--border-default)] bg-[var(--bg-default)]',
-        accentClass,
-        'border-t-2',
         isOver && 'bg-[var(--accent-muted)] ring-2 ring-[var(--accent-fg)]'
       )}
       data-testid={`column-${id}`}
@@ -88,6 +124,7 @@ export function KanbanColumn({
       {/* Column header */}
       <div
         className="flex flex-shrink-0 items-center justify-between border-b border-[var(--border-default)] px-3 py-3"
+        style={HEADER_GRADIENT_STYLES[id]}
         data-testid="column-header"
       >
         <div className="flex items-center gap-2">
@@ -99,8 +136,20 @@ export function KanbanColumn({
           >
             <CaretDown className="h-3.5 w-3.5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className={cn('h-3.5 w-[3px] rounded-sm', indicatorColor)} aria-hidden="true" />
+          <div className="flex items-center gap-2.5">
+            {/* Icon badge - 24x24px with 6px radius */}
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-[6px]',
+                ICON_BADGE_STYLES[id]
+              )}
+              aria-hidden="true"
+            >
+              {(() => {
+                const IconComponent = COLUMN_ICONS[id];
+                return <IconComponent className="h-3.5 w-3.5" weight="bold" />;
+              })()}
+            </div>
             <h3 className="text-sm font-semibold text-[var(--fg-default)]">{title}</h3>
             <span
               className="rounded-full bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--fg-muted)]"

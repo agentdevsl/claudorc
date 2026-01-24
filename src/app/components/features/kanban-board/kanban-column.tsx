@@ -3,8 +3,9 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CaretDown, Plus } from '@phosphor-icons/react';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
-import { COLUMN_WIDTH } from './constants';
-import { columnVariants, indicatorVariants } from './styles';
+import { COLUMN_HEADER_STYLES, COLUMN_WIDTH } from './constants';
+import { COLUMN_ICONS } from './icons';
+import { columnIconVariants, columnVariants } from './styles';
 
 interface KanbanColumnProps {
   /** Column identifier */
@@ -60,6 +61,7 @@ export function KanbanColumn({
           'flex items-center justify-between px-3.5 py-3 border-b border-border shrink-0',
           isCollapsed && 'flex-col py-3 px-2 gap-3'
         )}
+        style={isCollapsed ? undefined : COLUMN_HEADER_STYLES[id]}
       >
         <div className={cn('flex items-center gap-2.5', isCollapsed && 'flex-col')}>
           <button
@@ -78,7 +80,12 @@ export function KanbanColumn({
 
           {!isCollapsed && (
             <>
-              <div className={indicatorVariants({ column: id })} />
+              <div className={columnIconVariants({ column: id })}>
+                {(() => {
+                  const Icon = COLUMN_ICONS[id];
+                  return <Icon className="w-3.5 h-3.5" weight="bold" />;
+                })()}
+              </div>
               <span className="text-sm font-semibold text-fg">{title}</span>
               <span className="bg-surface-muted text-fg-muted text-xs font-medium px-1.5 py-0.5 rounded-full">
                 {tasks.length}

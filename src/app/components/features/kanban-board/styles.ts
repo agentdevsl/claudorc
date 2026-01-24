@@ -84,16 +84,17 @@ export const labelVariants = cva(
 export type LabelVariants = VariantProps<typeof labelVariants>;
 
 /**
- * Column indicator bar styles
+ * Column icon badge container styles
+ * 24x24px container with 6px border-radius, 12% opacity background
  */
-export const indicatorVariants = cva('w-[3px] h-[14px] rounded-sm', {
+export const columnIconVariants = cva('w-6 h-6 rounded-[6px] flex items-center justify-center', {
   variants: {
     column: {
-      backlog: 'bg-fg-muted',
-      queued: 'bg-secondary',
-      in_progress: 'bg-attention',
-      waiting_approval: 'bg-accent',
-      verified: 'bg-success',
+      backlog: 'bg-[rgba(139,148,158,0.12)] text-[#8b949e]',
+      queued: 'bg-[rgba(88,166,255,0.12)] text-[#58a6ff]',
+      in_progress: 'bg-[rgba(210,153,34,0.12)] text-[#d29922]',
+      waiting_approval: 'bg-[rgba(163,113,247,0.12)] text-[#a371f7]',
+      verified: 'bg-[rgba(63,185,80,0.12)] text-[#3fb950]',
     },
   },
   defaultVariants: {
@@ -101,7 +102,7 @@ export const indicatorVariants = cva('w-[3px] h-[14px] rounded-sm', {
   },
 });
 
-export type IndicatorVariants = VariantProps<typeof indicatorVariants>;
+export type ColumnIconVariants = VariantProps<typeof columnIconVariants>;
 
 /**
  * Agent status badge styles

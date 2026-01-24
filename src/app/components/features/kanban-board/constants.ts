@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { TaskColumn } from '@/db/schema/tasks';
 
 // =============================================================================
@@ -85,6 +86,25 @@ export const VALID_TRANSITIONS: Record<TaskColumn, TaskColumn[]> = {
   in_progress: ['backlog', 'waiting_approval'],
   waiting_approval: ['in_progress', 'verified'],
   verified: ['backlog'],
+};
+
+/** Subtle diagonal gradient styles for column headers (8% opacity) */
+export const COLUMN_HEADER_STYLES: Record<TaskColumn, CSSProperties> = {
+  backlog: {
+    background: 'linear-gradient(135deg, rgba(139,148,158,0.08) 0%, transparent 60%)',
+  },
+  queued: {
+    background: 'linear-gradient(135deg, rgba(88,166,255,0.08) 0%, transparent 60%)',
+  },
+  in_progress: {
+    background: 'linear-gradient(135deg, rgba(210,153,34,0.08) 0%, transparent 60%)',
+  },
+  waiting_approval: {
+    background: 'linear-gradient(135deg, rgba(163,113,247,0.08) 0%, transparent 60%)',
+  },
+  verified: {
+    background: 'linear-gradient(135deg, rgba(63,185,80,0.08) 0%, transparent 60%)',
+  },
 };
 
 // =============================================================================

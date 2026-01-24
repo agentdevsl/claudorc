@@ -124,10 +124,19 @@ interface CollapsibleSectionProps {
   count: number;
   colorClass: string;
   bgClass: string;
+  /** Gradient style for header hover state (matches Kanban column styling) */
+  gradientStyle?: React.CSSProperties;
   children: React.ReactNode;
   isOpen: boolean;
   onToggle: () => void;
 }
+
+/** Subtle diagonal gradients matching Kanban column header style (8% opacity) */
+const SECTION_HEADER_GRADIENTS = {
+  success: { background: 'linear-gradient(135deg, rgba(63,185,80,0.08) 0%, transparent 60%)' },
+  accent: { background: 'linear-gradient(135deg, rgba(163,113,247,0.08) 0%, transparent 60%)' },
+  muted: { background: 'linear-gradient(135deg, rgba(139,148,158,0.08) 0%, transparent 60%)' },
+} as const;
 
 function CollapsibleSection({
   title,
@@ -135,6 +144,7 @@ function CollapsibleSection({
   count,
   colorClass,
   bgClass,
+  gradientStyle,
   children,
   isOpen,
   onToggle,
@@ -147,11 +157,20 @@ function CollapsibleSection({
         type="button"
         onClick={onToggle}
         className="group flex w-full items-center gap-2.5 text-left py-1.5 px-2 -mx-2 rounded-md transition-all duration-200 hover:bg-surface-subtle"
+        style={gradientStyle}
       >
         <span className={cn('transition-transform duration-200 ease-out', isOpen && 'rotate-90')}>
           <CaretRight className="h-3.5 w-3.5 text-fg-subtle group-hover:text-fg-muted" />
         </span>
-        <span className={cn('p-1.5 rounded-md transition-colors', bgClass)}>{icon}</span>
+        {/* Icon badge - matches Kanban column icon style (24x24px, 6px radius) */}
+        <span
+          className={cn(
+            'w-6 h-6 rounded-[6px] flex items-center justify-center transition-colors',
+            bgClass
+          )}
+        >
+          {icon}
+        </span>
         <span className="text-[13px] font-medium text-fg tracking-tight">{title}</span>
         <span
           className={cn(
@@ -370,10 +389,11 @@ export function MarketplaceCard({
           {/* Official plugins */}
           <CollapsibleSection
             title="Official Plugins"
-            icon={<ShieldCheck className="h-4 w-4 text-success" weight="fill" />}
+            icon={<ShieldCheck className="h-3.5 w-3.5 text-success" weight="fill" />}
             count={officialCount}
             colorClass="text-success"
             bgClass="bg-success-muted"
+            gradientStyle={SECTION_HEADER_GRADIENTS.success}
             isOpen={openSections.official}
             onToggle={() => toggleSection('official')}
           >
@@ -387,10 +407,11 @@ export function MarketplaceCard({
           {/* External/Community plugins */}
           <CollapsibleSection
             title="Community Plugins"
-            icon={<Users className="h-4 w-4 text-accent" weight="fill" />}
+            icon={<Users className="h-3.5 w-3.5 text-accent" weight="fill" />}
             count={externalCount}
             colorClass="text-accent"
             bgClass="bg-accent-muted"
+            gradientStyle={SECTION_HEADER_GRADIENTS.accent}
             isOpen={openSections.community}
             onToggle={() => toggleSection('community')}
           >
@@ -404,10 +425,11 @@ export function MarketplaceCard({
           {/* Uncategorized plugins (no tags) - fallback for custom marketplaces */}
           <CollapsibleSection
             title="Available Plugins"
-            icon={<Lightning className="h-4 w-4 text-fg-muted" weight="fill" />}
+            icon={<Lightning className="h-3.5 w-3.5 text-fg-muted" weight="fill" />}
             count={uncategorizedCount}
             colorClass="text-fg-muted"
             bgClass="bg-surface-muted"
+            gradientStyle={SECTION_HEADER_GRADIENTS.muted}
             isOpen={openSections.available}
             onToggle={() => toggleSection('available')}
           >
