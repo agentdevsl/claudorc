@@ -13,6 +13,7 @@ import type { AgentError } from '../../lib/errors/agent-errors.js';
 import { AgentErrors } from '../../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../../lib/errors/concurrency-errors.js';
 import { ConcurrencyErrors } from '../../lib/errors/concurrency-errors.js';
+import { resolveModel } from '../../lib/utils/resolve-model.js';
 import type { Result } from '../../lib/utils/result.js';
 import { err, ok } from '../../lib/utils/result.js';
 import type { Database } from '../../types/database.js';
@@ -174,6 +175,24 @@ export class AgentExecutionService {
 
     await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
 
+    // Get project for model configuration
+    const project = await this.db.query.projects.findFirst({
+      where: eq(projects.id, agent.projectId),
+    });
+
+    // Resolve model using cascade priority:
+    // Task.modelOverride → Agent.config.model → Project.config.model → Default
+    const taskModelOverride = (task as typeof task & { modelOverride?: string | null })
+      .modelOverride;
+    const projectConfig = project?.config as { model?: string } | null;
+    const resolvedModel = resolveModel({
+      taskModelOverride: taskModelOverride,
+      agentModel: agent.config?.model,
+      projectModel: projectConfig?.model,
+      // Note: globalDefault is read from localStorage on client-side
+      // and passed through the agent config or API call
+    });
+
     // Build task prompt
     const taskPrompt = `Work on the following task:\n\nTitle: ${task.title}\n\nDescription: ${task.description ?? 'No description provided'}\n\nThe task is in the worktree at: ${worktree.value.path}`;
 
@@ -198,7 +217,7 @@ export class AgentExecutionService {
       {
         allowedTools: agent.config?.allowedTools ?? [],
         maxTurns: agent.config?.maxTurns ?? 50,
-        model: agent.config?.model ?? 'claude-sonnet-4-20250514',
+        model: resolvedModel,
         cwd: worktree.value.path,
         hooks,
       },

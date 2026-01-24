@@ -49,6 +49,24 @@ export const DEFAULT_AGENT_MODEL = 'claude-sonnet-4';
 /** Default model for workflow designer AI */
 export const DEFAULT_WORKFLOW_MODEL = 'claude-haiku-4';
 
+/** Default model for task creation AI */
+export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4';
+
+/**
+ * Get the task creation model from environment or localStorage.
+ */
+export function getTaskCreationModel(): string {
+  // Server-side: check environment variable
+  if (typeof window === 'undefined') {
+    const envModel = process.env.TASK_CREATION_MODEL;
+    if (envModel) return getFullModelId(envModel);
+    return getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+  }
+  // Client-side: check localStorage
+  const storedModel = localStorage.getItem('task_creation_model');
+  return storedModel ? getFullModelId(storedModel) : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+}
+
 /** Model ID type from available models */
 export type ModelId = (typeof AVAILABLE_MODELS)[number]['id'];
 

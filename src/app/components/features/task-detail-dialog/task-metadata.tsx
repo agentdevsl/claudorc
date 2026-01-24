@@ -1,9 +1,12 @@
-import { CalendarBlank, Clock, FileCode, GitBranch, Hash } from '@phosphor-icons/react';
+import { Brain, CalendarBlank, Clock, FileCode, GitBranch, Hash } from '@phosphor-icons/react';
+import { ModelSelectorInline } from '@/app/components/ui/model-selector';
 import type { Task } from '@/db/schema/tasks';
+import { getModelById } from '@/lib/constants/models';
 import { cn } from '@/lib/utils/cn';
 
 interface TaskMetadataProps {
   task: Task;
+  onModelChange?: (modelId: string | null) => void;
 }
 
 function formatDate(date: Date | string | null | undefined): string {
@@ -62,7 +65,7 @@ function MetadataItem({
   );
 }
 
-export function TaskMetadata({ task }: TaskMetadataProps): React.JSX.Element {
+export function TaskMetadata({ task, onModelChange }: TaskMetadataProps): React.JSX.Element {
   // Extract additional metadata from diffSummary if available
   const diffSummary = task.diffSummary as {
     filesChanged?: number;
@@ -78,6 +81,10 @@ export function TaskMetadata({ task }: TaskMetadataProps): React.JSX.Element {
 
   const fileChangesDisplay =
     filesChanged > 0 ? `${filesChanged} (+${linesAdded} / -${linesRemoved})` : '-';
+
+  // Get model name for display
+  const modelOverride = (task as Task & { modelOverride?: string | null }).modelOverride;
+  const modelDisplay = modelOverride ? (getModelById(modelOverride)?.name ?? modelOverride) : null;
 
   return (
     <div className="space-y-3">
@@ -105,6 +112,29 @@ export function TaskMetadata({ task }: TaskMetadataProps): React.JSX.Element {
         <MetadataItem label="Agent Turns" value={turnCount || '-'} icon={Hash} />
         <MetadataItem label="Files Changed" value={fileChangesDisplay} icon={FileCode} />
         <MetadataItem label="Branch" value={task.branch || '-'} icon={GitBranch} />
+      </div>
+
+      {/* Model Override Section */}
+      <div className="rounded-md border border-border bg-surface-subtle p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-fg-muted" />
+            <div>
+              <p className="text-sm font-medium text-fg">Agent Model</p>
+              <p className="text-xs text-fg-muted">
+                {modelDisplay ? `Using ${modelDisplay}` : 'Using project/global default'}
+              </p>
+            </div>
+          </div>
+          {onModelChange && (
+            <ModelSelectorInline
+              value={modelOverride}
+              onChange={onModelChange}
+              allowInherit
+              inheritLabel="Default"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

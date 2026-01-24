@@ -6,6 +6,7 @@ import { ModelSelector } from '@/app/components/ui/model-selector';
 import {
   DEFAULT_AGENT_MODEL,
   DEFAULT_ANTHROPIC_BASE_URL,
+  DEFAULT_TASK_CREATION_MODEL,
   DEFAULT_WORKFLOW_MODEL,
 } from '@/lib/constants/models';
 
@@ -34,6 +35,11 @@ function PreferencesSettingsPage(): React.JSX.Element {
     return localStorage.getItem('workflow_model') || DEFAULT_WORKFLOW_MODEL;
   });
 
+  const [taskCreationModel, setTaskCreationModel] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_MODEL;
+    return localStorage.getItem('task_creation_model') || DEFAULT_TASK_CREATION_MODEL;
+  });
+
   const [apiEndpoint, setApiEndpoint] = useState(() => {
     if (typeof window === 'undefined') return DEFAULT_ANTHROPIC_BASE_URL;
     return localStorage.getItem('anthropic_base_url') || DEFAULT_ANTHROPIC_BASE_URL;
@@ -56,6 +62,7 @@ function PreferencesSettingsPage(): React.JSX.Element {
     localStorage.setItem('default_max_concurrent_agents', maxConcurrentAgents);
     localStorage.setItem('default_model', defaultModel ?? DEFAULT_AGENT_MODEL);
     localStorage.setItem('workflow_model', workflowModel ?? DEFAULT_WORKFLOW_MODEL);
+    localStorage.setItem('task_creation_model', taskCreationModel ?? DEFAULT_TASK_CREATION_MODEL);
     localStorage.setItem('anthropic_base_url', apiEndpoint);
     localStorage.setItem('auto_start_agents', String(autoStartAgents));
     localStorage.setItem('sound_enabled', String(soundEnabled));
@@ -158,6 +165,21 @@ function PreferencesSettingsPage(): React.JSX.Element {
           </div>
 
           <div className="space-y-6 p-5">
+            {/* Task Creation Model */}
+            <div>
+              <label htmlFor="task-creation-model" className="block text-sm font-medium text-fg">
+                Task Creation Model
+              </label>
+              <p className="mb-2 text-xs text-fg-muted">
+                AI model used for generating tasks with AI assistant
+              </p>
+              <ModelSelector
+                value={taskCreationModel}
+                onChange={setTaskCreationModel}
+                data-testid="task-creation-model-selector"
+              />
+            </div>
+
             {/* Workflow Designer Model */}
             <div>
               <label htmlFor="workflow-model" className="block text-sm font-medium text-fg">

@@ -3,6 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
 import { type NewTask, tasks } from '@/db/schema/tasks';
+import { getTaskCreationModel } from '@/lib/constants/models';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
@@ -97,8 +98,6 @@ export const TaskCreationErrors = {
 // Constants
 // ============================================================================
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
-
 const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structured tasks for a software project management system.
 
 IMPORTANT: You must ALWAYS include a task suggestion JSON block in your VERY FIRST response and every response. Users expect immediate actionable output.
@@ -187,8 +186,10 @@ export class TaskCreationService {
     }
 
     // Create V2 session with task system enabled
+    // Use configurable model from preferences/environment
+    const taskCreationModel = getTaskCreationModel();
     const v2Session = unstable_v2_createSession({
-      model: DEFAULT_MODEL,
+      model: taskCreationModel,
       env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
     });
 

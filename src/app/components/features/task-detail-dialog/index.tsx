@@ -24,6 +24,7 @@ export interface UpdateTaskInput {
   description?: string;
   labels?: string[];
   priority?: 'high' | 'medium' | 'low';
+  modelOverride?: string | null;
 }
 
 export interface ActivityEntry {
@@ -277,7 +278,10 @@ export function TaskDetailDialog({
                 />
 
                 {/* Metadata grid */}
-                <TaskMetadata task={task} />
+                <TaskMetadata
+                  task={task}
+                  onModelChange={(modelId) => handleFieldChange('modelOverride', modelId)}
+                />
 
                 {/* Labels */}
                 <TaskLabels
