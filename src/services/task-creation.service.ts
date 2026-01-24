@@ -23,6 +23,25 @@ export interface TaskSuggestion {
   priority: TaskPriority;
 }
 
+export interface ClarifyingQuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface ClarifyingQuestion {
+  header: string;
+  question: string;
+  options: ClarifyingQuestionOption[];
+}
+
+export interface PendingQuestions {
+  id: string;
+  questions: ClarifyingQuestion[];
+  round: number;
+  totalAsked: number;
+  maxQuestions: number;
+}
+
 export interface TaskCreationMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -45,6 +64,9 @@ export interface TaskCreationSession {
   status: TaskCreationSessionStatus;
   messages: TaskCreationMessage[];
   suggestion: TaskSuggestion | null;
+  pendingQuestions: PendingQuestions | null;
+  questionRound: number;
+  totalQuestionsAsked: number;
   createdTaskId: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -100,24 +122,56 @@ export const TaskCreationErrors = {
 
 const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structured tasks for a software project management system.
 
-IMPORTANT: You must ALWAYS include a task suggestion JSON block in your VERY FIRST response and every response. Users expect immediate actionable output.
-
 Your role is to:
-1. Understand what the user wants (from their message)
-2. Generate a task suggestion immediately based on available information
-3. Explain any assumptions you made
+1. Understand what the user wants (from their initial message)
+2. Ask 2-5 clarifying questions to gather important missing details
+3. Generate a high-quality task suggestion based on the user's answers
 
-Response format - ALWAYS include both:
-1. A brief explanation (1-2 sentences max)
-2. The task suggestion JSON block
+## Phase 1: Clarifying Questions
 
-ALWAYS respond with a JSON block in this exact format:
+When you receive the user's initial request, respond with a JSON block containing clarifying questions.
+Ask questions that will help you create a better, more specific task. Focus on:
+- Scope and boundaries (what's included/excluded)
+- Technical approach or implementation preference
+- Priority and urgency
+- Dependencies or blockers
+- Acceptance criteria
+
+ALWAYS respond with a clarifying_questions JSON block:
+
+\`\`\`json
+{
+  "type": "clarifying_questions",
+  "questions": [
+    {
+      "header": "Scope",
+      "question": "What specific functionality should this include?",
+      "options": [
+        { "label": "Option A", "description": "Brief description of option A" },
+        { "label": "Option B", "description": "Brief description of option B" },
+        { "label": "Option C", "description": "Brief description of option C" }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+Guidelines for questions:
+- Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
+- Each question should have 2-4 options
+- Options should be mutually exclusive and cover common choices
+- Include "Custom" or "Other" as a last option if appropriate
+- Ask 2-5 questions maximum per round
+
+## Phase 2: Task Suggestion
+
+After receiving answers, generate the task suggestion:
 
 \`\`\`json
 {
   "type": "task_suggestion",
   "title": "Short descriptive title (5-10 words)",
-  "description": "Detailed task description in markdown format. Include:\\n- What needs to be done\\n- Acceptance criteria\\n- Any relevant context",
+  "description": "Detailed task description in markdown format. Include:\\n## Objective\\n- What needs to be done\\n\\n## Requirements\\n- Specific requirements based on answers\\n\\n## Acceptance Criteria\\n- [ ] Criteria 1\\n- [ ] Criteria 2",
   "labels": ["feature"],
   "priority": "medium"
 }
@@ -127,7 +181,7 @@ Field guidelines:
 - labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
 - priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
 
-CRITICAL: Generate the suggestion immediately even with limited information. The user can refine it later. Don't ask clarifying questions - make reasonable assumptions and document them in the description.`;
+CRITICAL: Always ask clarifying questions first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
 
 // ============================================================================
 // Service Implementation
@@ -143,6 +197,9 @@ export class TaskCreationService {
     private streams: DurableStreamsService,
     private sessionService?: SessionService
   ) {}
+
+  /** Maximum total questions to ask across all rounds */
+  private static readonly MAX_QUESTIONS = 10;
 
   /**
    * Parse a task suggestion from assistant response text
@@ -164,6 +221,54 @@ export class TaskCreationService {
         description: parsed.description,
         labels: Array.isArray(parsed.labels) ? parsed.labels : [],
         priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse clarifying questions from assistant response text
+   */
+  private parseClarifyingQuestions(
+    text: string,
+    session: TaskCreationSession
+  ): PendingQuestions | null {
+    // Look for JSON block in the response
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    if (!jsonMatch || !jsonMatch[1]) return null;
+
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (parsed.type !== 'clarifying_questions') return null;
+
+      // Validate questions array
+      if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) return null;
+
+      // Validate each question
+      const questions: ClarifyingQuestion[] = [];
+      for (const q of parsed.questions) {
+        if (!q.header || !q.question || !Array.isArray(q.options) || q.options.length === 0) {
+          continue;
+        }
+        questions.push({
+          header: q.header,
+          question: q.question,
+          options: q.options.map((opt: { label?: string; description?: string }) => ({
+            label: opt.label || '',
+            description: opt.description,
+          })),
+        });
+      }
+
+      if (questions.length === 0) return null;
+
+      return {
+        id: createId(),
+        questions,
+        round: session.questionRound + 1,
+        totalAsked: session.totalQuestionsAsked + questions.length,
+        maxQuestions: TaskCreationService.MAX_QUESTIONS,
       };
     } catch {
       return null;
@@ -224,6 +329,9 @@ export class TaskCreationService {
       status: 'active',
       messages: [],
       suggestion: null,
+      pendingQuestions: null,
+      questionRound: 0,
+      totalQuestionsAsked: 0,
       createdTaskId: null,
       createdAt: new Date().toISOString(),
       completedAt: null,
@@ -469,19 +577,39 @@ export class TaskCreationService {
           }
         }
 
-        // Parse suggestion from response
-        const suggestion = this.parseSuggestion(accumulated);
-        if (suggestion) {
-          session.suggestion = suggestion;
+        // Parse clarifying questions from response (takes precedence)
+        const questions = this.parseClarifyingQuestions(accumulated, session);
+        if (questions) {
+          session.pendingQuestions = questions;
+          session.questionRound = questions.round;
+          session.totalQuestionsAsked = questions.totalAsked;
+          session.status = 'waiting_user';
 
-          // Publish suggestion event
+          // Publish questions event
           try {
-            await this.streams.publishTaskCreationSuggestion(sessionId, {
+            await this.streams.publishTaskCreationQuestions(sessionId, {
               sessionId,
-              suggestion,
+              questions,
             });
           } catch (error) {
-            console.error('[TaskCreationService] Failed to publish suggestion:', error);
+            console.error('[TaskCreationService] Failed to publish questions:', error);
+          }
+        } else {
+          // Parse suggestion from response (only if no questions)
+          const suggestion = this.parseSuggestion(accumulated);
+          if (suggestion) {
+            session.suggestion = suggestion;
+            session.pendingQuestions = null;
+
+            // Publish suggestion event
+            try {
+              await this.streams.publishTaskCreationSuggestion(sessionId, {
+                sessionId,
+                suggestion,
+              });
+            } catch (error) {
+              console.error('[TaskCreationService] Failed to publish suggestion:', error);
+            }
           }
         }
       }
@@ -590,6 +718,64 @@ export class TaskCreationService {
       const message = error instanceof Error ? error.message : String(error);
       return err(TaskCreationErrors.DATABASE_ERROR('insert', message));
     }
+  }
+
+  /**
+   * Answer clarifying questions and continue the conversation
+   */
+  async answerQuestions(
+    sessionId: string,
+    questionsId: string,
+    answers: Record<string, string>
+  ): Promise<Result<TaskCreationSession, TaskCreationError>> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return err(TaskCreationErrors.SESSION_NOT_FOUND);
+    }
+
+    if (!session.pendingQuestions || session.pendingQuestions.id !== questionsId) {
+      return err({
+        code: 'INVALID_QUESTIONS_ID',
+        message: 'Questions ID does not match pending questions',
+      });
+    }
+
+    // Format answers as a message to send to the AI
+    const answerLines: string[] = ['Here are my answers to your questions:'];
+    for (const [index, answer] of Object.entries(answers)) {
+      const question = session.pendingQuestions.questions[Number(index)];
+      if (question) {
+        answerLines.push(`- ${question.header}: ${answer}`);
+      }
+    }
+    const answerMessage = answerLines.join('\n');
+
+    // Clear pending questions and resume active status
+    session.pendingQuestions = null;
+    session.status = 'active';
+
+    // Send the answers as a new message
+    return this.sendMessage(sessionId, answerMessage);
+  }
+
+  /**
+   * Skip clarifying questions and generate task with available information
+   */
+  async skipQuestions(sessionId: string): Promise<Result<TaskCreationSession, TaskCreationError>> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return err(TaskCreationErrors.SESSION_NOT_FOUND);
+    }
+
+    // Clear pending questions and resume active status
+    session.pendingQuestions = null;
+    session.status = 'active';
+
+    // Send a message telling the AI to proceed without further questions
+    const skipMessage =
+      'Please proceed with generating the task based on the information provided so far. No more clarifying questions needed.';
+
+    return this.sendMessage(sessionId, skipMessage);
   }
 
   /**

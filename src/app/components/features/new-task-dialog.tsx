@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils/cn';
 import { getLabelColors, type Priority } from './kanban-board/constants';
+import { QuestionsPanel } from './new-task-dialog/questions-panel';
 import {
   type Message,
   type TaskSuggestion,
@@ -743,11 +744,14 @@ export function NewTaskDialog({
     streamingContent,
     isStreaming,
     suggestion,
+    pendingQuestions,
     createdTaskId,
     error,
     startConversation,
     sendMessage,
     acceptSuggestion,
+    answerQuestions,
+    skipQuestions,
     cancel,
     reset,
   } = useTaskCreation(projectId);
@@ -760,6 +764,8 @@ export function NewTaskDialog({
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('medium');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -775,6 +781,15 @@ export function NewTaskDialog({
       });
     }
   }, [suggestion]);
+
+  // Reset selected answers when new questions arrive
+  const pendingQuestionsId = pendingQuestions?.id;
+  useEffect(() => {
+    if (pendingQuestionsId) {
+      setSelectedAnswers({});
+      setIsAnsweringQuestions(false);
+    }
+  }, [pendingQuestionsId]);
 
   // Start conversation when dialog opens
   useEffect(() => {
@@ -795,6 +810,8 @@ export function NewTaskDialog({
       setLocalError(null);
       setSelectedPriority('medium');
       setSelectedTags([]);
+      setSelectedAnswers({});
+      setIsAnsweringQuestions(false);
     } else {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -894,9 +911,38 @@ export function NewTaskDialog({
     }
   };
 
+  // Handle submitting answers to questions
+  const handleSubmitAnswers = useCallback(async () => {
+    if (!pendingQuestions) return;
+    setIsAnsweringQuestions(true);
+    try {
+      await answerQuestions(selectedAnswers);
+    } finally {
+      setIsAnsweringQuestions(false);
+    }
+  }, [pendingQuestions, answerQuestions, selectedAnswers]);
+
+  // Handle skipping questions
+  const handleSkipQuestions = useCallback(async () => {
+    setIsAnsweringQuestions(true);
+    try {
+      await skipQuestions();
+    } finally {
+      setIsAnsweringQuestions(false);
+    }
+  }, [skipQuestions]);
+
+  // Handle selecting an answer for a question
+  const handleSelectAnswer = useCallback((questionIndex: number, answer: string) => {
+    setSelectedAnswers((prev) => ({
+      ...prev,
+      [String(questionIndex)]: answer,
+    }));
+  }, []);
+
   const handleClose = async () => {
     console.log('[NewTaskDialog] handleClose called', { sessionId, status });
-    if (sessionId && status === 'active') {
+    if (sessionId && (status === 'active' || status === 'waiting_questions')) {
       console.log('[NewTaskDialog] Calling cancel for session:', sessionId);
       await cancel();
     }
@@ -1065,8 +1111,23 @@ export function NewTaskDialog({
                   </div>
                 )}
 
+                {/* Clarifying questions panel - show when waiting for user answers */}
+                {status === 'waiting_questions' && pendingQuestions && (
+                  <div className="flex-1 overflow-hidden">
+                    <QuestionsPanel
+                      pendingQuestions={pendingQuestions}
+                      selectedAnswers={selectedAnswers}
+                      onSelectAnswer={handleSelectAnswer}
+                      onSubmitAnswers={handleSubmitAnswers}
+                      onSkip={handleSkipQuestions}
+                      isSubmitting={isAnsweringQuestions}
+                    />
+                  </div>
+                )}
+
                 {/* Terraform workflows - show when no conversation yet */}
                 {messages.length === 0 &&
+                  !pendingQuestions &&
                   (status === 'active' || status === 'error' || status === 'connecting') && (
                     <div className="flex-1 overflow-y-auto">
                       <TerraformWorkflows
@@ -1077,7 +1138,7 @@ export function NewTaskDialog({
                   )}
 
                 {/* Chat messages - show when conversation started */}
-                {messages.length > 0 && (
+                {messages.length > 0 && status !== 'waiting_questions' && (
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.map((message) => (
                       <div key={message.id}>

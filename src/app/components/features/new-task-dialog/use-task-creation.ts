@@ -14,6 +14,25 @@ export interface TaskSuggestion {
   priority: TaskPriority;
 }
 
+export interface ClarifyingQuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface ClarifyingQuestion {
+  header: string;
+  question: string;
+  options: ClarifyingQuestionOption[];
+}
+
+export interface PendingQuestionsState {
+  id: string;
+  questions: ClarifyingQuestion[];
+  round: number;
+  totalAsked: number;
+  maxQuestions: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -21,7 +40,14 @@ export interface Message {
   timestamp: string;
 }
 
-export type SessionStatus = 'idle' | 'connecting' | 'active' | 'completed' | 'cancelled' | 'error';
+export type SessionStatus =
+  | 'idle'
+  | 'connecting'
+  | 'active'
+  | 'waiting_questions'
+  | 'completed'
+  | 'cancelled'
+  | 'error';
 
 export interface UseTaskCreationState {
   /** Current session ID */
@@ -36,6 +62,8 @@ export interface UseTaskCreationState {
   isStreaming: boolean;
   /** Current task suggestion if available */
   suggestion: TaskSuggestion | null;
+  /** Pending clarifying questions */
+  pendingQuestions: PendingQuestionsState | null;
   /** ID of the created task (after accept) */
   createdTaskId: string | null;
   /** Error message if any */
@@ -49,6 +77,10 @@ export interface UseTaskCreationActions {
   sendMessage: (content: string) => Promise<void>;
   /** Accept the current suggestion and create a task */
   acceptSuggestion: (overrides?: Partial<TaskSuggestion>) => Promise<void>;
+  /** Answer clarifying questions */
+  answerQuestions: (answers: Record<string, string>) => Promise<void>;
+  /** Skip clarifying questions */
+  skipQuestions: () => Promise<void>;
   /** Cancel the session */
   cancel: () => Promise<void>;
   /** Reset the state */
@@ -69,6 +101,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [suggestion, setSuggestion] = useState<TaskSuggestion | null>(null);
+  const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionsState | null>(null);
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,6 +181,14 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
           case 'task-creation:suggestion':
             // Received a task suggestion
             setSuggestion(data.data.suggestion);
+            setPendingQuestions(null);
+            break;
+
+          case 'task-creation:questions':
+            // Received clarifying questions
+            setPendingQuestions(data.data.questions);
+            setStatus('waiting_questions');
+            setIsStreaming(false);
             break;
 
           case 'task-creation:completed':
@@ -269,6 +310,64 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     [sessionId, suggestion]
   );
 
+  // Answer clarifying questions
+  const answerQuestions = useCallback(
+    async (answers: Record<string, string>) => {
+      if (!sessionId) {
+        setError('No active session.');
+        return;
+      }
+
+      if (!pendingQuestions) {
+        setError('No pending questions to answer.');
+        return;
+      }
+
+      setIsStreaming(true);
+      setStreamingContent('');
+      setStatus('active');
+
+      const result = await apiClient.taskCreation.answerQuestions(
+        sessionId,
+        pendingQuestions.id,
+        answers
+      );
+
+      if (!result.ok) {
+        setError(result.error.message);
+        setIsStreaming(false);
+        setStatus('waiting_questions');
+        return;
+      }
+
+      setPendingQuestions(null);
+    },
+    [sessionId, pendingQuestions]
+  );
+
+  // Skip clarifying questions
+  const skipQuestions = useCallback(async () => {
+    if (!sessionId) {
+      setError('No active session.');
+      return;
+    }
+
+    setIsStreaming(true);
+    setStreamingContent('');
+    setStatus('active');
+
+    const result = await apiClient.taskCreation.skipQuestions(sessionId);
+
+    if (!result.ok) {
+      setError(result.error.message);
+      setIsStreaming(false);
+      setStatus('waiting_questions');
+      return;
+    }
+
+    setPendingQuestions(null);
+  }, [sessionId]);
+
   // Cancel session
   const cancel = useCallback(async () => {
     console.log('[useTaskCreation] cancel called', { sessionId });
@@ -310,6 +409,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     setStreamingContent('');
     setIsStreaming(false);
     setSuggestion(null);
+    setPendingQuestions(null);
     setCreatedTaskId(null);
     setError(null);
   }, []);
@@ -322,12 +422,15 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     streamingContent,
     isStreaming,
     suggestion,
+    pendingQuestions,
     createdTaskId,
     error,
     // Actions
     startConversation,
     sendMessage,
     acceptSuggestion,
+    answerQuestions,
+    skipQuestions,
     cancel,
     reset,
   };

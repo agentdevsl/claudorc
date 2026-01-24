@@ -805,6 +805,30 @@ export const apiClient = {
       }),
 
     /**
+     * Answer clarifying questions
+     */
+    answerQuestions: (sessionId: string, questionsId: string, answers: Record<string, string>) =>
+      apiServerFetch<{
+        sessionId: string;
+        status: string;
+      }>('/api/tasks/create-with-ai/answer', {
+        method: 'POST',
+        body: { sessionId, questionsId, answers },
+      }),
+
+    /**
+     * Skip clarifying questions
+     */
+    skipQuestions: (sessionId: string) =>
+      apiServerFetch<{
+        sessionId: string;
+        status: string;
+      }>('/api/tasks/create-with-ai/skip', {
+        method: 'POST',
+        body: { sessionId },
+      }),
+
+    /**
      * Get the SSE stream URL for a task creation session
      */
     getStreamUrl: (sessionId: string) =>
