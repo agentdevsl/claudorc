@@ -1,0 +1,114 @@
+/**
+ * Shared types for session services
+ */
+
+export type SessionEventType =
+  | 'chunk'
+  | 'tool:start'
+  | 'tool:result'
+  | 'presence:joined'
+  | 'presence:left'
+  | 'presence:cursor'
+  | 'terminal:input'
+  | 'terminal:output'
+  | 'approval:requested'
+  | 'approval:approved'
+  | 'approval:rejected'
+  | 'state:update'
+  | 'agent:started'
+  | 'agent:turn'
+  | 'agent:turn_limit'
+  | 'agent:completed'
+  | 'agent:error'
+  | 'agent:warning';
+
+export type SessionEvent = {
+  id: string;
+  type: SessionEventType;
+  timestamp: number;
+  data: unknown;
+};
+
+export type CreateSessionInput = {
+  projectId: string;
+  taskId?: string;
+  agentId?: string;
+  title?: string;
+};
+
+export type ListSessionsOptions = {
+  limit?: number;
+  offset?: number;
+  orderBy?: 'createdAt' | 'updatedAt';
+  orderDirection?: 'asc' | 'desc';
+};
+
+export type PresenceUpdate = {
+  cursor?: { x: number; y: number };
+  activeFile?: string;
+};
+
+export type ActiveUser = {
+  userId: string;
+  lastSeen: number;
+  cursor?: { x: number; y: number };
+  activeFile?: string;
+};
+
+export type SubscribeOptions = {
+  startTime?: number;
+  includeHistory?: boolean;
+};
+
+export type HistoryOptions = {
+  startTime?: number;
+};
+
+export type ListSessionsWithFiltersOptions = {
+  status?: import('../../db/schema/enums.js').SessionStatus[];
+  agentId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type GetEventsBySessionOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+export type SessionWithPresence = {
+  id: string;
+  projectId: string;
+  taskId?: string | null;
+  agentId?: string | null;
+  title?: string | null;
+  url: string;
+  status: string;
+  presence: ActiveUser[];
+  createdAt?: string;
+  updatedAt?: string;
+  closedAt?: string | null;
+};
+
+export type DurableStreamsServer = {
+  createStream: (id: string, schema: unknown) => Promise<void>;
+  publish: (id: string, type: string, data: unknown) => Promise<number>;
+  subscribe: (
+    id: string,
+    options?: { fromOffset?: number }
+  ) => AsyncIterable<{
+    type: string;
+    data: unknown;
+    offset: number;
+  }>;
+};
+
+/**
+ * Shared session service configuration
+ */
+export type SessionServiceConfig = {
+  baseUrl: string;
+};
