@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { forbiddenResponse, validateUserIdMatch, withAuth } from '@/lib/api/auth-middleware';
 import { getStreamProvider, hasStreamProvider } from '@/lib/streams/provider';
 
 export const Route = createFileRoute('/api/streams/')({
@@ -43,7 +44,7 @@ export const Route = createFileRoute('/api/streams/')({
        * Body: { channel: string, data: object }
        * Response: { ok: true, offset: number }
        */
-      POST: async ({ request }: { request: Request }) => {
+      POST: withAuth(async ({ request, auth }) => {
         const url = new URL(request.url);
         const sessionId = url.searchParams.get('sessionId');
 
@@ -121,6 +122,14 @@ export const Route = createFileRoute('/api/streams/')({
           );
         }
 
+        // For presence events, validate userId matches authenticated user
+        if (channel === 'presence') {
+          const presenceData = data as { userId?: string };
+          if (presenceData.userId && !validateUserIdMatch(presenceData.userId, auth.userId)) {
+            return forbiddenResponse('Cannot send presence for another user');
+          }
+        }
+
         // Check if stream provider is available
         if (!hasStreamProvider()) {
           return new Response(
@@ -162,7 +171,7 @@ export const Route = createFileRoute('/api/streams/')({
             { status: 500, headers: { 'Content-Type': 'application/json' } }
           );
         }
-      },
+      }),
     },
   },
 });
