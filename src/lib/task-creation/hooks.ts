@@ -39,8 +39,10 @@ export interface UseTaskCreationState {
   pendingQuestions: PendingQuestions | null;
   /** ID of the created task (after accept) */
   createdTaskId: string | null;
-  /** Error message if any */
+  /** Error message if any (from session or local operations) */
   error: string | null;
+  /** Local error from hook operations (separate from session errors) */
+  localError: string | null;
 }
 
 export interface UseTaskCreationActions {
@@ -60,6 +62,8 @@ export interface UseTaskCreationActions {
   cancel: () => Promise<void>;
   /** Reset the state */
   reset: () => void;
+  /** Clear any local error */
+  clearLocalError: () => void;
 }
 
 export type UseTaskCreationReturn = UseTaskCreationState & UseTaskCreationActions;
@@ -115,6 +119,8 @@ export function useTaskCreationMessages(sessionId: string | null): TaskCreationM
 export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   // Local state for session ID (only thing we need to track locally)
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Local error state for operation failures (separate from session errors)
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // Get session and messages from TanStack DB (reactive)
   const session = useTaskCreationSession(sessionId);
@@ -140,11 +146,15 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
   // Start a new conversation
   const startConversation = useCallback(async () => {
+    // Clear any previous local error
+    setLocalError(null);
+
     // Call API to start session
     const result = await apiClient.taskCreation.start(projectId);
 
     if (!result.ok) {
       console.error('[useTaskCreation] Failed to start conversation:', result.error);
+      setLocalError(result.error.message || 'Failed to start conversation');
       return;
     }
 
@@ -166,8 +176,12 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     async (content: string) => {
       if (!sessionId) {
         console.error('[useTaskCreation] No active session');
+        setLocalError('No active session');
         return;
       }
+
+      // Clear any previous local error
+      setLocalError(null);
 
       // Add user message to collection immediately (optimistic)
       addUserMessage(sessionId, content);
@@ -177,7 +191,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
       if (!result.ok) {
         console.error('[useTaskCreation] Failed to send message:', result.error);
-        // Error will be handled via SSE event
+        // Set local error - SSE may also send an error event but this ensures immediate feedback
+        setLocalError(result.error.message || 'Failed to send message');
       }
     },
     [sessionId]
@@ -219,8 +234,12 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     async (answers: Record<string, string>) => {
       if (!sessionId || !pendingQuestions) {
         console.error('[useTaskCreation] No active session or pending questions');
+        setLocalError('No active session or pending questions');
         return;
       }
+
+      // Clear any previous local error
+      setLocalError(null);
 
       const result = await apiClient.taskCreation.answerQuestions(
         sessionId,
@@ -230,8 +249,9 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
       if (!result.ok) {
         console.error('[useTaskCreation] Failed to answer questions:', result.error);
+        // Set local error - SSE may also send an error event but this ensures immediate feedback
+        setLocalError(result.error.message || 'Failed to submit answers');
       }
-      // Response will be handled via SSE events
     },
     [sessionId, pendingQuestions]
   );
@@ -240,27 +260,39 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   const skipQuestions = useCallback(async () => {
     if (!sessionId) {
       console.error('[useTaskCreation] No active session');
+      setLocalError('No active session');
       return;
     }
+
+    // Clear any previous local error
+    setLocalError(null);
 
     const result = await apiClient.taskCreation.skipQuestions(sessionId);
 
     if (!result.ok) {
       console.error('[useTaskCreation] Failed to skip questions:', result.error);
+      // Set local error - SSE may also send an error event but this ensures immediate feedback
+      setLocalError(result.error.message || 'Failed to skip questions');
     }
-    // Response will be handled via SSE events
   }, [sessionId]);
 
   // Cancel session
   const cancel = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.error('[useTaskCreation] No active session to cancel');
+      return;
+    }
+
+    // Clear any previous local error
+    setLocalError(null);
 
     const result = await apiClient.taskCreation.cancel(sessionId);
 
     if (!result.ok) {
       console.error('[useTaskCreation] Failed to cancel:', result.error);
+      // Set local error - SSE may also send an error event but this ensures immediate feedback
+      setLocalError(result.error.message || 'Failed to cancel session');
     }
-    // Cancellation will be handled via SSE event
   }, [sessionId]);
 
   // Reset state
@@ -269,7 +301,13 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
       resetTaskCreationSession(sessionId);
     }
     setSessionId(null);
+    setLocalError(null);
   }, [sessionId]);
+
+  // Clear local error
+  const clearLocalError = useCallback(() => {
+    setLocalError(null);
+  }, []);
 
   return {
     // State (from TanStack DB)
@@ -282,6 +320,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     pendingQuestions,
     createdTaskId,
     error,
+    localError,
     // Actions
     startConversation,
     sendMessage,
@@ -290,5 +329,6 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     skipQuestions,
     cancel,
     reset,
+    clearLocalError,
   };
 }

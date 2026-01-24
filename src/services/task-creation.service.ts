@@ -222,7 +222,8 @@ export class TaskCreationService {
         labels: Array.isArray(parsed.labels) ? parsed.labels : [],
         priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
       };
-    } catch {
+    } catch (error) {
+      console.error('[TaskCreationService] Failed to parse task suggestion JSON:', error);
       return null;
     }
   }
@@ -282,7 +283,8 @@ export class TaskCreationService {
         totalAsked: session.totalQuestionsAsked + questions.length,
         maxQuestions: TaskCreationService.MAX_QUESTIONS,
       };
-    } catch {
+    } catch (error) {
+      console.error('[TaskCreationService] Failed to parse clarifying questions JSON:', error);
       return null;
     }
   }
