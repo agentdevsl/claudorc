@@ -38,6 +38,8 @@ export const tasks = sqliteTable('tasks', {
   approvedBy: text('approved_by'),
   rejectionCount: integer('rejection_count').default(0),
   rejectionReason: text('rejection_reason'),
+  /** Model override for this task (short ID like 'claude-opus-4') */
+  modelOverride: text('model_override'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
   startedAt: text('started_at'),

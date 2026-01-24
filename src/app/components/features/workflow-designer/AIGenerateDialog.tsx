@@ -16,6 +16,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { Edge, Node } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { DEFAULT_WORKFLOW_MODEL } from '@/lib/constants/models';
 import { cn } from '@/lib/utils/cn';
 import { layoutWorkflowForReactFlow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
@@ -219,8 +220,15 @@ export function AIGenerateDialog({
       setAiWorkflow(null);
 
       try {
+        // Get model from localStorage preference
+        const workflowModel =
+          typeof window !== 'undefined'
+            ? (localStorage.getItem('workflow_model') ?? DEFAULT_WORKFLOW_MODEL)
+            : DEFAULT_WORKFLOW_MODEL;
+
         const body: Record<string, unknown> = {
           name: primitive.name,
+          model: workflowModel,
         };
 
         // Add the primitive based on its type

@@ -51,6 +51,8 @@ export const updateTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional(),
   labels: z.array(z.string()).max(10).optional(),
+  /** Model override for this task (short ID like 'claude-opus-4' or null to clear) */
+  modelOverride: z.string().nullable().optional(),
 });
 
 export const moveTaskSchema = z.object({

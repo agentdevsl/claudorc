@@ -10,6 +10,7 @@ import type { CachedAgent, CachedCommand, CachedSkill } from '@/db/schema/templa
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { parseBody } from '@/lib/api/validation';
+import { DEFAULT_WORKFLOW_MODEL, getFullModelId } from '@/lib/constants/models';
 import { createError } from '@/lib/errors/base';
 import {
   createWorkflowAnalysisPrompt,
@@ -24,7 +25,14 @@ import { ApiKeyService } from '@/services/api-key.service';
 // Constants
 // =============================================================================
 
-const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-haiku-4-20250414';
+/** Default workflow AI model - can be overridden per request */
+const getWorkflowModel = (requestModel?: string): string => {
+  if (requestModel) {
+    return getFullModelId(requestModel);
+  }
+  // Fall back to env var or default
+  return process.env.WORKFLOW_AI_MODEL ?? getFullModelId(DEFAULT_WORKFLOW_MODEL);
+};
 
 // =============================================================================
 // Workflow Errors
@@ -88,6 +96,8 @@ const analyzeWorkflowSchema = z
     knownSkills: z.array(z.string()).optional(),
     knownCommands: z.array(z.string()).optional(),
     knownAgents: z.array(z.string()).optional(),
+    // Model override (short ID like 'claude-sonnet-4' or full ID)
+    model: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -393,8 +403,11 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
           return Response.json(failure(parsed.error), { status: 400 });
         }
 
-        const { templateId, skills, commands, agents, name, knownSkills, knownCommands } =
+        const { templateId, skills, commands, agents, name, knownSkills, knownCommands, model } =
           parsed.value;
+
+        // Resolve the model to use
+        const workflowModel = getWorkflowModel(model);
 
         // Gather template data - use passed items if provided, otherwise empty
         let templateSkills: CachedSkill[] = skills ?? [];
@@ -481,7 +494,7 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
         let aiResponse: string;
         try {
           const message = await anthropic.messages.create({
-            model: WORKFLOW_AI_MODEL,
+            model: workflowModel,
             max_tokens: 8192,
             system: WORKFLOW_GENERATION_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: userPrompt }],
@@ -568,7 +581,7 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
           sourceTemplateName: templateName,
           status: 'draft',
           aiGenerated: true,
-          aiModel: WORKFLOW_AI_MODEL,
+          aiModel: workflowModel,
           aiConfidence,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

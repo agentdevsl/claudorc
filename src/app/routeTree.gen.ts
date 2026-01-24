@@ -43,6 +43,7 @@ import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
 import { Route as ApiWorktreesIndexRouteImport } from './routes/api/worktrees/index'
 import { Route as ApiStreamsIndexRouteImport } from './routes/api/streams/index'
+import { Route as ApiModelsIndexRouteImport } from './routes/api/models/index'
 import { Route as ProjectsProjectIdWorktreesRouteImport } from './routes/projects/$projectId/worktrees'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
 import { Route as ProjectsProjectIdGitRouteImport } from './routes/projects/$projectId/git'
@@ -261,6 +262,11 @@ const ApiWorktreesIndexRoute = ApiWorktreesIndexRouteImport.update({
 const ApiStreamsIndexRoute = ApiStreamsIndexRouteImport.update({
   id: '/api/streams/',
   path: '/api/streams/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiModelsIndexRoute = ApiModelsIndexRouteImport.update({
+  id: '/api/models/',
+  path: '/api/models/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdWorktreesRoute =
@@ -566,6 +572,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
+  '/api/models/': typeof ApiModelsIndexRoute
   '/api/streams/': typeof ApiStreamsIndexRoute
   '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -650,6 +657,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
+  '/api/models': typeof ApiModelsIndexRoute
   '/api/streams': typeof ApiStreamsIndexRoute
   '/api/worktrees': typeof ApiWorktreesIndexRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
@@ -736,6 +744,7 @@ export interface FileRoutesById {
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
+  '/api/models/': typeof ApiModelsIndexRoute
   '/api/streams/': typeof ApiStreamsIndexRoute
   '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -823,6 +832,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
+    | '/api/models/'
     | '/api/streams/'
     | '/api/worktrees/'
     | '/projects/$projectId/'
@@ -907,6 +917,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
+    | '/api/models'
     | '/api/streams'
     | '/api/worktrees'
     | '/projects/$projectId'
@@ -992,6 +1003,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
+    | '/api/models/'
     | '/api/streams/'
     | '/api/worktrees/'
     | '/projects/$projectId/'
@@ -1063,6 +1075,7 @@ export interface RootRouteChildren {
   ProjectsProjectIdGitRoute: typeof ProjectsProjectIdGitRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
   ProjectsProjectIdWorktreesRoute: typeof ProjectsProjectIdWorktreesRoute
+  ApiModelsIndexRoute: typeof ApiModelsIndexRoute
   ApiStreamsIndexRoute: typeof ApiStreamsIndexRoute
   ApiWorktreesIndexRoute: typeof ApiWorktreesIndexRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
@@ -1310,6 +1323,13 @@ declare module '@tanstack/react-router' {
       path: '/api/streams'
       fullPath: '/api/streams/'
       preLoaderRoute: typeof ApiStreamsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/models/': {
+      id: '/api/models/'
+      path: '/api/models'
+      fullPath: '/api/models/'
+      preLoaderRoute: typeof ApiModelsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId/worktrees': {
@@ -1919,6 +1939,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsProjectIdGitRoute: ProjectsProjectIdGitRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
   ProjectsProjectIdWorktreesRoute: ProjectsProjectIdWorktreesRoute,
+  ApiModelsIndexRoute: ApiModelsIndexRoute,
   ApiStreamsIndexRoute: ApiStreamsIndexRoute,
   ApiWorktreesIndexRoute: ApiWorktreesIndexRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,

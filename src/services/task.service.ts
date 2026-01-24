@@ -25,6 +25,8 @@ export type UpdateTaskInput = {
   description?: string;
   labels?: string[];
   priority?: 'high' | 'medium' | 'low';
+  /** Model override for this task (short ID like 'claude-opus-4') */
+  modelOverride?: string | null;
 };
 
 export type ListTasksOptions = {
