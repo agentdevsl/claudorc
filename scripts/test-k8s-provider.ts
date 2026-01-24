@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Test script for the Kubernetes Sandbox Provider
  *
@@ -8,8 +9,8 @@
  * Usage: K8S_KUBECONFIG=/path/to/config bun scripts/test-k8s-provider.ts
  */
 
+import { getClusterInfo, loadKubeConfig } from '../src/lib/sandbox/providers/k8s-config.js';
 import { createK8sProvider, type K8sProvider } from '../src/lib/sandbox/providers/k8s-provider.js';
-import { loadKubeConfig, getClusterInfo } from '../src/lib/sandbox/providers/k8s-config.js';
 
 // ANSI color codes for pretty output
 const colors = {
@@ -37,7 +38,8 @@ async function main() {
   console.clear();
   console.log(`\n${colors.bright}${colors.blue}🧪 Kubernetes Provider Test Suite${colors.reset}\n`);
 
-  const kubeconfigPath = process.env.K8S_KUBECONFIG || '/Users/aarone/Documents/repos/claudorc/config';
+  const kubeconfigPath =
+    process.env.K8S_KUBECONFIG || '/Users/aarone/Documents/repos/claudorc/config';
 
   // ============================================================
   // TEST 1: Load and validate kubeconfig
@@ -167,7 +169,9 @@ async function main() {
   if (!createTestSandbox) {
     log('⏭️', 'Skipping sandbox creation (run with --create-sandbox to test)', colors.dim);
     console.log(`\n   ${colors.dim}To create a test sandbox, run:${colors.reset}`);
-    console.log(`   K8S_KUBECONFIG=${kubeconfigPath} bun scripts/test-k8s-provider.ts --create-sandbox`);
+    console.log(
+      `   K8S_KUBECONFIG=${kubeconfigPath} bun scripts/test-k8s-provider.ts --create-sandbox`
+    );
   } else {
     log('🚀', 'Creating test sandbox...');
 
@@ -175,7 +179,7 @@ async function main() {
       // With PVC volume type, we don't need to specify a host path
       // The workspace is stored in a Kubernetes PersistentVolume
       const sandbox = await provider.create({
-        projectId: 'test-project-' + Date.now(),
+        projectId: `test-project-${Date.now()}`,
         projectPath: '/workspace', // Only used for labeling, not for hostPath
         image: 'alpine:latest',
         memoryMb: 256,
@@ -217,8 +221,12 @@ async function main() {
   section('Test Summary');
 
   console.log(`${colors.green}✅ K8s Provider validation complete!${colors.reset}\n`);
-  console.log(`${colors.dim}The Kubernetes Sandbox Provider is working with your Docker Desktop cluster.`);
-  console.log(`You can now use it in AgentPane by selecting "Kubernetes" in Settings > Sandbox.${colors.reset}\n`);
+  console.log(
+    `${colors.dim}The Kubernetes Sandbox Provider is working with your Docker Desktop cluster.`
+  );
+  console.log(
+    `You can now use it in AgentPane by selecting "Kubernetes" in Settings > Sandbox.${colors.reset}\n`
+  );
 }
 
 main().catch((error) => {

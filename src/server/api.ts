@@ -23,6 +23,12 @@ import {
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
 import {
+  getClusterInfo,
+  K8S_PROVIDER_DEFAULTS,
+  loadKubeConfig,
+  resolveContext,
+} from '../lib/sandbox/providers/k8s-config.js';
+import {
   createWorkflowAnalysisPrompt,
   WORKFLOW_GENERATION_SYSTEM_PROMPT,
 } from '../lib/workflow-dsl/ai-prompts.js';
@@ -44,12 +50,6 @@ import { startSyncScheduler } from '../services/template-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { GitHubTokenService } from './github-token.service.js';
-import {
-  loadKubeConfig,
-  resolveContext,
-  getClusterInfo,
-  K8S_PROVIDER_DEFAULTS,
-} from '../lib/sandbox/providers/k8s-config.js';
 
 declare const Bun: {
   spawn: (
@@ -1996,7 +1996,11 @@ async function handleK8sStatus(url: URL): Promise<Response> {
         const { URL } = await import('node:url');
         const versionUrl = new URL('/version', cluster.server);
 
-        const versionData = await new Promise<{ gitVersion?: string; major?: string; minor?: string }>((resolve, reject) => {
+        const versionData = await new Promise<{
+          gitVersion?: string;
+          major?: string;
+          minor?: string;
+        }>((resolve, reject) => {
           const req = https.request(
             versionUrl,
             {
@@ -2005,7 +2009,9 @@ async function handleK8sStatus(url: URL): Promise<Response> {
             },
             (res) => {
               let data = '';
-              res.on('data', (chunk) => (data += chunk));
+              res.on('data', (chunk) => {
+                data += chunk;
+              });
               res.on('end', () => {
                 try {
                   resolve(JSON.parse(data));
@@ -2023,7 +2029,10 @@ async function handleK8sStatus(url: URL): Promise<Response> {
       }
     } catch (versionError) {
       // Version API may fail - this is non-critical
-      console.debug('[K8s Status] Version fetch failed:', versionError instanceof Error ? versionError.message : versionError);
+      console.debug(
+        '[K8s Status] Version fetch failed:',
+        versionError instanceof Error ? versionError.message : versionError
+      );
     }
 
     // Check namespace
@@ -2039,9 +2048,7 @@ async function handleK8sStatus(url: URL): Promise<Response> {
       // Count pods in namespace
       const podList = await coreApi.listNamespacedPod({ namespace });
       pods = podList.items.length;
-      podsRunning = podList.items.filter(
-        (p) => p.status?.phase === 'Running'
-      ).length;
+      podsRunning = podList.items.filter((p) => p.status?.phase === 'Running').length;
     } catch {
       // Namespace doesn't exist yet
     }

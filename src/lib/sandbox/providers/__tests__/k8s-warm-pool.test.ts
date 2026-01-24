@@ -1,4 +1,4 @@
-import * as k8s from '@kubernetes/client-node';
+import type * as k8s from '@kubernetes/client-node';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createWarmPoolController,

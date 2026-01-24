@@ -11,13 +11,18 @@
   },
   "overrides": [
     {
-      "includes": ["**/routeTree.gen.ts"],
+      "includes": ["**/routeTree.gen.ts", ".claude/settings.local.json"],
       "linter": { "enabled": false },
       "formatter": { "enabled": false },
       "assist": { "enabled": false }
     },
     {
-      "includes": ["tests/**/*.ts", "tests/**/*.tsx"],
+      "includes": [
+        "tests/**/*.ts",
+        "tests/**/*.tsx",
+        "**/__tests__/**/*.ts",
+        "**/__tests__/**/*.tsx"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -29,6 +34,19 @@
           "correctness": {
             "useYield": "off",
             "noConstructorReturn": "off"
+          },
+          "complexity": {
+            "noStaticOnlyClass": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
           }
         }
       }

@@ -3,7 +3,7 @@
  * Debug script to check K8s client authentication
  */
 
-import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+import { CoreV1Api, KubeConfig } from '@kubernetes/client-node';
 
 const kubeconfigPath = '/Users/aarone/Documents/repos/claudorc/config';
 

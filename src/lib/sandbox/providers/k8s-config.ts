@@ -195,7 +195,8 @@ export function loadKubeConfig(explicitPath?: string, skipTLSVerify = false): Ku
   if (skipTLSVerify) {
     const cluster = kc.getCurrentCluster();
     if (cluster) {
-      cluster.skipTLSVerify = true;
+      // Use type assertion to modify the readonly property
+      (cluster as { skipTLSVerify: boolean }).skipTLSVerify = true;
     }
   }
 

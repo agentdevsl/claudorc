@@ -360,6 +360,7 @@ export class WarmPoolController {
 
       return await this.allocateWarmPodInternal(projectId);
     } finally {
+      // biome-ignore lint/style/noNonNullAssertion: releaseLock is always assigned by the Promise executor which runs synchronously
       releaseLock!();
     }
   }

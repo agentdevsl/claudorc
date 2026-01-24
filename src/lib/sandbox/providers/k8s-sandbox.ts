@@ -228,7 +228,10 @@ export class K8sSandbox implements Sandbox {
     const result = await this.exec('tmux', ['kill-session', '-t', sessionName]);
     if (result.exitCode !== 0) {
       // If session not found, it's already gone - not an error
-      if (result.stderr.includes('session not found') || result.stderr.includes("can't find session")) {
+      if (
+        result.stderr.includes('session not found') ||
+        result.stderr.includes("can't find session")
+      ) {
         return;
       }
       // Any other error is a real failure

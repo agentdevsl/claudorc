@@ -488,7 +488,12 @@ export class K8sAuditLogger {
   /**
    * Log PVC creation event
    */
-  logPvcCreated(params: { pvcName: string; namespace: string; sandboxId: string; storageSize: string }): void {
+  logPvcCreated(params: {
+    pvcName: string;
+    namespace: string;
+    sandboxId: string;
+    storageSize: string;
+  }): void {
     this.log({
       event: 'pvc.created',
       severity: 'info',

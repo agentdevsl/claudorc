@@ -104,10 +104,18 @@ vi.mock('@kubernetes/client-node', () => {
 
   return {
     KubeConfig: MockKubeConfig,
-    CoreV1Api: class CoreV1Api { static name = 'CoreV1Api'; },
-    VersionApi: class VersionApi { static name = 'VersionApi'; },
-    NetworkingV1Api: class NetworkingV1Api { static name = 'NetworkingV1Api'; },
-    RbacAuthorizationV1Api: class RbacAuthorizationV1Api { static name = 'RbacAuthorizationV1Api'; },
+    CoreV1Api: class CoreV1Api {
+      static name = 'CoreV1Api';
+    },
+    VersionApi: class VersionApi {
+      static name = 'VersionApi';
+    },
+    NetworkingV1Api: class NetworkingV1Api {
+      static name = 'NetworkingV1Api';
+    },
+    RbacAuthorizationV1Api: class RbacAuthorizationV1Api {
+      static name = 'RbacAuthorizationV1Api';
+    },
     Exec: vi.fn(),
     V1Status: vi.fn(),
   };
@@ -126,7 +134,7 @@ vi.mock('../k8s-config.js', async (importOriginal) => {
 
 // Import after mocks
 import { K8S_POD_LABELS, K8S_PROVIDER_DEFAULTS } from '../k8s-config.js';
-import { K8sProvider, createK8sProvider } from '../k8s-provider.js';
+import { createK8sProvider, K8sProvider } from '../k8s-provider.js';
 
 describe('K8sProvider', () => {
   const sampleConfig: SandboxConfig = {
@@ -265,14 +273,16 @@ describe('K8sProvider', () => {
         spec: { containers: [{ image: 'nonexistent:latest' }] },
         status: {
           phase: 'Pending',
-          containerStatuses: [{
-            state: {
-              waiting: {
-                reason: 'ImagePullBackOff',
-                message: 'Back-off pulling image',
+          containerStatuses: [
+            {
+              state: {
+                waiting: {
+                  reason: 'ImagePullBackOff',
+                  message: 'Back-off pulling image',
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -623,14 +633,16 @@ describe('K8sProvider', () => {
       const sandbox = await createTestSandbox();
       mockCoreApi.readNamespacedPod.mockResolvedValue({
         status: {
-          containerStatuses: [{
-            name: 'sandbox',
-            state: {
-              running: {
-                startedAt: new Date(Date.now() - 60000).toISOString(),
+          containerStatuses: [
+            {
+              name: 'sandbox',
+              state: {
+                running: {
+                  startedAt: new Date(Date.now() - 60000).toISOString(),
+                },
               },
             },
-          }],
+          ],
         },
       });
 

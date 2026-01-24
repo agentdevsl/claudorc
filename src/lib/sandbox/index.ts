@@ -8,12 +8,15 @@ export {
 } from './credentials-injector.js';
 // Docker Provider
 export { createDockerProvider, DockerProvider } from './providers/docker-provider.js';
-
-// Kubernetes Provider
-export { createK8sProvider, K8sProvider } from './providers/k8s-provider.js';
+export type { K8sAuditEvent, K8sAuditEventType, K8sAuditSeverity } from './providers/k8s-audit.js';
+export {
+  createK8sAuditLogger,
+  getK8sAuditLogger,
+  K8sAuditLogger,
+} from './providers/k8s-audit.js';
 export type { K8sProviderOptions } from './providers/k8s-config.js';
-export { K8S_PROVIDER_DEFAULTS, K8S_POD_LABELS } from './providers/k8s-config.js';
-
+export { K8S_POD_LABELS, K8S_PROVIDER_DEFAULTS } from './providers/k8s-config.js';
+export type { NetworkPolicyConfig } from './providers/k8s-network-policy.js';
 // Kubernetes Security (Phase 4)
 export {
   createNetworkPolicyManager,
@@ -22,37 +25,28 @@ export {
   NETWORK_POLICY_NAMES,
   PRIVATE_IP_RANGES,
 } from './providers/k8s-network-policy.js';
-export type { NetworkPolicyConfig } from './providers/k8s-network-policy.js';
-
+// Kubernetes Provider
+export { createK8sProvider, K8sProvider } from './providers/k8s-provider.js';
 export { createRbacManager, K8sRbacManager, RBAC_NAMES } from './providers/k8s-rbac.js';
-
-export {
-  createK8sAuditLogger,
-  getK8sAuditLogger,
-  K8sAuditLogger,
-} from './providers/k8s-audit.js';
-export type { K8sAuditEvent, K8sAuditEventType, K8sAuditSeverity } from './providers/k8s-audit.js';
-
+export type { PssProfile, PssValidationResult } from './providers/k8s-security.js';
 export {
   createPodSecurityValidator,
   ensureRestrictedPodSecurity,
   getPodSecurityValidator,
   PodSecurityValidator,
 } from './providers/k8s-security.js';
-export type { PssProfile, PssValidationResult } from './providers/k8s-security.js';
-
+export type {
+  WarmPodInfo,
+  WarmPoolConfig,
+  WarmPoolMetrics,
+  WarmPoolPodState,
+} from './providers/k8s-warm-pool.js';
 // Kubernetes Warm Pool (Phase 5)
 export {
   createWarmPoolController,
   K8S_WARM_POOL_LABELS,
   WARM_POOL_DEFAULTS,
   WarmPoolController,
-} from './providers/k8s-warm-pool.js';
-export type {
-  WarmPodInfo,
-  WarmPoolConfig,
-  WarmPoolMetrics,
-  WarmPoolPodState,
 } from './providers/k8s-warm-pool.js';
 
 // Provider Interface

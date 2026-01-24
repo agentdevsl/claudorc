@@ -448,7 +448,8 @@ export class K8sProvider implements EventEmittingSandboxProvider {
             initialized: this.securityInitialized,
             rbacEnabled: this.setupRbac,
             networkPolicyEnabled: this.networkPolicyEnabled,
-            warnings: this.securitySetupWarnings.length > 0 ? this.securitySetupWarnings : undefined,
+            warnings:
+              this.securitySetupWarnings.length > 0 ? this.securitySetupWarnings : undefined,
           },
         },
       };
@@ -974,8 +975,6 @@ export class K8sProvider implements EventEmittingSandboxProvider {
             claimName: `workspace-${sandboxId}`,
           },
         };
-
-      case 'emptyDir':
       default:
         return {
           name: 'workspace',

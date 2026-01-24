@@ -1,20 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest';
 import type * as k8s from '@kubernetes/client-node';
-
-// Import security modules
-import {
-  createPodSecurityValidator,
-  ensureRestrictedPodSecurity,
-} from '../k8s-security.js';
-import {
-  createK8sAuditLogger,
-  type K8sAuditEvent,
-} from '../k8s-audit.js';
-import {
-  NETWORK_POLICY_DEFAULTS,
-  PRIVATE_IP_RANGES,
-} from '../k8s-network-policy.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createK8sAuditLogger, type K8sAuditEvent } from '../k8s-audit.js';
+import { NETWORK_POLICY_DEFAULTS, PRIVATE_IP_RANGES } from '../k8s-network-policy.js';
 import { RBAC_NAMES } from '../k8s-rbac.js';
+// Import security modules
+import { createPodSecurityValidator, ensureRestrictedPodSecurity } from '../k8s-security.js';
 
 describe('PodSecurityValidator', () => {
   const validator = createPodSecurityValidator();
@@ -95,7 +85,8 @@ describe('PodSecurityValidator', () => {
     it('should fail when runAsNonRoot is not set', () => {
       const pod = createBasePod();
       if (pod.spec?.securityContext) pod.spec.securityContext.runAsNonRoot = undefined;
-      if (pod.spec?.containers?.[0]?.securityContext) pod.spec.containers[0].securityContext.runAsNonRoot = undefined;
+      if (pod.spec?.containers?.[0]?.securityContext)
+        pod.spec.containers[0].securityContext.runAsNonRoot = undefined;
 
       const result = validator.validateRestricted(pod);
 
@@ -115,7 +106,8 @@ describe('PodSecurityValidator', () => {
 
     it('should fail when container is privileged', () => {
       const pod = createBasePod();
-      if (pod.spec?.containers?.[0]?.securityContext) pod.spec.containers[0].securityContext.privileged = true;
+      if (pod.spec?.containers?.[0]?.securityContext)
+        pod.spec.containers[0].securityContext.privileged = true;
 
       const result = validator.validateRestricted(pod);
 
@@ -125,7 +117,8 @@ describe('PodSecurityValidator', () => {
 
     it('should fail when allowPrivilegeEscalation is not explicitly false', () => {
       const pod = createBasePod();
-      if (pod.spec?.containers?.[0]?.securityContext) pod.spec.containers[0].securityContext.allowPrivilegeEscalation = undefined;
+      if (pod.spec?.containers?.[0]?.securityContext)
+        pod.spec.containers[0].securityContext.allowPrivilegeEscalation = undefined;
 
       const result = validator.validateRestricted(pod);
 
