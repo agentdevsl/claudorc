@@ -58,7 +58,7 @@
         "@types/react": "^19.1.8",
         "@types/react-dom": "^19.1.6",
         "@vitest/coverage-v8": "^4.0.16",
-        "agent-browser": "0.7.5",
+        "agent-browser": "0.7.6",
         "drizzle-kit": "^0.31.8",
         "jsdom": "^27.4.0",
         "playwright": "^1.57.0",
@@ -688,7 +688,7 @@
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
-    "agent-browser": ["agent-browser@0.7.5", "", { "dependencies": { "playwright-core": "^1.57.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser" } }, "sha512-w6cp842b9qrHlizIYssAxciVFubioq1nfN2+HYiJbLyGFq+zbwHkPdh+mxqSkuC5zBBYFBR77vGkVrdcjiE8Vg=="],
+    "agent-browser": ["agent-browser@0.7.6", "", { "dependencies": { "playwright-core": "^1.57.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser" } }, "sha512-BDmzFlTM0siqn5P8LSBxgOBUNGv02Vo7RYztvXXjNOwQ+8rFJILWfBPxmw+57l/PcMst61AscjIe8uZ5sWrRZQ=="],
 
     "ansi-regex": ["ansi-regex@5.0.1", "", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 
