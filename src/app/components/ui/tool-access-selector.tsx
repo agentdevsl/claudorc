@@ -1,10 +1,10 @@
 import { SlidersHorizontal } from '@phosphor-icons/react';
 import { Checkbox } from '@/app/components/ui/checkbox';
-import { TOOL_GROUPS } from '@/lib/constants/tools';
+import { ALL_TOOLS, TOOL_GROUPS } from '@/lib/constants/tools';
 import { cn } from '@/lib/utils/cn';
 
 export interface ToolAccessSelectorProps {
-  /** Currently selected tools */
+  /** Currently selected tools (empty array = allow all) */
   value: string[];
   /** Called when tool selection changes */
   onChange: (tools: string[]) => void;
@@ -42,9 +42,19 @@ export function ToolAccessSelector({
     }
   };
 
-  const selectAll = (): void => {
-    const allTools = Object.values(TOOL_GROUPS).flat();
-    onChange([...allTools]);
+  // Empty array means "allow all" in the whitelist hook
+  const isAllowAll = value.length === 0;
+
+  const setAllowAll = (enabled: boolean): void => {
+    if (enabled) {
+      onChange([]); // Empty = allow all
+    } else {
+      onChange([...ALL_TOOLS]); // Start with all selected
+    }
+  };
+
+  const selectAllExplicit = (): void => {
+    onChange([...ALL_TOOLS]);
   };
 
   const selectNone = (): void => {
@@ -82,60 +92,100 @@ export function ToolAccessSelector({
 
   return (
     <div className={cn('space-y-4', className)} data-testid={testId}>
-      {/* Quick actions */}
-      <div className="flex gap-2 text-xs">
-        <button type="button" onClick={selectAll} className="text-accent hover:underline">
-          Select all
-        </button>
-        <span className="text-fg-subtle">|</span>
-        <button type="button" onClick={selectNone} className="text-accent hover:underline">
-          Select none
+      {/* Allow All toggle */}
+      <div className="flex items-center justify-between rounded-md border border-border bg-surface-subtle p-3">
+        <div>
+          <span className="text-sm font-medium text-fg">Allow All Tools</span>
+          <p className="text-xs text-fg-muted">Grant access to all current and future tools</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isAllowAll}
+          onClick={() => setAllowAll(!isAllowAll)}
+          className={cn(
+            'relative h-6 w-11 rounded-full transition-colors',
+            isAllowAll ? 'bg-accent' : 'bg-surface-emphasis'
+          )}
+        >
+          <span
+            className={cn(
+              'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+              isAllowAll ? 'translate-x-5' : 'translate-x-0'
+            )}
+          />
         </button>
       </div>
 
-      {/* Tool groups */}
-      {Object.entries(TOOL_GROUPS).map(([group, tools]) => {
-        const groupSelected = tools.filter((t) => value.includes(t)).length;
-        const allSelected = groupSelected === tools.length;
+      {/* Tool selection (disabled when Allow All is on) */}
+      <div className={cn(isAllowAll && 'pointer-events-none opacity-50')}>
+        {/* Quick actions */}
+        <div className="mb-4 flex gap-2 text-xs">
+          <button
+            type="button"
+            onClick={selectAllExplicit}
+            className="text-accent hover:underline"
+            disabled={isAllowAll}
+          >
+            Select all
+          </button>
+          <span className="text-fg-subtle">|</span>
+          <button
+            type="button"
+            onClick={selectNone}
+            className="text-accent hover:underline"
+            disabled={isAllowAll}
+          >
+            Clear all
+          </button>
+        </div>
 
-        return (
-          <div key={group} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                {group}
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleGroup(tools)}
-                className="text-xs text-accent hover:underline"
-              >
-                {allSelected ? 'Deselect all' : 'Select all'}
-              </button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {tools.map((tool) => (
-                <label
-                  key={tool}
-                  htmlFor={`tool-${tool}`}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-fg"
+        {/* Tool groups */}
+        {Object.entries(TOOL_GROUPS).map(([group, tools]) => {
+          const groupSelected = tools.filter((t) => value.includes(t)).length;
+          const allGroupSelected = groupSelected === tools.length;
+
+          return (
+            <div key={group} className="mb-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  {group}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(tools)}
+                  className="text-xs text-accent hover:underline"
+                  disabled={isAllowAll}
                 >
-                  <Checkbox
-                    id={`tool-${tool}`}
-                    checked={value.includes(tool)}
-                    onCheckedChange={() => toggleTool(tool)}
-                  />
-                  {tool}
-                </label>
-              ))}
+                  {allGroupSelected ? 'Deselect all' : 'Select all'}
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {tools.map((tool) => (
+                  <label
+                    key={tool}
+                    htmlFor={`tool-${tool}`}
+                    className="flex cursor-pointer items-center gap-2 text-sm text-fg"
+                  >
+                    <Checkbox
+                      id={`tool-${tool}`}
+                      checked={isAllowAll || value.includes(tool)}
+                      onCheckedChange={() => toggleTool(tool)}
+                      disabled={isAllowAll}
+                    />
+                    {tool}
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {/* Summary */}
       <div className="text-xs text-fg-muted">
-        {value.length} of {Object.values(TOOL_GROUPS).flat().length} tools selected
+        {isAllowAll ? 'All tools allowed' : `${value.length} of ${ALL_TOOLS.length} tools selected`}
       </div>
     </div>
   );
@@ -143,6 +193,7 @@ export function ToolAccessSelector({
 
 /**
  * Compact inline tool badge display (read-only).
+ * Empty array = "All tools allowed"
  */
 export function ToolAccessBadges({
   tools,
@@ -151,13 +202,13 @@ export function ToolAccessBadges({
   tools: string[];
   className?: string;
 }): React.JSX.Element {
+  // Empty array means "allow all"
   if (tools.length === 0) {
-    return <span className={cn('text-xs text-fg-muted', className)}>No tools</span>;
+    return <span className={cn('text-xs text-success', className)}>All tools allowed</span>;
   }
 
-  const allTools = Object.values(TOOL_GROUPS).flat();
-  if (tools.length === allTools.length) {
-    return <span className={cn('text-xs text-fg-muted', className)}>All tools</span>;
+  if (tools.length === ALL_TOOLS.length) {
+    return <span className={cn('text-xs text-fg-muted', className)}>All tools selected</span>;
   }
 
   return (

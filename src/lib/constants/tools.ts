@@ -1,13 +1,18 @@
 /**
  * Tool groups and defaults for agent configurations.
+ *
+ * Note: An empty array means "allow all tools" - this is handled by the
+ * tool whitelist hook which permits all tools when allowedTools is empty.
  */
 
-/** Tool categories with their member tools */
+/** Tool categories with their member tools (based on Claude Agent SDK) */
 export const TOOL_GROUPS = {
-  Files: ['Read', 'Edit', 'Write', 'Glob', 'Grep'],
-  System: ['Bash'],
-  Web: ['WebFetch'],
-  Agent: ['Task'],
+  Files: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'],
+  System: ['Bash', 'TaskStop'],
+  Web: ['WebFetch', 'WebSearch'],
+  Agent: ['Task', 'TaskOutput', 'ExitPlanMode'],
+  Interactive: ['AskUserQuestion', 'TodoWrite'],
+  MCP: ['Mcp', 'ListMcpResources', 'ReadMcpResource'],
 } as const;
 
 /** All available tools flattened */
@@ -16,11 +21,17 @@ export const ALL_TOOLS = Object.values(TOOL_GROUPS).flat();
 /** Tool type */
 export type ToolName = (typeof ALL_TOOLS)[number];
 
-/** Default tools for agent execution (all tools) */
-export const DEFAULT_AGENT_TOOLS: string[] = [...ALL_TOOLS];
+/**
+ * Special value indicating "allow all tools".
+ * When tools array is empty, the whitelist hook permits all tools.
+ */
+export const ALLOW_ALL_TOOLS: string[] = [];
+
+/** Default tools for agent execution (all tools - empty array) */
+export const DEFAULT_AGENT_TOOLS: string[] = ALLOW_ALL_TOOLS;
 
 /** Default tools for task creation AI (read-only, no execution) */
-export const DEFAULT_TASK_CREATION_TOOLS: string[] = ['Read', 'Glob', 'Grep'];
+export const DEFAULT_TASK_CREATION_TOOLS: string[] = ['Read', 'Glob', 'Grep', 'AskUserQuestion'];
 
 /** Default tools for workflow designer AI (read-only) */
 export const DEFAULT_WORKFLOW_TOOLS: string[] = ['Read', 'Glob', 'Grep'];
