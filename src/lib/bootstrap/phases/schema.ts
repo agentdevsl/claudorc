@@ -206,6 +206,11 @@ CREATE TABLE IF NOT EXISTS "sandbox_configs" (
   "max_processes" INTEGER NOT NULL DEFAULT 256,
   "timeout_minutes" INTEGER NOT NULL DEFAULT 60,
   "volume_mount_path" TEXT,
+  "kube_config_path" TEXT,
+  "kube_context" TEXT,
+  "kube_namespace" TEXT DEFAULT 'agentpane-sandboxes',
+  "network_policy_enabled" INTEGER DEFAULT 1,
+  "allowed_egress_hosts" TEXT,
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
@@ -304,6 +309,18 @@ export const TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL = `
 -- Add sync_interval_minutes and next_sync_at to templates if they don't exist
 ALTER TABLE templates ADD COLUMN sync_interval_minutes INTEGER;
 ALTER TABLE templates ADD COLUMN next_sync_at TEXT;
+`;
+
+// Migration for sandbox_configs K8s columns (for existing databases)
+export const SANDBOX_K8S_MIGRATION_SQL = `
+-- Add Kubernetes configuration columns to sandbox_configs
+ALTER TABLE sandbox_configs ADD COLUMN type TEXT NOT NULL DEFAULT 'docker';
+ALTER TABLE sandbox_configs ADD COLUMN volume_mount_path TEXT;
+ALTER TABLE sandbox_configs ADD COLUMN kube_config_path TEXT;
+ALTER TABLE sandbox_configs ADD COLUMN kube_context TEXT;
+ALTER TABLE sandbox_configs ADD COLUMN kube_namespace TEXT DEFAULT 'agentpane-sandboxes';
+ALTER TABLE sandbox_configs ADD COLUMN network_policy_enabled INTEGER DEFAULT 1;
+ALTER TABLE sandbox_configs ADD COLUMN allowed_egress_hosts TEXT;
 `;
 
 export const validateSchema = async (ctx: BootstrapContext) => {
