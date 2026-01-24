@@ -45,7 +45,7 @@ function PreferencesSettingsPage(): React.JSX.Element {
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
           <Gear className="h-7 w-7 text-fg-muted" />
-          Defaults
+          Agent Defaults
         </h1>
         <p className="mt-2 text-fg-muted">
           Configure default settings for agents and projects. For model selection, see{' '}

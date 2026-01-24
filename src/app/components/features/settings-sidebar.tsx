@@ -63,7 +63,7 @@ function useSettingsSections(): SettingsSection[] {
         },
         { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
         { id: 'sandbox', label: 'Sandbox', to: '/settings/sandbox', icon: Cube },
-        { id: 'preferences', label: 'Defaults', to: '/settings/preferences', icon: Gear },
+        { id: 'preferences', label: 'Agent Defaults', to: '/settings/preferences', icon: Gear },
       ],
     },
     {
