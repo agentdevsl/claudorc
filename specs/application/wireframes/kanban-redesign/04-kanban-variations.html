@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Kanban Board Variations</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #f8f9fa;
+      color: #1a1a1a;
+      line-height: 1.5;
+      padding: 40px;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .page-header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .page-header p {
+      color: #6b7280;
+      font-size: 16px;
+    }
+
+    .variation {
+      margin-bottom: 80px;
+      background: white;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    .variation-header {
+      padding: 24px 32px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .variation-title {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .variation-number {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .variation-title h2 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .variation-title p {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .variation-tags {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tag {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tag-minimal { background: #f3f4f6; color: #374151; }
+    .tag-dense { background: #1f2937; color: #f9fafb; }
+    .tag-glass { background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1)); color: #6366f1; }
+
+    /* ===== VARIATION 1: Compact Cards ===== */
+    .board-v1 {
+      padding: 24px;
+      background: #fafafa;
+    }
+
+    .board-v1 .board-container {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .board-v1 .column {
+      flex: 0 0 240px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+
+    .board-v1 .column-header {
+      padding: 14px 16px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .board-v1 .column-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+    }
+
+    .board-v1 .column-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .board-v1 .column:nth-child(1) .column-dot { background: #9ca3af; }
+    .board-v1 .column:nth-child(2) .column-dot { background: #8b5cf6; }
+    .board-v1 .column:nth-child(3) .column-dot { background: #3b82f6; }
+    .board-v1 .column:nth-child(4) .column-dot { background: #f59e0b; }
+    .board-v1 .column:nth-child(5) .column-dot { background: #10b981; }
+
+    .board-v1 .column-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #9ca3af;
+      background: #f3f4f6;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .board-v1 .cards {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 200px;
+    }
+
+    .board-v1 .card {
+      padding: 12px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .board-v1 .card:hover {
+      border-color: #6366f1;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+    }
+
+    .board-v1 .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .board-v1 .card-labels {
+      display: flex;
+      gap: 4px;
+    }
+
+    .board-v1 .label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .board-v1 .label-bug { background: #fef2f2; color: #dc2626; }
+    .board-v1 .label-feature { background: #f0fdf4; color: #16a34a; }
+
+    .board-v1 .card-priority {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .board-v1 .priority-high { background: #ef4444; }
+    .board-v1 .priority-medium { background: #f59e0b; }
+
+    .board-v1 .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 8px;
+      color: #1f2937;
+    }
+
+    .board-v1 .card-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #9ca3af;
+    }
+
+    .board-v1 .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      color: #9ca3af;
+      font-size: 12px;
+      border: 2px dashed #e5e7eb;
+      border-radius: 8px;
+      margin: 4px;
+    }
+
+    /* ===== VARIATION 2: Horizontal Swimlanes ===== */
+    .board-v2 {
+      padding: 24px;
+      background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    }
+
+    .board-v2 .swimlanes {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .board-v2 .swimlane {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .board-v2 .swimlane-header {
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.03);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .board-v2 .swimlane-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .board-v2 .swimlane-indicator {
+      width: 3px;
+      height: 14px;
+      border-radius: 2px;
+    }
+
+    .board-v2 .swimlane:nth-child(1) .swimlane-indicator { background: #64748b; }
+    .board-v2 .swimlane:nth-child(2) .swimlane-indicator { background: #a78bfa; }
+    .board-v2 .swimlane:nth-child(3) .swimlane-indicator { background: #60a5fa; }
+    .board-v2 .swimlane:nth-child(4) .swimlane-indicator { background: #fbbf24; }
+    .board-v2 .swimlane:nth-child(5) .swimlane-indicator { background: #34d399; }
+
+    .board-v2 .swimlane-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .board-v2 .swimlane-cards {
+      padding: 12px 16px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      min-height: 90px;
+      align-items: flex-start;
+    }
+
+    .board-v2 .card {
+      flex: 0 0 220px;
+      padding: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .board-v2 .card:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(99, 102, 241, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .board-v2 .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .board-v2 .card-labels {
+      display: flex;
+      gap: 4px;
+    }
+
+    .board-v2 .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 500;
+      padding: 3px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .board-v2 .label-bug {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .board-v2 .label-feature {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .board-v2 .card-priority {
+      display: flex;
+      gap: 2px;
+    }
+
+    .board-v2 .priority-bar {
+      width: 3px;
+      height: 10px;
+      border-radius: 1px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .board-v2 .priority-high .priority-bar:nth-child(-n+3) { background: #f87171; }
+    .board-v2 .priority-medium .priority-bar:nth-child(-n+2) { background: #fbbf24; }
+
+    .board-v2 .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e2e8f0;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    .board-v2 .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .board-v2 .card-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #64748b;
+    }
+
+    .board-v2 .card-agent {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #64748b;
+    }
+
+    .board-v2 .card-agent svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .board-v2 .empty-swimlane {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+      font-size: 12px;
+      padding: 0 20px;
+    }
+
+    /* ===== VARIATION 3: Glassmorphism Cards ===== */
+    .board-v3 {
+      padding: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .board-v3::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 50%);
+      animation: shimmer 15s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .board-v3 .board-container {
+      position: relative;
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .board-v3 .column {
+      flex: 0 0 280px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .board-v3 .column-header {
+      padding: 18px 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .board-v3 .column-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .board-v3 .column-icon {
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .board-v3 .column-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+
+    .board-v3 .cards {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 220px;
+    }
+
+    .board-v3 .card {
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .board-v3 .card:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .board-v3 .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .board-v3 .card-labels {
+      display: flex;
+      gap: 6px;
+    }
+
+    .board-v3 .label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 4px 10px;
+      border-radius: 6px;
+      backdrop-filter: blur(4px);
+    }
+
+    .board-v3 .label-bug {
+      background: rgba(255, 107, 107, 0.3);
+      color: white;
+      border: 1px solid rgba(255, 107, 107, 0.5);
+    }
+
+    .board-v3 .label-feature {
+      background: rgba(16, 185, 129, 0.3);
+      color: white;
+      border: 1px solid rgba(16, 185, 129, 0.5);
+    }
+
+    .board-v3 .card-priority {
+      display: flex;
+      gap: 3px;
+    }
+
+    .board-v3 .priority-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .board-v3 .priority-high .priority-dot:nth-child(-n+3) {
+      background: #ff6b6b;
+      box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+    }
+
+    .board-v3 .priority-medium .priority-dot:nth-child(-n+2) {
+      background: #fbbf24;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+    }
+
+    .board-v3 .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      line-height: 1.4;
+      margin-bottom: 14px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .board-v3 .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .board-v3 .card-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(0, 0, 0, 0.15);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .board-v3 .card-avatar {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .board-v3 .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 14px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .board-v3 .empty-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+      opacity: 0.7;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+
+    .board-v2::-webkit-scrollbar-thumb,
+    .board-v3::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>Kanban Board Variations</h1>
+    <p>Three design approaches for the AgentPane task board</p>
+  </header>
+
+  <!-- VARIATION 1: Compact Cards -->
+  <section class="variation">
+    <div class="variation-header">
+      <div class="variation-title">
+        <span class="variation-number">1</span>
+        <div>
+          <h2>Compact Cards</h2>
+          <p>Dense, efficient layout with minimal visual noise</p>
+        </div>
+      </div>
+      <div class="variation-tags">
+        <span class="tag tag-minimal">Minimal</span>
+        <span class="tag tag-minimal">High Density</span>
+      </div>
+    </div>
+    <div class="board-v1">
+      <div class="board-container">
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Backlog
+            </div>
+            <span class="column-count">4</span>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-bug">Bug</span>
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <span class="card-priority priority-high"></span>
+              </div>
+              <div class="card-title">Test Task with Priority</div>
+              <div class="card-id">#TSK-WYIH</div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <span class="card-priority priority-medium"></span>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-id">#TSK-9LQ7</div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <span class="card-priority priority-medium"></span>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-id">#TSK-JJ0N</div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <span class="card-priority priority-medium"></span>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-id">#TSK-JC7L</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Queued
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">No tasks queued</div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              In Progress
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">No active tasks</div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Review
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">No pending reviews</div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Done
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">No completed tasks</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VARIATION 2: Horizontal Swimlanes -->
+  <section class="variation">
+    <div class="variation-header">
+      <div class="variation-title">
+        <span class="variation-number">2</span>
+        <div>
+          <h2>Horizontal Swimlanes</h2>
+          <p>Row-based layout optimized for wide screens</p>
+        </div>
+      </div>
+      <div class="variation-tags">
+        <span class="tag tag-dense">Dark Mode</span>
+        <span class="tag tag-dense">Wide Screen</span>
+      </div>
+    </div>
+    <div class="board-v2">
+      <div class="swimlanes">
+        <div class="swimlane">
+          <div class="swimlane-header">
+            <div class="swimlane-title">
+              <span class="swimlane-indicator"></span>
+              Backlog
+            </div>
+            <div class="swimlane-count">4 tasks</div>
+          </div>
+          <div class="swimlane-cards">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-bug">Bug</span>
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-high">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Test Task with Priority</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-WYIH</span>
+                <span class="card-agent">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                  Claude
+                </span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-9LQ7</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JJ0N</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JC7L</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="swimlane">
+          <div class="swimlane-header">
+            <div class="swimlane-title">
+              <span class="swimlane-indicator"></span>
+              Queued
+            </div>
+            <div class="swimlane-count">0 tasks</div>
+          </div>
+          <div class="swimlane-cards">
+            <div class="empty-swimlane">No tasks queued</div>
+          </div>
+        </div>
+
+        <div class="swimlane">
+          <div class="swimlane-header">
+            <div class="swimlane-title">
+              <span class="swimlane-indicator"></span>
+              In Progress
+            </div>
+            <div class="swimlane-count">0 tasks</div>
+          </div>
+          <div class="swimlane-cards">
+            <div class="empty-swimlane">No active tasks</div>
+          </div>
+        </div>
+
+        <div class="swimlane">
+          <div class="swimlane-header">
+            <div class="swimlane-title">
+              <span class="swimlane-indicator"></span>
+              Review
+            </div>
+            <div class="swimlane-count">0 tasks</div>
+          </div>
+          <div class="swimlane-cards">
+            <div class="empty-swimlane">No pending reviews</div>
+          </div>
+        </div>
+
+        <div class="swimlane">
+          <div class="swimlane-header">
+            <div class="swimlane-title">
+              <span class="swimlane-indicator"></span>
+              Done
+            </div>
+            <div class="swimlane-count">0 tasks</div>
+          </div>
+          <div class="swimlane-cards">
+            <div class="empty-swimlane">No completed tasks</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VARIATION 3: Glassmorphism -->
+  <section class="variation">
+    <div class="variation-header">
+      <div class="variation-title">
+        <span class="variation-number">3</span>
+        <div>
+          <h2>Glassmorphism</h2>
+          <p>Modern frosted glass aesthetic with vibrant gradients</p>
+        </div>
+      </div>
+      <div class="variation-tags">
+        <span class="tag tag-glass">Glass Effect</span>
+        <span class="tag tag-glass">Vibrant</span>
+      </div>
+    </div>
+    <div class="board-v3">
+      <div class="board-container">
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-icon">📝</span>
+              Backlog
+            </div>
+            <span class="column-count">4</span>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-bug">Bug</span>
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-high">
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                </div>
+              </div>
+              <div class="card-title">Test Task with Priority</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-WYIH</span>
+                <div class="card-avatar"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-9LQ7</span>
+                <div class="card-avatar"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JJ0N</span>
+                <div class="card-avatar"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-top">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                  <span class="priority-dot"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JC7L</span>
+                <div class="card-avatar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-icon">🚀</span>
+              Queued
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">🎯</div>
+              Ready for action
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-icon">⚡</span>
+              In Progress
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">🔥</div>
+              No active tasks
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-icon">👀</span>
+              Review
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              Nothing to review
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-icon">✅</span>
+              Done
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">🎉</div>
+              Ship it!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

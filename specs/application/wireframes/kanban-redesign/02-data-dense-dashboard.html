@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Data-Dense Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0b0d;
+      --bg-elevated: #12141a;
+      --bg-surface: #1a1d24;
+      --bg-hover: #242830;
+      --text-primary: #f0f2f5;
+      --text-secondary: #8b919e;
+      --text-muted: #5c6370;
+      --border: #2a2f3a;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-cyan: #06b6d4;
+      --glow-blue: rgba(59, 130, 246, 0.15);
+      --glow-purple: rgba(139, 92, 246, 0.15);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* Grid background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 64px 220px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Icon Rail */
+    .icon-rail {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rail-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .rail-logo::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      opacity: 0.3;
+      filter: blur(8px);
+      z-index: -1;
+    }
+
+    .rail-logo svg {
+      width: 22px;
+      height: 22px;
+      color: white;
+    }
+
+    .rail-item {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .rail-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    .rail-item.active {
+      background: var(--glow-blue);
+      color: var(--accent-blue);
+    }
+
+    .rail-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 20px;
+      background: var(--accent-blue);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .rail-item svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .rail-divider {
+      width: 24px;
+      height: 1px;
+      background: var(--border);
+      margin: 8px 0;
+    }
+
+    .rail-spacer {
+      flex: 1;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .project-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      flex: 1;
+      transition: all 0.2s;
+    }
+
+    .project-selector:hover {
+      border-color: var(--text-muted);
+    }
+
+    .project-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .project-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .project-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-tasks {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .project-chevron {
+      color: var(--text-muted);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--text-muted);
+      transform: translateY(-1px);
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-card:nth-child(1) .stat-value { color: var(--accent-blue); }
+    .stat-card:nth-child(2) .stat-value { color: var(--accent-amber); }
+    .stat-card:nth-child(3) .stat-value { color: var(--accent-emerald); }
+    .stat-card:nth-child(4) .stat-value { color: var(--accent-purple); }
+
+    /* Nav */
+    .nav-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 8px 12px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--glow-blue);
+      color: var(--accent-blue);
+    }
+
+    .nav-item svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .nav-item.active svg {
+      opacity: 1;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-hover);
+      color: var(--text-muted);
+    }
+
+    .nav-item.active .nav-badge {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    /* Main */
+    .main {
+      padding: 20px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .view-tabs {
+      display: flex;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .view-tab {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .view-tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .view-tab.active {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 240px;
+    }
+
+    .search-box svg {
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+    }
+
+    .search-box input {
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 13px;
+      width: 100%;
+      font-family: inherit;
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .top-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+      color: white;
+      border: none;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--glow-blue);
+    }
+
+    /* Board */
+    .board {
+      display: flex;
+      gap: 16px;
+      flex: 1;
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .column {
+      flex: 0 0 260px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .column-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .column-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .column:nth-child(1) .column-dot { background: var(--text-muted); }
+    .column:nth-child(2) .column-dot { background: var(--accent-purple); }
+    .column:nth-child(3) .column-dot { background: var(--accent-blue); }
+    .column:nth-child(4) .column-dot { background: var(--accent-amber); }
+    .column:nth-child(5) .column-dot { background: var(--accent-emerald); }
+
+    .column-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      background: var(--bg-hover);
+      border-radius: 4px;
+    }
+
+    .cards {
+      flex: 1;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      min-height: 200px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      animation: cardSlide 0.3s ease backwards;
+    }
+
+    @keyframes cardSlide {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+    }
+
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.1s; }
+    .card:nth-child(3) { animation-delay: 0.15s; }
+    .card:nth-child(4) { animation-delay: 0.2s; }
+
+    .card:hover {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 1px var(--accent-blue), 0 4px 12px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .card-labels {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+
+    .label-bug {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .label-feature {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .card-priority {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .priority-bar {
+      width: 3px;
+      height: 12px;
+      border-radius: 1px;
+      background: var(--bg-hover);
+    }
+
+    .priority-high .priority-bar:nth-child(-n+3) { background: var(--accent-rose); }
+    .priority-medium .priority-bar:nth-child(-n+2) { background: var(--accent-amber); }
+    .priority-low .priority-bar:nth-child(1) { background: var(--text-muted); }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .card-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-agent {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .card-agent svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .empty-icon {
+      width: 40px;
+      height: 40px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .empty-text {
+      font-size: 12px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Icon Rail -->
+    <div class="icon-rail">
+      <div class="rail-logo">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div class="rail-item active">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+      </div>
+      <div class="rail-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+      </div>
+      <div class="rail-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <div class="rail-divider"></div>
+      <div class="rail-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
+      <div class="rail-spacer"></div>
+      <div class="rail-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="project-selector">
+          <div class="project-icon">T1</div>
+          <div class="project-info">
+            <div class="project-name">test1</div>
+            <div class="project-tasks">4 tasks</div>
+          </div>
+          <svg class="project-chevron" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Backlog</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">2</div>
+          <div class="stat-label">Agents</div>
+        </div>
+      </div>
+
+      <nav class="nav-group">
+        <div class="nav-title">Project</div>
+        <div class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Tasks
+          <span class="nav-badge">4</span>
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+          </svg>
+          Git
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/>
+          </svg>
+          Templates
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+          </svg>
+          Queue
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Sessions
+        </div>
+      </nav>
+
+      <nav class="nav-group">
+        <div class="nav-title">Content</div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>
+          </svg>
+          Designer
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"/>
+          </svg>
+          Catalog
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9"/>
+          </svg>
+          Marketplace
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <div class="view-tabs">
+            <div class="view-tab active">Board</div>
+            <div class="view-tab">List</div>
+            <div class="view-tab">Timeline</div>
+          </div>
+          <div class="search-box">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" placeholder="Search tasks...">
+          </div>
+        </div>
+        <div class="top-bar-right">
+          <button class="btn btn-ghost">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+            </svg>
+            Filter
+          </button>
+          <button class="btn btn-primary">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Task
+          </button>
+        </div>
+      </div>
+
+      <div class="board">
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Backlog
+            </div>
+            <span class="column-count">4</span>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-bug">Bug</span>
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-high">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Test Task with Priority</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-WYIH</span>
+                <div class="card-meta">
+                  <span class="card-agent">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Claude
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-9LQ7</span>
+                <div class="card-meta"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JJ0N</span>
+                <div class="card-meta"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-labels">
+                  <span class="label label-feature">Feature</span>
+                </div>
+                <div class="card-priority priority-medium">
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                  <span class="priority-bar"></span>
+                </div>
+              </div>
+              <div class="card-title">Deploy VPC using registry modules</div>
+              <div class="card-footer">
+                <span class="card-id">#TSK-JC7L</span>
+                <div class="card-meta"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Queued
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <div class="empty-text">No tasks queued</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              In Progress
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">⚡</div>
+              <div class="empty-text">No active tasks</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Review
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">👁</div>
+              <div class="empty-text">No pending reviews</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot"></span>
+              Done
+            </div>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards">
+            <div class="empty-state">
+              <div class="empty-icon">✓</div>
+              <div class="empty-text">No completed tasks</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
