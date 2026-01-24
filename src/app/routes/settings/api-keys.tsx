@@ -1,10 +1,12 @@
+import type { Icon } from '@phosphor-icons/react';
 import {
-  Check,
   CircleNotch,
   Eye,
   EyeSlash,
   GithubLogo,
   Key,
+  LockKey,
+  Shield,
   Trash,
   Warning,
 } from '@phosphor-icons/react';
@@ -13,10 +15,234 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { isValidPATFormat } from '@/lib/crypto/token-encryption';
+import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/settings/api-keys')({
   component: ApiKeysSettingsPage,
 });
+
+// ============================================================================
+// ConfigSection Component (exact match to model-optimizations.tsx)
+// ============================================================================
+
+function ConfigSection({
+  icon: IconComponent,
+  title,
+  description,
+  badge,
+  badgeColor = 'accent',
+  children,
+  defaultOpen = true,
+  testId,
+}: {
+  icon: Icon;
+  title: string;
+  description: string;
+  badge?: string;
+  badgeColor?: 'accent' | 'success' | 'claude';
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  testId?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  const badgeColors = {
+    accent: 'bg-accent-muted text-accent',
+    success: 'bg-success-muted text-success',
+    claude: 'bg-claude-muted text-claude',
+  };
+
+  return (
+    <div
+      data-testid={testId}
+      className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-b from-surface to-surface/50 transition-all duration-300 hover:border-fg-subtle/30"
+    >
+      {/* Subtle gradient accent line at top */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
+
+      {/* Header */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-4 px-6 py-5 text-left transition-colors hover:bg-surface-subtle/50"
+      >
+        {/* Icon container with gradient background */}
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-surface-emphasis to-surface-muted ring-1 ring-border/50">
+          <IconComponent className="h-5 w-5 text-fg-muted" weight="duotone" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold tracking-tight text-fg">{title}</h2>
+            {badge && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider',
+                  badgeColors[badgeColor]
+                )}
+              >
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-sm text-fg-muted">{description}</p>
+        </div>
+
+        {/* Expand/collapse indicator */}
+        <div
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
+            isOpen ? 'rotate-180 bg-accent-muted' : 'bg-surface-emphasis'
+          )}
+        >
+          <svg
+            aria-hidden="true"
+            className={cn('h-4 w-4 transition-colors', isOpen ? 'text-accent' : 'text-fg-muted')}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Collapsible content */}
+      <div
+        className={cn(
+          'grid transition-all duration-300 ease-out',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-border/50 px-6 pb-6 pt-5">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// KeyInputCard Component (internal card pattern from model-optimizations)
+// ============================================================================
+
+function KeyInputCard({
+  icon: IconComponent,
+  title,
+  description,
+  placeholder,
+  value,
+  onChange,
+  onSave,
+  onClear,
+  savedValue,
+  showValue,
+  onToggleShow,
+  isSaving,
+  error,
+  testIdInput,
+  testIdToggle,
+  testIdSave,
+  testIdRemove,
+  children,
+}: {
+  icon: Icon;
+  title: string;
+  description: React.ReactNode;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  onClear: () => void;
+  savedValue: string | null;
+  showValue: boolean;
+  onToggleShow: () => void;
+  isSaving: boolean;
+  error: string | null;
+  testIdInput?: string;
+  testIdToggle?: string;
+  testIdSave?: string;
+  testIdRemove?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border">
+      {/* Card header */}
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+          <IconComponent className="h-4 w-4 text-fg-muted" weight="duotone" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium text-fg">{title}</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{description}</p>
+        </div>
+      </div>
+
+      {/* Additional content (e.g., permissions list) */}
+      {children}
+
+      {/* Saved state or input */}
+      {savedValue ? (
+        <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-surface/50 p-3">
+          <code className="flex-1 font-mono text-sm text-fg">{savedValue}</code>
+          <Button data-testid={testIdRemove} variant="ghost" size="sm" onClick={onClear}>
+            <Trash className="h-4 w-4" />
+            Remove
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              data-testid={testIdInput}
+              type={showValue ? 'text' : 'password'}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 pr-12 font-mono text-sm text-fg placeholder:text-fg-subtle transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+            />
+            <button
+              data-testid={testIdToggle}
+              type="button"
+              onClick={onToggleShow}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-fg-muted transition-colors hover:bg-surface-emphasis hover:text-fg"
+            >
+              {showValue ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {error && (
+            <p className="flex items-center gap-1.5 text-xs text-danger">
+              <Warning className="h-3.5 w-3.5" />
+              {error}
+            </p>
+          )}
+
+          <Button
+            data-testid={testIdSave}
+            onClick={onSave}
+            disabled={isSaving || !value.trim()}
+            size="sm"
+          >
+            {isSaving ? (
+              <>
+                <CircleNotch className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Key'
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
 
 function ApiKeysSettingsPage(): React.JSX.Element {
   const [anthropicKey, setAnthropicKey] = useState('');
@@ -34,7 +260,6 @@ function ApiKeysSettingsPage(): React.JSX.Element {
 
   // Load saved keys on mount
   useEffect(() => {
-    // Anthropic key from SQLite via API
     const loadAnthropicKey = async () => {
       const result = await apiClient.apiKeys.get('anthropic');
       if (result.ok && result.data.keyInfo) {
@@ -43,7 +268,6 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     };
     loadAnthropicKey();
 
-    // GitHub token from API (SQLite database)
     const loadGitHubToken = async () => {
       const result = await apiClient.github.getTokenInfo();
       if (result.ok && result.data.tokenInfo) {
@@ -70,9 +294,8 @@ function ApiKeysSettingsPage(): React.JSX.Element {
 
       setSavedAnthropicKey(result.data.keyInfo.maskedKey);
       setAnthropicKey('');
-    } catch (error) {
+    } catch {
       setAnthropicError('Failed to save key');
-      console.error('Failed to save Anthropic API key:', error);
     } finally {
       setIsSavingAnthropic(false);
     }
@@ -82,8 +305,8 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     try {
       await apiClient.apiKeys.delete('anthropic');
       setSavedAnthropicKey(null);
-    } catch (error) {
-      console.error('Failed to delete Anthropic API key:', error);
+    } catch {
+      // Silently handle error
     }
   };
 
@@ -99,7 +322,6 @@ function ApiKeysSettingsPage(): React.JSX.Element {
     setIsSavingGithub(true);
 
     try {
-      // Save to SQLite via API (validates with GitHub first)
       const result = await apiClient.github.saveToken(githubPat);
 
       if (!result.ok) {
@@ -110,9 +332,8 @@ function ApiKeysSettingsPage(): React.JSX.Element {
       setSavedGithubPat(result.data.tokenInfo.maskedToken);
       setGithubLogin(result.data.tokenInfo.githubLogin);
       setGithubPat('');
-    } catch (error) {
+    } catch {
       setGithubError('Failed to save PAT');
-      console.error('Failed to save GitHub PAT:', error);
     } finally {
       setIsSavingGithub(false);
     }
@@ -123,269 +344,179 @@ function ApiKeysSettingsPage(): React.JSX.Element {
       await apiClient.github.deleteToken();
       setSavedGithubPat(null);
       setGithubLogin(null);
-    } catch (error) {
-      console.error('Failed to delete GitHub PAT:', error);
+    } catch {
+      // Silently handle error
     }
   };
 
+  const configuredCount = [savedAnthropicKey, savedGithubPat].filter(Boolean).length;
+
   return (
-    <div data-testid="api-keys-settings" className="mx-auto max-w-4xl px-8 py-8">
-      {/* Page Header */}
-      <header className="mb-8">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-          <Key className="h-7 w-7 text-fg-muted" />
-          API Keys
-        </h1>
-        <p className="mt-2 text-fg-muted">
-          Configure API keys for external services. Keys are encrypted and stored locally.
-        </p>
+    <div data-testid="api-keys-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
+      {/* Page Header with gradient accent */}
+      <header className="relative mb-10">
+        {/* Decorative background elements */}
+        <div className="absolute -left-4 -top-4 h-24 w-24 rounded-full bg-accent/5 blur-2xl" />
+        <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-claude/5 blur-xl" />
+
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-muted to-accent-subtle ring-1 ring-accent/20">
+              <LockKey className="h-6 w-6 text-accent" weight="duotone" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">API Keys</h1>
+              <p className="text-sm text-fg-muted">
+                Securely configure API keys for external services
+              </p>
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap gap-6 rounded-lg border border-border/50 bg-surface-subtle/50 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <Key className="h-4 w-4 text-fg-subtle" />
+              <span className="text-xs text-fg-muted">
+                <span className="font-medium text-fg">{configuredCount}</span> of 2 configured
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-success" />
+              <span className="text-xs text-fg-muted">AES-256-GCM encrypted</span>
+            </div>
+            {githubLogin && (
+              <div className="flex items-center gap-2">
+                <GithubLogo className="h-4 w-4 text-fg-subtle" weight="fill" />
+                <span className="text-xs text-fg-muted">
+                  <span className="font-medium text-fg">@{githubLogin}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
-      <div className="space-y-6">
-        {/* Anthropic API Key */}
-        <div
-          data-testid="anthropic-key-section"
-          className="rounded-lg border border-border bg-surface"
+      <div className="space-y-5">
+        {/* Anthropic API Key Section */}
+        <ConfigSection
+          icon={Key}
+          title="Anthropic API Key"
+          description="Required for running Claude agents on tasks"
+          badge="Required"
+          badgeColor="claude"
+          testId="anthropic-key-section"
         >
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent-muted">
-              <Key className="h-4 w-4 text-accent" />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-semibold text-fg">Anthropic API Key</h2>
-              <p className="text-xs text-fg-muted">Required for running Claude agents</p>
-            </div>
-            {savedAnthropicKey && (
-              <span
-                data-testid="anthropic-key-configured"
-                className="flex items-center gap-1.5 rounded-full bg-success-muted px-2.5 py-1 text-xs font-medium text-success"
-              >
-                <Check className="h-3.5 w-3.5" weight="bold" />
-                Configured
-              </span>
-            )}
-          </div>
-
-          <div className="p-5">
-            {savedAnthropicKey ? (
-              <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-md bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
-                  {savedAnthropicKey}
-                </code>
-                <Button
-                  data-testid="remove-anthropic-key"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearAnthropicKey}
+          <KeyInputCard
+            icon={Key}
+            title="API Key"
+            description={
+              <>
+                Get your API key from{' '}
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent hover:underline"
                 >
-                  <Trash className="h-4 w-4" />
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-sm text-fg-muted">
-                    Get your API key from{' '}
-                    <a
-                      href="https://console.anthropic.com/settings/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      console.anthropic.com
-                    </a>{' '}
-                    or use{' '}
-                    <code className="rounded bg-surface-subtle px-1.5 py-0.5 text-xs font-mono">
-                      claude setup-token
-                    </code>{' '}
-                    from the terminal.
-                  </p>
-                  <div className="relative">
-                    <input
-                      data-testid="anthropic-key-input"
-                      type={showAnthropicKey ? 'text' : 'password'}
-                      value={anthropicKey}
-                      onChange={(e) => setAnthropicKey(e.target.value)}
-                      placeholder="sk-ant-..."
-                      className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    />
-                    <button
-                      data-testid="anthropic-key-toggle"
-                      type="button"
-                      onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg"
-                    >
-                      {showAnthropicKey ? (
-                        <EyeSlash className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  {anthropicError && (
-                    <p
-                      data-testid="anthropic-key-error"
-                      className="mt-2 flex items-center gap-1.5 text-xs text-danger"
-                    >
-                      <Warning className="h-3.5 w-3.5" />
-                      {anthropicError}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  data-testid="save-anthropic-key"
-                  onClick={handleSaveAnthropicKey}
-                  disabled={isSavingAnthropic || !anthropicKey.trim()}
-                >
-                  {isSavingAnthropic ? (
-                    <>
-                      <CircleNotch className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Key'
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+                  console.anthropic.com
+                </a>
+              </>
+            }
+            placeholder="sk-ant-..."
+            value={anthropicKey}
+            onChange={setAnthropicKey}
+            onSave={handleSaveAnthropicKey}
+            onClear={handleClearAnthropicKey}
+            savedValue={savedAnthropicKey}
+            showValue={showAnthropicKey}
+            onToggleShow={() => setShowAnthropicKey(!showAnthropicKey)}
+            isSaving={isSavingAnthropic}
+            error={anthropicError}
+            testIdInput="anthropic-key-input"
+            testIdToggle="anthropic-key-toggle"
+            testIdSave="save-anthropic-key"
+            testIdRemove="remove-anthropic-key"
+          />
+        </ConfigSection>
 
-        {/* GitHub PAT */}
-        <div
-          data-testid="github-pat-section"
-          className="rounded-lg border border-border bg-surface"
+        {/* GitHub PAT Section */}
+        <ConfigSection
+          icon={GithubLogo}
+          title="GitHub Personal Access Token"
+          description="Optional - enables private repos and organization access"
+          badge="Optional"
+          badgeColor="accent"
+          testId="github-pat-section"
         >
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-muted">
-              <Key className="h-4 w-4 text-fg-muted" />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-semibold text-fg">GitHub Personal Access Token</h2>
-              <p className="text-xs text-fg-muted">
-                Optional. Used for accessing private repos and organization data
+          <KeyInputCard
+            icon={GithubLogo}
+            title="Personal Access Token"
+            description={
+              <>
+                Generate a{' '}
+                <a
+                  href="https://github.com/settings/tokens?type=beta"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent hover:underline"
+                >
+                  fine-grained PAT
+                </a>{' '}
+                with repository access
+              </>
+            }
+            placeholder="ghp_... or github_pat_..."
+            value={githubPat}
+            onChange={setGithubPat}
+            onSave={handleSaveGithubPat}
+            onClear={handleClearGithubPat}
+            savedValue={savedGithubPat}
+            showValue={showGithubPat}
+            onToggleShow={() => setShowGithubPat(!showGithubPat)}
+            isSaving={isSavingGithub}
+            error={githubError}
+            testIdInput="github-pat-input"
+            testIdToggle="github-pat-toggle"
+            testIdSave="save-github-pat"
+            testIdRemove="remove-github-pat"
+          >
+            {/* Required permissions */}
+            <div className="mb-4 rounded-lg border border-border/50 bg-surface/50 p-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                Required Permissions
               </p>
-            </div>
-            {savedGithubPat && (
-              <span className="flex items-center gap-1.5 rounded-full bg-success-muted px-2.5 py-1 text-xs font-medium text-success">
-                <Check className="h-3.5 w-3.5" weight="bold" />
-                Configured
-              </span>
-            )}
-          </div>
-
-          <div className="p-5 space-y-4">
-            {/* Required permissions - always shown */}
-            <div className="rounded-md border border-border bg-surface-subtle p-3">
-              <p className="mb-2 text-xs font-medium text-fg">Required Permissions:</p>
               <ul className="space-y-1 text-xs text-fg-muted">
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
-                  <strong>Repository access:</strong> All repositories (or select specific ones)
+                <li>
+                  <strong className="text-fg">Repository access:</strong> All or select specific
                 </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
-                  <strong>Contents:</strong> Read-only (for cloning and reading files)
+                <li>
+                  <strong className="text-fg">Contents:</strong> Read-only
                 </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-fg-subtle" />
-                  <strong>Metadata:</strong> Read-only (for listing repositories)
+                <li>
+                  <strong className="text-fg">Metadata:</strong> Read-only
                 </li>
               </ul>
-              <p className="mt-2 text-xs text-fg-subtle">
-                For organization repos, also enable access to those organizations.
-              </p>
             </div>
+          </KeyInputCard>
+        </ConfigSection>
 
-            {savedGithubPat ? (
-              <div className="space-y-3">
-                {githubLogin && (
-                  <div className="flex items-center gap-2 text-sm text-fg-muted">
-                    <GithubLogo className="h-4 w-4" />
-                    Authenticated as <span className="font-medium text-fg">{githubLogin}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-3">
-                  <code className="flex-1 rounded-md bg-surface-subtle px-3 py-2 font-mono text-sm text-fg-muted">
-                    {savedGithubPat}
-                  </code>
-                  <Button variant="outline" size="sm" onClick={handleClearGithubPat}>
-                    <Trash className="h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-sm text-fg-muted">
-                    Generate a{' '}
-                    <a
-                      href="https://github.com/settings/tokens?type=beta"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      fine-grained PAT
-                    </a>{' '}
-                    with the permissions listed above.
-                  </p>
-                  <div className="relative">
-                    <input
-                      type={showGithubPat ? 'text' : 'password'}
-                      value={githubPat}
-                      onChange={(e) => setGithubPat(e.target.value)}
-                      placeholder="ghp_... or github_pat_..."
-                      className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowGithubPat(!showGithubPat)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg"
-                    >
-                      {showGithubPat ? (
-                        <EyeSlash className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  {githubError && (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs text-danger">
-                      <Warning className="h-3.5 w-3.5" />
-                      {githubError}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  onClick={handleSaveGithubPat}
-                  disabled={isSavingGithub || !githubPat.trim()}
-                >
-                  {isSavingGithub ? (
-                    <>
-                      <CircleNotch className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Token'
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Security Note */}
+        {/* Security Notice */}
         <div
           data-testid="security-notice"
-          className="rounded-md border border-accent/30 bg-accent-muted/30 p-4"
+          className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border"
         >
-          <p className="text-sm text-fg-muted">
-            <strong className="text-accent">Security:</strong> All keys are encrypted using
-            AES-256-GCM and stored locally. Keys never leave your machine and are not sent to
-            external servers.
-          </p>
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+              <Shield className="h-4 w-4 text-fg-muted" weight="duotone" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium text-fg">Security Information</h3>
+              <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">
+                All keys are encrypted using AES-256-GCM and stored locally. Keys never leave your
+                machine and are not sent to external servers.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

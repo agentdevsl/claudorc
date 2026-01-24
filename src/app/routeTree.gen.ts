@@ -67,8 +67,10 @@ import { Route as ApiWorktreesIdCommitRouteImport } from './routes/api/worktrees
 import { Route as ApiTemplatesIdSyncRouteImport } from './routes/api/templates/$id/sync'
 import { Route as ApiTasksCreateWithAiStreamRouteImport } from './routes/api/tasks/create-with-ai/stream'
 import { Route as ApiTasksCreateWithAiStartRouteImport } from './routes/api/tasks/create-with-ai/start'
+import { Route as ApiTasksCreateWithAiSkipRouteImport } from './routes/api/tasks/create-with-ai/skip'
 import { Route as ApiTasksCreateWithAiMessageRouteImport } from './routes/api/tasks/create-with-ai/message'
 import { Route as ApiTasksCreateWithAiCancelRouteImport } from './routes/api/tasks/create-with-ai/cancel'
+import { Route as ApiTasksCreateWithAiAnswerRouteImport } from './routes/api/tasks/create-with-ai/answer'
 import { Route as ApiTasksCreateWithAiAcceptRouteImport } from './routes/api/tasks/create-with-ai/accept'
 import { Route as ApiTasksIdRejectRouteImport } from './routes/api/tasks/$id/reject'
 import { Route as ApiTasksIdMoveRouteImport } from './routes/api/tasks/$id/move'
@@ -392,6 +394,12 @@ const ApiTasksCreateWithAiStartRoute =
     path: '/create-with-ai/start',
     getParentRoute: () => ApiTasksRoute,
   } as any)
+const ApiTasksCreateWithAiSkipRoute =
+  ApiTasksCreateWithAiSkipRouteImport.update({
+    id: '/create-with-ai/skip',
+    path: '/create-with-ai/skip',
+    getParentRoute: () => ApiTasksRoute,
+  } as any)
 const ApiTasksCreateWithAiMessageRoute =
   ApiTasksCreateWithAiMessageRouteImport.update({
     id: '/create-with-ai/message',
@@ -402,6 +410,12 @@ const ApiTasksCreateWithAiCancelRoute =
   ApiTasksCreateWithAiCancelRouteImport.update({
     id: '/create-with-ai/cancel',
     path: '/create-with-ai/cancel',
+    getParentRoute: () => ApiTasksRoute,
+  } as any)
+const ApiTasksCreateWithAiAnswerRoute =
+  ApiTasksCreateWithAiAnswerRouteImport.update({
+    id: '/create-with-ai/answer',
+    path: '/create-with-ai/answer',
     getParentRoute: () => ApiTasksRoute,
   } as any)
 const ApiTasksCreateWithAiAcceptRoute =
@@ -609,8 +623,10 @@ export interface FileRoutesByFullPath {
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
   '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
+  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
   '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
   '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
+  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
   '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
   '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
   '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
@@ -695,8 +711,10 @@ export interface FileRoutesByTo {
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
   '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
+  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
   '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
   '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
+  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
   '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
   '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
   '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
@@ -783,8 +801,10 @@ export interface FileRoutesById {
   '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
   '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
   '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
+  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
   '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
   '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
+  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
   '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
   '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
   '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
@@ -872,8 +892,10 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
     | '/api/tasks/create-with-ai/accept'
+    | '/api/tasks/create-with-ai/answer'
     | '/api/tasks/create-with-ai/cancel'
     | '/api/tasks/create-with-ai/message'
+    | '/api/tasks/create-with-ai/skip'
     | '/api/tasks/create-with-ai/start'
     | '/api/tasks/create-with-ai/stream'
     | '/api/templates/$id/sync'
@@ -958,8 +980,10 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
     | '/api/tasks/create-with-ai/accept'
+    | '/api/tasks/create-with-ai/answer'
     | '/api/tasks/create-with-ai/cancel'
     | '/api/tasks/create-with-ai/message'
+    | '/api/tasks/create-with-ai/skip'
     | '/api/tasks/create-with-ai/start'
     | '/api/tasks/create-with-ai/stream'
     | '/api/templates/$id/sync'
@@ -1045,8 +1069,10 @@ export interface FileRouteTypes {
     | '/api/tasks/$id/move'
     | '/api/tasks/$id/reject'
     | '/api/tasks/create-with-ai/accept'
+    | '/api/tasks/create-with-ai/answer'
     | '/api/tasks/create-with-ai/cancel'
     | '/api/tasks/create-with-ai/message'
+    | '/api/tasks/create-with-ai/skip'
     | '/api/tasks/create-with-ai/start'
     | '/api/tasks/create-with-ai/stream'
     | '/api/templates/$id/sync'
@@ -1506,6 +1532,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTasksCreateWithAiStartRouteImport
       parentRoute: typeof ApiTasksRoute
     }
+    '/api/tasks/create-with-ai/skip': {
+      id: '/api/tasks/create-with-ai/skip'
+      path: '/create-with-ai/skip'
+      fullPath: '/api/tasks/create-with-ai/skip'
+      preLoaderRoute: typeof ApiTasksCreateWithAiSkipRouteImport
+      parentRoute: typeof ApiTasksRoute
+    }
     '/api/tasks/create-with-ai/message': {
       id: '/api/tasks/create-with-ai/message'
       path: '/create-with-ai/message'
@@ -1518,6 +1551,13 @@ declare module '@tanstack/react-router' {
       path: '/create-with-ai/cancel'
       fullPath: '/api/tasks/create-with-ai/cancel'
       preLoaderRoute: typeof ApiTasksCreateWithAiCancelRouteImport
+      parentRoute: typeof ApiTasksRoute
+    }
+    '/api/tasks/create-with-ai/answer': {
+      id: '/api/tasks/create-with-ai/answer'
+      path: '/create-with-ai/answer'
+      fullPath: '/api/tasks/create-with-ai/answer'
+      preLoaderRoute: typeof ApiTasksCreateWithAiAnswerRouteImport
       parentRoute: typeof ApiTasksRoute
     }
     '/api/tasks/create-with-ai/accept': {
@@ -1827,8 +1867,10 @@ const ApiTasksIdRouteWithChildren = ApiTasksIdRoute._addFileChildren(
 interface ApiTasksRouteChildren {
   ApiTasksIdRoute: typeof ApiTasksIdRouteWithChildren
   ApiTasksCreateWithAiAcceptRoute: typeof ApiTasksCreateWithAiAcceptRoute
+  ApiTasksCreateWithAiAnswerRoute: typeof ApiTasksCreateWithAiAnswerRoute
   ApiTasksCreateWithAiCancelRoute: typeof ApiTasksCreateWithAiCancelRoute
   ApiTasksCreateWithAiMessageRoute: typeof ApiTasksCreateWithAiMessageRoute
+  ApiTasksCreateWithAiSkipRoute: typeof ApiTasksCreateWithAiSkipRoute
   ApiTasksCreateWithAiStartRoute: typeof ApiTasksCreateWithAiStartRoute
   ApiTasksCreateWithAiStreamRoute: typeof ApiTasksCreateWithAiStreamRoute
 }
@@ -1836,8 +1878,10 @@ interface ApiTasksRouteChildren {
 const ApiTasksRouteChildren: ApiTasksRouteChildren = {
   ApiTasksIdRoute: ApiTasksIdRouteWithChildren,
   ApiTasksCreateWithAiAcceptRoute: ApiTasksCreateWithAiAcceptRoute,
+  ApiTasksCreateWithAiAnswerRoute: ApiTasksCreateWithAiAnswerRoute,
   ApiTasksCreateWithAiCancelRoute: ApiTasksCreateWithAiCancelRoute,
   ApiTasksCreateWithAiMessageRoute: ApiTasksCreateWithAiMessageRoute,
+  ApiTasksCreateWithAiSkipRoute: ApiTasksCreateWithAiSkipRoute,
   ApiTasksCreateWithAiStartRoute: ApiTasksCreateWithAiStartRoute,
   ApiTasksCreateWithAiStreamRoute: ApiTasksCreateWithAiStreamRoute,
 }

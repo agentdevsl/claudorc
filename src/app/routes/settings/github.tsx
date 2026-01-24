@@ -1,11 +1,156 @@
-import { Check, CircleNotch, GithubLogo, Key } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import {
+  ArrowSquareOut,
+  Check,
+  CircleNotch,
+  GitBranch,
+  GitPullRequest,
+  GithubLogo,
+  Key,
+  LockKey,
+} from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/settings/github')({
   component: GitHubSettingsPage,
 });
+
+// ============================================================================
+// ConfigSection Component (exact match to model-optimizations.tsx)
+// ============================================================================
+
+function ConfigSection({
+  icon: IconComponent,
+  title,
+  description,
+  badge,
+  badgeColor = 'accent',
+  children,
+  defaultOpen = true,
+  testId,
+}: {
+  icon: Icon;
+  title: string;
+  description: string;
+  badge?: string;
+  badgeColor?: 'accent' | 'success' | 'claude';
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  testId?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  const badgeColors = {
+    accent: 'bg-accent-muted text-accent',
+    success: 'bg-success-muted text-success',
+    claude: 'bg-claude-muted text-claude',
+  };
+
+  return (
+    <div
+      data-testid={testId}
+      className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-b from-surface to-surface/50 transition-all duration-300 hover:border-fg-subtle/30"
+    >
+      {/* Subtle gradient accent line at top */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/20 to-transparent" />
+
+      {/* Header */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-4 px-6 py-5 text-left transition-colors hover:bg-surface-subtle/50"
+      >
+        {/* Icon container with gradient background */}
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-surface-emphasis to-surface-muted ring-1 ring-border/50">
+          <IconComponent className="h-5 w-5 text-fg-muted" weight="duotone" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold tracking-tight text-fg">{title}</h2>
+            {badge && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider',
+                  badgeColors[badgeColor]
+                )}
+              >
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-sm text-fg-muted">{description}</p>
+        </div>
+
+        {/* Expand/collapse indicator */}
+        <div
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
+            isOpen ? 'rotate-180 bg-accent-muted' : 'bg-surface-emphasis'
+          )}
+        >
+          <svg
+            aria-hidden="true"
+            className={cn('h-4 w-4 transition-colors', isOpen ? 'text-accent' : 'text-fg-muted')}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Collapsible content */}
+      <div
+        className={cn(
+          'grid transition-all duration-300 ease-out',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-border/50 px-6 pb-6 pt-5">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// FeatureCard Component (internal card pattern from model-optimizations)
+// ============================================================================
+
+function FeatureCard({
+  icon: IconComponent,
+  title,
+  description,
+}: {
+  icon: Icon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-4 transition-all hover:border-border">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+          <IconComponent className="h-4 w-4 text-fg-muted" weight="duotone" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium text-fg">{title}</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
 
 function GitHubSettingsPage(): React.JSX.Element {
   const [hasGitHubToken, setHasGitHubToken] = useState<boolean | null>(null);
@@ -14,7 +159,6 @@ function GitHubSettingsPage(): React.JSX.Element {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        // Check localStorage for saved GitHub PAT
         const savedToken = localStorage.getItem('github_pat');
         setHasGitHubToken(!!savedToken);
       } catch {
@@ -27,7 +171,7 @@ function GitHubSettingsPage(): React.JSX.Element {
   // Loading state
   if (hasGitHubToken === null) {
     return (
-      <div data-testid="github-settings" className="mx-auto max-w-4xl px-8 py-8">
+      <div data-testid="github-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
         <div className="flex items-center justify-center py-12">
           <CircleNotch className="h-8 w-8 animate-spin text-fg-muted" />
         </div>
@@ -35,117 +179,155 @@ function GitHubSettingsPage(): React.JSX.Element {
     );
   }
 
-  // No token configured - show message to configure one
-  if (!hasGitHubToken) {
-    return (
-      <div data-testid="github-settings" className="mx-auto max-w-4xl px-8 py-8">
-        {/* Page Header */}
-        <header className="mb-8">
-          <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-            <GithubLogo className="h-7 w-7 text-fg-muted" weight="fill" />
-            GitHub Integration
-          </h1>
-          <p className="mt-2 text-fg-muted">
-            Connect your GitHub account to sync configuration and create pull requests
-          </p>
-        </header>
+  return (
+    <div data-testid="github-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
+      {/* Page Header with gradient accent */}
+      <header className="relative mb-10">
+        {/* Decorative background elements */}
+        <div className="absolute -left-4 -top-4 h-24 w-24 rounded-full bg-accent/5 blur-2xl" />
+        <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-claude/5 blur-xl" />
 
-        <div data-testid="github-not-connected">
-          <div data-testid="github-connection-status" />
-          <div className="rounded-lg border border-border bg-surface">
-            <div className="px-6 py-12 text-center">
-              {/* Icon */}
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-attention bg-attention-muted">
-                <Key className="h-10 w-10 text-attention" weight="fill" />
-              </div>
-
-              {/* Title & Description */}
-              <h3 className="text-xl font-semibold text-fg">GitHub Token Required</h3>
-              <p className="mx-auto mt-3 max-w-md text-fg-muted">
-                To use GitHub integration, you need to configure a GitHub Personal Access Token
-                (PAT) in your API Keys settings first.
-              </p>
-
-              {/* Configure Button */}
-              <Link to="/settings/api-keys">
-                <Button className="mt-6">
-                  <Key className="h-4 w-4" />
-                  Configure API Keys
-                </Button>
-              </Link>
-
-              {/* Help text */}
-              <p className="mt-6 text-xs text-fg-subtle">
-                Need help?{' '}
-                <a
-                  href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent hover:underline"
-                >
-                  Learn how to create a GitHub PAT
-                </a>
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-muted to-accent-subtle ring-1 ring-accent/20">
+              <GithubLogo className="h-6 w-6 text-accent" weight="fill" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">GitHub Integration</h1>
+              <p className="text-sm text-fg-muted">
+                Connect to GitHub for repository access and pull requests
               </p>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
 
-  // Token is configured - show connected state
-  return (
-    <div data-testid="github-settings" className="mx-auto max-w-4xl px-8 py-8">
-      {/* Page Header */}
-      <header className="mb-8">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-          <GithubLogo className="h-7 w-7 text-fg-muted" weight="fill" />
-          GitHub Integration
-        </h1>
-        <p className="mt-2 text-fg-muted">
-          Connect your GitHub account to sync configuration and create pull requests
-        </p>
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap gap-6 rounded-lg border border-border/50 bg-surface-subtle/50 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <LockKey className="h-4 w-4 text-fg-subtle" />
+              <span className="text-xs text-fg-muted">
+                Status:{' '}
+                <span className={cn('font-medium', hasGitHubToken ? 'text-success' : 'text-attention')}>
+                  {hasGitHubToken ? 'Connected' : 'Not Connected'}
+                </span>
+              </span>
+            </div>
+            {hasGitHubToken && (
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-success" weight="bold" />
+                <span className="text-xs text-fg-muted">PAT Configured</span>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
-      <div data-testid="github-connected">
+      <div data-testid={hasGitHubToken ? 'github-connected' : 'github-not-connected'}>
         <div data-testid="github-connection-status" />
-        {/* Connection Status Banner */}
-        <div className="flex items-center gap-3 rounded-md border border-success/40 bg-success-muted p-4">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-success">
-            <Check className="h-5 w-5 text-white" weight="bold" />
-          </div>
-          <div className="flex-1">
-            <strong className="text-success">GitHub PAT Configured</strong>
-            <p className="text-xs text-fg-muted">
-              Your GitHub Personal Access Token is configured and ready to use
-            </p>
-          </div>
-          <Link to="/settings/api-keys">
-            <Button variant="outline" size="sm">
-              Manage Token
-            </Button>
-          </Link>
-        </div>
 
-        {/* Features info */}
-        <div className="mt-6 rounded-lg border border-border bg-surface p-6">
-          <h3 className="font-semibold text-fg">Available Features</h3>
-          <p className="mt-2 text-sm text-fg-muted">With your GitHub token configured, you can:</p>
-          <ul className="mt-4 space-y-2 text-sm text-fg-muted">
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" />
-              Clone private repositories
-            </li>
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" />
-              Create and manage pull requests
-            </li>
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" />
-              Sync configuration from repositories
-            </li>
-          </ul>
-        </div>
+        {!hasGitHubToken ? (
+          <div className="space-y-5">
+            {/* Setup Required */}
+            <ConfigSection
+              icon={Key}
+              title="Setup Required"
+              description="Configure a GitHub Personal Access Token to enable integration"
+              badge="Required"
+              badgeColor="claude"
+            >
+              <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-attention-muted">
+                  <Key className="h-6 w-6 text-attention" weight="duotone" />
+                </div>
+                <p className="font-medium text-fg">GitHub Token Required</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-fg-muted">
+                  Configure a GitHub Personal Access Token in API Keys settings to enable GitHub integration.
+                </p>
+                <Link to="/settings/api-keys">
+                  <Button className="mt-4">
+                    <Key className="h-4 w-4" />
+                    Configure API Keys
+                  </Button>
+                </Link>
+                <p className="mt-4 text-xs text-fg-subtle">
+                  Need help?{' '}
+                  <a
+                    href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-accent hover:underline"
+                  >
+                    Learn how to create a GitHub PAT
+                    <ArrowSquareOut className="h-3 w-3" />
+                  </a>
+                </p>
+              </div>
+            </ConfigSection>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Connection Status */}
+            <ConfigSection
+              icon={Check}
+              title="Connection Status"
+              description="Your GitHub Personal Access Token is configured"
+              badge="Active"
+              badgeColor="success"
+            >
+              <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-success-muted">
+                      <Check className="h-4 w-4 text-success" weight="bold" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-fg">GitHub PAT Configured</h3>
+                      <p className="text-xs text-fg-muted">
+                        Your token is ready to use for GitHub operations
+                      </p>
+                    </div>
+                  </div>
+                  <Link to="/settings/api-keys">
+                    <Button variant="outline" size="sm">
+                      Manage Token
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </ConfigSection>
+
+            {/* Available Features */}
+            <ConfigSection
+              icon={GithubLogo}
+              title="Available Features"
+              description="What you can do with GitHub integration"
+              badge="Features"
+              badgeColor="accent"
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FeatureCard
+                  icon={GitBranch}
+                  title="Clone Private Repositories"
+                  description="Access and clone your private repos directly"
+                />
+                <FeatureCard
+                  icon={GitPullRequest}
+                  title="Create Pull Requests"
+                  description="Generate PRs from agent code changes"
+                />
+                <FeatureCard
+                  icon={GithubLogo}
+                  title="Sync Configuration"
+                  description="Import settings from your repositories"
+                />
+                <FeatureCard
+                  icon={LockKey}
+                  title="Organization Access"
+                  description="Work with org repos (if token has access)"
+                />
+              </div>
+            </ConfigSection>
+          </div>
+        )}
       </div>
     </div>
   );
