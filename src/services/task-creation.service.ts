@@ -235,12 +235,24 @@ export class TaskCreationService {
     session: TaskCreationSession
   ): PendingQuestions | null {
     // Look for JSON block in the response
+    console.log(
+      '[TaskCreationService] Attempting to parse clarifying questions from text length:',
+      text.length
+    );
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (!jsonMatch || !jsonMatch[1]) return null;
+    if (!jsonMatch || !jsonMatch[1]) {
+      console.log('[TaskCreationService] No JSON block found in response');
+      return null;
+    }
+    console.log('[TaskCreationService] Found JSON block, attempting to parse');
 
     try {
       const parsed = JSON.parse(jsonMatch[1]);
-      if (parsed.type !== 'clarifying_questions') return null;
+      console.log('[TaskCreationService] Parsed JSON type:', parsed.type);
+      if (parsed.type !== 'clarifying_questions') {
+        console.log('[TaskCreationService] Not clarifying_questions type, skipping');
+        return null;
+      }
 
       // Validate questions array
       if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) return null;
@@ -580,6 +592,10 @@ export class TaskCreationService {
         // Parse clarifying questions from response (takes precedence)
         const questions = this.parseClarifyingQuestions(accumulated, session);
         if (questions) {
+          console.log(
+            '[TaskCreationService] Parsed clarifying questions:',
+            questions.questions.length
+          );
           session.pendingQuestions = questions;
           session.questionRound = questions.round;
           session.totalQuestionsAsked = questions.totalAsked;
@@ -654,12 +670,27 @@ export class TaskCreationService {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
     }
 
-    if (!session.suggestion) {
+    // Check if we have a complete suggestion from either session or overrides
+    const hasCompleteOverrides = overrides?.title && overrides?.description;
+    if (!session.suggestion && !hasCompleteOverrides) {
+      console.error('[TaskCreationService] No suggestion available:', {
+        sessionId,
+        hasSessionSuggestion: !!session.suggestion,
+        hasCompleteOverrides,
+        overrides,
+      });
       return err(TaskCreationErrors.NO_SUGGESTION);
     }
 
-    // Merge overrides with suggestion
-    const finalSuggestion = { ...session.suggestion, ...overrides };
+    // Use session suggestion as base, with overrides taking precedence
+    // If session.suggestion is null but overrides has complete data, use overrides directly
+    const baseSuggestion = session.suggestion ?? {
+      title: '',
+      description: '',
+      labels: [],
+      priority: 'medium' as const,
+    };
+    const finalSuggestion = { ...baseSuggestion, ...overrides };
 
     // Create the task
     try {

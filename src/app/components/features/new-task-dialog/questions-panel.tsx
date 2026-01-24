@@ -1,17 +1,17 @@
 import { Check, FastForward, PaperPlaneTilt, Spinner } from '@phosphor-icons/react';
-import { cn } from '@/lib/utils/cn';
 import type {
   ClarifyingQuestion,
   ClarifyingQuestionOption,
-  PendingQuestionsState,
-} from './use-task-creation';
+  PendingQuestions,
+} from '@/lib/task-creation';
+import { cn } from '@/lib/utils/cn';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface QuestionsPanelProps {
-  pendingQuestions: PendingQuestionsState;
+  pendingQuestions: PendingQuestions;
   selectedAnswers: Record<string, string>;
   onSelectAnswer: (questionIndex: number, answer: string) => void;
   onSubmitAnswers: () => void;

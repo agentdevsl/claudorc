@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  ArrowsOutCardinal,
   Check,
   PaperPlaneTilt,
   Plus,
@@ -11,14 +12,89 @@ import {
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
+import {
+  type TaskCreationMessage,
+  type TaskSuggestion,
+  useTaskCreation,
+} from '@/lib/task-creation';
 import { cn } from '@/lib/utils/cn';
 import { getLabelColors, type Priority } from './kanban-board/constants';
 import { QuestionsPanel } from './new-task-dialog/questions-panel';
-import {
-  type Message,
-  type TaskSuggestion,
-  useTaskCreation,
-} from './new-task-dialog/use-task-creation';
+
+// ============================================================================
+// RESIZE HOOK
+// ============================================================================
+
+interface DialogSize {
+  width: number;
+  height: number;
+}
+
+const MIN_WIDTH = 800;
+const MIN_HEIGHT = 500;
+const DEFAULT_WIDTH = Math.min(1200, window.innerWidth * 0.95);
+const DEFAULT_HEIGHT = Math.min(800, window.innerHeight * 0.85);
+
+function useResizableDialog() {
+  const [size, setSize] = useState<DialogSize>({
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const startSize = useRef({ width: 0, height: 0 });
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+      startPos.current = { x: e.clientX, y: e.clientY };
+      startSize.current = { ...size };
+    },
+    [size]
+  );
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startPos.current.x;
+      const deltaY = e.clientY - startPos.current.y;
+
+      setSize({
+        width: Math.max(
+          MIN_WIDTH,
+          Math.min(window.innerWidth - 40, startSize.current.width + deltaX * 2)
+        ),
+        height: Math.max(
+          MIN_HEIGHT,
+          Math.min(window.innerHeight - 40, startSize.current.height + deltaY * 2)
+        ),
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const reset = useCallback(() => {
+    setSize({
+      width: DEFAULT_WIDTH,
+      height: DEFAULT_HEIGHT,
+    });
+  }, []);
+
+  return { size, isResizing, handleMouseDown, reset };
+}
 
 // ============================================================================
 // TYPES
@@ -78,12 +154,14 @@ const DEFAULT_SUGGESTION: EditableSuggestion = {
 };
 
 /**
- * Strip task_suggestion JSON blocks from message content.
- * These are machine-readable outputs that shouldn't be shown to users.
+ * Strip machine-readable JSON blocks from message content.
+ * This includes task_suggestion and clarifying_questions blocks that shouldn't be shown to users.
  */
-function stripTaskSuggestionJson(content: string): string {
-  // Match ```json blocks containing "type": "task_suggestion"
-  const jsonBlockPattern = /```json\s*\n\s*\{[^`]*"type"\s*:\s*"task_suggestion"[^`]*\}\s*\n```/gs;
+function stripMachineReadableJson(content: string): string {
+  // Match ```json blocks containing "type": "task_suggestion" or "type": "clarifying_questions"
+  // Use [\s\S]*? for non-greedy matching of any character including newlines
+  const jsonBlockPattern =
+    /```json[\s\S]*?"type"\s*:\s*"(?:task_suggestion|clarifying_questions)"[\s\S]*?```/g;
   return content.replace(jsonBlockPattern, '').trim();
 }
 
@@ -165,7 +243,7 @@ function ThinkingIndicator(): React.JSX.Element {
 /**
  * Chat message bubble - Claude branded for AI messages
  */
-function MessageBubble({ message }: { message: Message }): React.JSX.Element {
+function MessageBubble({ message }: { message: TaskCreationMessage }): React.JSX.Element {
   const isUser = message.role === 'user';
 
   return (
@@ -198,7 +276,7 @@ function MessageBubble({ message }: { message: Message }): React.JSX.Element {
         )}
       >
         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {isUser ? message.content : stripTaskSuggestionJson(message.content)}
+          {isUser ? message.content : stripMachineReadableJson(message.content)}
         </p>
       </div>
     </div>
@@ -218,7 +296,7 @@ function StreamingBubble({ content }: { content: string }): React.JSX.Element {
       </div>
       <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-surface-muted border border-border px-4 py-2.5">
         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {stripTaskSuggestionJson(content)}
+          {stripMachineReadableJson(content)}
           <span className="inline-block w-2 h-4 ml-0.5 bg-claude/60 animate-pulse" />
         </p>
       </div>
@@ -756,6 +834,9 @@ export function NewTaskDialog({
     reset,
   } = useTaskCreation(projectId);
 
+  // Resizable dialog
+  const { size, isResizing, handleMouseDown } = useResizableDialog();
+
   const [input, setInput] = useState('');
   const [editableSuggestion, setEditableSuggestion] = useState<EditableSuggestion | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
@@ -845,18 +926,35 @@ export function NewTaskDialog({
   };
 
   const handleAcceptSuggestion = async () => {
-    if (!editableSuggestion) return;
+    if (!editableSuggestion) {
+      console.error('[NewTaskDialog] No editable suggestion available');
+      return;
+    }
 
+    console.log('[NewTaskDialog] Accepting suggestion:', editableSuggestion);
     setIsSubmitting(true);
+    setLocalError(null);
     try {
       // Directly create task using the AI suggestion
-      await acceptSuggestion({
+      const result = await acceptSuggestion({
         title: editableSuggestion.title,
         description: editableSuggestion.description,
         labels: editableSuggestion.labels,
         priority: editableSuggestion.priority,
       });
-    } finally {
+
+      if (!result.ok) {
+        console.error('[NewTaskDialog] Accept failed:', result.error);
+        setLocalError(result.error ?? 'Failed to create task');
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('[NewTaskDialog] acceptSuggestion call completed successfully');
+      // Note: Dialog will close automatically when createdTaskId is set via SSE event
+    } catch (err) {
+      console.error('[NewTaskDialog] Error accepting suggestion:', err);
+      setLocalError(err instanceof Error ? err.message : 'Failed to create task');
       setIsSubmitting(false);
     }
   };
@@ -880,6 +978,7 @@ export function NewTaskDialog({
     if (!editableSuggestion || isSubmitting) return;
 
     setIsSubmitting(true);
+    setLocalError(null);
     try {
       if (isManualMode) {
         // Manual mode: Create task directly without AI session
@@ -899,12 +998,17 @@ export function NewTaskDialog({
         }
       } else {
         // AI mode: Use the acceptSuggestion from the hook
-        await acceptSuggestion({
+        const result = await acceptSuggestion({
           title: editableSuggestion.title,
           description: editableSuggestion.description,
           labels: editableSuggestion.labels,
           priority: editableSuggestion.priority,
         });
+
+        if (!result.ok) {
+          setLocalError(result.error ?? 'Failed to create task');
+        }
+        // Success: Dialog will close automatically when createdTaskId is set via SSE event
       }
     } finally {
       setIsSubmitting(false);
@@ -942,7 +1046,7 @@ export function NewTaskDialog({
 
   const handleClose = async () => {
     console.log('[NewTaskDialog] handleClose called', { sessionId, status });
-    if (sessionId && (status === 'active' || status === 'waiting_questions')) {
+    if (sessionId && (status === 'active' || status === 'waiting_user')) {
       console.log('[NewTaskDialog] Calling cancel for session:', sessionId);
       await cancel();
     }
@@ -963,14 +1067,18 @@ export function NewTaskDialog({
         <DialogPrimitive.Content
           className={cn(
             'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
-            'w-[90vw] max-w-5xl min-h-[500px] h-[90vh] max-h-[900px]',
             'bg-surface border border-border rounded-xl overflow-hidden',
-            'shadow-xl flex flex-col resize',
+            'shadow-xl flex flex-col',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-            'duration-200'
+            'duration-200',
+            isResizing && 'select-none'
           )}
+          style={{
+            width: `${size.width}px`,
+            height: `${size.height}px`,
+          }}
           data-testid="new-task-dialog"
         >
           {showEditPanel && editableSuggestion ? (
@@ -1112,7 +1220,7 @@ export function NewTaskDialog({
                 )}
 
                 {/* Clarifying questions panel - show when waiting for user answers */}
-                {status === 'waiting_questions' && pendingQuestions && (
+                {status === 'waiting_user' && pendingQuestions && (
                   <div className="flex-1 overflow-hidden">
                     <QuestionsPanel
                       pendingQuestions={pendingQuestions}
@@ -1128,6 +1236,7 @@ export function NewTaskDialog({
                 {/* Terraform workflows - show when no conversation yet */}
                 {messages.length === 0 &&
                   !pendingQuestions &&
+                  !isStreaming &&
                   (status === 'active' || status === 'error' || status === 'connecting') && (
                     <div className="flex-1 overflow-y-auto">
                       <TerraformWorkflows
@@ -1137,8 +1246,20 @@ export function NewTaskDialog({
                     </div>
                   )}
 
-                {/* Chat messages - show when conversation started */}
-                {messages.length > 0 && status !== 'waiting_questions' && (
+                {/* Processing state - show when streaming without messages yet */}
+                {messages.length === 0 && isStreaming && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-claude-muted text-claude border border-claude/20">
+                        <Spinner className="h-6 w-6 animate-spin" />
+                      </div>
+                      <p className="text-sm text-fg-muted">Processing your request...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Chat messages - show when conversation started (regardless of status, as long as not waiting_user) */}
+                {messages.length > 0 && !(status === 'waiting_user' && pendingQuestions) && (
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.map((message) => (
                       <div key={message.id}>
@@ -1191,6 +1312,26 @@ export function NewTaskDialog({
               />
             </div>
           )}
+
+          {/* Resize handle */}
+          <div
+            role="slider"
+            aria-label="Resize dialog"
+            aria-valuemin={MIN_WIDTH}
+            aria-valuemax={window.innerWidth - 40}
+            aria-valuenow={size.width}
+            tabIndex={0}
+            onMouseDown={handleMouseDown}
+            className={cn(
+              'absolute bottom-0 right-0 w-6 h-6 cursor-se-resize',
+              'flex items-center justify-center',
+              'text-fg-subtle hover:text-fg transition-colors',
+              'rounded-tl-md hover:bg-surface-muted'
+            )}
+            title="Drag to resize"
+          >
+            <ArrowsOutCardinal className="w-3.5 h-3.5 rotate-45" />
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

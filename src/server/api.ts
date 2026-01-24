@@ -2235,6 +2235,50 @@ async function handleTaskCreationMessage(request: Request): Promise<Response> {
       return json({ ok: false, error: result.error }, 400);
     }
 
+    // Send events to SSE based on session state
+    if (controller) {
+      const session = result.value;
+
+      // Send assistant message event
+      const lastMessage = session.messages[session.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const messageData = JSON.stringify({
+          type: 'task-creation:message',
+          data: {
+            sessionId,
+            messageId: lastMessage.id,
+            role: lastMessage.role,
+            content: lastMessage.content,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
+      }
+
+      // Send questions event if pending
+      if (session.pendingQuestions) {
+        const questionsData = JSON.stringify({
+          type: 'task-creation:questions',
+          data: {
+            sessionId,
+            questions: session.pendingQuestions,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
+      }
+
+      // Send suggestion event if available
+      if (session.suggestion && !session.pendingQuestions) {
+        const suggestionData = JSON.stringify({
+          type: 'task-creation:suggestion',
+          data: {
+            sessionId,
+            suggestion: session.suggestion,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+      }
+    }
+
     // Send message completion to SSE
     if (controller) {
       const session = result.value;
@@ -2342,6 +2386,176 @@ async function handleTaskCreationCancel(request: Request): Promise<Response> {
     console.error('[TaskCreation] Cancel error:', error);
     return json(
       { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to cancel session' } },
+      500
+    );
+  }
+}
+
+async function handleTaskCreationAnswer(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { sessionId, questionsId, answers } = body as {
+      sessionId: string;
+      questionsId: string;
+      answers: Record<string, string>;
+    };
+
+    if (!sessionId || !questionsId || !answers) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'sessionId, questionsId and answers are required',
+          },
+        },
+        400
+      );
+    }
+
+    const controller = sseConnections.get(sessionId);
+    const result = await taskCreationService.answerQuestions(sessionId, questionsId, answers);
+
+    if (!result.ok) {
+      if (controller) {
+        const errorData = JSON.stringify({
+          type: 'task-creation:error',
+          data: { error: result.error.message },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`));
+      }
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    // Send events to SSE based on session state (same pattern as handleTaskCreationMessage)
+    if (controller) {
+      const session = result.value;
+
+      // Send assistant message event
+      const lastMessage = session.messages[session.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const messageData = JSON.stringify({
+          type: 'task-creation:message',
+          data: {
+            sessionId,
+            messageId: lastMessage.id,
+            role: lastMessage.role,
+            content: lastMessage.content,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
+      }
+
+      // Send questions event if pending (for follow-up questions)
+      if (session.pendingQuestions) {
+        const questionsData = JSON.stringify({
+          type: 'task-creation:questions',
+          data: {
+            sessionId,
+            questions: session.pendingQuestions,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
+      }
+
+      // Send suggestion event if available
+      if (session.suggestion && !session.pendingQuestions) {
+        const suggestionData = JSON.stringify({
+          type: 'task-creation:suggestion',
+          data: {
+            sessionId,
+            suggestion: session.suggestion,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+      }
+    }
+
+    return json({ ok: true, data: { sessionId, status: result.value.status } });
+  } catch (error) {
+    console.error('[TaskCreation] Answer error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to answer questions' } },
+      500
+    );
+  }
+}
+
+async function handleTaskCreationSkip(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+    const { sessionId } = body as { sessionId: string };
+
+    if (!sessionId) {
+      return json(
+        { ok: false, error: { code: 'INVALID_INPUT', message: 'sessionId is required' } },
+        400
+      );
+    }
+
+    const controller = sseConnections.get(sessionId);
+    const result = await taskCreationService.skipQuestions(sessionId);
+
+    if (!result.ok) {
+      if (controller) {
+        const errorData = JSON.stringify({
+          type: 'task-creation:error',
+          data: { error: result.error.message },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`));
+      }
+      return json({ ok: false, error: result.error }, 400);
+    }
+
+    // Send events to SSE based on session state (same pattern as handleTaskCreationMessage)
+    if (controller) {
+      const session = result.value;
+
+      // Send assistant message event
+      const lastMessage = session.messages[session.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const messageData = JSON.stringify({
+          type: 'task-creation:message',
+          data: {
+            sessionId,
+            messageId: lastMessage.id,
+            role: lastMessage.role,
+            content: lastMessage.content,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
+      }
+
+      // Send questions event if pending
+      if (session.pendingQuestions) {
+        const questionsData = JSON.stringify({
+          type: 'task-creation:questions',
+          data: {
+            sessionId,
+            questions: session.pendingQuestions,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
+      }
+
+      // Send suggestion event if available
+      if (session.suggestion && !session.pendingQuestions) {
+        const suggestionData = JSON.stringify({
+          type: 'task-creation:suggestion',
+          data: {
+            sessionId,
+            suggestion: session.suggestion,
+          },
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+      }
+    }
+
+    return json({ ok: true, data: { sessionId, status: result.value.status } });
+  } catch (error) {
+    console.error('[TaskCreation] Skip error:', error);
+    return json(
+      { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to skip questions' } },
       500
     );
   }
@@ -3782,6 +3996,12 @@ async function handleRequest(request: Request): Promise<Response> {
   }
   if (path === '/api/tasks/create-with-ai/cancel' && method === 'POST') {
     return handleTaskCreationCancel(request);
+  }
+  if (path === '/api/tasks/create-with-ai/answer' && method === 'POST') {
+    return handleTaskCreationAnswer(request);
+  }
+  if (path === '/api/tasks/create-with-ai/skip' && method === 'POST') {
+    return handleTaskCreationSkip(request);
   }
   // SSE stream endpoint
   if (path === '/api/tasks/create-with-ai/stream' && method === 'GET') {
