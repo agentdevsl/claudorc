@@ -24,7 +24,7 @@ const createDbMock = () => ({
 
 const createStreamsMock = () => ({
   createStream: vi.fn().mockResolvedValue(undefined),
-  publish: vi.fn().mockResolvedValue(undefined),
+  publish: vi.fn().mockResolvedValue(1), // Returns offset
   subscribe: vi.fn(async function* () {
     yield { type: 'presence:cursor', data: { userId: 'u1', cursor: { x: 0, y: 0 } }, offset: 0 };
   }),

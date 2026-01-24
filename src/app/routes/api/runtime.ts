@@ -10,7 +10,7 @@ export type { Services };
 
 const fallbackStreams: DurableStreamsServer = {
   createStream: async () => undefined,
-  publish: async () => undefined,
+  publish: async () => 1, // Returns offset
   subscribe: async function* () {
     yield { type: 'chunk', data: {}, offset: 0 };
   },

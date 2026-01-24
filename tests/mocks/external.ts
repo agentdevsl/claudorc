@@ -15,7 +15,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 export const mockDurableStreams = {
   connect: vi.fn().mockResolvedValue({
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     subscribe: vi.fn().mockReturnValue((async function* () {})()),
     close: vi.fn(),
   }),

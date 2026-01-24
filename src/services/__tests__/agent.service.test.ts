@@ -25,7 +25,7 @@ const createTaskServiceMock = () => ({
 
 const createSessionServiceMock = () => ({
   create: vi.fn(),
-  publish: vi.fn(),
+  publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
 });
 
 describe('AgentService', () => {

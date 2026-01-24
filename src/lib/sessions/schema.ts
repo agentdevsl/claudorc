@@ -1,0 +1,135 @@
+/**
+ * Session Event Schemas
+ *
+ * Zod schemas for session events with type inference.
+ *
+ * @module lib/sessions/schema
+ */
+
+import { z } from 'zod';
+
+/**
+ * Token chunk schema - streaming text from agent
+ */
+export const chunkSchema = z.object({
+  id: z.string(),
+  agentId: z.string().optional(),
+  sessionId: z.string(),
+  text: z.string(),
+  accumulated: z.string().optional(),
+  turn: z.number().optional(),
+  timestamp: z.number(),
+});
+
+/**
+ * Tool call schema - agent tool invocations
+ */
+export const toolCallSchema = z.object({
+  id: z.string(),
+  agentId: z.string().optional(),
+  sessionId: z.string(),
+  tool: z.string(),
+  input: z.unknown(),
+  output: z.unknown().optional(),
+  status: z.enum(['pending', 'running', 'complete', 'error']),
+  duration: z.number().optional(),
+  timestamp: z.number(),
+});
+
+/**
+ * Presence schema - who's watching the session
+ */
+export const presenceSchema = z.object({
+  userId: z.string(),
+  sessionId: z.string(),
+  displayName: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  cursor: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+    })
+    .optional(),
+  lastSeen: z.number(),
+  joinedAt: z.number().optional(),
+});
+
+/**
+ * Terminal I/O schema - interactive input/output
+ */
+export const terminalSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  type: z.enum(['input', 'output', 'error']),
+  data: z.string(),
+  source: z.enum(['user', 'agent', 'system']).optional(),
+  timestamp: z.number(),
+});
+
+/**
+ * Workflow events schema - approval workflow
+ */
+export const workflowSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  taskId: z.string().optional(),
+  type: z.enum([
+    'approval:requested',
+    'approval:approved',
+    'approval:rejected',
+    'worktree:created',
+    'worktree:merged',
+    'worktree:removed',
+  ]),
+  payload: z.record(z.string(), z.unknown()),
+  actor: z.string().optional(),
+  timestamp: z.number(),
+});
+
+/**
+ * Agent state schema - overall agent status
+ */
+export const agentStateSchema = z.object({
+  agentId: z.string(),
+  sessionId: z.string(),
+  status: z.enum(['idle', 'starting', 'running', 'paused', 'error', 'completed']),
+  taskId: z.string().optional(),
+  turn: z.number().optional(),
+  progress: z.number().optional(),
+  currentTool: z.string().optional(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+  timestamp: z.number(),
+});
+
+/**
+ * Derived message schema - aggregated from chunks
+ */
+export const messageSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  sessionId: z.string(),
+  text: z.string(),
+  turn: z.number(),
+  timestamp: z.number(),
+});
+
+// Export inferred types
+export type ChunkEvent = z.infer<typeof chunkSchema>;
+export type ToolCallEvent = z.infer<typeof toolCallSchema>;
+export type PresenceEvent = z.infer<typeof presenceSchema>;
+export type TerminalEvent = z.infer<typeof terminalSchema>;
+export type WorkflowEvent = z.infer<typeof workflowSchema>;
+export type AgentStateEvent = z.infer<typeof agentStateSchema>;
+export type Message = z.infer<typeof messageSchema>;
+
+/**
+ * Union of all session events with channel discriminator
+ */
+export type SessionEvent =
+  | { channel: 'chunks'; data: ChunkEvent }
+  | { channel: 'toolCalls'; data: ToolCallEvent }
+  | { channel: 'presence'; data: PresenceEvent }
+  | { channel: 'terminal'; data: TerminalEvent }
+  | { channel: 'workflow'; data: WorkflowEvent }
+  | { channel: 'agentState'; data: AgentStateEvent };

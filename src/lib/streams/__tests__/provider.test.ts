@@ -110,7 +110,7 @@ describe('streams provider', () => {
 function createMockProvider(): DurableStreamsServer {
   return {
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     subscribe: vi.fn().mockImplementation(function* () {
       // Empty async generator
     }),

@@ -6,7 +6,7 @@ import type { SessionEvent, SessionEventType } from './session.service.js';
  */
 export interface DurableStreamsServer {
   createStream: (id: string, schema: unknown) => Promise<void>;
-  publish: (id: string, type: string, data: unknown) => Promise<void>;
+  publish: (id: string, type: string, data: unknown) => Promise<number>;
   subscribe: (id: string) => AsyncIterable<{ type: string; data: unknown }>;
 }
 
@@ -239,9 +239,10 @@ export class DurableStreamsService {
 
   /**
    * Publish a generic event to a stream
+   * @returns The stream offset for this event
    */
-  async publish<T>(streamId: string, type: StreamEventType, data: T): Promise<void> {
-    await this.server.publish(streamId, type, data);
+  async publish<T>(streamId: string, type: StreamEventType, data: T): Promise<number> {
+    const offset = await this.server.publish(streamId, type, data);
 
     // Notify local subscribers
     const event: StreamEvent<T> = {
@@ -251,6 +252,8 @@ export class DurableStreamsService {
       data,
     };
     this.notifySubscribers(streamId, event);
+
+    return offset;
   }
 
   /**

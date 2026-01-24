@@ -1,20 +1,39 @@
+import { getCollectionStats, sessionCollections } from '../../sessions/index.js';
 import { ok } from '../../utils/result.js';
 import type { BootstrapContext } from '../types.js';
 
 /**
  * Initialize collections for client mode.
- * In client mode, data is fetched from API endpoints, so this just sets up
- * an empty collections structure for compatibility.
+ *
+ * Sets up TanStack DB collections for session data including:
+ * - chunks: Streaming text from agents
+ * - toolCalls: Agent tool invocations
+ * - presence: Active users in sessions
+ * - terminal: Terminal I/O events
+ * - workflow: Approval workflow events
+ * - agentState: Agent lifecycle state
+ * - messages: Derived messages from chunks
  */
 export const initializeCollections = async (_ctx: BootstrapContext) => {
-  console.log('[Bootstrap] Collections initialized (client mode - data via API)');
+  console.log('[Bootstrap] Initializing TanStack DB collections');
 
-  // In client mode, collections are managed via API fetch
-  // This phase just marks collections as ready
+  // Collections are created lazily on first use via localOnlyCollectionOptions
+  // Preload them to ensure they're ready
+  await Promise.all([
+    sessionCollections.chunks.preload(),
+    sessionCollections.toolCalls.preload(),
+    sessionCollections.presence.preload(),
+    sessionCollections.terminal.preload(),
+    sessionCollections.workflow.preload(),
+    sessionCollections.agentState.preload(),
+    sessionCollections.messages.preload(),
+  ]);
+
+  const stats = getCollectionStats();
+  console.log('[Bootstrap] Collections initialized:', stats);
+
   return ok({
-    projects: { ready: true },
-    tasks: { ready: true },
-    agents: { ready: true },
-    sessions: { ready: true },
+    collections: sessionCollections,
+    stats,
   });
 };

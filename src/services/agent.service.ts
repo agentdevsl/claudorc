@@ -88,7 +88,7 @@ type SessionServiceInterface = {
     agentId?: string;
     title?: string;
   }) => Promise<Result<SessionWithPresence, unknown>>;
-  publish: (sessionId: string, event: SessionEvent) => Promise<Result<void, unknown>>;
+  publish: (sessionId: string, event: SessionEvent) => Promise<Result<{ offset: number }, unknown>>;
 };
 
 const runningAgents = new Map<string, AbortController>();

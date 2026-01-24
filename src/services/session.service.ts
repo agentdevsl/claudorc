@@ -109,7 +109,7 @@ export type SessionWithPresence = {
 
 export type DurableStreamsServer = {
   createStream: (id: string, schema: unknown) => Promise<void>;
-  publish: (id: string, type: string, data: unknown) => Promise<void>;
+  publish: (id: string, type: string, data: unknown) => Promise<number>;
   subscribe: (
     id: string,
     options?: { fromOffset?: number }
@@ -318,10 +318,13 @@ export class SessionService {
     return ok(presence);
   }
 
-  async publish(sessionId: string, event: SessionEvent): Promise<Result<void, SessionError>> {
+  async publish(
+    sessionId: string,
+    event: SessionEvent
+  ): Promise<Result<{ offset: number }, SessionError>> {
     try {
       // Publish to real-time stream (for live subscribers)
-      await this.streams.publish(sessionId, event.type, event.data);
+      const offset = await this.streams.publish(sessionId, event.type, event.data);
 
       // Persist to database for historical replay (non-blocking)
       // We don't await this to avoid slowing down real-time delivery
@@ -343,7 +346,7 @@ export class SessionService {
         }
       );
 
-      return ok(undefined);
+      return ok({ offset });
     } catch (error) {
       return err(SessionErrors.SYNC_FAILED(String(error)));
     }
