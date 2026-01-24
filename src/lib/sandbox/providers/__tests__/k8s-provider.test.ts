@@ -12,6 +12,8 @@ interface MockCoreApi {
   listNamespacedPod: ReturnType<typeof vi.fn>;
   createNamespacedServiceAccount: ReturnType<typeof vi.fn>;
   deleteNamespacedServiceAccount: ReturnType<typeof vi.fn>;
+  createNamespacedPersistentVolumeClaim: ReturnType<typeof vi.fn>;
+  deleteNamespacedPersistentVolumeClaim: ReturnType<typeof vi.fn>;
 }
 
 interface MockVersionApi {
@@ -56,6 +58,8 @@ const initMocks = () => {
     listNamespacedPod: vi.fn(() => Promise.resolve({ items: [] })),
     createNamespacedServiceAccount: vi.fn(),
     deleteNamespacedServiceAccount: vi.fn(),
+    createNamespacedPersistentVolumeClaim: vi.fn(),
+    deleteNamespacedPersistentVolumeClaim: vi.fn(),
   };
   mockVersionApi = {
     getCode: vi.fn(() => Promise.resolve({ gitVersion: 'v1.28.0' })),

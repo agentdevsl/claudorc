@@ -16,6 +16,7 @@ vi.mock('../k8s-audit.js', () => ({
     logWarmPoolAllocation: vi.fn(),
     logWarmPoolPodCreated: vi.fn(),
     logWarmPoolPodDeleted: vi.fn(),
+    logWarmPoolDiscovery: vi.fn(),
   }),
 }));
 
