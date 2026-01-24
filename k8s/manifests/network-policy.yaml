@@ -1,0 +1,107 @@
+# AgentPane Sandbox Network Policy
+# This policy implements a default-deny approach with specific egress allowances
+# for DNS resolution and HTTPS traffic to external services.
+#
+# Security Model:
+# - Ingress: DENY ALL (sandbox pods should never receive inbound connections)
+# - Egress: ALLOW DNS + HTTPS to external IPs (excluding private ranges)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-default-deny
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/policy-type: default
+  annotations:
+    agentpane.io/description: "Default deny policy for all sandbox pods"
+spec:
+  # Apply to all pods with the sandbox label
+  podSelector:
+    matchLabels:
+      agentpane.io/sandbox: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  # Explicitly deny all ingress (no rules = deny)
+  ingress: []
+  # Allow specific egress
+  egress:
+    # Rule 1: Allow DNS resolution (required for any network operations)
+    # This allows queries to kube-dns in any namespace
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Rule 2: Allow HTTPS egress to external internet
+    # Excludes private IP ranges (RFC 1918) to prevent internal network access
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              # Private networks - Block access to internal resources
+              - 10.0.0.0/8       # Class A private
+              - 172.16.0.0/12    # Class B private
+              - 192.168.0.0/16   # Class C private
+              # Link-local
+              - 169.254.0.0/16   # APIPA
+              # Loopback
+              - 127.0.0.0/8      # Localhost
+      ports:
+        - protocol: TCP
+          port: 443   # HTTPS
+
+    # Rule 3: Allow HTTP for package managers (some registries don't support HTTPS)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 80    # HTTP (for package managers)
+
+---
+# Additional policy for SSH/Git access (optional, can be disabled)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-allow-git
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/policy-type: git-access
+  annotations:
+    agentpane.io/description: "Allow SSH for Git operations"
+spec:
+  podSelector:
+    matchLabels:
+      agentpane.io/sandbox: "true"
+  policyTypes:
+    - Egress
+  egress:
+    # Allow SSH to external hosts (for git clone over SSH)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 22    # SSH

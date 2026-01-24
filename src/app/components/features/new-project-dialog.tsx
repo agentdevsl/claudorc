@@ -57,7 +57,7 @@ interface SkillConfig {
 
 type SourceType = 'local' | 'clone';
 
-export type SandboxType = 'docker' | 'devcontainer';
+export type SandboxType = 'docker' | 'devcontainer' | 'kubernetes';
 
 interface NewProjectDialogProps {
   open: boolean;

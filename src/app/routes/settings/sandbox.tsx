@@ -12,6 +12,8 @@ import {
   Trash,
   TreeStructure,
   Warning,
+  WifiHigh,
+  WifiSlash,
   X,
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
@@ -23,6 +25,28 @@ import {
   type SandboxConfigItem,
   type UpdateSandboxConfigInput,
 } from '@/lib/api/client';
+
+type SandboxProvider = 'docker' | 'kubernetes';
+
+interface K8sStatus {
+  healthy: boolean;
+  message?: string;
+  context?: string;
+  cluster?: string;
+  server?: string;
+  serverVersion?: string;
+  namespace?: string;
+  namespaceExists?: boolean;
+  pods?: number;
+  podsRunning?: number;
+}
+
+interface K8sContext {
+  name: string;
+  cluster: string;
+  user: string;
+  namespace?: string;
+}
 
 export const Route = createFileRoute('/settings/sandbox')({
   component: SandboxSettingsPage,
@@ -37,6 +61,18 @@ function SandboxSettingsPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('providers');
 
+  // Provider selection state
+  const [selectedProvider, setSelectedProvider] = useState<SandboxProvider>('docker');
+
+  // K8s configuration state
+  const [k8sStatus, setK8sStatus] = useState<K8sStatus | null>(null);
+  const [k8sStatusLoading, setK8sStatusLoading] = useState(false);
+  const [k8sContexts, setK8sContexts] = useState<K8sContext[]>([]);
+  const [k8sContextsLoading, setK8sContextsLoading] = useState(false);
+  const [k8sConfigPath, setK8sConfigPath] = useState('');
+  const [k8sContext, setK8sContext] = useState('');
+  const [k8sNamespace, setK8sNamespace] = useState('agentpane-sandboxes');
+
   // Editor state
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
   const [editingConfig, setEditingConfig] = useState<SandboxConfigItem | null>(null);
@@ -46,7 +82,7 @@ function SandboxSettingsPage(): React.JSX.Element {
   // Form state
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
-  const [formType, setFormType] = useState<'docker' | 'devcontainer'>('docker');
+  const [formType, setFormType] = useState<'docker' | 'devcontainer' | 'kubernetes'>('docker');
   const [formBaseImage, setFormBaseImage] = useState('node:22-slim');
   const [formMemoryMb, setFormMemoryMb] = useState(4096);
   const [formCpuCores, setFormCpuCores] = useState(2.0);
@@ -54,6 +90,10 @@ function SandboxSettingsPage(): React.JSX.Element {
   const [formTimeoutMinutes, setFormTimeoutMinutes] = useState(60);
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [formVolumeMountPath, setFormVolumeMountPath] = useState('');
+  // K8s form state
+  const [formKubeConfigPath, setFormKubeConfigPath] = useState('');
+  const [formKubeContext, setFormKubeContext] = useState('');
+  const [formKubeNamespace, setFormKubeNamespace] = useState('agentpane-sandboxes');
 
   const loadConfigs = useCallback(async () => {
     setIsLoading(true);
@@ -76,6 +116,69 @@ function SandboxSettingsPage(): React.JSX.Element {
     loadConfigs();
   }, [loadConfigs]);
 
+  // Load K8s status when provider is selected
+  const loadK8sStatus = useCallback(async () => {
+    setK8sStatusLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (k8sConfigPath) params.set('kubeconfigPath', k8sConfigPath);
+      if (k8sContext) params.set('context', k8sContext);
+
+      const response = await fetch(`/api/sandbox/k8s/status?${params.toString()}`);
+      const result = await response.json();
+
+      if (result.ok) {
+        setK8sStatus(result.data);
+      } else {
+        setK8sStatus({
+          healthy: false,
+          message: result.error?.message ?? 'Failed to connect to cluster',
+        });
+      }
+    } catch (_err) {
+      setK8sStatus({
+        healthy: false,
+        message: 'Failed to check cluster status',
+      });
+    } finally {
+      setK8sStatusLoading(false);
+    }
+  }, [k8sConfigPath, k8sContext]);
+
+  // Load K8s contexts
+  const loadK8sContexts = useCallback(async () => {
+    setK8sContextsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (k8sConfigPath) params.set('kubeconfigPath', k8sConfigPath);
+
+      const response = await fetch(`/api/sandbox/k8s/contexts?${params.toString()}`);
+      const result = await response.json();
+
+      if (result.ok) {
+        setK8sContexts(result.data.contexts);
+        // Set current context if not already set
+        if (!k8sContext && result.data.current) {
+          setK8sContext(result.data.current);
+        }
+      } else {
+        setK8sContexts([]);
+      }
+    } catch (_err) {
+      setK8sContexts([]);
+    } finally {
+      setK8sContextsLoading(false);
+    }
+  }, [k8sConfigPath, k8sContext]);
+
+  // Load K8s info when provider changes to kubernetes
+  useEffect(() => {
+    if (selectedProvider === 'kubernetes') {
+      loadK8sContexts();
+      loadK8sStatus();
+    }
+  }, [selectedProvider, loadK8sContexts, loadK8sStatus]);
+
   const resetForm = () => {
     setFormName('');
     setFormDescription('');
@@ -87,6 +190,10 @@ function SandboxSettingsPage(): React.JSX.Element {
     setFormTimeoutMinutes(60);
     setFormIsDefault(false);
     setFormVolumeMountPath('');
+    // K8s form fields
+    setFormKubeConfigPath('');
+    setFormKubeContext('');
+    setFormKubeNamespace('agentpane-sandboxes');
     setSaveError(null);
   };
 
@@ -99,7 +206,7 @@ function SandboxSettingsPage(): React.JSX.Element {
   const openEditEditor = (config: SandboxConfigItem) => {
     setFormName(config.name);
     setFormDescription(config.description ?? '');
-    setFormType(config.type ?? 'docker');
+    setFormType((config.type as 'docker' | 'devcontainer' | 'kubernetes') ?? 'docker');
     setFormBaseImage(config.baseImage);
     setFormMemoryMb(config.memoryMb);
     setFormCpuCores(config.cpuCores);
@@ -107,6 +214,12 @@ function SandboxSettingsPage(): React.JSX.Element {
     setFormTimeoutMinutes(config.timeoutMinutes);
     setFormIsDefault(config.isDefault);
     setFormVolumeMountPath(config.volumeMountPath ?? '');
+    // K8s fields
+    setFormKubeConfigPath((config as { kubeConfigPath?: string }).kubeConfigPath ?? '');
+    setFormKubeContext((config as { kubeContext?: string }).kubeContext ?? '');
+    setFormKubeNamespace(
+      (config as { kubeNamespace?: string }).kubeNamespace ?? 'agentpane-sandboxes'
+    );
     setSaveError(null);
     setEditorMode('edit');
     setEditingConfig(config);
@@ -140,6 +253,10 @@ function SandboxSettingsPage(): React.JSX.Element {
           timeoutMinutes: formTimeoutMinutes,
           isDefault: formIsDefault,
           volumeMountPath: formVolumeMountPath || undefined,
+          // K8s fields
+          kubeConfigPath: formKubeConfigPath || undefined,
+          kubeContext: formKubeContext || undefined,
+          kubeNamespace: formKubeNamespace || undefined,
         };
         const result = await apiClient.sandboxConfigs.create(input);
         if (!result.ok) {
@@ -158,6 +275,10 @@ function SandboxSettingsPage(): React.JSX.Element {
           timeoutMinutes: formTimeoutMinutes,
           isDefault: formIsDefault,
           volumeMountPath: formVolumeMountPath || undefined,
+          // K8s fields
+          kubeConfigPath: formKubeConfigPath || undefined,
+          kubeContext: formKubeContext || undefined,
+          kubeNamespace: formKubeNamespace || undefined,
         };
         const result = await apiClient.sandboxConfigs.update(editingConfig.id, input);
         if (!result.ok) {
@@ -260,11 +381,22 @@ function SandboxSettingsPage(): React.JSX.Element {
               <p className="mt-1 text-sm text-fg-muted">Choose where agent code executes</p>
             </div>
             <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-              {/* Docker Provider - Active */}
-              <div className="relative cursor-pointer rounded-lg border-2 border-accent bg-accent-muted/30 p-5 transition-colors">
-                <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
-                  <Check className="h-3 w-3 text-white" weight="bold" />
-                </div>
+              {/* Docker Provider */}
+              <button
+                type="button"
+                onClick={() => setSelectedProvider('docker')}
+                className={`relative cursor-pointer rounded-lg border-2 p-5 text-left transition-colors ${
+                  selectedProvider === 'docker'
+                    ? 'border-accent bg-accent-muted/30'
+                    : 'border-border hover:border-fg-subtle'
+                }`}
+                data-testid="provider-docker"
+              >
+                {selectedProvider === 'docker' && (
+                  <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                    <Check className="h-3 w-3 text-white" weight="bold" />
+                  </div>
+                )}
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
                   🐳
                 </div>
@@ -280,15 +412,24 @@ function SandboxSettingsPage(): React.JSX.Element {
                     Resource Limits
                   </span>
                 </div>
-              </div>
+              </button>
 
-              {/* Kubernetes Provider - Coming Soon */}
-              <div className="relative cursor-not-allowed rounded-lg border border-border bg-surface-subtle/50 p-5 opacity-60">
-                <div className="absolute right-3 top-3">
-                  <span className="rounded-full bg-warning-muted px-2 py-0.5 text-xs font-medium text-warning">
-                    Coming Soon
-                  </span>
-                </div>
+              {/* Kubernetes Provider */}
+              <button
+                type="button"
+                onClick={() => setSelectedProvider('kubernetes')}
+                className={`relative cursor-pointer rounded-lg border-2 p-5 text-left transition-colors ${
+                  selectedProvider === 'kubernetes'
+                    ? 'border-accent bg-accent-muted/30'
+                    : 'border-border hover:border-fg-subtle'
+                }`}
+                data-testid="provider-kubernetes"
+              >
+                {selectedProvider === 'kubernetes' && (
+                  <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                    <Check className="h-3 w-3 text-white" weight="bold" />
+                  </div>
+                )}
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
                   ☸️
                 </div>
@@ -304,9 +445,195 @@ function SandboxSettingsPage(): React.JSX.Element {
                     Warm Pool
                   </span>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
+
+          {/* Kubernetes Configuration Panel */}
+          {selectedProvider === 'kubernetes' && (
+            <div className="rounded-lg border border-border bg-surface">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="flex items-center gap-2 font-semibold text-fg">
+                  ☸️ Kubernetes Configuration
+                </h2>
+                <p className="mt-1 text-sm text-fg-muted">
+                  Configure your Kubernetes cluster connection
+                </p>
+              </div>
+
+              <div className="space-y-5 p-5">
+                {/* Cluster Status Indicator */}
+                <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
+                  <div className="flex items-center gap-3">
+                    {k8sStatusLoading ? (
+                      <CircleNotch className="h-5 w-5 animate-spin text-fg-muted" />
+                    ) : k8sStatus?.healthy ? (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success-muted">
+                        <WifiHigh className="h-4 w-4 text-success" />
+                      </div>
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-danger-muted">
+                        <WifiSlash className="h-4 w-4 text-danger" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-fg">
+                        {k8sStatusLoading
+                          ? 'Checking connection...'
+                          : k8sStatus?.healthy
+                            ? 'Connected'
+                            : 'Not Connected'}
+                      </p>
+                      {k8sStatus?.healthy && k8sStatus.cluster && (
+                        <p className="text-xs text-fg-muted">
+                          {k8sStatus.cluster} ({k8sStatus.serverVersion})
+                        </p>
+                      )}
+                      {!k8sStatus?.healthy && k8sStatus?.message && (
+                        <p className="text-xs text-danger">{k8sStatus.message}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadK8sStatus}
+                    disabled={k8sStatusLoading}
+                    data-testid="refresh-k8s-status"
+                  >
+                    {k8sStatusLoading ? (
+                      <CircleNotch className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Refresh'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Kubeconfig Path */}
+                <div>
+                  <label
+                    htmlFor="k8s-config-path"
+                    className="mb-1.5 block text-sm font-medium text-fg"
+                  >
+                    Kubeconfig Path
+                    <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
+                  </label>
+                  <input
+                    id="k8s-config-path"
+                    type="text"
+                    value={k8sConfigPath}
+                    onChange={(e) => setK8sConfigPath(e.target.value)}
+                    placeholder="~/.kube/config"
+                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    data-testid="k8s-config-path-input"
+                  />
+                  <p className="mt-1 text-xs text-fg-muted">
+                    Leave empty to use default kubeconfig discovery
+                  </p>
+                </div>
+
+                {/* Context Selection */}
+                <div>
+                  <label htmlFor="k8s-context" className="mb-1.5 block text-sm font-medium text-fg">
+                    Context
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="k8s-context"
+                      value={k8sContext}
+                      onChange={(e) => setK8sContext(e.target.value)}
+                      disabled={k8sContextsLoading || k8sContexts.length === 0}
+                      className="w-full appearance-none rounded-md border border-border bg-surface-subtle px-3 py-2 pr-10 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+                      data-testid="k8s-context-select"
+                    >
+                      {k8sContexts.length === 0 && <option value="">No contexts available</option>}
+                      {k8sContexts.map((ctx) => (
+                        <option key={ctx.name} value={ctx.name}>
+                          {ctx.name} ({ctx.cluster})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      {k8sContextsLoading ? (
+                        <CircleNotch className="h-4 w-4 animate-spin text-fg-muted" />
+                      ) : (
+                        <svg
+                          className="h-4 w-4 text-fg-muted"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Namespace */}
+                <div>
+                  <label
+                    htmlFor="k8s-namespace"
+                    className="mb-1.5 block text-sm font-medium text-fg"
+                  >
+                    Namespace
+                  </label>
+                  <input
+                    id="k8s-namespace"
+                    type="text"
+                    value={k8sNamespace}
+                    onChange={(e) => setK8sNamespace(e.target.value)}
+                    placeholder="agentpane-sandboxes"
+                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    data-testid="k8s-namespace-input"
+                  />
+                  <p className="mt-1 text-xs text-fg-muted">
+                    Namespace for sandbox pods (will be created if it doesn&apos;t exist)
+                  </p>
+                </div>
+
+                {/* Cluster Info */}
+                {k8sStatus?.healthy && (
+                  <div className="rounded-lg bg-surface-subtle p-4">
+                    <h4 className="mb-3 text-sm font-medium text-fg">Cluster Details</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-fg-muted">Server:</span>
+                        <p className="font-mono text-xs text-fg">{k8sStatus.server}</p>
+                      </div>
+                      <div>
+                        <span className="text-fg-muted">Version:</span>
+                        <p className="font-mono text-xs text-fg">{k8sStatus.serverVersion}</p>
+                      </div>
+                      <div>
+                        <span className="text-fg-muted">Namespace:</span>
+                        <p className="font-mono text-xs text-fg">
+                          {k8sStatus.namespace}
+                          {k8sStatus.namespaceExists ? (
+                            <span className="ml-1 text-success">(exists)</span>
+                          ) : (
+                            <span className="ml-1 text-warning">(will be created)</span>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-fg-muted">Sandbox Pods:</span>
+                        <p className="font-mono text-xs text-fg">
+                          {k8sStatus.podsRunning}/{k8sStatus.pods} running
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -363,7 +690,11 @@ function SandboxSettingsPage(): React.JSX.Element {
                       <div className="flex items-center gap-2">
                         <h2 className="font-semibold text-fg">{config.name}</h2>
                         <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-muted">
-                          {config.type === 'devcontainer' ? '📦 DevContainer' : '🐳 Docker'}
+                          {config.type === 'kubernetes'
+                            ? '☸️ Kubernetes'
+                            : config.type === 'devcontainer'
+                              ? '📦 DevContainer'
+                              : '🐳 Docker'}
                         </span>
                         {config.isDefault && (
                           <span className="rounded-full bg-success-muted px-2 py-0.5 text-xs font-medium text-success">
@@ -515,7 +846,7 @@ function SandboxSettingsPage(): React.JSX.Element {
                 {/* Sandbox Type */}
                 <div>
                   <span className="mb-1.5 block text-sm font-medium text-fg">Sandbox Type</span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setFormType('docker')}
@@ -529,7 +860,7 @@ function SandboxSettingsPage(): React.JSX.Element {
                       <span className="text-xl">🐳</span>
                       <div>
                         <div className="font-medium text-fg">Docker</div>
-                        <div className="text-xs text-fg-muted">Container isolation</div>
+                        <div className="text-xs text-fg-muted">Container</div>
                       </div>
                     </button>
                     <button
@@ -545,7 +876,23 @@ function SandboxSettingsPage(): React.JSX.Element {
                       <span className="text-xl">📦</span>
                       <div>
                         <div className="font-medium text-fg">DevContainer</div>
-                        <div className="text-xs text-fg-muted">VS Code integration</div>
+                        <div className="text-xs text-fg-muted">VS Code</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('kubernetes')}
+                      className={`flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors ${
+                        formType === 'kubernetes'
+                          ? 'border-accent bg-accent-muted/30'
+                          : 'border-border hover:border-fg-subtle'
+                      }`}
+                      data-testid="sandbox-type-kubernetes"
+                    >
+                      <span className="text-xl">☸️</span>
+                      <div>
+                        <div className="font-medium text-fg">K8s</div>
+                        <div className="text-xs text-fg-muted">Kubernetes</div>
                       </div>
                     </button>
                   </div>
@@ -595,6 +942,74 @@ function SandboxSettingsPage(): React.JSX.Element {
                     <p className="mt-1 text-xs text-fg-muted">
                       Local host directory to mount into the container
                     </p>
+                  </div>
+                )}
+
+                {/* Kubernetes Configuration - K8s only */}
+                {formType === 'kubernetes' && (
+                  <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
+                    <h4 className="flex items-center gap-2 text-sm font-medium text-fg">
+                      ☸️ Kubernetes Settings
+                    </h4>
+
+                    {/* Kubeconfig Path */}
+                    <div>
+                      <label
+                        htmlFor="form-kube-config-path"
+                        className="mb-1.5 block text-sm font-medium text-fg"
+                      >
+                        Kubeconfig Path
+                        <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
+                      </label>
+                      <input
+                        id="form-kube-config-path"
+                        type="text"
+                        value={formKubeConfigPath}
+                        onChange={(e) => setFormKubeConfigPath(e.target.value)}
+                        placeholder="~/.kube/config"
+                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        data-testid="form-kube-config-path-input"
+                      />
+                    </div>
+
+                    {/* Context */}
+                    <div>
+                      <label
+                        htmlFor="form-kube-context"
+                        className="mb-1.5 block text-sm font-medium text-fg"
+                      >
+                        Context
+                        <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
+                      </label>
+                      <input
+                        id="form-kube-context"
+                        type="text"
+                        value={formKubeContext}
+                        onChange={(e) => setFormKubeContext(e.target.value)}
+                        placeholder="minikube"
+                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        data-testid="form-kube-context-input"
+                      />
+                    </div>
+
+                    {/* Namespace */}
+                    <div>
+                      <label
+                        htmlFor="form-kube-namespace"
+                        className="mb-1.5 block text-sm font-medium text-fg"
+                      >
+                        Namespace
+                      </label>
+                      <input
+                        id="form-kube-namespace"
+                        type="text"
+                        value={formKubeNamespace}
+                        onChange={(e) => setFormKubeNamespace(e.target.value)}
+                        placeholder="agentpane-sandboxes"
+                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        data-testid="form-kube-namespace-input"
+                      />
+                    </div>
                   </div>
                 )}
 

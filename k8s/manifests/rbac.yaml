@@ -1,0 +1,152 @@
+# AgentPane RBAC Configuration
+# This file defines the minimal permissions required for AgentPane to manage
+# sandbox pods in the agentpane-sandboxes namespace.
+#
+# Principle of Least Privilege:
+# - Only permissions needed for sandbox lifecycle management
+# - Namespace-scoped (not cluster-wide)
+# - Read access to cluster-level resources only where required
+---
+# ServiceAccount for AgentPane sandbox controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agentpane-sandbox-controller
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: sandbox-controller
+  annotations:
+    agentpane.io/description: "Service account for managing sandbox pods"
+
+---
+# Role with minimal permissions for sandbox management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sandbox-manager
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: sandbox-controller
+  annotations:
+    agentpane.io/description: "Role for managing sandbox pods and related resources"
+rules:
+  # Pod management - full lifecycle control
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection"]
+
+  # Pod logs - for debugging and monitoring
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+
+  # Pod exec - for command execution in sandboxes
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+
+  # Pod attach - for terminal sessions
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create", "get"]
+
+  # Pod status - for monitoring pod state
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+
+  # Events - for monitoring pod events (image pull, scheduling, etc.)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+  # ConfigMaps - for sandbox configuration (if needed)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "delete"]
+
+  # Secrets - for credentials injection (limited to sandbox namespace)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "delete"]
+
+  # NetworkPolicies - for per-sandbox network rules
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "get", "list", "update", "delete"]
+
+  # ResourceQuotas - for monitoring namespace limits
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    verbs: ["get", "list"]
+
+  # LimitRanges - for monitoring default limits
+  - apiGroups: [""]
+    resources: ["limitranges"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding - connects ServiceAccount to Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agentpane-sandbox-controller-binding
+  namespace: agentpane-sandboxes
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: sandbox-controller
+  annotations:
+    agentpane.io/description: "Binds sandbox-manager role to agentpane service account"
+subjects:
+  - kind: ServiceAccount
+    name: agentpane-sandbox-controller
+    namespace: agentpane-sandboxes
+roleRef:
+  kind: Role
+  name: sandbox-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole for read-only cluster-level access
+# Required for namespace health checks and version info
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agentpane-cluster-reader
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: sandbox-controller
+  annotations:
+    agentpane.io/description: "Cluster-level read access for health checks"
+rules:
+  # Namespace read - for health checks
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+
+  # Nodes - for cluster info (optional)
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list"]
+
+---
+# ClusterRoleBinding for cluster-level read access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agentpane-cluster-reader-binding
+  labels:
+    agentpane.io/managed: "true"
+    agentpane.io/component: sandbox-controller
+  annotations:
+    agentpane.io/description: "Binds cluster reader role to agentpane service account"
+subjects:
+  - kind: ServiceAccount
+    name: agentpane-sandbox-controller
+    namespace: agentpane-sandboxes
+roleRef:
+  kind: ClusterRole
+  name: agentpane-cluster-reader
+  apiGroup: rbac.authorization.k8s.io
