@@ -69,6 +69,7 @@ describe('TaskCreationService', () => {
 
       expect(unstable_v2_createSession).toHaveBeenCalledWith({
         model: 'claude-sonnet-4-20250514',
+        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
       });
       expect(streams.createStream).toHaveBeenCalled();
       expect(streams.publishTaskCreationStarted).toHaveBeenCalled();

@@ -186,9 +186,10 @@ export class TaskCreationService {
       return err(TaskCreationErrors.PROJECT_NOT_FOUND);
     }
 
-    // Create V2 session
+    // Create V2 session with task system enabled
     const v2Session = unstable_v2_createSession({
       model: DEFAULT_MODEL,
+      env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
     });
 
     // Create our session wrapper

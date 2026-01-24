@@ -51,7 +51,10 @@ describe('SDK Utils - agentQuery', () => {
     const { agentQuery } = await import('@/lib/agents/agent-sdk-utils');
     await agentQuery('Test prompt', { model: 'claude-sonnet-4-20250514' });
 
-    expect(mockSessionCreate).toHaveBeenCalledWith({ model: 'claude-sonnet-4-20250514' });
+    expect(mockSessionCreate).toHaveBeenCalledWith({
+      model: 'claude-sonnet-4-20250514',
+      env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+    });
   });
 
   it('uses default model when not specified', async () => {
@@ -64,7 +67,10 @@ describe('SDK Utils - agentQuery', () => {
     const { agentQuery } = await import('@/lib/agents/agent-sdk-utils');
     await agentQuery('Test prompt');
 
-    expect(mockSessionCreate).toHaveBeenCalledWith({ model: 'claude-sonnet-4-20250514' });
+    expect(mockSessionCreate).toHaveBeenCalledWith({
+      model: 'claude-sonnet-4-20250514',
+      env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+    });
   });
 
   it('sends the prompt to the session', async () => {

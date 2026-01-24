@@ -63,7 +63,11 @@ export async function agentQuery(
   const { model = DEFAULT_MODEL, onToken } = options;
 
   // Create session with Agent SDK (reads API key from env automatically)
-  const session = unstable_v2_createSession({ model });
+  // Enable the task system for structured task tracking
+  const session = unstable_v2_createSession({
+    model,
+    env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
+  });
 
   try {
     // Send the prompt
