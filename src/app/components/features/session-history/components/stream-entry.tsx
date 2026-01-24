@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
+import { MarkdownContent } from '@/app/components/ui/markdown-content';
 import { cn } from '@/lib/utils/cn';
 import type { StreamEntryProps } from '../types';
 import { STREAM_ENTRY_TYPE_CONFIG } from '../types';
@@ -93,7 +94,11 @@ export function StreamEntry({ entry, isCurrent = false }: StreamEntryProps): Rea
         </div>
 
         {/* Main content */}
-        <div className="text-sm leading-normal text-fg">{entry.content}</div>
+        {typeof entry.content === 'string' ? (
+          <MarkdownContent content={entry.content} className="text-sm leading-normal text-fg" />
+        ) : (
+          <div className="text-sm leading-normal text-fg">{entry.content}</div>
+        )}
 
         {/* Tool call details */}
         {entry.toolCall && (
