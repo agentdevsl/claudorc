@@ -4,8 +4,8 @@ import {
   Check,
   CircleNotch,
   GitBranch,
-  GitPullRequest,
   GithubLogo,
+  GitPullRequest,
   Key,
   LockKey,
 } from '@phosphor-icons/react';
@@ -206,7 +206,9 @@ function GitHubSettingsPage(): React.JSX.Element {
               <LockKey className="h-4 w-4 text-fg-subtle" />
               <span className="text-xs text-fg-muted">
                 Status:{' '}
-                <span className={cn('font-medium', hasGitHubToken ? 'text-success' : 'text-attention')}>
+                <span
+                  className={cn('font-medium', hasGitHubToken ? 'text-success' : 'text-attention')}
+                >
                   {hasGitHubToken ? 'Connected' : 'Not Connected'}
                 </span>
               </span>
@@ -240,7 +242,8 @@ function GitHubSettingsPage(): React.JSX.Element {
                 </div>
                 <p className="font-medium text-fg">GitHub Token Required</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-fg-muted">
-                  Configure a GitHub Personal Access Token in API Keys settings to enable GitHub integration.
+                  Configure a GitHub Personal Access Token in API Keys settings to enable GitHub
+                  integration.
                 </p>
                 <Link to="/settings/api-keys">
                   <Button className="mt-4">

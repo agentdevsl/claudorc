@@ -157,12 +157,16 @@ function ThemeOption({
           'mb-4 flex h-20 w-full items-center justify-center rounded-lg transition-transform group-hover/theme:scale-[1.02]',
           theme === 'light' && 'bg-white shadow-inner ring-1 ring-black/5',
           theme === 'dark' && 'bg-[#0d1117] shadow-inner ring-1 ring-white/10',
-          theme === 'system' && 'bg-gradient-to-r from-white via-gray-300 to-[#0d1117] ring-1 ring-black/10'
+          theme === 'system' &&
+            'bg-gradient-to-r from-white via-gray-300 to-[#0d1117] ring-1 ring-black/10'
         )}
       >
         {theme !== 'system' && (
           <IconComponent
-            className={cn('h-8 w-8 transition-transform group-hover/theme:scale-110', theme === 'light' ? 'text-amber-500' : 'text-indigo-400')}
+            className={cn(
+              'h-8 w-8 transition-transform group-hover/theme:scale-110',
+              theme === 'light' ? 'text-amber-500' : 'text-indigo-400'
+            )}
             weight="duotone"
           />
         )}

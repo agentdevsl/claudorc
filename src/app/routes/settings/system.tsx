@@ -190,7 +190,13 @@ function StatusCard({
           {subtitle && <p className="text-xs text-fg-muted">{subtitle}</p>}
         </div>
       </div>
-      <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium', style.bg, style.text)}>
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+          style.bg,
+          style.text
+        )}
+      >
         <StatusIcon className="h-3.5 w-3.5" weight="bold" />
         {statusLabel}
       </span>
@@ -286,9 +292,7 @@ function SystemHealthPage(): React.JSX.Element {
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-fg">System Health</h1>
-              <p className="text-sm text-fg-muted">
-                Monitor the health status of all services
-              </p>
+              <p className="text-sm text-fg-muted">Monitor the health status of all services</p>
             </div>
           </div>
 
@@ -303,7 +307,12 @@ function SystemHealthPage(): React.JSX.Element {
                 )}
                 <span className="text-xs text-fg-muted">
                   Status:{' '}
-                  <span className={cn('font-medium', overallStatus === 'healthy' ? 'text-success' : 'text-attention')}>
+                  <span
+                    className={cn(
+                      'font-medium',
+                      overallStatus === 'healthy' ? 'text-success' : 'text-attention'
+                    )}
+                  >
                     {overallStatus === 'healthy' ? 'All Operational' : 'Degraded'}
                   </span>
                 </span>
@@ -342,10 +351,7 @@ function SystemHealthPage(): React.JSX.Element {
           <div className="grid gap-4 sm:grid-cols-3">
             <MetricCard label="Port" value="3000" />
             <MetricCard label="Server" value="Vite" />
-            <MetricCard
-              label="Status"
-              value={frontendHealth?.viteServer ? 'Running' : 'Offline'}
-            />
+            <MetricCard label="Status" value={frontendHealth?.viteServer ? 'Running' : 'Offline'} />
           </div>
         </ConfigSection>
 
@@ -382,7 +388,9 @@ function SystemHealthPage(): React.JSX.Element {
                         : undefined
                     }
                     status={backendHealth.checks.database.status}
-                    statusLabel={backendHealth.checks.database.status === 'ok' ? 'Healthy' : 'Error'}
+                    statusLabel={
+                      backendHealth.checks.database.status === 'ok' ? 'Healthy' : 'Error'
+                    }
                   />
                   <StatusCard
                     icon={GithubLogo}
