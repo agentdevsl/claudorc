@@ -4,7 +4,7 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import tsConfigPaths from 'vite-tsconfig-paths';
-import { getStubCode, getStubId, SERVER_TOOL_MODULES } from './src/lib/build/browser-stubs';
+import { getStubCode, getStubId, SERVER_TOOL_MODULES } from './src/lib/vite-stubs/browser-stubs';
 
 const stubPath = resolve(__dirname, 'src/lib/agents/tools/browser-stubs.ts');
 
