@@ -63,13 +63,13 @@ function useSettingsSections(): SettingsSection[] {
         },
         { id: 'appearance', label: 'Appearance', to: '/settings/appearance', icon: Swatches },
         { id: 'sandbox', label: 'Sandbox', to: '/settings/sandbox', icon: Cube },
-        { id: 'preferences', label: 'Agent Defaults', to: '/settings/preferences', icon: Gear },
       ],
     },
     {
       id: 'agent-config',
       title: 'Agent Configuration',
       items: [
+        { id: 'preferences', label: 'Agent Defaults', to: '/settings/preferences', icon: Gear },
         {
           id: 'model-optimizations',
           label: 'Model Optimizations',
