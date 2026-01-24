@@ -10,6 +10,8 @@ Durable Streams provides a unified system for:
 - Persistent event storage for historical replay
 - Offset-based resumability for reconnection handling
 - Multi-channel event categorization
+- Optimistic UI updates with rollback support
+- TanStack DB collections for reactive state
 
 ## Architecture Diagram
 
@@ -18,253 +20,408 @@ Durable Streams provides a unified system for:
 │                              CLIENT LAYER                                        │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  ┌─────────────────────────┐    ┌─────────────────────────────────────────────┐ │
-│  │   Session History UI    │    │         Active Session View                 │ │
-│  │  ┌───────────────────┐  │    │  ┌─────────────────────────────────────┐   │ │
-│  │  │ SessionTimeline   │  │    │  │      AgentSessionView               │   │ │
-│  │  │ SessionDetailView │  │    │  │  ┌─────────────┐ ┌───────────────┐  │   │ │
-│  │  │ ReplayControls    │  │    │  │  │  StreamView │ │ TerminalView  │  │   │ │
-│  │  │ StreamViewer      │  │    │  │  │  ToolCalls  │ │ PresenceCursor│  │   │ │
-│  │  └───────────────────┘  │    │  │  └─────────────┘ └───────────────┘  │   │ │
-│  └────────────┬────────────┘    │  └──────────────────┬──────────────────┘   │ │
-│               │                  │                      │                      │ │
-│               │ Historical       │                      │ Real-time            │ │
-│               │ Replay           │                      │ SSE Stream           │ │
-│               ▼                  │                      ▼                      │ │
-│  ┌─────────────────────────┐    │    ┌─────────────────────────────────────┐  │ │
-│  │     React Hooks         │    │    │         EventSource                 │  │ │
-│  │  ┌───────────────────┐  │    │    │  (Server-Sent Events)               │  │ │
-│  │  │ useSessionDetail  │  │    │    └─────────────────────────────────────┘  │ │
-│  │  │ useSessionReplay  │  │    │                                            │ │
-│  │  │ useSessionEvents  │  │    │                                            │ │
-│  │  └───────────────────┘  │    └────────────────────────────────────────────┘ │
-│  └────────────┬────────────┘                                                    │
-│               │                                                                  │
-└───────────────┼──────────────────────────────────────────────────────────────────┘
-                │
-                │  HTTP REST / SSE
-                ▼
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                         React Components                                     ││
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  ││
+│  │  │ AgentSessionView│  │  TerminalView   │  │    SessionHistoryPage       │  ││
+│  │  │ StreamView      │  │  PresenceCursor │  │    ReplayControls           │  ││
+│  │  │ ToolCallsPanel  │  │                 │  │    StreamViewer             │  ││
+│  │  └────────┬────────┘  └────────┬────────┘  └─────────────┬───────────────┘  ││
+│  └───────────┼────────────────────┼─────────────────────────┼──────────────────┘│
+│              │                    │                         │                    │
+│              ▼                    ▼                         ▼                    │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                           React Hooks                                        ││
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐││
+│  │  │ useSession(sessionId, userId)                                           │││
+│  │  │  • Manages connection state (disconnected/connecting/connected)         │││
+│  │  │  • Routes events to state arrays (chunks, toolCalls, presence, etc.)    │││
+│  │  │  • Handles presence join/leave lifecycle                                │││
+│  │  │  • 10-second presence heartbeat                                         │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └───────────┬─────────────────────────────────────────────────────────────────┘│
+│              │                                                                   │
+│              ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                      TanStack DB Collections                                 ││
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────┐  ││
+│  │  │  chunks   │ │ toolCalls │ │ presence  │ │ terminal  │ │  agentState   │  ││
+│  │  │Collection │ │Collection │ │Collection │ │Collection │ │  Collection   │  ││
+│  │  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └───────┬───────┘  ││
+│  │        └─────────────┴─────────────┴─────────────┴───────────────┘          ││
+│  │                                    ▲                                         ││
+│  │                    syncSessionToCollections()                                ││
+│  └────────────────────────────────────┬────────────────────────────────────────┘│
+│                                       │                                          │
+│  ┌────────────────────────────────────┼────────────────────────────────────────┐│
+│  │              DurableStreamsClient  │                                         ││
+│  │  ┌─────────────────────────────────┴───────────────────────────────────────┐││
+│  │  │ • EventSource connection to /api/streams/:id/subscribe                  │││
+│  │  │ • Automatic reconnection with exponential backoff (1s → 30s)            │││
+│  │  │ • Offset tracking for resume (lastOffset sent on reconnect)             │││
+│  │  │ • Maps raw events → typed channel events                                │││
+│  │  │ • Routes to callbacks: onChunk, onToolCall, onPresence, etc.            │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                        Optimistic Writes                                     ││
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐││
+│  │  │ sendTerminalInput()  - Optimistic insert → POST → confirm/rollback      │││
+│  │  │ sendPresenceUpdate() - Throttled 50ms → fire-and-forget POST            │││
+│  │  │ sendPresenceJoin()   - Insert → POST to /api/sessions/:id/presence      │││
+│  │  │ sendPresenceLeave()  - Delete → POST to /api/sessions/:id/presence      │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │
+                                        │  HTTP REST / SSE
+                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              API LAYER                                           │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  REST Endpoints                              SSE Endpoints                       │
-│  ┌────────────────────────────────────┐     ┌────────────────────────────────┐  │
-│  │ GET  /api/sessions                 │     │ GET /api/sessions/:id/stream   │  │
-│  │ GET  /api/sessions/:id             │     │     (Real-time event stream)   │  │
-│  │ GET  /api/sessions/:id/events      │     └────────────────────────────────┘  │
-│  │ GET  /api/sessions/:id/summary     │                                         │
-│  │ POST /api/sessions/:id/export      │                                         │
-│  │ POST /api/sessions                 │                                         │
-│  └────────────────────────────────────┘                                         │
+│  ┌─────────────────────────────────┐     ┌─────────────────────────────────────┐│
+│  │         REST Endpoints          │     │          SSE Endpoints              ││
+│  │  ┌───────────────────────────┐  │     │  ┌───────────────────────────────┐  ││
+│  │  │ POST /api/streams         │  │     │  │ GET /api/streams/:id/subscribe│  ││
+│  │  │   ?sessionId=xxx          │  │     │  │     ?fromOffset=N             │  ││
+│  │  │   Body: {channel, data}   │  │     │  │                               │  ││
+│  │  │   Returns: {ok, offset}   │  │     │  │  • Sends "connected" event    │  ││
+│  │  │   Auth: withAuth()        │◄─┼─────┼──│  • Yields events with offset  │  ││
+│  │  │   Validates: presence     │  │     │  │  • Supports resume from offset│  ││
+│  │  │     userId ownership      │  │     │  └───────────────────────────────┘  ││
+│  │  └───────────────────────────┘  │     │                                     ││
+│  │                                 │     │  ┌───────────────────────────────┐  ││
+│  │  ┌───────────────────────────┐  │     │  │ GET /api/streams/:id          │  ││
+│  │  │ GET /api/sessions         │  │     │  │   ?fromOffset=0&limit=100     │  ││
+│  │  │ GET /api/sessions/:id     │  │     │  │   Returns: metadata + events  │  ││
+│  │  │ GET /api/sessions/:id/    │  │     │  └───────────────────────────────┘  ││
+│  │  │     events                │  │     │                                     ││
+│  │  │ GET /api/sessions/:id/    │  │     │                                     ││
+│  │  │     summary               │  │     │                                     ││
+│  │  └───────────────────────────┘  │     │                                     ││
+│  └─────────────────────────────────┘     └─────────────────────────────────────┘│
 │                                                                                  │
-└───────────────┬─────────────────────────────────────────────────────────────────┘
-                │
-                ▼
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                        Auth Middleware                                       ││
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐││
+│  │  │ getAuthContext(request) - Extract auth from cookie/header/dev-mode      │││
+│  │  │ withAuth(handler)       - Wrapper requiring authentication              │││
+│  │  │ validateUserIdMatch()   - Prevent presence userId spoofing              │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │
+                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                            SERVICE LAYER                                         │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────┐    │
-│  │                         SessionService                                   │    │
-│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
-│  │  │ create(input)              │ Manage session lifecycle             │  │    │
-│  │  │ close(id)                  │ Join/leave presence                  │  │    │
-│  │  │ join(sessionId, userId)    │ Publish events to streams            │  │    │
-│  │  │ leave(sessionId, userId)   │ Subscribe to real-time events        │  │    │
-│  │  │ publish(sessionId, event)  │ Persist events to database           │  │    │
-│  │  │ subscribe(sessionId)       │ Retrieve historical events           │  │    │
-│  │  │ persistEvent()             │ Generate session summaries           │  │    │
-│  │  │ getEventsBySession()       │                                      │  │    │
-│  │  │ getSessionSummary()        │                                      │  │    │
-│  │  └───────────────────────────────────────────────────────────────────┘  │    │
-│  └────────────────────────────────┬────────────────────────────────────────┘    │
-│                                   │                                              │
-└───────────────────────────────────┼──────────────────────────────────────────────┘
-                                    │
-                ┌───────────────────┴───────────────────┐
-                ▼                                       ▼
-┌───────────────────────────────────┐   ┌───────────────────────────────────────┐
-│     DURABLE STREAMS LAYER         │   │           DATABASE LAYER              │
-├───────────────────────────────────┤   ├───────────────────────────────────────┤
-│                                   │   │                                       │
-│  ┌─────────────────────────────┐  │   │  ┌─────────────────────────────────┐ │
-│  │ InMemoryDurableStreamsServer│  │   │  │         SQLite Database         │ │
-│  │ ┌─────────────────────────┐ │  │   │  │  ┌───────────────────────────┐  │ │
-│  │ │ createStream(id,schema) │ │  │   │  │  │     session_events        │  │ │
-│  │ │ publish(id, type, data) │ │  │   │  │  │  ├─ id (PK)               │  │ │
-│  │ │ subscribe(id, options)  │ │  │   │  │  │  ├─ session_id (FK)       │  │ │
-│  │ │ getEvents(id, options)  │ │  │   │  │  │  ├─ offset               │  │ │
-│  │ │ deleteStream(id)        │ │  │   │  │  │  ├─ type                  │  │ │
-│  │ └─────────────────────────┘ │  │   │  │  │  ├─ channel              │  │ │
-│  │                             │  │   │  │  │  ├─ data (JSON)          │  │ │
-│  │  In-Memory Event Storage:   │  │   │  │  │  ├─ timestamp            │  │ │
-│  │  ┌─────────────────────┐    │  │   │  │  │  └─ created_at           │  │ │
-│  │  │ streams: Map<id,    │    │  │   │  │  └───────────────────────────┘  │ │
-│  │  │   StreamMetadata>   │    │  │   │  │                                 │ │
-│  │  │   ├─ events[]       │    │  │   │  │  ┌───────────────────────────┐  │ │
-│  │  │   ├─ subscribers    │    │  │   │  │  │    session_summaries      │  │ │
-│  │  │   └─ schema         │    │  │   │  │  │  ├─ id (PK)               │  │ │
-│  │  └─────────────────────┘    │  │   │  │  │  ├─ session_id (FK,UQ)    │  │ │
-│  └─────────────────────────────┘  │   │  │  │  ├─ duration_ms           │  │ │
-│                                   │   │  │  │  ├─ turns_count           │  │ │
-└───────────────────────────────────┘   │  │  │  ├─ tokens_used           │  │ │
-                                        │  │  │  ├─ files_modified        │  │ │
-                                        │  │  │  ├─ lines_added           │  │ │
-                                        │  │  │  ├─ lines_removed         │  │ │
-                                        │  │  │  └─ final_status          │  │ │
-                                        │  │  └───────────────────────────┘  │ │
-                                        │  └─────────────────────────────────┘ │
-                                        └───────────────────────────────────────┘
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                      SessionService (Facade)                                 ││
+│  │  Coordinates three focused services:                                         ││
+│  │                                                                              ││
+│  │  ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────────┐││
+│  │  │ SessionCrudService  │ │SessionPresenceService│ │ SessionStreamService   │││
+│  │  │                     │ │                     │ │                         │││
+│  │  │ • create(input)     │ │ • join(session,user)│ │ • publish(session,event)│││
+│  │  │ • getById(id)       │ │ • leave(session,user│ │ • subscribe(session)    │││
+│  │  │ • list(options)     │ │ • updatePresence()  │ │ • persistEvent()        │││
+│  │  │ • close(id)         │ │ • getActiveUsers()  │ │ • getHistory()          │││
+│  │  │ • listWithFilters() │ │                     │ │ • getEventsBySession()  │││
+│  │  │                     │ │                     │ │ • getSessionSummary()   │││
+│  │  └─────────────────────┘ └─────────────────────┘ └─────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                  │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │
+                ┌───────────────────────┴───────────────────┐
+                ▼                                           ▼
+┌───────────────────────────────────────┐   ┌───────────────────────────────────────┐
+│     DURABLE STREAMS LAYER             │   │           DATABASE LAYER              │
+├───────────────────────────────────────┤   ├───────────────────────────────────────┤
+│                                       │   │                                       │
+│  ┌─────────────────────────────────┐  │   │  ┌─────────────────────────────────┐ │
+│  │ InMemoryDurableStreamsServer    │  │   │  │         SQLite Database         │ │
+│  │                                 │  │   │  │                                 │ │
+│  │  Interface:                     │  │   │  │  ┌───────────────────────────┐  │ │
+│  │  ┌───────────────────────────┐  │  │   │  │  │     session_events        │  │ │
+│  │  │ createStream(id, schema)  │  │  │   │  │  │  ├─ id (PK)               │  │ │
+│  │  │ publish(id, type, data)   │──┼──┼───┼──┼──│  ├─ session_id (FK)       │  │ │
+│  │  │   → returns offset        │  │  │   │  │  │  ├─ offset (sequential)   │  │ │
+│  │  │ subscribe(id, options)    │  │  │   │  │  │  ├─ type                  │  │ │
+│  │  │   → AsyncIterable<Event>  │  │  │   │  │  │  ├─ channel              │  │ │
+│  │  │ getEvents(id, options)    │  │  │   │  │  │  ├─ data (JSON)          │  │ │
+│  │  │ deleteStream(id)          │  │  │   │  │  │  ├─ timestamp            │  │ │
+│  │  └───────────────────────────┘  │  │   │  │  │  └─ created_at           │  │ │
+│  │                                 │  │   │  │  └───────────────────────────┘  │ │
+│  │  In-Memory Storage:             │  │   │  │                                 │ │
+│  │  ┌───────────────────────────┐  │  │   │  │  ┌───────────────────────────┐  │ │
+│  │  │ Map<streamId, {           │  │  │   │  │  │    session_summaries      │  │ │
+│  │  │   events: StoredEvent[],  │  │  │   │  │  │  ├─ id (PK)               │  │ │
+│  │  │   subscribers: Set,       │  │  │   │  │  │  ├─ session_id (FK,UQ)    │  │ │
+│  │  │   schema                  │  │  │   │  │  │  ├─ duration_ms           │  │ │
+│  │  │ }>                        │  │  │   │  │  │  ├─ turns_count           │  │ │
+│  │  └───────────────────────────┘  │  │   │  │  │  ├─ tokens_used           │  │ │
+│  │                                 │  │   │  │  │  ├─ files_modified        │  │ │
+│  │  StoredEvent:                   │  │   │  │  │  ├─ lines_added           │  │ │
+│  │  { offset, type, data, ts }     │  │   │  │  │  ├─ lines_removed         │  │ │
+│  └─────────────────────────────────┘  │   │  │  │  └─ final_status          │  │ │
+│                                       │   │  │  └───────────────────────────┘  │ │
+└───────────────────────────────────────┘   │  └─────────────────────────────────┘ │
+                                            └───────────────────────────────────────┘
 ```
 
 ## Event Channels
 
-The system supports six distinct event channels, each with its own schema:
+The system supports six distinct event channels, each with its own Zod schema:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                           SESSION EVENT SCHEMA                                │
+│                        (src/lib/sessions/schema.ts)                          │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐             │
 │  │  chunks    │  │ toolCalls  │  │  presence  │  │  terminal  │             │
 │  │            │  │            │  │            │  │            │             │
 │  │ • id       │  │ • id       │  │ • userId   │  │ • id       │             │
-│  │ • agentId  │  │ • agentId  │  │ • sessionId│  │ • sessionId│             │
-│  │ • sessionId│  │ • sessionId│  │ • cursor   │  │ • type     │             │
-│  │ • text     │  │ • tool     │  │ • lastSeen │  │ • data     │             │
-│  │ • turn     │  │ • input    │  │ • joinedAt │  │ • source   │             │
-│  │ • timestamp│  │ • output   │  │            │  │ • timestamp│             │
-│  │            │  │ • status   │  │            │  │            │             │
-│  │            │  │ • duration │  │            │  │            │             │
+│  │ • agentId? │  │ • agentId? │  │ • sessionId│  │ • sessionId│             │
+│  │ • sessionId│  │ • sessionId│  │ • cursor?  │  │ • type     │             │
+│  │ • text     │  │ • tool     │  │ • lastSeen │  │   (input/  │             │
+│  │ • accum?   │  │ • input    │  │ • joinedAt?│  │    output) │             │
+│  │ • turn?    │  │ • output?  │  │ • display  │  │ • data     │             │
+│  │ • timestamp│  │ • status   │  │   Name?    │  │ • source?  │             │
+│  │            │  │   (running/│  │ • avatar   │  │ • timestamp│             │
+│  │            │  │    complete│  │   Url?     │  │            │             │
+│  │            │  │    error)  │  │            │  │            │             │
+│  │            │  │ • duration?│  │            │  │            │             │
 │  └────────────┘  └────────────┘  └────────────┘  └────────────┘             │
 │                                                                              │
-│  ┌────────────┐  ┌────────────┐                                             │
-│  │  workflow  │  │ agentState │                                             │
-│  │            │  │            │                                             │
-│  │ • id       │  │ • agentId  │                                             │
-│  │ • sessionId│  │ • sessionId│                                             │
-│  │ • taskId   │  │ • status   │                                             │
-│  │ • type     │  │ • taskId   │                                             │
-│  │ • payload  │  │ • turn     │                                             │
-│  │ • actor    │  │ • progress │                                             │
-│  │ • timestamp│  │ • message  │                                             │
-│  │            │  │ • error    │                                             │
-│  └────────────┘  └────────────┘                                             │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                             │
+│  │  workflow  │  │ agentState │  │  messages  │                             │
+│  │            │  │            │  │ (derived)  │                             │
+│  │ • id       │  │ • agentId  │  │            │                             │
+│  │ • sessionId│  │ • sessionId│  │ • id       │                             │
+│  │ • taskId?  │  │ • status   │  │ • agentId  │                             │
+│  │ • type     │  │   (idle/   │  │ • sessionId│                             │
+│  │ • payload  │  │    running/│  │ • text     │                             │
+│  │ • actor?   │  │    complete│  │ • turn     │                             │
+│  │ • timestamp│  │    error)  │  │ • timestamp│                             │
+│  │            │  │ • taskId?  │  │            │                             │
+│  │            │  │ • turn?    │  │            │                             │
+│  │            │  │ • progress?│  │            │                             │
+│  │            │  │ • message? │  │            │                             │
+│  │            │  │ • error?   │  │            │                             │
+│  └────────────┘  └────────────┘  └────────────┘                             │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Event Type Mapping
+
+Server event types map to client channels:
+
+| Server Event Type | Client Channel | Description |
+|-------------------|----------------|-------------|
+| `chunk` | `chunks` | Text streaming from agent |
+| `tool:start` | `toolCalls` | Tool execution started |
+| `tool:result` | `toolCalls` | Tool execution completed |
+| `presence:joined` | `presence` | User joined session |
+| `presence:left` | `presence` | User left session |
+| `presence:cursor` | `presence` | Cursor position update |
+| `terminal:input` | `terminal` | User terminal input |
+| `terminal:output` | `terminal` | Agent terminal output |
+| `state:update` | `agentState` | Agent lifecycle state |
+| `workflow` | `workflow` | Approval workflow events |
 
 ## Data Flow
 
 ### Real-time Streaming (Active Sessions)
 
 ```
-┌─────────┐    ┌─────────────┐    ┌───────────────┐    ┌────────────────┐
-│  Agent  │───►│   Session   │───►│    Durable    │───►│   Subscriber   │
-│  SDK    │    │   Service   │    │    Streams    │    │   (SSE/WS)     │
-└─────────┘    └─────────────┘    └───────────────┘    └────────────────┘
-     │               │                    │                    │
-     │  emit event   │  publish()         │  notify            │  yield event
-     │──────────────►│───────────────────►│───────────────────►│
-     │               │                    │                    │
-     │               │  persistEvent()    │                    │
-     │               │──────────┐         │                    │
-     │               │          ▼         │                    │
-     │               │    ┌──────────┐    │                    │
-     │               │    │ SQLite   │    │                    │
-     │               │    │ Events   │    │                    │
-     │               │    └──────────┘    │                    │
-     │               │                    │                    │
+┌─────────┐    ┌───────────────────┐    ┌───────────────┐    ┌────────────────┐
+│  Agent  │───►│  SessionStream    │───►│    Durable    │───►│   Subscriber   │
+│  SDK    │    │  Service.publish()│    │    Streams    │    │   (SSE)        │
+└─────────┘    └───────────────────┘    └───────────────┘    └────────────────┘
+     │               │                         │                    │
+     │  emit event   │  publish()              │  notify            │  yield event
+     │──────────────►│────────────────────────►│───────────────────►│
+     │               │                         │                    │
+     │               │  persistEvent() async   │                    │
+     │               │──────────┐              │                    │
+     │               │          ▼              │                    │
+     │               │    ┌──────────┐         │                    │
+     │               │    │ SQLite   │         │                    │
+     │               │    │ Events   │         │                    │
+     │               │    └──────────┘         │                    │
+     │               │                         │                    │
+```
+
+### Client Write Flow (Optimistic Updates)
+
+```
+┌─────────┐    ┌───────────────────┐    ┌───────────────┐    ┌────────────────┐
+│  User   │───►│  Optimistic       │───►│  POST /api/   │───►│  SessionStream │
+│  Action │    │  Write            │    │  streams      │    │  Service       │
+└─────────┘    └───────────────────┘    └───────────────┘    └────────────────┘
+     │               │                         │                    │
+     │  input        │  1. Insert to           │                    │
+     │──────────────►│     collection          │                    │
+     │               │  2. POST request        │                    │
+     │               │────────────────────────►│                    │
+     │               │                         │  3. Validate auth  │
+     │               │                         │  4. publish()      │
+     │               │                         │───────────────────►│
+     │               │                         │                    │
+     │               │  5a. Success: confirm   │◄───────────────────│
+     │               │◄────────────────────────│  {ok, offset}      │
+     │               │                         │                    │
+     │               │  5b. Failure: rollback  │                    │
+     │               │     (delete from coll.) │                    │
 ```
 
 ### Historical Replay (Closed Sessions)
 
 ```
 ┌────────────┐    ┌───────────────┐    ┌─────────────────┐    ┌────────────────┐
-│  History   │───►│  API Endpoint │───►│  SessionService │───►│     SQLite     │
-│    UI      │    │  /events      │    │ getEventsBySession│   │    Database    │
+│  History   │───►│  API Endpoint │───►│  SessionStream  │───►│     SQLite     │
+│    UI      │    │  /events      │    │  Service        │    │    Database    │
 └────────────┘    └───────────────┘    └─────────────────┘    └────────────────┘
      │                   │                      │                     │
-     │  fetch events     │  GET request         │  query              │  return rows
+     │  fetch events     │  GET request         │  getEventsBySession │  query
      │──────────────────►│─────────────────────►│────────────────────►│
      │                   │                      │                     │
      │  paginated events │◄─────────────────────│◄────────────────────│
      │◄──────────────────│                      │                     │
      │                   │                      │                     │
-     │  replay with      │                      │                     │
-     │  useSessionReplay │                      │                     │
-     │                   │                      │                     │
 ```
 
 ## Key Components
 
-### 1. InMemoryDurableStreamsServer
+### 1. DurableStreamsClient (`src/lib/streams/client.ts`)
 
-The core server implementation providing:
+Client-side EventSource wrapper providing:
 
-- Stream lifecycle management (create, delete)
-- Event publishing with automatic offset assignment
-- Subscription with offset-based resumability
-- In-memory event buffer for real-time delivery
+- Automatic reconnection with exponential backoff (1s → 30s)
+- Offset tracking for seamless resume after disconnect
+- Typed event callbacks for each channel
+- Connection state management
+
+```typescript
+interface DurableStreamsClient {
+  subscribeToSession(sessionId: string, callbacks: SessionCallbacks): Subscription;
+  subscribeToAgent(agentId: string, callbacks: AgentCallbacks): Subscription;
+}
+
+interface Subscription {
+  unsubscribe(): void;
+  getState(): ConnectionState;  // disconnected | connecting | connected | reconnecting
+  getLastOffset(): number;
+}
+```
+
+### 2. TanStack DB Collections (`src/lib/sessions/collections.ts`)
+
+Local-only reactive collections for UI state:
+
+| Collection | Primary Key | Purpose |
+|------------|-------------|---------|
+| `chunksCollection` | `id` | Raw streaming text |
+| `toolCallsCollection` | `id` | Tool execution tracking |
+| `presenceCollection` | `${sessionId}:${userId}` | Active users |
+| `terminalCollection` | `id` | Terminal I/O |
+| `workflowCollection` | `id` | Approval workflow |
+| `agentStateCollection` | `${sessionId}:${agentId}` | Agent lifecycle |
+| `messagesCollection` | `id` | Derived from chunks |
+
+### 3. Stream-to-Collection Sync (`src/lib/sessions/sync.ts`)
+
+Bridges the streaming client to reactive collections:
+
+```typescript
+// Start syncing events to collections
+const unsub = syncSessionToCollections(sessionId);
+
+// Events automatically flow:
+// DurableStreamsClient → transform → TanStack Collections → React UI
+
+// Cleanup
+unsub();
+```
+
+### 4. InMemoryDurableStreamsServer (`src/lib/streams/server.ts`)
+
+Server-side stream management:
 
 ```typescript
 interface DurableStreamsServer {
   createStream(id: string, schema: unknown): Promise<void>;
-  publish(id: string, type: string, data: unknown): Promise<void>;
+  publish(id: string, type: string, data: unknown): Promise<number>;  // Returns offset
   subscribe(id: string, options?: { fromOffset?: number }): AsyncIterable<Event>;
+  getEvents(id: string, options?: { offset?: number; limit?: number }): Promise<Event[]>;
 }
 ```
 
-### 2. SessionService
+**Implementation details:**
 
-Integrates durable streams with session management:
+- In-memory event storage (Map of streams)
+- Sequential offset assignment per stream
+- Subscriber notification via async iterables
+- Auto-creates stream on first publish
 
-- Creates sessions with associated streams
-- Publishes events to both stream and database
-- Manages presence tracking
-- Provides historical event retrieval
+### 5. Session Services (`src/services/session/`)
 
-### 3. Session Event Tables
+Split into focused, single-responsibility services:
 
-**session_events**
+**SessionCrudService**
 
-- Stores all events with offset-based ordering
-- Indexed by session_id and offset for efficient queries
-- JSON data column for flexible event payloads
+- Create/read/update/delete sessions
+- Initialize stream on session creation
+- Manage session lifecycle (active → closed)
 
-**session_summaries**
+**SessionPresenceService**
 
-- Aggregated metrics per session
-- Updated incrementally as events occur
-- Used for quick session list rendering
+- User join/leave tracking
+- Cursor position updates
+- Active user queries
 
-### 4. UI Components
+**SessionStreamService**
 
-**SessionHistoryPage**
+- Event publishing (non-blocking)
+- Async persistence to database
+- Historical event retrieval
+- Session summary management
 
-- Timeline view of all sessions
-- Filter by status, date, agent, search
-- Export functionality (JSON, Markdown, CSV)
+### 6. Auth Middleware (`src/lib/api/auth-middleware.ts`)
 
-**ReplayControls**
+Phase 1 authentication for API protection:
 
-- Play/pause with smooth animation
-- Seek with draggable progress bar
-- Speed controls (1x, 2x, 4x)
-- Keyboard shortcuts
+```typescript
+// Wrap handlers with authentication
+POST: withAuth(async ({ request, auth }) => {
+  // auth.userId available here
+  // auth.authMethod: 'session' | 'api_token' | 'dev'
+});
 
-**StreamViewer**
+// Validate presence ownership
+if (!validateUserIdMatch(presenceUserId, auth.userId)) {
+  return forbiddenResponse('Cannot send presence for another user');
+}
+```
 
-- Chronological event list
-- Auto-scroll during playback
-- Current position highlighting
-- Expandable tool call details
+**Auth methods (checked in order):**
+
+1. Session cookie (`agentpane_session`)
+2. Authorization header (`Bearer` token)
+3. Development mode bypass
 
 ## Offset-Based Resumability
 
-The system uses monotonic offsets for reliable event ordering:
+The system uses monotonic offsets for reliable event ordering and reconnection:
 
 ```
 Stream: session_abc123
@@ -275,10 +432,48 @@ Stream: session_abc123
 │ channel │  agent  │ chunks  │toolCalls│ chunks  │  agent  │
 │timestamp│ 1705847│ 1705848 │ 1705849 │ 1705850 │ 1705851 │
 └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
-         ▲
-         │
-    Client reconnects with fromOffset=2
-    Only receives events 2, 3, 4
+                              ▲
+                              │
+                    Client reconnects with fromOffset=2
+                    Server yields events 2, 3, 4
+                    No duplicate events, no gaps
+```
+
+**Client tracking:**
+
+```typescript
+eventSource.onmessage = (event) => {
+  const { offset } = JSON.parse(event.data);
+  lastOffset = offset;  // Track for reconnection
+};
+
+// On reconnect:
+const url = `/api/streams/${sessionId}/subscribe?fromOffset=${lastOffset}`;
+```
+
+## Optimistic Updates
+
+The system supports optimistic UI updates with rollback:
+
+```typescript
+// Terminal input with confirmation/rollback
+await sendTerminalInput(sessionId, input, {
+  onConfirm: (offset) => console.log('Confirmed at offset', offset),
+  onRollback: () => console.log('Rolled back'),
+});
+
+// Flow:
+// 1. Insert event into collection (immediate UI update)
+// 2. POST to /api/streams
+// 3a. Success → call onConfirm
+// 3b. Failure → delete from collection, call onRollback
+```
+
+**Presence updates** use fire-and-forget with 50ms throttling:
+
+```typescript
+// Throttled to prevent excessive network traffic
+sendPresenceUpdate(sessionId, userId, { x: 100, y: 200 });
 ```
 
 ## File Locations
@@ -287,28 +482,116 @@ Stream: session_abc123
 src/
 ├── lib/
 │   ├── streams/
-│   │   ├── server.ts          # InMemoryDurableStreamsServer
-│   │   └── provider.ts        # Stream provider singleton
-│   └── integrations/
-│       └── durable-streams/
-│           └── schema.ts      # Event channel schemas
+│   │   ├── client.ts           # DurableStreamsClient (EventSource wrapper)
+│   │   ├── server.ts           # InMemoryDurableStreamsServer
+│   │   └── provider.ts         # Stream provider singleton
+│   ├── sessions/
+│   │   ├── schema.ts           # Zod schemas for all event types
+│   │   ├── collections.ts      # TanStack DB collection definitions
+│   │   ├── sync.ts             # Stream-to-collection synchronization
+│   │   ├── optimistic.ts       # Optimistic write utilities
+│   │   ├── derived.ts          # Query utilities for collections
+│   │   └── router.ts           # SessionEventRouter for event dispatch
+│   └── api/
+│       └── auth-middleware.ts  # Authentication middleware
 ├── services/
-│   └── session.service.ts     # Session management with streams
+│   └── session/
+│       ├── index.ts            # Facade re-exports
+│       ├── types.ts            # Shared types and interfaces
+│       ├── session-crud.service.ts     # CRUD operations
+│       ├── session-presence.service.ts # Presence management
+│       └── session-stream.service.ts   # Event streaming & persistence
 ├── db/schema/
-│   ├── session-events.ts      # Event persistence table
-│   └── session-summaries.ts   # Aggregated metrics table
+│   ├── session-events.ts       # Event persistence table
+│   └── session-summaries.ts    # Aggregated metrics table
 ├── app/
-│   ├── routes/api/sessions/
-│   │   ├── $id/events.ts      # GET events endpoint
-│   │   ├── $id/summary.ts     # GET summary endpoint
-│   │   └── $id/export.ts      # POST export endpoint
-│   └── components/features/session-history/
-│       ├── index.tsx          # SessionHistoryPage
-│       ├── components/
-│       │   ├── replay-controls.tsx
-│       │   ├── stream-viewer.tsx
-│       │   └── session-timeline.tsx
-│       └── hooks/
-│           ├── use-session-replay.ts
-│           └── use-session-events.ts
+│   ├── routes/api/
+│   │   ├── streams/
+│   │   │   ├── index.ts        # POST /api/streams (write endpoint)
+│   │   │   └── $streamId/
+│   │   │       ├── index.ts    # GET stream metadata/events
+│   │   │       └── subscribe.ts # SSE subscription endpoint
+│   │   └── sessions/
+│   │       ├── $id/
+│   │       │   ├── events.ts   # GET events endpoint
+│   │       │   ├── summary.ts  # GET summary endpoint
+│   │       │   └── presence.ts # Presence join/leave/heartbeat
+│   └── hooks/
+│       └── use-session.ts      # React hook for session subscription
 ```
+
+## Design Patterns
+
+### Fire-and-Forget Persistence
+
+Publishing returns immediately; database persistence happens asynchronously:
+
+```typescript
+// Fast path: publish to in-memory stream
+const offset = await provider.publish(sessionId, type, data);
+
+// Background: persist to database (non-blocking)
+this.persistEvent(sessionId, event).catch(logError);
+```
+
+### Channel Routing
+
+Type-safe event routing using discriminated unions:
+
+```typescript
+type SessionEvent =
+  | { channel: 'chunks'; data: Chunk }
+  | { channel: 'toolCalls'; data: ToolCall }
+  | { channel: 'presence'; data: Presence }
+  // ...
+
+// Router dispatches to type-safe handlers
+router.on('chunks', (event) => {
+  // event.data is typed as Chunk
+});
+```
+
+### Facade Pattern for Services
+
+SessionService provides a unified API while delegating to focused services:
+
+```typescript
+// External API (unchanged)
+sessionService.create(input);
+sessionService.publish(sessionId, event);
+sessionService.join(sessionId, userId);
+
+// Internal delegation
+this.crudService.create(input);
+this.streamService.publish(sessionId, event);
+this.presenceService.join(sessionId, userId);
+```
+
+## Production Considerations
+
+**Current implementation (in-memory):**
+
+- Loses stream data on server restart
+- Single-process only (no clustering)
+- Limited to available RAM
+
+**For production, consider:**
+
+- Replace InMemoryDurableStreamsServer with persistent backing (Redis Streams, Kafka)
+- Implement proper clustering via message broker
+- Add authentication validation against real auth service (Phase 2)
+- Persistent offset tracking in database
+- Load balancing with sticky sessions or pub/sub
+
+## Future Enhancements
+
+See `specs/architecture_futures/durable-streams-enhancements.md` for deferred improvements:
+
+| Item | Priority | Status |
+|------|----------|--------|
+| Auth on POST /api/streams | High | **Done** |
+| Type fragmentation consolidation | Medium | Pending |
+| Zod validation in client | Medium | Pending |
+| Reconnection attempt limit | Medium | Pending |
+| Persistence retry queue | Low | Pending |
+| Structured logging migration | Low | Pending |
