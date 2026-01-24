@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SessionErrors } from '@/lib/errors/session-errors';
+import {
+  type ConnectionState,
+  type SessionCallbacks,
+  type Subscription,
+  subscribeToSession,
+} from '@/lib/streams/client';
 import { err, ok, type Result } from '@/lib/utils/result';
 
 export type SessionEvent = {
@@ -57,83 +63,22 @@ const initialState: SessionState = {
   agentState: null,
 };
 
-const mapEvent = (prev: SessionState, event: SessionEvent): SessionState => {
-  switch (event.type) {
-    case 'chunk':
-      return {
-        ...prev,
-        chunks: [
-          ...prev.chunks,
-          {
-            text: (event.data as { text?: string }).text ?? '',
-            timestamp: event.timestamp,
-            agentId: (event.data as { agentId?: string }).agentId,
-          },
-        ],
-      };
-    case 'tool:start':
-      return {
-        ...prev,
-        toolCalls: [
-          ...prev.toolCalls,
-          {
-            id: (event.data as { id?: string }).id ?? crypto.randomUUID(),
-            tool: (event.data as { tool?: string }).tool ?? 'tool',
-            input: (event.data as { input?: unknown }).input,
-            status: 'running',
-            timestamp: event.timestamp,
-          },
-        ],
-      };
-    case 'tool:result':
-      return {
-        ...prev,
-        toolCalls: prev.toolCalls.map((call) =>
-          call.id === (event.data as { id?: string }).id
-            ? {
-                ...call,
-                output: (event.data as { output?: unknown }).output,
-                status: 'complete',
-              }
-            : call
-        ),
-      };
-    case 'presence:joined':
-    case 'presence:left':
-    case 'presence:cursor':
-      return prev;
-    case 'terminal:input':
-    case 'terminal:output':
-      return {
-        ...prev,
-        terminal: [
-          ...prev.terminal,
-          {
-            type: event.type === 'terminal:input' ? 'input' : 'output',
-            data: (event.data as { data?: string }).data ?? '',
-            timestamp: event.timestamp,
-          },
-        ],
-      };
-    case 'state:update':
-      return {
-        ...prev,
-        agentState: event.data as SessionAgentState,
-      };
-    default:
-      return prev;
-  }
-};
+/** Presence heartbeat interval in ms (10 seconds per spec) */
+const PRESENCE_HEARTBEAT_INTERVAL = 10000;
 
 export function useSession(
   sessionId: string,
   userId: string
 ): {
   state: SessionState;
+  connectionState: ConnectionState;
+  lastOffset: number;
   join: () => Promise<Result<void, ReturnType<typeof SessionErrors.CONNECTION_FAILED>>>;
   leave: () => Promise<Result<void, ReturnType<typeof SessionErrors.CONNECTION_FAILED>>>;
 } {
   const [state, setState] = useState<SessionState>(initialState);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const subscriptionRef = useRef<Subscription | null>(null);
 
   const join = useCallback(async () => {
     try {
@@ -173,26 +118,104 @@ export function useSession(
     }
   }, [sessionId, userId]);
 
+  // Subscribe to session events with automatic reconnection
   useEffect(() => {
     void join();
+    setConnectionState('connecting');
 
-    const eventSource = new EventSource(`/api/sessions/${sessionId}/stream`);
+    const callbacks: SessionCallbacks = {
+      onChunk: (event) => {
+        setState((prev) => ({
+          ...prev,
+          chunks: [
+            ...prev.chunks,
+            {
+              text: event.data.text,
+              timestamp: event.data.timestamp,
+              agentId: event.data.agentId,
+            },
+          ],
+        }));
+      },
 
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data) as SessionEvent;
-      setState((prev) => mapEvent(prev, data));
+      onToolCall: (event) => {
+        setState((prev) => {
+          const existingIndex = prev.toolCalls.findIndex((t) => t.id === event.data.id);
+          if (existingIndex >= 0) {
+            // Update existing tool call
+            const updated = [...prev.toolCalls];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              ...event.data,
+            };
+            return { ...prev, toolCalls: updated };
+          }
+          // Add new tool call
+          return {
+            ...prev,
+            toolCalls: [...prev.toolCalls, event.data],
+          };
+        });
+      },
+
+      onPresence: (event) => {
+        setState((prev) => {
+          const existingIndex = prev.presence.findIndex((p) => p.userId === event.data.userId);
+          if (existingIndex >= 0) {
+            const updated = [...prev.presence];
+            updated[existingIndex] = event.data;
+            return { ...prev, presence: updated };
+          }
+          return {
+            ...prev,
+            presence: [...prev.presence, event.data],
+          };
+        });
+      },
+
+      onTerminal: (event) => {
+        setState((prev) => ({
+          ...prev,
+          terminal: [...prev.terminal, event.data],
+        }));
+      },
+
+      onAgentState: (event) => {
+        setState((prev) => ({
+          ...prev,
+          agentState: event.data,
+        }));
+      },
+
+      onError: (error) => {
+        console.error('[useSession] Stream error:', error);
+        setConnectionState('disconnected');
+      },
+
+      onReconnect: () => {
+        console.log('[useSession] Reconnected to session stream');
+        setConnectionState('connected');
+      },
+
+      onDisconnect: () => {
+        console.log('[useSession] Disconnected from session stream');
+        setConnectionState('reconnecting');
+      },
     };
 
-    eventSource.onerror = () => {
-      eventSource.close();
-    };
+    // Subscribe using the durable streams client with automatic reconnection
+    const subscription = subscribeToSession(sessionId, callbacks);
+    subscriptionRef.current = subscription;
+    setConnectionState('connected');
 
     return () => {
-      eventSource.close();
+      subscription.unsubscribe();
+      subscriptionRef.current = null;
       void leave();
     };
   }, [join, leave, sessionId]);
 
+  // Presence heartbeat at 10s interval (per spec)
   useEffect(() => {
     const updatePresence = async () => {
       try {
@@ -206,12 +229,13 @@ export function useSession(
       }
     };
 
-    const interval = window.setInterval(updatePresence, 15000);
+    const interval = window.setInterval(updatePresence, PRESENCE_HEARTBEAT_INTERVAL);
 
     return () => window.clearInterval(interval);
   }, [sessionId, userId]);
 
   const memoizedState = useMemo(() => state, [state]);
+  const lastOffset = subscriptionRef.current?.getLastOffset() ?? 0;
 
-  return { state: memoizedState, join, leave };
+  return { state: memoizedState, connectionState, lastOffset, join, leave };
 }

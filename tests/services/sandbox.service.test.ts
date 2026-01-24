@@ -98,7 +98,7 @@ const createMockProvider = (): SandboxProvider => ({
 const createMockStreams = (): DurableStreamsService =>
   ({
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     publishSandboxCreating: vi.fn().mockResolvedValue(undefined),
     publishSandboxReady: vi.fn().mockResolvedValue(undefined),
     publishSandboxIdle: vi.fn().mockResolvedValue(undefined),

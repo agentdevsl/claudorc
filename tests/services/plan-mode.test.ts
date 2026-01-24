@@ -166,7 +166,7 @@ function createMockDatabase() {
 function createMockStreamsService(): DurableStreamsService {
   return {
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     publishPlanStarted: vi.fn().mockResolvedValue(undefined),
     publishPlanTurn: vi.fn().mockResolvedValue(undefined),
     publishPlanToken: vi.fn().mockResolvedValue(undefined),

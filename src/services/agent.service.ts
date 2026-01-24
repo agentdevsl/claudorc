@@ -1,663 +1,228 @@
-import { createId } from '@paralleldrive/cuid2';
-import { and, desc, eq } from 'drizzle-orm';
-import { agentRuns } from '../db/schema/agent-runs.js';
-import type { Agent, AgentConfig, NewAgent } from '../db/schema/agents.js';
-import { agents } from '../db/schema/agents.js';
-import { projects } from '../db/schema/projects.js';
-import type { Session } from '../db/schema/sessions.js';
-import { sessions } from '../db/schema/sessions.js';
-import type { Task } from '../db/schema/tasks.js';
-import { tasks } from '../db/schema/tasks.js';
-import type { Worktree } from '../db/schema/worktrees.js';
-import { worktrees } from '../db/schema/worktrees.js';
-import { createAgentHooks } from '../lib/agents/hooks/index.js';
-import { handleAgentError } from '../lib/agents/recovery.js';
-import { runAgentWithStreaming } from '../lib/agents/stream-handler.js';
+/**
+ * AgentService - Facade composing CRUD, Execution, and Queue services.
+ *
+ * This class maintains backward compatibility with existing code while
+ * delegating to focused service implementations:
+ * - AgentCrudService: CRUD operations
+ * - AgentExecutionService: Agent lifecycle and execution
+ * - AgentQueueService: Queue management
+ *
+ * For new code, consider importing the focused services directly from
+ * './agent/index.js' for clearer dependency management.
+ */
+
+import type { AgentConfig, NewAgent } from '../db/schema/agents.js';
 import type { AgentError } from '../lib/errors/agent-errors.js';
-import { AgentErrors } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
-import { ConcurrencyErrors } from '../lib/errors/concurrency-errors.js';
 import type { ValidationError } from '../lib/errors/validation-errors.js';
-import { ValidationErrors } from '../lib/errors/validation-errors.js';
 import type { Result } from '../lib/utils/result.js';
-import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
-import type { SessionEvent, SessionWithPresence } from './session.service.js';
+import { AgentCrudService } from './agent/agent-crud.service.js';
+import { AgentExecutionService } from './agent/agent-execution.service.js';
+import { AgentQueueService } from './agent/agent-queue.service.js';
+import type {
+  Agent,
+  AgentRunResult,
+  AgentStartResult,
+  PostToolUseHook,
+  PreToolUseHook,
+  QueuePosition,
+  QueueStats,
+  SessionServiceInterface,
+  TaskService,
+  WorktreeService,
+} from './agent/types.js';
 
-export type AgentExecutionContext = {
-  agentId: string;
-  taskId: string;
-  projectId: string;
-  sessionId: string;
-  cwd: string;
-  allowedTools: string[];
-  maxTurns: number;
-  env: Record<string, string>;
-};
+// Re-export types for backward compatibility
+export type {
+  AgentExecutionContext,
+  AgentRunResult,
+  PostToolUseHook,
+  PreToolUseHook,
+  QueuePosition,
+  QueueStats,
+} from './agent/types.js';
 
-export type AgentRunResult = {
-  runId: string;
-  status: 'completed' | 'error' | 'turn_limit' | 'paused';
-  turnCount: number;
-  result?: string;
-  error?: string;
-  diff?: string;
-};
-
-export type QueuePosition = {
-  taskId: string;
-  position: number;
-  totalQueued: number;
-  estimatedWaitMinutes: number;
-  estimatedWaitMs: number;
-  estimatedWaitFormatted: string;
-};
-
-export type QueueStats = {
-  totalQueued: number;
-  averageCompletionMs: number;
-  recentCompletions: number;
-};
-
-export type PreToolUseHook = (input: {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}) => Promise<{ deny?: boolean; reason?: string }>;
-
-export type PostToolUseHook = (input: {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-  tool_response: unknown;
-}) => Promise<void>;
-
-type WorktreeService = {
-  create: (input: { projectId: string; taskId: string }) => Promise<Result<Worktree, AgentError>>;
-};
-
-type TaskService = {
-  moveColumn: (
-    taskId: string,
-    column: 'in_progress' | 'waiting_approval'
-  ) => Promise<Result<unknown, AgentError>>;
-};
-
-type SessionServiceInterface = {
-  create: (input: {
-    projectId: string;
-    taskId?: string;
-    agentId?: string;
-    title?: string;
-  }) => Promise<Result<SessionWithPresence, unknown>>;
-  publish: (sessionId: string, event: SessionEvent) => Promise<Result<void, unknown>>;
-};
-
-const runningAgents = new Map<string, AbortController>();
-
+/**
+ * AgentService facade - maintains backward compatibility while delegating to focused services.
+ *
+ * This class provides the same public API as the original AgentService,
+ * ensuring existing code continues to work without modification.
+ */
 export class AgentService {
-  private preToolHooks = new Map<string, PreToolUseHook[]>();
-  private postToolHooks = new Map<string, PostToolUseHook[]>();
+  private readonly crudService: AgentCrudService;
+  private readonly executionService: AgentExecutionService;
+  private readonly queueService: AgentQueueService;
 
   constructor(
-    private db: Database,
-    private worktreeService: WorktreeService,
-    private taskService: TaskService,
-    private sessionService: SessionServiceInterface
-  ) {}
+    db: Database,
+    worktreeService: WorktreeService,
+    taskService: TaskService,
+    sessionService: SessionServiceInterface
+  ) {
+    this.crudService = new AgentCrudService(db);
+    this.executionService = new AgentExecutionService(
+      db,
+      worktreeService,
+      taskService,
+      sessionService
+    );
+    this.queueService = new AgentQueueService(db);
+  }
 
+  // =========================================================================
+  // CRUD Operations (delegated to AgentCrudService)
+  // =========================================================================
+
+  /**
+   * Create a new agent with configuration defaults from the project.
+   */
   async create(input: NewAgent): Promise<Result<Agent, ValidationError>> {
-    const project = await this.db.query.projects.findFirst({
-      where: eq(projects.id, input.projectId),
-    });
-
-    if (!project) {
-      return err(ValidationErrors.INVALID_ID('projectId'));
-    }
-
-    const config: AgentConfig = {
-      allowedTools: input.config?.allowedTools ?? project.config?.allowedTools ?? [],
-      maxTurns: input.config?.maxTurns ?? project.config?.maxTurns ?? 50,
-      model: input.config?.model ?? project.config?.model,
-      systemPrompt: input.config?.systemPrompt ?? project.config?.systemPrompt,
-      temperature: input.config?.temperature ?? project.config?.temperature,
-    };
-
-    const [agent] = await this.db
-      .insert(agents)
-      .values({
-        ...input,
-        config,
-      })
-      .returning();
-
-    return ok(agent as Agent);
+    return this.crudService.create(input);
   }
 
+  /**
+   * Get an agent by ID.
+   */
   async getById(id: string): Promise<Result<Agent, AgentError>> {
-    const agent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, id),
-    });
-
-    if (!agent) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    return ok(agent);
+    return this.crudService.getById(id);
   }
 
+  /**
+   * List agents for a specific project, ordered by most recently updated.
+   */
   async list(projectId: string): Promise<Result<Agent[], never>> {
-    const items = await this.db.query.agents.findMany({
-      where: eq(agents.projectId, projectId),
-      orderBy: [desc(agents.updatedAt)],
-    });
-
-    return ok(items);
+    return this.crudService.list(projectId);
   }
 
+  /**
+   * List all agents across all projects, ordered by most recently updated.
+   */
   async listAll(): Promise<Result<Agent[], never>> {
-    const items = await this.db.query.agents.findMany({
-      orderBy: [desc(agents.updatedAt)],
-    });
-
-    return ok(items);
+    return this.crudService.listAll();
   }
 
+  /**
+   * Get the count of all running agents across all projects.
+   */
   async getRunningCountAll(): Promise<Result<number, never>> {
-    const running = await this.db.query.agents.findMany({
-      where: eq(agents.status, 'running'),
-    });
-
-    return ok(running.length);
+    return this.crudService.getRunningCountAll();
   }
 
+  /**
+   * Update an agent's configuration.
+   * Prevents updating critical config (allowedTools, model) while agent is running.
+   */
   async update(
     id: string,
     input: Partial<AgentConfig>
   ): Promise<Result<Agent, AgentError | ValidationError>> {
-    const existing = await this.getById(id);
-    if (!existing.ok) {
-      return existing;
-    }
-
-    if (existing.value.status === 'running') {
-      if (input.allowedTools || input.model) {
-        return err(AgentErrors.ALREADY_RUNNING(existing.value.currentTaskId ?? undefined));
-      }
-    }
-
-    const mergedConfig: AgentConfig = {
-      allowedTools: input.allowedTools ?? existing.value.config?.allowedTools ?? [],
-      maxTurns: input.maxTurns ?? existing.value.config?.maxTurns ?? 50,
-      model: input.model ?? existing.value.config?.model,
-      systemPrompt: input.systemPrompt ?? existing.value.config?.systemPrompt,
-      temperature: input.temperature ?? existing.value.config?.temperature,
-    };
-
-    const [updated] = await this.db
-      .update(agents)
-      .set({ config: mergedConfig, updatedAt: new Date().toISOString() })
-      .where(eq(agents.id, id))
-      .returning();
-
-    if (!updated) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    return ok(updated);
+    return this.crudService.update(id, input);
   }
 
+  /**
+   * Delete an agent by ID.
+   */
   async delete(id: string): Promise<Result<void, AgentError>> {
-    const agent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, id),
-    });
-
-    if (!agent) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    await this.db.delete(agents).where(eq(agents.id, id));
-    return ok(undefined);
+    return this.crudService.delete(id);
   }
 
+  // =========================================================================
+  // Execution Operations (delegated to AgentExecutionService)
+  // =========================================================================
+
+  /**
+   * Start an agent with an optional specific task.
+   * If no task is specified, picks the next available task from the backlog.
+   */
   async start(
     agentId: string,
     taskId?: string
-  ): Promise<
-    Result<
-      { agent: Agent; task: Task; session: Session; worktree: Worktree },
-      AgentError | ConcurrencyError
-    >
-  > {
-    const agent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, agentId),
-    });
-
-    if (!agent) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    if (agent.status !== 'idle') {
-      return err(AgentErrors.ALREADY_RUNNING(agent.currentTaskId ?? undefined));
-    }
-
-    let task = taskId
-      ? await this.db.query.tasks.findFirst({
-          where: eq(tasks.id, taskId),
-        })
-      : null;
-
-    if (!task) {
-      task = await this.db.query.tasks.findFirst({
-        where: and(eq(tasks.projectId, agent.projectId), eq(tasks.column, 'backlog')),
-        orderBy: desc(tasks.createdAt),
-      });
-    }
-
-    if (!task) {
-      return err(AgentErrors.NO_AVAILABLE_TASK);
-    }
-
-    if (task.column !== 'backlog') {
-      return err(AgentErrors.NO_AVAILABLE_TASK);
-    }
-
-    // Check concurrency BEFORE modifying task state to avoid race condition
-    const availability = await this.checkAvailability(agent.projectId);
-    if (!availability.ok || !availability.value) {
-      const runningResult = await this.getRunningCount(agent.projectId);
-      const runningCount = runningResult.ok ? runningResult.value : 0;
-      const project = await this.db.query.projects.findFirst({
-        where: eq(projects.id, agent.projectId),
-      });
-      return err(ConcurrencyErrors.LIMIT_EXCEEDED(runningCount, project?.maxConcurrentAgents ?? 1));
-    }
-
-    await this.taskService.moveColumn(task.id, 'in_progress');
-
-    const worktree = await this.worktreeService.create({
-      projectId: agent.projectId,
-      taskId: task.id,
-    });
-    if (!worktree.ok) {
-      return worktree;
-    }
-
-    const session = await this.sessionService.create({
-      projectId: agent.projectId,
-      taskId: task.id,
-      agentId: agent.id,
-      title: task.title,
-    });
-
-    if (!session.ok) {
-      return err(AgentErrors.EXECUTION_ERROR('Failed to create session'));
-    }
-
-    await this.db
-      .update(tasks)
-      .set({
-        column: 'in_progress',
-        agentId,
-        sessionId: session.value.id,
-        worktreeId: worktree.value.id,
-        branch: `agent/${agentId}/${task.id}`,
-        startedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(tasks.id, task.id));
-
-    await this.db
-      .update(agents)
-      .set({
-        status: 'starting',
-        currentTaskId: task.id,
-        currentSessionId: session.value.id,
-        currentTurn: 0,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(agents.id, agentId));
-
-    await this.sessionService.publish(session.value.id, {
-      id: createId(),
-      type: 'state:update',
-      timestamp: Date.now(),
-      data: { status: 'starting', agentId, taskId: task.id },
-    });
-
-    const [agentRun] = await this.db
-      .insert(agentRuns)
-      .values({
-        agentId,
-        taskId: task.id,
-        projectId: agent.projectId,
-        sessionId: session.value.id,
-        status: 'running',
-      })
-      .returning();
-
-    const controller = new AbortController();
-    runningAgents.set(agentId, controller);
-
-    await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
-
-    // Build task prompt
-    const taskPrompt = `Work on the following task:\n\nTitle: ${task.title}\n\nDescription: ${task.description ?? 'No description provided'}\n\nThe task is in the worktree at: ${worktree.value.path}`;
-
-    // Create agent hooks for streaming and audit
-    const hooks = createAgentHooks({
-      agentId,
-      sessionId: session.value.id,
-      agentRunId: agentRun?.id ?? createId(),
-      taskId: task.id,
-      projectId: agent.projectId,
-      allowedTools: agent.config?.allowedTools ?? [],
-      db: this.db,
-      sessionService: this.sessionService,
-    });
-
-    // Start agent execution asynchronously (fire-and-forget with error handling)
-    // The agent runs in the background and updates state through events
-    this.executeAgentAsync(
-      agentId,
-      session.value.id,
-      taskPrompt,
-      {
-        allowedTools: agent.config?.allowedTools ?? [],
-        maxTurns: agent.config?.maxTurns ?? 50,
-        model: agent.config?.model ?? 'claude-sonnet-4-20250514',
-        cwd: worktree.value.path,
-        hooks,
-      },
-      agentRun?.id ?? createId(),
-      task.id
-    );
-
-    const updatedAgent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, agentId),
-    });
-
-    const updatedTask = await this.db.query.tasks.findFirst({
-      where: eq(tasks.id, task.id),
-    });
-
-    const updatedSession = await this.db.query.sessions.findFirst({
-      where: eq(sessions.id, session.value.id),
-    });
-
-    const updatedWorktree = await this.db.query.worktrees.findFirst({
-      where: eq(worktrees.id, worktree.value.id),
-    });
-
-    if (!updatedAgent || !updatedTask || !updatedSession || !updatedWorktree) {
-      return err(AgentErrors.EXECUTION_ERROR('Missing updated resources after start'));
-    }
-
-    return ok({
-      agent: updatedAgent,
-      task: updatedTask,
-      session: updatedSession,
-      worktree: updatedWorktree,
-    });
+  ): Promise<Result<AgentStartResult, AgentError | ConcurrencyError>> {
+    return this.executionService.start(agentId, taskId);
   }
 
-  private async executeAgentAsync(
-    agentId: string,
-    sessionId: string,
-    prompt: string,
-    options: {
-      allowedTools: string[];
-      maxTurns: number;
-      model: string;
-      cwd: string;
-      hooks: ReturnType<typeof createAgentHooks>;
-    },
-    runId: string,
-    taskId: string
-  ): Promise<void> {
-    try {
-      const result = await runAgentWithStreaming({
-        agentId,
-        sessionId,
-        prompt,
-        allowedTools: options.allowedTools,
-        maxTurns: options.maxTurns,
-        model: options.model,
-        cwd: options.cwd,
-        hooks: options.hooks,
-        sessionService: this.sessionService,
-      });
-
-      // Update agent run with result
-      // Map 'turn_limit' to 'paused' since enum doesn't have turn_limit
-      const dbStatus = result.status === 'turn_limit' ? 'paused' : result.status;
-      await this.db
-        .update(agentRuns)
-        .set({
-          status: dbStatus,
-          completedAt: new Date().toISOString(),
-          turnsUsed: result.turnCount,
-          errorMessage: result.error,
-        })
-        .where(eq(agentRuns.id, runId));
-
-      // Update agent status based on result
-      if (result.status === 'completed') {
-        await this.db
-          .update(agents)
-          .set({
-            status: 'idle',
-            currentTaskId: null,
-            currentSessionId: null,
-            currentTurn: result.turnCount,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(agents.id, agentId));
-
-        // Move task to waiting_approval
-        await this.db
-          .update(tasks)
-          .set({
-            column: 'waiting_approval',
-            completedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(tasks.id, taskId));
-      } else if (result.status === 'turn_limit' || result.status === 'paused') {
-        await this.db
-          .update(agents)
-          .set({
-            status: 'paused',
-            currentTurn: result.turnCount,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(agents.id, agentId));
-
-        // Move task to waiting_approval for review
-        await this.db
-          .update(tasks)
-          .set({
-            column: 'waiting_approval',
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(tasks.id, taskId));
-      } else if (result.status === 'error') {
-        await this.db
-          .update(agents)
-          .set({
-            status: 'error',
-            currentTurn: result.turnCount,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(agents.id, agentId));
-      }
-
-      // Remove from running agents
-      runningAgents.delete(agentId);
-    } catch (error) {
-      console.error(`[AgentService] Agent ${agentId} execution failed:`, error);
-
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const recovery = handleAgentError(error instanceof Error ? error : new Error(errorMessage), {
-        agentId,
-        taskId,
-        maxTurns: options.maxTurns,
-        currentTurn: 0,
-      });
-
-      // Update run with error
-      await this.db
-        .update(agentRuns)
-        .set({
-          status: 'error',
-          completedAt: new Date().toISOString(),
-          errorMessage: errorMessage,
-        })
-        .where(eq(agentRuns.id, runId));
-
-      // Update agent status
-      await this.db
-        .update(agents)
-        .set({
-          status: recovery.action === 'pause' ? 'paused' : 'error',
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(agents.id, agentId));
-
-      // Publish error event
-      await this.sessionService.publish(sessionId, {
-        id: createId(),
-        type: 'agent:error',
-        timestamp: Date.now(),
-        data: { agentId, error: errorMessage, recovery: recovery.action },
-      });
-
-      runningAgents.delete(agentId);
-    }
-  }
-
+  /**
+   * Stop a running agent by aborting its execution.
+   */
   async stop(agentId: string): Promise<Result<void, AgentError>> {
-    const controller = runningAgents.get(agentId);
-    if (!controller) {
-      return err(AgentErrors.NOT_RUNNING);
-    }
-
-    controller.abort();
-    runningAgents.delete(agentId);
-
-    await this.db
-      .update(agents)
-      .set({
-        status: 'idle',
-        currentTaskId: null,
-        currentSessionId: null,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(agents.id, agentId));
-
-    return ok(undefined);
+    return this.executionService.stop(agentId);
   }
 
+  /**
+   * Pause a running agent.
+   */
   async pause(agentId: string): Promise<Result<void, AgentError>> {
-    const agent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, agentId),
-    });
-
-    if (!agent) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    await this.db
-      .update(agents)
-      .set({ status: 'paused', updatedAt: new Date().toISOString() })
-      .where(eq(agents.id, agentId));
-
-    return ok(undefined);
+    return this.executionService.pause(agentId);
   }
 
+  /**
+   * Resume a paused agent with optional feedback.
+   */
   async resume(agentId: string, feedback?: string): Promise<Result<AgentRunResult, AgentError>> {
-    const agent = await this.db.query.agents.findFirst({
-      where: eq(agents.id, agentId),
-    });
-
-    if (!agent) {
-      return err(AgentErrors.NOT_FOUND);
-    }
-
-    await this.db
-      .update(agents)
-      .set({ status: 'running', updatedAt: new Date().toISOString() })
-      .where(eq(agents.id, agentId));
-
-    if (agent.currentSessionId) {
-      await this.sessionService.publish(agent.currentSessionId, {
-        id: createId(),
-        type: 'approval:rejected',
-        timestamp: Date.now(),
-        data: { feedback },
-      });
-    }
-
-    return ok({
-      runId: createId(),
-      status: 'paused',
-      turnCount: agent.currentTurn ?? 0,
-    });
+    return this.executionService.resume(agentId, feedback);
   }
 
+  /**
+   * Check if a project has availability for a new running agent.
+   */
   async checkAvailability(projectId: string): Promise<Result<boolean, never>> {
-    const project = await this.db.query.projects.findFirst({
-      where: eq(projects.id, projectId),
-    });
-
-    if (!project) {
-      return ok(false);
-    }
-
-    const runningResult = await this.getRunningCount(projectId);
-    const runningCount = runningResult.ok ? runningResult.value : 0;
-    return ok(runningCount < (project.maxConcurrentAgents ?? 3));
+    return this.executionService.checkAvailability(projectId);
   }
 
-  async queueTask(
-    _projectId: string,
-    _taskId: string
-  ): Promise<Result<QueuePosition, ConcurrencyError>> {
-    return err(ConcurrencyErrors.QUEUE_FULL(0, 0));
-  }
-
+  /**
+   * Get the count of running agents for a specific project.
+   */
   async getRunningCount(projectId: string): Promise<Result<number, never>> {
-    const running = await this.db.query.agents.findMany({
-      where: and(eq(agents.projectId, projectId), eq(agents.status, 'running')),
-    });
-
-    return ok(running.length);
+    return this.executionService.getRunningCount(projectId);
   }
 
-  async getQueuePosition(_agentId: string): Promise<Result<QueuePosition | null, AgentError>> {
-    // Queue functionality is not yet implemented - return null indicating not queued
-    return ok(null);
-  }
-
-  async getQueueStats(_projectId?: string): Promise<Result<QueueStats, never>> {
-    return ok({
-      totalQueued: 0,
-      averageCompletionMs: 0,
-      recentCompletions: 0,
-    });
-  }
-
-  async getQueuedTasks(_projectId?: string): Promise<Result<QueuePosition[], never>> {
-    return ok([]);
-  }
-
+  /**
+   * Register a pre-tool use hook for an agent.
+   */
   registerPreToolUseHook(agentId: string, hook: PreToolUseHook): void {
-    const hooks = this.preToolHooks.get(agentId) ?? [];
-    hooks.push(hook);
-    this.preToolHooks.set(agentId, hooks);
+    this.executionService.registerPreToolUseHook(agentId, hook);
   }
 
+  /**
+   * Register a post-tool use hook for an agent.
+   */
   registerPostToolUseHook(agentId: string, hook: PostToolUseHook): void {
-    const hooks = this.postToolHooks.get(agentId) ?? [];
-    hooks.push(hook);
-    this.postToolHooks.set(agentId, hooks);
+    this.executionService.registerPostToolUseHook(agentId, hook);
+  }
+
+  // =========================================================================
+  // Queue Operations (delegated to AgentQueueService)
+  // =========================================================================
+
+  /**
+   * Queue a task for execution when agent availability permits.
+   */
+  async queueTask(
+    projectId: string,
+    taskId: string
+  ): Promise<Result<QueuePosition, ConcurrencyError>> {
+    return this.queueService.queueTask(projectId, taskId);
+  }
+
+  /**
+   * Get the queue position for an agent.
+   */
+  async getQueuePosition(agentId: string): Promise<Result<QueuePosition | null, AgentError>> {
+    return this.queueService.getQueuePosition(agentId);
+  }
+
+  /**
+   * Get queue statistics for a project or globally.
+   */
+  async getQueueStats(projectId?: string): Promise<Result<QueueStats, never>> {
+    return this.queueService.getQueueStats(projectId);
+  }
+
+  /**
+   * Get all queued tasks for a project or globally.
+   */
+  async getQueuedTasks(projectId?: string): Promise<Result<QueuePosition[], never>> {
+    return this.queueService.getQueuedTasks(projectId);
   }
 }

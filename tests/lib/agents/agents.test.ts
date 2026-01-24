@@ -222,7 +222,7 @@ describe('SDK Utils - agentQuery', () => {
 
 describe('Stream Handler', () => {
   const createMockSessionService = () => ({
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
   });
 
   const createMockHooks = (): AgentHooks => ({
@@ -581,7 +581,9 @@ describe('Turn Limiter', () => {
   describe('createTurnLimiter', () => {
     it('creates limiter with session service integration', async () => {
       const { createTurnLimiter } = await import('@/lib/agents/turn-limiter');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const limiter = createTurnLimiter('agent-1', 'session-1', 10, sessionService);
 
@@ -591,7 +593,9 @@ describe('Turn Limiter', () => {
 
     it('publishes warning event at threshold', async () => {
       const { createTurnLimiter } = await import('@/lib/agents/turn-limiter');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const limiter = createTurnLimiter('agent-1', 'session-1', 10, sessionService);
 
@@ -614,7 +618,9 @@ describe('Turn Limiter', () => {
 
     it('publishes turn_limit event when limit reached', async () => {
       const { createTurnLimiter } = await import('@/lib/agents/turn-limiter');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const limiter = createTurnLimiter('agent-1', 'session-1', 5, sessionService);
 
@@ -970,7 +976,9 @@ describe('Hooks', () => {
   describe('Streaming Hooks', () => {
     it('publishes tool:start event on pre-tool hook', async () => {
       const { createStreamingHooks } = await import('@/lib/agents/hooks/streaming');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const hooks = createStreamingHooks('agent-1', 'session-1', sessionService);
       await hooks.PreToolUse.hooks[0]({ tool_name: 'read_file', tool_input: { path: '/test' } });
@@ -990,7 +998,9 @@ describe('Hooks', () => {
 
     it('publishes tool:result event on post-tool hook', async () => {
       const { createStreamingHooks } = await import('@/lib/agents/hooks/streaming');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const hooks = createStreamingHooks('agent-1', 'session-1', sessionService);
       await hooks.PostToolUse.hooks[0]({
@@ -1016,7 +1026,9 @@ describe('Hooks', () => {
 
     it('sets isError flag for failed tool responses', async () => {
       const { createStreamingHooks } = await import('@/lib/agents/hooks/streaming');
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const hooks = createStreamingHooks('agent-1', 'session-1', sessionService);
       await hooks.PostToolUse.hooks[0]({
@@ -1097,7 +1109,9 @@ describe('Hooks', () => {
           values: vi.fn().mockResolvedValue(undefined),
         }),
       };
-      const sessionService = { publish: vi.fn().mockResolvedValue(undefined) };
+      const sessionService = {
+        publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+      };
 
       const { createAgentHooks } = await import('@/lib/agents/hooks/index');
       const hooks = createAgentHooks({

@@ -278,7 +278,7 @@ export function createMockSessionService(
     leave: vi.fn().mockResolvedValue(ok(defaultSession)),
     updatePresence: vi.fn().mockResolvedValue(ok(undefined)),
     getActiveUsers: vi.fn().mockResolvedValue(ok([])),
-    publish: vi.fn().mockResolvedValue(ok(undefined)),
+    publish: vi.fn().mockResolvedValue(ok({ offset: 1 })),
     subscribe: vi.fn().mockReturnValue(
       (async function* () {
         yield { id: createId(), type: 'chunk', timestamp: Date.now(), data: {} };

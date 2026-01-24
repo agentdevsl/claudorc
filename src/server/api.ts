@@ -37,6 +37,7 @@ import type { Workflow, WorkflowEdge, WorkflowNode } from '../lib/workflow-dsl/t
 import { workflowEdgeSchema, workflowNodeSchema } from '../lib/workflow-dsl/types.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
+import { GitHubTokenService } from '../services/github-token.service.js';
 import { MarketplaceService } from '../services/marketplace.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
 import { type DurableStreamsServer, SessionService } from '../services/session.service.js';
@@ -49,7 +50,6 @@ import { TemplateService } from '../services/template.service.js';
 import { startSyncScheduler } from '../services/template-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
-import { GitHubTokenService } from './github-token.service.js';
 
 declare const Bun: {
   spawn: (
@@ -145,7 +145,7 @@ const mockStreamsService: DurableStreamsService = {
 // Mock DurableStreamsServer for SessionService
 const mockStreamsServer: DurableStreamsServer = {
   createStream: async () => undefined,
-  publish: async () => undefined,
+  publish: async () => 1, // Returns offset
   subscribe: async function* () {
     yield { type: 'chunk', data: {}, offset: 0 };
   },

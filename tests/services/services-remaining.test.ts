@@ -188,7 +188,7 @@ function createMockSandboxProvider(overrides: Partial<SandboxProvider> = {}): Sa
 function createMockDurableStreamsServer() {
   return {
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     subscribe: vi.fn().mockImplementation(async function* () {
       yield { type: 'test', data: {} };
     }),
@@ -201,7 +201,7 @@ function createMockDurableStreamsService() {
     service: new DurableStreamsService(server),
     server,
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(1), // Returns offset
     publishSandboxCreating: vi.fn().mockResolvedValue(undefined),
     publishSandboxReady: vi.fn().mockResolvedValue(undefined),
     publishSandboxStopping: vi.fn().mockResolvedValue(undefined),

@@ -17,111 +17,78 @@ type FetchOptions = {
   signal?: AbortSignal;
 };
 
-async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
-  let response: Response;
-  try {
-    response = await fetch(path, {
-      method: options.method ?? 'GET',
-      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: options.signal,
-    });
-  } catch (error) {
-    // Network-level errors (connection refused, DNS failure, etc.)
-    if (error instanceof Error && error.name === 'AbortError') {
-      return {
-        ok: false,
-        error: { code: API_ERROR_CODES.REQUEST_ABORTED, message: 'Request was aborted' },
-      };
-    }
-    // TypeError is thrown by fetch for network failures (CORS, connection refused, DNS)
-    if (error instanceof TypeError) {
+/**
+ * Create an API fetch function with optional base URL prefix
+ *
+ * @param baseUrl - Optional base URL to prefix all requests (e.g., 'http://localhost:3001')
+ * @returns A fetch function that returns typed ApiResponse
+ */
+function createApiFetch(baseUrl?: string) {
+  return async function apiFetch<T>(
+    path: string,
+    options: FetchOptions = {}
+  ): Promise<ApiResponse<T>> {
+    const url = baseUrl ? `${baseUrl}${path}` : path;
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: options.method ?? 'GET',
+        headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: options.signal,
+      });
+    } catch (error) {
+      // Network-level errors (connection refused, DNS failure, etc.)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return {
+          ok: false,
+          error: { code: API_ERROR_CODES.REQUEST_ABORTED, message: 'Request was aborted' },
+        };
+      }
+      // TypeError is thrown by fetch for network failures (CORS, connection refused, DNS)
+      if (error instanceof TypeError) {
+        return {
+          ok: false,
+          error: {
+            code: API_ERROR_CODES.NETWORK_ERROR,
+            message: error.message || 'Network request failed',
+          },
+        };
+      }
       return {
         ok: false,
         error: {
-          code: API_ERROR_CODES.NETWORK_ERROR,
-          message: error.message || 'Network request failed',
+          code: API_ERROR_CODES.FETCH_ERROR,
+          message: error instanceof Error ? error.message : 'Network request failed',
         },
       };
     }
-    return {
-      ok: false,
-      error: {
-        code: API_ERROR_CODES.FETCH_ERROR,
-        message: error instanceof Error ? error.message : 'Network request failed',
-      },
-    };
-  }
 
-  try {
-    const json = await response.json();
-    return json as ApiResponse<T>;
-  } catch (parseError) {
-    // JSON parsing failed - include original error for debugging
-    return {
-      ok: false,
-      error: {
-        code: API_ERROR_CODES.PARSE_ERROR,
-        message: `Invalid JSON response (HTTP ${response.status}): ${parseError instanceof Error ? parseError.message : 'unknown parse error'}`,
-      },
-    };
-  }
+    try {
+      const json = await response.json();
+      return json as ApiResponse<T>;
+    } catch (parseError) {
+      // JSON parsing failed - include original error for debugging
+      return {
+        ok: false,
+        error: {
+          code: API_ERROR_CODES.PARSE_ERROR,
+          message: `Invalid JSON response (HTTP ${response.status}): ${parseError instanceof Error ? parseError.message : 'unknown parse error'}`,
+        },
+      };
+    }
+  };
 }
+
+// Fetch from relative path (same origin)
+const apiFetch = createApiFetch();
 
 // Fetch from API server (port 3001)
-async function apiServerFetch<T>(
-  path: string,
-  options: FetchOptions = {}
-): Promise<ApiResponse<T>> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
-      method: options.method ?? 'GET',
-      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: options.signal,
-    });
-  } catch (error) {
-    // Network-level errors (connection refused, DNS failure, etc.)
-    if (error instanceof Error && error.name === 'AbortError') {
-      return {
-        ok: false,
-        error: { code: API_ERROR_CODES.REQUEST_ABORTED, message: 'Request was aborted' },
-      };
-    }
-    // TypeError is thrown by fetch for network failures (CORS, connection refused, DNS)
-    if (error instanceof TypeError) {
-      return {
-        ok: false,
-        error: {
-          code: API_ERROR_CODES.NETWORK_ERROR,
-          message: error.message || 'Network request failed',
-        },
-      };
-    }
-    return {
-      ok: false,
-      error: {
-        code: API_ERROR_CODES.FETCH_ERROR,
-        message: error instanceof Error ? error.message : 'Network request failed',
-      },
-    };
-  }
+const apiServerFetch = createApiFetch(API_BASE);
 
-  try {
-    const json = await response.json();
-    return json as ApiResponse<T>;
-  } catch (parseError) {
-    // JSON parsing failed - include original error for debugging
-    return {
-      ok: false,
-      error: {
-        code: API_ERROR_CODES.PARSE_ERROR,
-        message: `Invalid JSON response (HTTP ${response.status}): ${parseError instanceof Error ? parseError.message : 'unknown parse error'}`,
-      },
-    };
-  }
-}
+// Export factory for custom base URLs
+export { createApiFetch };
 
 // Re-export shared types for convenience
 export type { TaskCreationStatus, TaskSuggestion } from './types';

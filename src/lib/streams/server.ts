@@ -60,8 +60,9 @@ export class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
   /**
    * Publish an event to a stream
+   * @returns The offset of the published event
    */
-  async publish(id: string, type: string, data: unknown): Promise<void> {
+  async publish(id: string, type: string, data: unknown): Promise<number> {
     const stream = this.streams.get(id);
     if (!stream) {
       // Auto-create stream if it doesn't exist
@@ -69,8 +70,9 @@ export class InMemoryDurableStreamsServer implements DurableStreamsServer {
       return this.publish(id, type, data);
     }
 
+    const offset = stream.events.length;
     const event: StoredEvent = {
-      offset: stream.events.length,
+      offset,
       type,
       data,
       timestamp: Date.now(),
@@ -86,6 +88,8 @@ export class InMemoryDurableStreamsServer implements DurableStreamsServer {
         console.error(`[DurableStreamsServer] Subscriber error for stream ${id}:`, error);
       }
     }
+
+    return offset;
   }
 
   /**

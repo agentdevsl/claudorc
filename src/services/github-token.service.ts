@@ -439,6 +439,54 @@ export class GitHubTokenService {
   }
 
   /**
+   * Create a new repository from a template
+   */
+  async createRepoFromTemplate(params: {
+    templateOwner: string;
+    templateRepo: string;
+    name: string;
+    owner?: string; // If not provided, creates in authenticated user's account
+    description?: string;
+    isPrivate?: boolean;
+  }): Promise<Result<{ cloneUrl: string; fullName: string }, GitHubTokenError>> {
+    const octokit = await this.getOctokit();
+    if (!octokit) {
+      return err({
+        code: 'NOT_FOUND',
+        message: 'No GitHub token configured',
+      });
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.createUsingTemplate({
+        template_owner: params.templateOwner,
+        template_repo: params.templateRepo,
+        name: params.name,
+        owner: params.owner,
+        description: params.description,
+        private: params.isPrivate ?? false,
+        include_all_branches: false,
+      });
+
+      return ok({
+        cloneUrl: data.clone_url ?? '',
+        fullName: data.full_name,
+      });
+    } catch (error) {
+      if (error instanceof Error && 'status' in error) {
+        const status = (error as { status: number }).status;
+        if (status === 422) {
+          return err({
+            code: 'VALIDATION_FAILED',
+            message: 'Repository name already exists or is invalid',
+          });
+        }
+      }
+      return this.handleOctokitError(error);
+    }
+  }
+
+  /**
    * Handle Octokit errors consistently
    */
   private async handleOctokitError<T>(error: unknown): Promise<Result<T, GitHubTokenError>> {

@@ -33,7 +33,7 @@ import type { SessionEvent } from '../../src/services/session.service';
 
 const createMockServer = (): DurableStreamsServer => ({
   createStream: vi.fn().mockResolvedValue(undefined),
-  publish: vi.fn().mockResolvedValue(undefined),
+  publish: vi.fn().mockResolvedValue(1), // Returns offset
   subscribe: vi.fn(async function* () {
     yield { type: 'chunk', data: { content: 'test' } };
     yield { type: 'tool:start', data: { toolId: 'tool1' } };
@@ -129,10 +129,9 @@ describe('DurableStreamsService', () => {
     it('handles publishing to stream with no subscribers', async () => {
       await service.createStream('empty-stream', {});
 
-      // Should not throw
-      await expect(
-        service.publish('empty-stream', 'chunk', { content: 'test' })
-      ).resolves.toBeUndefined();
+      // Should not throw, returns offset
+      const offset = await service.publish('empty-stream', 'chunk', { content: 'test' });
+      expect(offset).toBe(1); // Mock returns 1
       expect(mockServer.publish).toHaveBeenCalled();
     });
 

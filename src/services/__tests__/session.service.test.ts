@@ -13,7 +13,7 @@ const createDbMock = () => ({
 
 const createStreamsMock = () => ({
   createStream: vi.fn(),
-  publish: vi.fn(),
+  publish: vi.fn().mockResolvedValue(1), // Returns offset
   subscribe: vi.fn(async function* () {
     yield { type: 'chunk', data: { text: 'hello' } };
   }),

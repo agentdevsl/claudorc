@@ -21,7 +21,7 @@ describe('SessionService', () => {
 
     mockStreams = {
       createStream: vi.fn().mockResolvedValue(undefined),
-      publish: vi.fn().mockResolvedValue(undefined),
+      publish: vi.fn().mockResolvedValue(1), // Returns offset
       subscribe: vi.fn().mockImplementation(function* () {
         // Default empty iterator
       }),

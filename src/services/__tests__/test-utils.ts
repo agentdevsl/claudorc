@@ -11,11 +11,13 @@ export function createMockDurableStreamsServer(): DurableStreamsServer {
       streams.set(id, []);
     },
 
-    async publish(id: string, type: string, data: unknown): Promise<void> {
+    async publish(id: string, type: string, data: unknown): Promise<number> {
       const stream = streams.get(id);
       if (stream) {
         stream.push({ type, data });
+        return stream.length - 1; // Return offset
       }
+      return 0;
     },
 
     async *subscribe(id: string): AsyncIterable<{ type: string; data: unknown }> {
