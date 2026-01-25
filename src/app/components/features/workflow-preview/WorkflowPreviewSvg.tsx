@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { NODE_COLORS } from '@/lib/constants/node-colors';
 import { cn } from '@/lib/utils/cn';
 import type { NodeType, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
 
@@ -17,57 +18,6 @@ export interface WorkflowPreviewSvgProps {
 // =============================================================================
 // Constants - Aligned with compact-nodes.css design system
 // =============================================================================
-
-/**
- * Node colors from specs/application/wireframes/design-tokens.css
- * Aligned with src/app/components/features/workflow-designer/nodes/compact-nodes.css
- */
-// Shared color config for logic node types (conditional, loop, parallel)
-const LOGIC_NODE_COLOR = {
-  fill: '#a371f7', // --done-fg
-  fillMuted: 'rgba(163, 113, 247, 0.15)',
-  stroke: 'rgba(163, 113, 247, 0.35)',
-  text: '#a371f7',
-} as const;
-
-const NODE_COLORS: Record<
-  NodeType,
-  { fill: string; fillMuted: string; stroke: string; text: string }
-> = {
-  start: {
-    fill: '#3fb950', // --success-fg
-    fillMuted: 'rgba(63, 185, 80, 0.12)',
-    stroke: 'rgba(63, 185, 80, 0.35)',
-    text: '#0d1117',
-  },
-  end: {
-    fill: '#f85149', // --danger-fg
-    fillMuted: 'rgba(248, 81, 73, 0.12)',
-    stroke: 'rgba(248, 81, 73, 0.35)',
-    text: '#0d1117',
-  },
-  skill: {
-    fill: '#f778ba', // --secondary-fg
-    fillMuted: 'rgba(247, 120, 186, 0.15)',
-    stroke: 'rgba(247, 120, 186, 0.35)',
-    text: '#f778ba',
-  },
-  context: {
-    fill: '#d29922', // --attention-fg
-    fillMuted: 'rgba(210, 153, 34, 0.15)',
-    stroke: 'rgba(210, 153, 34, 0.35)',
-    text: '#d29922',
-  },
-  agent: {
-    fill: '#58a6ff', // --accent-fg
-    fillMuted: 'rgba(88, 166, 255, 0.15)',
-    stroke: 'rgba(88, 166, 255, 0.35)',
-    text: '#58a6ff',
-  },
-  conditional: LOGIC_NODE_COLOR,
-  loop: LOGIC_NODE_COLOR,
-  parallel: LOGIC_NODE_COLOR,
-};
 
 const EDGE_COLOR = '#30363d'; // --border-default
 const TEXT_COLOR = '#e6edf3'; // --fg-default

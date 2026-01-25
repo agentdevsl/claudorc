@@ -17,6 +17,7 @@ import type { Edge, Node } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { DEFAULT_WORKFLOW_MODEL } from '@/lib/constants/models';
+import { getNodeColors } from '@/lib/constants/node-colors';
 import { cn } from '@/lib/utils/cn';
 import { layoutWorkflowForReactFlow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
@@ -77,26 +78,6 @@ type TagFilter = {
   value: string;
   label: string;
 };
-
-/**
- * Returns color classes for node type badges in the preview
- */
-function getNodeTypeColors(nodeType: string): { bg: string; text: string } {
-  switch (nodeType) {
-    case 'start':
-      return { bg: 'bg-[var(--success-muted)]', text: 'text-[var(--success-fg)]' };
-    case 'end':
-      return { bg: 'bg-[var(--danger-muted)]', text: 'text-[var(--danger-fg)]' };
-    case 'skill':
-      return { bg: 'bg-[var(--secondary-muted)]', text: 'text-[var(--secondary-fg)]' };
-    case 'context':
-      return { bg: 'bg-[var(--attention-muted)]', text: 'text-[var(--attention-fg)]' };
-    case 'agent':
-      return { bg: 'bg-[var(--accent-muted)]', text: 'text-[var(--accent-fg)]' };
-    default:
-      return { bg: 'bg-[var(--bg-muted)]', text: 'text-[var(--fg-muted)]' };
-  }
-}
 
 export function AIGenerateDialog({
   open,
@@ -672,48 +653,51 @@ export function AIGenerateDialog({
 
                     {/* Preview Steps */}
                     <div className="flex flex-col gap-2">
-                      {aiWorkflow.nodes.map((node, index) => (
-                        <div key={node.id}>
-                          {/* Step Card */}
-                          <div className="flex items-start gap-3 py-2.5 px-3 bg-[var(--bg-subtle)] border border-[var(--border-muted)] rounded-[var(--radius)]">
-                            <span
-                              className={cn(
-                                'w-[22px] h-[22px] rounded-full text-[11px] font-semibold flex items-center justify-center flex-shrink-0',
-                                getNodeTypeColors(node.type).bg,
-                                getNodeTypeColors(node.type).text
-                              )}
-                            >
-                              {index + 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-semibold text-[var(--fg-default)] mb-0.5">
-                                {node.label}
+                      {aiWorkflow.nodes.map((node, index) => {
+                        const nodeColors = getNodeColors(node.type);
+                        return (
+                          <div key={node.id}>
+                            {/* Step Card */}
+                            <div className="flex items-start gap-3 py-2.5 px-3 bg-[var(--bg-subtle)] border border-[var(--border-muted)] rounded-[var(--radius)]">
+                              <span
+                                className={cn(
+                                  'w-[22px] h-[22px] rounded-full text-[11px] font-semibold flex items-center justify-center flex-shrink-0',
+                                  nodeColors.bgClass,
+                                  nodeColors.textClass
+                                )}
+                              >
+                                {index + 1}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-[var(--fg-default)] mb-0.5">
+                                  {node.label}
+                                </div>
+                                {node.description && (
+                                  <p className="text-[11px] text-[var(--fg-muted)] line-clamp-1">
+                                    {node.description}
+                                  </p>
+                                )}
                               </div>
-                              {node.description && (
-                                <p className="text-[11px] text-[var(--fg-muted)] line-clamp-1">
-                                  {node.description}
-                                </p>
-                              )}
+                              <span
+                                className={cn(
+                                  'text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0',
+                                  nodeColors.bgClass,
+                                  nodeColors.textClass
+                                )}
+                              >
+                                {node.type}
+                              </span>
                             </div>
-                            <span
-                              className={cn(
-                                'text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0',
-                                getNodeTypeColors(node.type).bg,
-                                getNodeTypeColors(node.type).text
-                              )}
-                            >
-                              {node.type}
-                            </span>
-                          </div>
 
-                          {/* Arrow Connector */}
-                          {index < aiWorkflow.nodes.length - 1 && (
-                            <div className="flex justify-center py-1">
-                              <ArrowDown className="h-4 w-4 text-[var(--fg-subtle)]" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            {/* Arrow Connector */}
+                            {index < aiWorkflow.nodes.length - 1 && (
+                              <div className="flex justify-center py-1">
+                                <ArrowDown className="h-4 w-4 text-[var(--fg-subtle)]" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
