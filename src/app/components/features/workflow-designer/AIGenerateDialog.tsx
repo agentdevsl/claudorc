@@ -61,7 +61,7 @@ interface AIGenerateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: TemplateWithContent[];
-  onGenerate: (nodes: Node[], edges: Edge[]) => void;
+  onGenerate: (nodes: Node[], edges: Edge[], sourceName: string) => void;
 }
 
 /**
@@ -337,7 +337,7 @@ export function AIGenerateDialog({
 
   // Handle generate button click
   const handleGenerate = useCallback(async () => {
-    if (!aiWorkflow) return;
+    if (!aiWorkflow || !selected) return;
 
     // Apply layout algorithm and convert DSL nodes/edges to ReactFlow format
     const { nodes: reactFlowNodes, edges: reactFlowEdges } = await layoutWorkflowForReactFlow(
@@ -345,14 +345,14 @@ export function AIGenerateDialog({
       aiWorkflow.edges as WorkflowEdge[]
     );
 
-    onGenerate(reactFlowNodes, reactFlowEdges);
+    onGenerate(reactFlowNodes, reactFlowEdges, selected.name);
 
     // Reset state
     setSelected(null);
     setAiWorkflow(null);
     setSearchQuery('');
     setError(null);
-  }, [aiWorkflow, onGenerate]);
+  }, [aiWorkflow, selected, onGenerate]);
 
   // Handle dialog close - reset state
   const handleOpenChange = useCallback(

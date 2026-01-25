@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 
 import type { Workflow } from '@/db/schema/workflows';
+import { calculateUniformNodeWidth } from '@/lib/workflow-dsl/layout';
+import type { WorkflowNode } from '@/lib/workflow-dsl/types';
 import { AIGenerateDialog } from './AIGenerateDialog';
 import { type SavedWorkflow, SavedWorkflowsPanel } from './SavedWorkflowsPanel';
 import { WorkflowCanvas } from './WorkflowCanvas';
@@ -122,6 +124,11 @@ const reactFlowEdgesToWorkflowEdges = (edges: Edge[]): Workflow['edges'] => {
  * - Edges: source/target fields
  */
 const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[] } => {
+  // Calculate uniform width for consistent sizing across all nodes
+  const uniformWidth = workflow.nodes
+    ? calculateUniformNodeWidth(workflow.nodes as WorkflowNode[])
+    : undefined;
+
   const nodes: Node[] =
     workflow.nodes?.map((n, index) => {
       // Extract common fields for ReactFlow data object
@@ -134,6 +141,7 @@ const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[
           ...rest, // Put remaining fields (label, description, etc.) into data
           nodeIndex: index, // For staggered animation
           nodeType: type, // Original type for reference
+          uniformWidth, // Apply calculated uniform width
         },
       };
     }) ?? getDefaultNodes();
@@ -197,6 +205,7 @@ export function WorkflowDesigner({
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(
     initialWorkflow?.id ?? null
   );
+  const [workflowName, setWorkflowName] = useState<string>(initialWorkflow?.name ?? '');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [workflowsLoading, setWorkflowsLoading] = useState(true);
 
@@ -280,10 +289,13 @@ export function WorkflowDesigner({
 
   // Callback when AI workflow is generated from the dialog
   const handleAIWorkflowGenerated = useCallback(
-    (newNodes: Node[], newEdges: Edge[]) => {
+    (newNodes: Node[], newEdges: Edge[], sourceName: string) => {
       setNodes(newNodes);
       setEdges(newEdges);
       setAiDialogOpen(false);
+      // Set workflow name based on source and mark as new workflow
+      setWorkflowName(sourceName);
+      setActiveWorkflowId(null); // This is a new workflow, not an update
       // Mark as unsaved since we have new content
       setHasUnsavedChanges(true);
     },
@@ -321,12 +333,13 @@ export function WorkflowDesigner({
         }
         savedWorkflow = result.data;
       } else {
-        // Create new workflow
+        // Create new workflow - use stored name from AI generation or fallback to timestamp
+        const name = workflowName || `Workflow ${new Date().toLocaleString()}`;
         const response = await fetch('/api/workflows', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: `Workflow ${new Date().toLocaleString()}`,
+            name,
             nodes: workflowNodes,
             edges: workflowEdges,
             viewport,
@@ -373,7 +386,7 @@ export function WorkflowDesigner({
     } finally {
       setIsSaving(false);
     }
-  }, [readOnly, nodes, edges, viewport, markAsSaved, activeWorkflowId]);
+  }, [readOnly, nodes, edges, viewport, markAsSaved, activeWorkflowId, workflowName]);
 
   // Clear handler / Create new workflow
   const handleCreateNew = useCallback(() => {
@@ -382,6 +395,7 @@ export function WorkflowDesigner({
     setNodes(getDefaultNodes());
     setEdges([]);
     setActiveWorkflowId(null);
+    setWorkflowName('');
     setHasUnsavedChanges(false);
     lastSavedStateRef.current = '';
   }, [readOnly, setNodes, setEdges]);
@@ -402,6 +416,7 @@ export function WorkflowDesigner({
           setNodes(loaded.nodes);
           setEdges(loaded.edges);
           setActiveWorkflowId(workflow.id);
+          setWorkflowName(result.data.name || workflow.name);
 
           // Mark initial state as saved
           setTimeout(() => {
