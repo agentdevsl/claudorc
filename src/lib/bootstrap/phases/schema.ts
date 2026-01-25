@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS "tasks" (
   "position" INTEGER DEFAULT 0 NOT NULL,
   "labels" TEXT DEFAULT '[]',
   "priority" TEXT DEFAULT 'medium',
+  "model_override" TEXT,
   "branch" TEXT,
   "diff_summary" TEXT,
   "approved_at" TEXT,

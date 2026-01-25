@@ -471,8 +471,12 @@ describe('TaskCreationService', () => {
         ])
       );
 
-      await service.sendMessage(sessionId, 'Create a task');
-      await service.acceptSuggestion(sessionId);
+      const sendResult = await service.sendMessage(sessionId, 'Create a task');
+      expect(sendResult.ok).toBe(true);
+
+      const acceptResult = await service.acceptSuggestion(sessionId);
+      expect(acceptResult.ok).toBe(true);
+      if (!acceptResult.ok) return;
 
       expect(mockV2Session.close).toHaveBeenCalled();
       expect(mockSessionService.close).toHaveBeenCalledWith('mock-db-session-id');
