@@ -42,11 +42,11 @@ export interface ToolCallStats {
 // ===== Tool Call Status Colors =====
 
 /** Text colors for tool call status - used for icon coloring */
-export const TOOL_CALL_STATUS_COLORS: Record<ToolCallStatus, { text: string }> = {
+export const TOOL_CALL_STATUS_COLORS = {
   running: { text: 'text-accent' },
   complete: { text: 'text-success' },
   error: { text: 'text-danger' },
-};
+} as const satisfies Record<ToolCallStatus, { text: string }>;
 
 // ===== Session Filter Types =====
 

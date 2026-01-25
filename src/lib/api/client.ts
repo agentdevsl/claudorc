@@ -739,8 +739,10 @@ export const apiClient = {
   taskCreation: {
     /**
      * Start a new AI task creation conversation
+     * @param projectId - Project to create task for
+     * @param allowedTools - Optional tools configured in settings
      */
-    start: (projectId: string) =>
+    start: (projectId: string, allowedTools?: string[]) =>
       apiServerFetch<{
         sessionId: string;
         projectId: string;
@@ -748,7 +750,7 @@ export const apiClient = {
         createdAt: string;
       }>('/api/tasks/create-with-ai/start', {
         method: 'POST',
-        body: { projectId },
+        body: { projectId, allowedTools },
       }),
 
     /**

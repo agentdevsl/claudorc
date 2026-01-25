@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
 import { type NewTask, tasks } from '@/db/schema/tasks';
 import { getTaskCreationModel } from '@/lib/constants/models';
+import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
@@ -124,12 +125,12 @@ const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structu
 
 Your role is to:
 1. Understand what the user wants (from their initial message)
-2. Ask 2-5 clarifying questions to gather important missing details
+2. Use the AskUserQuestion tool to gather 2-5 clarifying questions
 3. Generate a high-quality task suggestion based on the user's answers
 
 ## Phase 1: Clarifying Questions
 
-When you receive the user's initial request, respond with a JSON block containing clarifying questions.
+When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
 Ask questions that will help you create a better, more specific task. Focus on:
 - Scope and boundaries (what's included/excluded)
 - Technical approach or implementation preference
@@ -137,35 +138,15 @@ Ask questions that will help you create a better, more specific task. Focus on:
 - Dependencies or blockers
 - Acceptance criteria
 
-ALWAYS respond with a clarifying_questions JSON block:
-
-\`\`\`json
-{
-  "type": "clarifying_questions",
-  "questions": [
-    {
-      "header": "Scope",
-      "question": "What specific functionality should this include?",
-      "options": [
-        { "label": "Option A", "description": "Brief description of option A" },
-        { "label": "Option B", "description": "Brief description of option B" },
-        { "label": "Option C", "description": "Brief description of option C" }
-      ]
-    }
-  ]
-}
-\`\`\`
-
 Guidelines for questions:
 - Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
-- Include "Custom" or "Other" as a last option if appropriate
-- Ask 2-5 questions maximum per round
+- Ask 2-5 questions maximum
 
 ## Phase 2: Task Suggestion
 
-After receiving answers, generate the task suggestion:
+After receiving answers from AskUserQuestion, generate the task suggestion as a JSON block:
 
 \`\`\`json
 {
@@ -181,7 +162,7 @@ Field guidelines:
 - labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
 - priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
 
-CRITICAL: Always ask clarifying questions first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
+CRITICAL: Always use the AskUserQuestion tool first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
 
 // ============================================================================
 // Service Implementation
@@ -291,9 +272,12 @@ export class TaskCreationService {
 
   /**
    * Start a new task creation conversation
+   * @param projectId - The project to create a task for
+   * @param configuredTools - Optional tools configured in settings (from frontend localStorage)
    */
   async startConversation(
-    projectId: string
+    projectId: string,
+    configuredTools?: string[]
   ): Promise<Result<TaskCreationSession, TaskCreationError>> {
     // Verify project exists
     const project = await this.db.query.projects.findFirst({
@@ -305,11 +289,17 @@ export class TaskCreationService {
     }
 
     // Create V2 session with task system enabled
-    // Use configurable model from preferences/environment
+    // Use configured tools from settings, ensuring AskUserQuestion is always included
     const taskCreationModel = getTaskCreationModel();
+    const baseTools = configuredTools ?? DEFAULT_TASK_CREATION_TOOLS;
+    const allowedTools = baseTools.includes('AskUserQuestion')
+      ? baseTools
+      : [...baseTools, 'AskUserQuestion'];
+
     const v2Session = unstable_v2_createSession({
       model: taskCreationModel,
       env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
+      allowedTools,
     });
 
     // Create our session wrapper
@@ -460,6 +450,9 @@ export class TaskCreationService {
 
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
+        // Debug: Log all message types
+        console.log(`[TaskCreationService] SDK message type: ${msg.type}`);
+
         // Capture session ID for resume capability
         if (msg.session_id && !session.sdkSessionId) {
           session.sdkSessionId = msg.session_id;
@@ -475,6 +468,14 @@ export class TaskCreationService {
             message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
             usage?: { input_tokens?: number; output_tokens?: number };
           };
+
+          // Debug logging for all event types (except text_delta which is too verbose)
+          if (event.type !== 'content_block_delta' || event.delta?.type !== 'text_delta') {
+            console.log(
+              `[TaskCreationService] stream_event: ${event.type}`,
+              event.content_block ? `(block: ${event.content_block.type})` : ''
+            );
+          }
 
           // Capture message_start for model info (legacy SDK V1 path)
           if (event.type === 'message_start' && event.message) {
@@ -500,6 +501,10 @@ export class TaskCreationService {
             const toolId = event.content_block.id ?? createId();
             const toolName = event.content_block.name ?? 'unknown';
 
+            console.log(
+              `[TaskCreationService] Detected tool_use block: ${toolName} (${toolId}), dbSessionId: ${session.dbSessionId}`
+            );
+
             inFlightTools.set(event.index, {
               id: toolId,
               name: toolName,
@@ -510,7 +515,7 @@ export class TaskCreationService {
             // Publish tool:start event to session
             if (session.dbSessionId && this.sessionService) {
               try {
-                await this.sessionService.publish(session.dbSessionId, {
+                const publishResult = await this.sessionService.publish(session.dbSessionId, {
                   id: createId(),
                   type: 'tool:start',
                   timestamp: Date.now(),
@@ -520,9 +525,22 @@ export class TaskCreationService {
                     input: {},
                   },
                 });
+                if (publishResult.ok) {
+                  console.log(
+                    `[TaskCreationService] Published tool:start for ${toolName}, offset: ${publishResult.value.offset}`
+                  );
+                } else {
+                  console.error(
+                    `[TaskCreationService] Failed to publish tool:start: ${publishResult.error.message}`
+                  );
+                }
               } catch (error) {
                 console.error('[TaskCreationService] Failed to publish tool:start:', error);
               }
+            } else {
+              console.warn(
+                `[TaskCreationService] Cannot publish tool:start - dbSessionId: ${session.dbSessionId}, hasSessionService: ${!!this.sessionService}`
+              );
             }
           }
 

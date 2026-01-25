@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_TASK_CREATION_TOOLS } from '../../lib/constants/tools.js';
 import {
   TaskCreationErrors,
   TaskCreationService,
@@ -70,6 +71,7 @@ describe('TaskCreationService', () => {
       expect(unstable_v2_createSession).toHaveBeenCalledWith({
         model: 'claude-sonnet-4-20250514',
         env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+        allowedTools: DEFAULT_TASK_CREATION_TOOLS,
       });
       expect(streams.createStream).toHaveBeenCalled();
       expect(streams.publishTaskCreationStarted).toHaveBeenCalled();

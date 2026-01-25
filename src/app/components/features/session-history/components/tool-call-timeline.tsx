@@ -1,4 +1,5 @@
 import { Wrench } from '@phosphor-icons/react';
+import type * as React from 'react';
 import { useMemo } from 'react';
 import { Skeleton } from '@/app/components/ui/skeleton';
 import { cn } from '@/lib/utils/cn';

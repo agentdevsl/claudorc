@@ -27,7 +27,10 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/start')({
 
         try {
           const body = await request.json();
-          const { projectId } = body as { projectId: string };
+          const { projectId, allowedTools } = body as {
+            projectId: string;
+            allowedTools?: string[];
+          };
 
           if (!projectId) {
             return new Response(
@@ -42,7 +45,10 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/start')({
             );
           }
 
-          const result = await services.taskCreationService.startConversation(projectId);
+          const result = await services.taskCreationService.startConversation(
+            projectId,
+            allowedTools
+          );
 
           if (!result.ok) {
             return new Response(

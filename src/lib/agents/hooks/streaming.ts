@@ -28,6 +28,8 @@ type SessionPublisher = {
   publish: (sessionId: string, event: SessionEvent) => Promise<unknown>;
 };
 
+const LOG_PREFIX = '[streaming]';
+
 /**
  * Creates a unique key for tracking in-flight tool calls.
  * Uses tool name + stringified input to match PreToolUse with PostToolUse.
@@ -35,8 +37,15 @@ type SessionPublisher = {
 function createToolCallKey(toolName: string, toolInput: Record<string, unknown>): string {
   try {
     return `${toolName}:${JSON.stringify(toolInput)}`;
-  } catch {
-    // Fallback if input can't be stringified
+  } catch (error) {
+    // Log the error - fallback will cause pairing mismatch which is a degraded state
+    console.error(
+      LOG_PREFIX,
+      'Failed to serialize tool input for pairing. Tool:',
+      toolName,
+      'Error:',
+      error instanceof Error ? error.message : String(error)
+    );
     return `${toolName}:${Date.now()}`;
   }
 }
@@ -61,17 +70,30 @@ export function createStreamingHooks(
           inFlightToolCalls.set(toolCallKey, toolCallId);
 
           // Publish tool start event to session
-          await sessionService.publish(sessionId, {
-            id: crypto.randomUUID(),
-            type: 'tool:start',
-            timestamp: Date.now(),
-            data: {
-              id: toolCallId,
-              agentId,
-              tool: input.tool_name,
-              input: input.tool_input,
-            },
-          });
+          try {
+            await sessionService.publish(sessionId, {
+              id: crypto.randomUUID(),
+              type: 'tool:start',
+              timestamp: Date.now(),
+              data: {
+                id: toolCallId,
+                agentId,
+                tool: input.tool_name,
+                input: input.tool_input,
+              },
+            });
+          } catch (error) {
+            console.error(
+              LOG_PREFIX,
+              'Failed to publish tool:start event. Tool:',
+              input.tool_name,
+              'SessionId:',
+              sessionId,
+              'Error:',
+              error instanceof Error ? error.message : String(error)
+            );
+            // Continue execution - event publishing is non-fatal
+          }
 
           return {};
         },
@@ -83,26 +105,49 @@ export function createStreamingHooks(
         async (input: PostToolUseInput): Promise<Record<string, never>> => {
           // Retrieve the toolCallId from the matching PreToolUse
           const toolCallKey = createToolCallKey(input.tool_name, input.tool_input);
-          const toolCallId = inFlightToolCalls.get(toolCallKey) ?? crypto.randomUUID();
+          const toolCallId = inFlightToolCalls.get(toolCallKey);
+
+          if (!toolCallId) {
+            console.warn(
+              LOG_PREFIX,
+              'PostToolUse without matching PreToolUse. Tool:',
+              input.tool_name,
+              'SessionId:',
+              sessionId
+            );
+          }
 
           // Clean up the in-flight tracking
           inFlightToolCalls.delete(toolCallKey);
 
           // Publish tool completion event
-          await sessionService.publish(sessionId, {
-            id: crypto.randomUUID(),
-            type: 'tool:result',
-            timestamp: Date.now(),
-            data: {
-              id: toolCallId,
-              agentId,
-              tool: input.tool_name,
-              input: input.tool_input,
-              output: input.tool_response,
-              duration: input.duration_ms,
-              isError: input.tool_response.is_error ?? false,
-            },
-          });
+          try {
+            await sessionService.publish(sessionId, {
+              id: crypto.randomUUID(),
+              type: 'tool:result',
+              timestamp: Date.now(),
+              data: {
+                id: toolCallId ?? crypto.randomUUID(),
+                agentId,
+                tool: input.tool_name,
+                input: input.tool_input,
+                output: input.tool_response,
+                duration: input.duration_ms,
+                isError: input.tool_response.is_error ?? false,
+              },
+            });
+          } catch (error) {
+            console.error(
+              LOG_PREFIX,
+              'Failed to publish tool:result event. Tool:',
+              input.tool_name,
+              'SessionId:',
+              sessionId,
+              'Error:',
+              error instanceof Error ? error.message : String(error)
+            );
+            // Continue execution - event publishing is non-fatal
+          }
 
           return {};
         },
