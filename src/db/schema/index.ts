@@ -13,6 +13,7 @@ export * from './sandboxes';
 export * from './session-events';
 export * from './session-summaries';
 export * from './sessions';
+export * from './settings';
 export * from './tasks';
 export * from './template-projects';
 export * from './templates';
