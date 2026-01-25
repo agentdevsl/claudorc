@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { GitHubTokenService } from '../../services/github-token.service.js';
-import { json } from '../shared.js';
+import { isValidGitHubUrl, json } from '../shared.js';
 
 declare const Bun: {
   spawn: (
@@ -71,6 +71,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
   app.get('/orgs', async (_c) => {
     const result = await githubService.listUserOrgs();
     if (!result.ok) {
+      console.error('[GitHub] List orgs error:', result.error);
       return json({ ok: false, error: result.error }, 401);
     }
     return json({ ok: true, data: { orgs: result.value } });
@@ -85,6 +86,17 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
         {
           ok: false,
           error: { code: 'MISSING_PARAMS', message: 'URL and destination are required' },
+        },
+        400
+      );
+    }
+
+    // Validate URL is a proper GitHub HTTPS URL (prevents injection)
+    if (!isValidGitHubUrl(body.url)) {
+      return json(
+        {
+          ok: false,
+          error: { code: 'INVALID_URL', message: 'URL must be a valid GitHub HTTPS URL' },
         },
         400
       );
@@ -139,7 +151,11 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
       const exitCode = await proc.exited;
 
       if (exitCode !== 0) {
-        const stderr = await new Response(proc.stderr).text();
+        let stderr = await new Response(proc.stderr).text();
+        // Redact token from error message to prevent leaking secrets
+        if (token) {
+          stderr = stderr.replace(new RegExp(token, 'g'), '*****');
+        }
         console.error('[Clone] Failed:', stderr);
         return json(
           {
@@ -330,6 +346,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
     const owner = c.req.param('owner');
     const result = await githubService.listReposForOwner(owner);
     if (!result.ok) {
+      console.error('[GitHub] List repos for owner error:', result.error);
       return json({ ok: false, error: result.error }, 401);
     }
     return json({ ok: true, data: { repos: result.value } });
@@ -339,6 +356,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
   app.get('/repos', async (_c) => {
     const result = await githubService.listUserRepos();
     if (!result.ok) {
+      console.error('[GitHub] List user repos error:', result.error);
       return json({ ok: false, error: result.error }, 401);
     }
     return json({ ok: true, data: { repos: result.value } });
@@ -348,6 +366,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
   app.get('/token', async (_c) => {
     const result = await githubService.getTokenInfo();
     if (!result.ok) {
+      console.error('[GitHub] Get token info error:', result.error);
       return json({ ok: false, error: result.error }, 500);
     }
     return json({ ok: true, data: { tokenInfo: result.value } });
@@ -374,6 +393,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
   app.delete('/token', async (_c) => {
     const result = await githubService.deleteToken();
     if (!result.ok) {
+      console.error('[GitHub] Delete token error:', result.error);
       return json({ ok: false, error: result.error }, 500);
     }
     return json({ ok: true, data: null });
@@ -383,6 +403,7 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
   app.post('/revalidate', async (_c) => {
     const result = await githubService.revalidateToken();
     if (!result.ok) {
+      console.error('[GitHub] Revalidate token error:', result.error);
       return json({ ok: false, error: result.error }, 500);
     }
     return json({ ok: true, data: { isValid: result.value } });

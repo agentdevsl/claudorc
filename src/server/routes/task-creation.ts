@@ -374,11 +374,17 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
         pingInterval = setInterval(() => {
           try {
             controller.enqueue(new TextEncoder().encode(`: ping\n\n`));
-          } catch {
+          } catch (error) {
+            // Connection likely closed - clean up interval
+            console.debug(
+              '[TaskCreation Stream] Ping failed, closing connection:',
+              error instanceof Error ? error.message : 'unknown error'
+            );
             if (pingInterval) {
               clearInterval(pingInterval);
               pingInterval = null;
             }
+            sseConnections.delete(sessionId);
           }
         }, 5000);
       },

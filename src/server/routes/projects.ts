@@ -4,11 +4,26 @@
 
 import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { agents } from '../../db/schema/agents.js';
 import { projects } from '../../db/schema/projects.js';
 import { tasks } from '../../db/schema/tasks.js';
 import type { Database } from '../../types/database.js';
-import { json } from '../shared.js';
+import { isValidId, json } from '../shared.js';
+
+// Validation schemas
+const createProjectSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  path: z.string().min(1, 'Path is required'),
+  description: z.string().optional(),
+});
+
+const updateProjectSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  maxConcurrentAgents: z.number().int().positive().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
 
 interface ProjectsDeps {
   db: Database;
@@ -54,11 +69,26 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
 
   // POST /api/projects
   app.post('/', async (c) => {
-    const body = (await c.req.json()) as { name: string; path: string; description?: string };
-
-    if (!body.name || !body.path) {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
       return json(
-        { ok: false, error: { code: 'MISSING_PARAMS', message: 'Name and path are required' } },
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
+
+    const parsed = createProjectSchema.safeParse(body);
+    if (!parsed.success) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues[0]?.message ?? 'Invalid request',
+          },
+        },
         400
       );
     }
@@ -66,7 +96,7 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
     try {
       // Check if project with this path already exists
       const existing = await db.query.projects.findFirst({
-        where: eq(projects.path, body.path),
+        where: eq(projects.path, parsed.data.path),
       });
 
       if (existing) {
@@ -82,9 +112,9 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
       const [created] = await db
         .insert(projects)
         .values({
-          name: body.name,
-          path: body.path,
-          description: body.description,
+          name: parsed.data.name,
+          path: parsed.data.path,
+          description: parsed.data.description,
         })
         .returning();
 
@@ -222,6 +252,10 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
     try {
       const project = await db.query.projects.findFirst({
         where: eq(projects.id, id),
@@ -254,12 +288,34 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
   // PATCH /api/projects/:id
   app.patch('/:id', async (c) => {
     const id = c.req.param('id');
-    const body = (await c.req.json()) as {
-      name?: string;
-      description?: string;
-      maxConcurrentAgents?: number;
-      config?: Record<string, unknown>;
-    };
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
+
+    const parsed = updateProjectSchema.safeParse(body);
+    if (!parsed.success) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues[0]?.message ?? 'Invalid request',
+          },
+        },
+        400
+      );
+    }
 
     try {
       // Check if project exists
@@ -274,13 +330,13 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
       // Build update object with only provided fields
       const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString(),
-        ...(body.name !== undefined && { name: body.name }),
-        ...(body.description !== undefined && { description: body.description }),
-        ...(body.maxConcurrentAgents !== undefined && {
-          maxConcurrentAgents: body.maxConcurrentAgents,
+        ...(parsed.data.name !== undefined && { name: parsed.data.name }),
+        ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+        ...(parsed.data.maxConcurrentAgents !== undefined && {
+          maxConcurrentAgents: parsed.data.maxConcurrentAgents,
         }),
-        ...(body.config !== undefined && {
-          config: { ...(existing.config ?? {}), ...body.config },
+        ...(parsed.data.config !== undefined && {
+          config: { ...(existing.config ?? {}), ...parsed.data.config },
         }),
       };
 
@@ -322,6 +378,10 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
   // DELETE /api/projects/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
 
     try {
       // Check if project exists

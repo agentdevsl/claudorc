@@ -235,8 +235,14 @@ export function createK8sRoutes() {
                 res.on('end', () => {
                   try {
                     resolve(JSON.parse(data));
-                  } catch {
-                    reject(new Error('Invalid JSON response'));
+                  } catch (parseError) {
+                    console.debug(
+                      '[K8s Status] Failed to parse version response:',
+                      parseError instanceof Error ? parseError.message : 'parse error',
+                      'data:',
+                      data.substring(0, 100)
+                    );
+                    reject(new Error('Invalid JSON response from K8s version endpoint'));
                   }
                 });
               }
@@ -268,8 +274,19 @@ export function createK8sRoutes() {
         const podList = await coreApi.listNamespacedPod({ namespace });
         pods = podList.items.length;
         podsRunning = podList.items.filter((p) => p.status?.phase === 'Running').length;
-      } catch {
-        // Namespace doesn't exist yet
+      } catch (error) {
+        // Check if this is a 404 (namespace doesn't exist) vs other errors
+        const statusCode = (error as { response?: { statusCode?: number } }).response?.statusCode;
+        if (statusCode === 404) {
+          // Namespace doesn't exist yet - this is expected
+          console.debug('[K8s Status] Namespace does not exist yet:', namespace);
+        } else {
+          // Log other errors (auth failures, network issues, etc.)
+          console.error(
+            '[K8s Status] Namespace check failed:',
+            error instanceof Error ? error.message : error
+          );
+        }
       }
 
       return json({

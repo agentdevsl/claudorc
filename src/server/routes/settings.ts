@@ -4,9 +4,15 @@
 
 import { eq, or } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import * as schema from '../../db/schema/index.js';
 import type { Database } from '../../types/database.js';
 import { json } from '../shared.js';
+
+// Validation schemas
+const updateSettingsSchema = z.object({
+  settings: z.record(z.string(), z.unknown()),
+});
 
 interface SettingsDeps {
   db: Database;
@@ -45,7 +51,12 @@ export function createSettingsRoutes({ db }: SettingsDeps) {
       for (const row of results) {
         try {
           settingsMap[row.key] = JSON.parse(row.value);
-        } catch {
+        } catch (parseError) {
+          // Log warning for potential data corruption - falling back to raw string
+          console.warn(
+            `[Settings] Failed to parse JSON for key "${row.key}":`,
+            parseError instanceof Error ? parseError.message : 'parse error'
+          );
           settingsMap[row.key] = row.value;
         }
       }
@@ -62,20 +73,32 @@ export function createSettingsRoutes({ db }: SettingsDeps) {
 
   // PUT /api/settings
   app.put('/', async (c) => {
+    let body: unknown;
     try {
-      const body = await c.req.json();
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
-      if (!body.settings || typeof body.settings !== 'object') {
-        return json(
-          {
-            ok: false,
-            error: { code: 'VALIDATION_ERROR', message: 'settings object is required' },
+    const parsed = updateSettingsSchema.safeParse(body);
+    if (!parsed.success) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues[0]?.message ?? 'settings object is required',
           },
-          400
-        );
-      }
+        },
+        400
+      );
+    }
 
-      const settingsToUpdate = body.settings as Record<string, unknown>;
+    try {
+      const settingsToUpdate = parsed.data.settings;
 
       // Upsert each setting
       for (const [key, value] of Object.entries(settingsToUpdate)) {

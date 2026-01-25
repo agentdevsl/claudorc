@@ -32,6 +32,37 @@ export function isValidId(id: string): boolean {
 }
 
 /**
+ * Validate that a git branch name is safe for shell interpolation.
+ * Prevents command injection by only allowing safe characters.
+ */
+export function isValidBranchName(branch: string): boolean {
+  if (!branch || typeof branch !== 'string') return false;
+  // Length check: git branch names should be reasonable
+  if (branch.length < 1 || branch.length > 250) return false;
+  // Reject path traversal sequences
+  if (branch.includes('..')) return false;
+  // Only allow alphanumeric, hyphens, underscores, forward slashes, dots
+  // This covers standard branch naming conventions like feature/foo-bar
+  return /^[a-zA-Z0-9_\-/.]+$/.test(branch);
+}
+
+/**
+ * Validate that a URL is a valid GitHub HTTPS URL.
+ * Prevents potential injection via malicious URLs.
+ */
+export function isValidGitHubUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'github.com' || parsed.hostname.endsWith('.github.com'))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Standard API error structure
  */
 export interface ApiError {

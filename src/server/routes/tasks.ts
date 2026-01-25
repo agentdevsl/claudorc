@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { TaskService } from '../../services/task.service.js';
-import { json } from '../shared.js';
+import { isValidId, json } from '../shared.js';
 
 interface TasksDeps {
   taskService: TaskService;
@@ -29,6 +29,13 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     if (!projectId) {
       return json(
         { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+        400
+      );
+    }
+
+    if (!isValidId(projectId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
         400
       );
     }
@@ -76,6 +83,13 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
         );
       }
 
+      if (!isValidId(body.projectId)) {
+        return json(
+          { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
+          400
+        );
+      }
+
       const result = await taskService.create({
         projectId: body.projectId,
         title: body.title,
@@ -102,6 +116,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
     try {
       const result = await taskService.getById(id);
 
@@ -119,6 +137,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
   // PUT /api/tasks/:id
   app.put('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
 
     try {
       const body = (await c.req.json()) as {
@@ -152,6 +174,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
   // DELETE /api/tasks/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
 
     try {
       const result = await taskService.delete(id);

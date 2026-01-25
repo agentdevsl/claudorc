@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { projects } from '../../db/schema/projects.js';
 import type { CommandRunner } from '../../services/worktree.service.js';
 import type { Database } from '../../types/database.js';
-import { json } from '../shared.js';
+import { isValidBranchName, isValidId, json } from '../shared.js';
 
 interface GitDeps {
   db: Database;
@@ -24,6 +24,13 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
     if (!projectId) {
       return json(
         { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+        400
+      );
+    }
+
+    if (!isValidId(projectId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
         400
       );
     }
@@ -74,8 +81,12 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
         const [aheadStr, behindStr] = aheadBehind.trim().split(/\s+/);
         ahead = parseInt(aheadStr || '0', 10) || 0;
         behind = parseInt(behindStr || '0', 10) || 0;
-      } catch {
-        // No upstream, ignore
+      } catch (error) {
+        // No upstream tracking branch - this is expected for local-only branches
+        console.debug(
+          '[Git] No upstream for branch:',
+          error instanceof Error ? error.message : 'unknown'
+        );
       }
 
       return json({
@@ -107,6 +118,13 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
     if (!projectId) {
       return json(
         { ok: false, error: { code: 'MISSING_PARAMS', message: 'projectId is required' } },
+        400
+      );
+    }
+
+    if (!isValidId(projectId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
         400
       );
     }
@@ -151,8 +169,12 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
                 project.path
               );
               commitCount = parseInt(countOutput.trim(), 10) || 0;
-            } catch {
-              // Ignore errors, keep count at 0
+            } catch (error) {
+              // Commit count is optional - branch may not have a main/master base
+              console.debug(
+                '[Git] Could not get commit count for branch:',
+                error instanceof Error ? error.message : 'unknown'
+              );
             }
 
             // Parse tracking status
@@ -213,6 +235,13 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
       );
     }
 
+    if (!isValidId(projectId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
+        400
+      );
+    }
+
     try {
       // Get project to find the path
       const project = await db.query.projects.findFirst({
@@ -221,6 +250,14 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
 
       if (!project) {
         return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Project not found' } }, 404);
+      }
+
+      // Validate branch name if provided (prevents command injection)
+      if (branch && !isValidBranchName(branch)) {
+        return json(
+          { ok: false, error: { code: 'INVALID_BRANCH', message: 'Invalid branch name' } },
+          400
+        );
       }
 
       // Default to current branch if not specified
@@ -263,8 +300,12 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
               if (filesMatch) filesChanged = parseInt(filesMatch[1] || '0', 10);
               if (insertionsMatch) additions = parseInt(insertionsMatch[1] || '0', 10);
               if (deletionsMatch) deletions = parseInt(deletionsMatch[1] || '0', 10);
-            } catch {
-              // Stats are optional, ignore errors
+            } catch (error) {
+              // Stats are optional - some commits may not have stat info
+              console.debug(
+                '[Git] Could not get stats for commit:',
+                error instanceof Error ? error.message : 'unknown'
+              );
             }
 
             return {
@@ -301,6 +342,13 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
       );
     }
 
+    if (!isValidId(projectId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
+        400
+      );
+    }
+
     try {
       // Get project to find the path
       const project = await db.query.projects.findFirst({
@@ -314,8 +362,12 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
       // Fetch latest from remote (don't fail if offline)
       try {
         await commandRunner.exec('git fetch --prune 2>/dev/null || true', project.path);
-      } catch {
-        // Ignore fetch errors (might be offline)
+      } catch (error) {
+        // Fetch is best-effort - user might be offline or have network issues
+        console.debug(
+          '[Git] Fetch failed (may be offline):',
+          error instanceof Error ? error.message : 'unknown'
+        );
       }
 
       // Get all remote branches with their commit info
@@ -350,8 +402,12 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
                 project.path
               );
               commitCount = parseInt(countOutput.trim(), 10) || 0;
-            } catch {
-              // Ignore errors, keep count at 0
+            } catch (error) {
+              // Commit count is optional - branch may not have a main/master base
+              console.debug(
+                '[Git] Could not get commit count for remote branch:',
+                error instanceof Error ? error.message : 'unknown'
+              );
             }
 
             return {

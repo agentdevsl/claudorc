@@ -60,7 +60,7 @@ export function createRouter(deps: RouterDependencies) {
   app.use(
     '*',
     cors({
-      origin: 'http://localhost:3000',
+      origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type'],
     })
@@ -182,12 +182,22 @@ export function createRouter(deps: RouterDependencies) {
   // Global error handler to catch uncaught exceptions
   app.onError((err, c) => {
     console.error('[API] Unhandled error:', err);
+
+    // Determine error message based on environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    let message = 'Internal server error';
+    if (isProduction) {
+      message = 'An unexpected error occurred.';
+    } else if (err instanceof Error) {
+      message = err.message;
+    }
+
     return c.json(
       {
         ok: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: err instanceof Error ? err.message : 'Internal server error',
+          message,
         },
       },
       500
