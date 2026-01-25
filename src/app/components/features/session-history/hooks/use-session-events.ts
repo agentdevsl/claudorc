@@ -334,10 +334,16 @@ export function parseEventsToStreamEntries(
 
       case 'tool:start': {
         type = 'tool';
-        const toolData = event.data as { name?: string; input?: Record<string, unknown> };
-        content = `Executing ${toolData.name ?? 'tool'}...`;
+        const toolData = event.data as {
+          tool?: string;
+          name?: string;
+          input?: Record<string, unknown>;
+        };
+        // Support both 'tool' (newer streaming hooks) and 'name' (legacy) fields
+        const toolName = toolData.tool ?? toolData.name ?? 'Unknown';
+        content = `Executing ${toolName}...`;
         toolCall = {
-          name: toolData.name ?? 'Unknown',
+          name: toolName,
           input: toolData.input ?? {},
           status: 'running',
         };
@@ -347,19 +353,23 @@ export function parseEventsToStreamEntries(
       case 'tool:result': {
         type = 'tool';
         const resultData = event.data as {
+          tool?: string;
           name?: string;
           input?: Record<string, unknown>;
           output?: unknown;
           error?: string;
+          isError?: boolean;
         };
-        content = resultData.error
-          ? `Tool ${resultData.name ?? 'unknown'} failed`
-          : `Tool ${resultData.name ?? 'unknown'} completed`;
+        // Support both 'tool' (newer streaming hooks) and 'name' (legacy) fields
+        const toolName = resultData.tool ?? resultData.name ?? 'Unknown';
+        // Support both 'error' (legacy) and 'isError' (newer) fields
+        const hasError = resultData.error || resultData.isError;
+        content = hasError ? `Tool ${toolName} failed` : `Tool ${toolName} completed`;
         toolCall = {
-          name: resultData.name ?? 'Unknown',
+          name: toolName,
           input: resultData.input ?? {},
           output: resultData.output,
-          status: resultData.error ? 'error' : 'complete',
+          status: hasError ? 'error' : 'complete',
         };
         break;
       }

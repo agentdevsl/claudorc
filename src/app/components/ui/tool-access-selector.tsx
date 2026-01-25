@@ -161,20 +161,23 @@ export function ToolAccessSelector({
                   {allGroupSelected ? 'Deselect all' : 'Select all'}
                 </button>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                 {tools.map((tool) => (
                   <label
                     key={tool}
                     htmlFor={`tool-${tool}`}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-fg"
+                    className="flex cursor-pointer items-center gap-2 text-sm text-fg min-w-0"
                   >
                     <Checkbox
                       id={`tool-${tool}`}
                       checked={isAllowAll || value.includes(tool)}
                       onCheckedChange={() => toggleTool(tool)}
                       disabled={isAllowAll}
+                      className="flex-shrink-0"
                     />
-                    {tool}
+                    <span className="truncate" title={tool}>
+                      {tool}
+                    </span>
                   </label>
                 ))}
               </div>
