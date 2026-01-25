@@ -455,8 +455,14 @@ export function WorkflowDesigner({
   const handleDeleteWorkflow = useCallback(
     async (workflowId: string) => {
       try {
-        // TODO: Call delete API endpoint
-        console.log('Deleting workflow:', workflowId);
+        const response = await fetch(`/api/workflows/${workflowId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok && response.status !== 204) {
+          const result = await response.json();
+          throw new Error(result.error?.message || 'Failed to delete workflow');
+        }
 
         // Remove from list
         setSavedWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
@@ -467,7 +473,8 @@ export function WorkflowDesigner({
         }
       } catch (err) {
         console.error('[Designer] Failed to delete workflow:', err);
-        setError('Failed to delete workflow');
+        const message = err instanceof Error ? err.message : 'Failed to delete workflow';
+        setError(message);
       }
     },
     [activeWorkflowId, handleCreateNew]
