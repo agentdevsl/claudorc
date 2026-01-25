@@ -102,7 +102,8 @@ export function createServices(context: {
     const taskCreationService = createTaskCreationService(
       context.db,
       durableStreamsService,
-      sessionService
+      sessionService,
+      settingsService
     );
 
     console.log('[Services] All services initialized successfully');

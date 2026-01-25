@@ -2,6 +2,7 @@ import type { Icon } from '@phosphor-icons/react';
 import {
   Bell,
   Check,
+  CircleNotch,
   Gauge,
   GearFine,
   Play,
@@ -11,12 +12,22 @@ import {
   Stack,
   Timer,
   Users,
+  Warning,
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { ConfigSection } from '@/app/components/ui/config-section';
+import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils/cn';
+
+// Setting keys used for preferences
+const SETTING_KEYS = {
+  MAX_TURNS: 'default_max_turns',
+  MAX_CONCURRENT_AGENTS: 'default_max_concurrent_agents',
+  AUTO_START_AGENTS: 'auto_start_agents',
+  SOUND_ENABLED: 'sound_enabled',
+} as const;
 
 export const Route = createFileRoute('/settings/preferences')({
   component: PreferencesSettingsPage,
@@ -142,35 +153,84 @@ function NumberInputCard({
 // ============================================================================
 
 function PreferencesSettingsPage(): React.JSX.Element {
-  const [maxTurns, setMaxTurns] = useState(() => {
-    if (typeof window === 'undefined') return '50';
-    return localStorage.getItem('default_max_turns') || '50';
-  });
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(() => {
-    if (typeof window === 'undefined') return '3';
-    return localStorage.getItem('default_max_concurrent_agents') || '3';
-  });
-
-  const [autoStartAgents, setAutoStartAgents] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('auto_start_agents') === 'true';
-  });
-
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('sound_enabled') !== 'false';
-  });
+  // Preference settings with defaults
+  const [maxTurns, setMaxTurns] = useState('50');
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState('3');
+  const [autoStartAgents, setAutoStartAgents] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    localStorage.setItem('default_max_turns', maxTurns);
-    localStorage.setItem('default_max_concurrent_agents', maxConcurrentAgents);
-    localStorage.setItem('auto_start_agents', String(autoStartAgents));
-    localStorage.setItem('sound_enabled', String(soundEnabled));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Load settings from API on mount
+  useEffect(() => {
+    async function loadSettings() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await apiClient.settings.get(Object.values(SETTING_KEYS));
+        if (result.ok) {
+          const settings = result.data.settings;
+          // Apply loaded settings, falling back to defaults if not set
+          if (settings[SETTING_KEYS.MAX_TURNS] !== undefined) {
+            setMaxTurns(String(settings[SETTING_KEYS.MAX_TURNS]));
+          }
+          if (settings[SETTING_KEYS.MAX_CONCURRENT_AGENTS] !== undefined) {
+            setMaxConcurrentAgents(String(settings[SETTING_KEYS.MAX_CONCURRENT_AGENTS]));
+          }
+          if (settings[SETTING_KEYS.AUTO_START_AGENTS] !== undefined) {
+            setAutoStartAgents(
+              settings[SETTING_KEYS.AUTO_START_AGENTS] === true ||
+                settings[SETTING_KEYS.AUTO_START_AGENTS] === 'true'
+            );
+          }
+          if (settings[SETTING_KEYS.SOUND_ENABLED] !== undefined) {
+            setSoundEnabled(
+              settings[SETTING_KEYS.SOUND_ENABLED] !== false &&
+                settings[SETTING_KEYS.SOUND_ENABLED] !== 'false'
+            );
+          }
+        } else {
+          console.error('Failed to load settings:', result.error);
+          setError('Failed to load settings. Using defaults.');
+        }
+      } catch (err) {
+        console.error('Error loading settings:', err);
+        setError('Failed to load settings. Using defaults.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const result = await apiClient.settings.update({
+        [SETTING_KEYS.MAX_TURNS]: maxTurns,
+        [SETTING_KEYS.MAX_CONCURRENT_AGENTS]: maxConcurrentAgents,
+        [SETTING_KEYS.AUTO_START_AGENTS]: autoStartAgents,
+        [SETTING_KEYS.SOUND_ENABLED]: soundEnabled,
+      });
+      if (result.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        console.error('Failed to save settings:', result.error);
+        setError('Failed to save settings. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError('Failed to save settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Count active settings for stats
@@ -286,10 +346,18 @@ function PreferencesSettingsPage(): React.JSX.Element {
           </div>
         </ConfigSection>
 
+        {/* Error message */}
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <Warning className="h-4 w-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
         {/* Save Button - Sticky footer style */}
         <div className="sticky bottom-4 z-10 flex items-center justify-between rounded-xl border border-border bg-surface/95 px-5 py-4 shadow-lg backdrop-blur-sm">
           <p className="text-sm text-fg-muted">
-            Settings saved to browser storage.{' '}
+            Settings are persisted to the database.{' '}
             <a href="/settings/model-optimizations" className="text-accent hover:underline">
               Configure models →
             </a>
@@ -297,12 +365,18 @@ function PreferencesSettingsPage(): React.JSX.Element {
           <Button
             data-testid="save-preferences"
             onClick={handleSave}
+            disabled={isLoading || isSaving}
             className={cn(
               'min-w-[140px] transition-all',
               saved && 'bg-success-emphasis hover:bg-success-emphasis'
             )}
           >
-            {saved ? (
+            {isSaving ? (
+              <>
+                <CircleNotch className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
               <>
                 <Check className="h-4 w-4" weight="bold" />
                 Saved!

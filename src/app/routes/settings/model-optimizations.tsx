@@ -2,6 +2,7 @@ import type { Icon } from '@phosphor-icons/react';
 import {
   Brain,
   Check,
+  CircleNotch,
   Circuitry,
   Cpu,
   Gauge,
@@ -10,13 +11,15 @@ import {
   Robot,
   Sparkle,
   TreeStructure,
+  Warning,
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { ConfigSection } from '@/app/components/ui/config-section';
 import { ModelSelector } from '@/app/components/ui/model-selector';
 import { ToolAccessSelector } from '@/app/components/ui/tool-access-selector';
+import { apiClient } from '@/lib/api/client';
 import {
   DEFAULT_AGENT_MODEL,
   DEFAULT_ANTHROPIC_BASE_URL,
@@ -29,6 +32,17 @@ import {
   DEFAULT_WORKFLOW_TOOLS,
 } from '@/lib/constants/tools';
 import { cn } from '@/lib/utils/cn';
+
+// Setting keys used for model/tool configuration
+const SETTING_KEYS = {
+  DEFAULT_MODEL: 'default_model',
+  TASK_CREATION_MODEL: 'task_creation_model',
+  WORKFLOW_MODEL: 'workflow_model',
+  AGENT_TOOLS: 'agent_tools',
+  TASK_CREATION_TOOLS: 'task_creation_tools',
+  WORKFLOW_TOOLS: 'workflow_tools',
+  ANTHROPIC_BASE_URL: 'anthropic_base_url',
+} as const;
 
 export const Route = createFileRoute('/settings/model-optimizations')({
   component: ModelOptimizationsPage,
@@ -125,59 +139,99 @@ function ConfigCard({
 }
 
 function ModelOptimizationsPage(): React.JSX.Element {
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Model settings
-  const [defaultModel, setDefaultModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_AGENT_MODEL;
-    return localStorage.getItem('default_model') || DEFAULT_AGENT_MODEL;
-  });
-
-  const [taskCreationModel, setTaskCreationModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_MODEL;
-    return localStorage.getItem('task_creation_model') || DEFAULT_TASK_CREATION_MODEL;
-  });
-
-  const [workflowModel, setWorkflowModel] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_WORKFLOW_MODEL;
-    return localStorage.getItem('workflow_model') || DEFAULT_WORKFLOW_MODEL;
-  });
+  const [defaultModel, setDefaultModel] = useState<string | null>(DEFAULT_AGENT_MODEL);
+  const [taskCreationModel, setTaskCreationModel] = useState<string | null>(
+    DEFAULT_TASK_CREATION_MODEL
+  );
+  const [workflowModel, setWorkflowModel] = useState<string | null>(DEFAULT_WORKFLOW_MODEL);
 
   // Tool access settings
-  const [agentTools, setAgentTools] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_AGENT_TOOLS;
-    const stored = localStorage.getItem('agent_tools');
-    return stored ? JSON.parse(stored) : DEFAULT_AGENT_TOOLS;
-  });
+  const [agentTools, setAgentTools] = useState<string[]>(DEFAULT_AGENT_TOOLS);
+  const [taskCreationTools, setTaskCreationTools] = useState<string[]>(DEFAULT_TASK_CREATION_TOOLS);
+  const [workflowTools, setWorkflowTools] = useState<string[]>(DEFAULT_WORKFLOW_TOOLS);
 
-  const [taskCreationTools, setTaskCreationTools] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_TOOLS;
-    const stored = localStorage.getItem('task_creation_tools');
-    return stored ? JSON.parse(stored) : DEFAULT_TASK_CREATION_TOOLS;
-  });
-
-  const [workflowTools, setWorkflowTools] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_WORKFLOW_TOOLS;
-    const stored = localStorage.getItem('workflow_tools');
-    return stored ? JSON.parse(stored) : DEFAULT_WORKFLOW_TOOLS;
-  });
-
-  const [apiEndpoint, setApiEndpoint] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_ANTHROPIC_BASE_URL;
-    return localStorage.getItem('anthropic_base_url') || DEFAULT_ANTHROPIC_BASE_URL;
-  });
+  const [apiEndpoint, setApiEndpoint] = useState(DEFAULT_ANTHROPIC_BASE_URL);
 
   const [saved, setSaved] = useState(false);
   const [showAgentTools, setShowAgentTools] = useState(false);
 
-  const handleSave = () => {
-    localStorage.setItem('default_model', defaultModel ?? DEFAULT_AGENT_MODEL);
-    localStorage.setItem('task_creation_model', taskCreationModel ?? DEFAULT_TASK_CREATION_MODEL);
-    localStorage.setItem('workflow_model', workflowModel ?? DEFAULT_WORKFLOW_MODEL);
-    localStorage.setItem('agent_tools', JSON.stringify(agentTools));
-    localStorage.setItem('task_creation_tools', JSON.stringify(taskCreationTools));
-    localStorage.setItem('workflow_tools', JSON.stringify(workflowTools));
-    localStorage.setItem('anthropic_base_url', apiEndpoint);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Load settings from API on mount
+  useEffect(() => {
+    async function loadSettings() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await apiClient.settings.get(Object.values(SETTING_KEYS));
+        if (result.ok) {
+          const settings = result.data.settings;
+          // Apply loaded settings, falling back to defaults if not set
+          if (settings[SETTING_KEYS.DEFAULT_MODEL]) {
+            setDefaultModel(settings[SETTING_KEYS.DEFAULT_MODEL] as string);
+          }
+          if (settings[SETTING_KEYS.TASK_CREATION_MODEL]) {
+            setTaskCreationModel(settings[SETTING_KEYS.TASK_CREATION_MODEL] as string);
+          }
+          if (settings[SETTING_KEYS.WORKFLOW_MODEL]) {
+            setWorkflowModel(settings[SETTING_KEYS.WORKFLOW_MODEL] as string);
+          }
+          if (settings[SETTING_KEYS.AGENT_TOOLS]) {
+            setAgentTools(settings[SETTING_KEYS.AGENT_TOOLS] as string[]);
+          }
+          if (settings[SETTING_KEYS.TASK_CREATION_TOOLS]) {
+            setTaskCreationTools(settings[SETTING_KEYS.TASK_CREATION_TOOLS] as string[]);
+          }
+          if (settings[SETTING_KEYS.WORKFLOW_TOOLS]) {
+            setWorkflowTools(settings[SETTING_KEYS.WORKFLOW_TOOLS] as string[]);
+          }
+          if (settings[SETTING_KEYS.ANTHROPIC_BASE_URL]) {
+            setApiEndpoint(settings[SETTING_KEYS.ANTHROPIC_BASE_URL] as string);
+          }
+        } else {
+          console.error('Failed to load settings:', result.error);
+          setError('Failed to load settings. Using defaults.');
+        }
+      } catch (err) {
+        console.error('Error loading settings:', err);
+        setError('Failed to load settings. Using defaults.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const result = await apiClient.settings.update({
+        [SETTING_KEYS.DEFAULT_MODEL]: defaultModel ?? DEFAULT_AGENT_MODEL,
+        [SETTING_KEYS.TASK_CREATION_MODEL]: taskCreationModel ?? DEFAULT_TASK_CREATION_MODEL,
+        [SETTING_KEYS.WORKFLOW_MODEL]: workflowModel ?? DEFAULT_WORKFLOW_MODEL,
+        [SETTING_KEYS.AGENT_TOOLS]: agentTools,
+        [SETTING_KEYS.TASK_CREATION_TOOLS]: taskCreationTools,
+        [SETTING_KEYS.WORKFLOW_TOOLS]: workflowTools,
+        [SETTING_KEYS.ANTHROPIC_BASE_URL]: apiEndpoint,
+      });
+      if (result.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        console.error('Failed to save settings:', result.error);
+        setError('Failed to save settings. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError('Failed to save settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -418,18 +472,32 @@ function ModelOptimizationsPage(): React.JSX.Element {
           </div>
         </ConfigSection>
 
+        {/* Error message */}
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <Warning className="h-4 w-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
         {/* Save Button - Sticky footer style */}
         <div className="sticky bottom-4 z-10 flex items-center justify-between rounded-xl border border-border bg-surface/95 px-5 py-4 shadow-lg backdrop-blur-sm">
-          <p className="text-sm text-fg-muted">Changes are saved to your browser's local storage</p>
+          <p className="text-sm text-fg-muted">Settings are persisted to the database</p>
           <Button
             data-testid="save-model-settings"
             onClick={handleSave}
+            disabled={isLoading || isSaving}
             className={cn(
               'min-w-[140px] transition-all',
               saved && 'bg-success-emphasis hover:bg-success-emphasis'
             )}
           >
-            {saved ? (
+            {isSaving ? (
+              <>
+                <CircleNotch className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
               <>
                 <Check className="h-4 w-4" weight="bold" />
                 Saved!

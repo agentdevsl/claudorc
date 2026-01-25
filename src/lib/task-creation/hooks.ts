@@ -2,7 +2,7 @@ import { eq } from '@tanstack/db';
 import { useLiveQuery } from '@tanstack/react-db';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
-import { getTaskCreationTools } from '@/lib/constants/tools';
+import { getTaskCreationToolsAsync } from '@/lib/constants/tools';
 import { taskCreationMessagesCollection, taskCreationSessionsCollection } from './collections';
 import type {
   PendingQuestions,
@@ -150,8 +150,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     // Clear any previous local error
     setLocalError(null);
 
-    // Get configured tools from localStorage settings
-    const allowedTools = getTaskCreationTools();
+    // Get configured tools from API (falls back to localStorage/defaults)
+    const allowedTools = await getTaskCreationToolsAsync();
 
     // Call API to start session with configured tools
     const result = await apiClient.taskCreation.start(projectId, allowedTools);

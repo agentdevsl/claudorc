@@ -54,6 +54,8 @@ export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4';
 
 /**
  * Get the task creation model from environment or localStorage.
+ * This is the synchronous version for backwards compatibility.
+ * Prefer using getTaskCreationModelAsync() in new code.
  */
 export function getTaskCreationModel(): string {
   // Server-side or test environment: check environment variable
@@ -70,6 +72,24 @@ export function getTaskCreationModel(): string {
     // localStorage may be blocked or unavailable
     return getFullModelId(DEFAULT_TASK_CREATION_MODEL);
   }
+}
+
+/**
+ * Get the task creation model from the API (async version).
+ * Falls back to localStorage/default if API call fails.
+ * Use this in React components and async contexts.
+ */
+export async function getTaskCreationModelAsync(): Promise<string> {
+  // Server-side: use environment variable
+  if (typeof window === 'undefined') {
+    const envModel = process.env.TASK_CREATION_MODEL;
+    if (envModel) return getFullModelId(envModel);
+    return getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+  }
+
+  // Client-side: use the settings hook helper
+  const { getTaskCreationModelAsync: fetchFromApi } = await import('@/lib/hooks/use-settings');
+  return fetchFromApi();
 }
 
 /** Model ID type from available models */

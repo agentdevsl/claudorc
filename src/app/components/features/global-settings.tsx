@@ -372,17 +372,71 @@ function AppearanceSection({
   );
 }
 
-function DefaultsSection(): React.JSX.Element {
-  const [maxTurns, setMaxTurns] = useState(() => {
-    return localStorage.getItem('default_max_turns') || '50';
-  });
-  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(() => {
-    return localStorage.getItem('default_max_concurrent_agents') || '3';
-  });
+// Setting keys used for defaults
+const DEFAULTS_SETTING_KEYS = {
+  MAX_TURNS: 'default_max_turns',
+  MAX_CONCURRENT_AGENTS: 'default_max_concurrent_agents',
+} as const;
 
-  const handleSaveDefaults = () => {
-    localStorage.setItem('default_max_turns', maxTurns);
-    localStorage.setItem('default_max_concurrent_agents', maxConcurrentAgents);
+function DefaultsSection(): React.JSX.Element {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const [maxTurns, setMaxTurns] = useState('50');
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState('3');
+
+  // Load settings from API on mount
+  useEffect(() => {
+    async function loadSettings() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await apiClient.settings.get(Object.values(DEFAULTS_SETTING_KEYS));
+        if (result.ok) {
+          const settings = result.data.settings;
+          if (settings[DEFAULTS_SETTING_KEYS.MAX_TURNS] !== undefined) {
+            setMaxTurns(String(settings[DEFAULTS_SETTING_KEYS.MAX_TURNS]));
+          }
+          if (settings[DEFAULTS_SETTING_KEYS.MAX_CONCURRENT_AGENTS] !== undefined) {
+            setMaxConcurrentAgents(String(settings[DEFAULTS_SETTING_KEYS.MAX_CONCURRENT_AGENTS]));
+          }
+        } else {
+          console.error('Failed to load settings:', result.error);
+          setError('Failed to load settings.');
+        }
+      } catch (err) {
+        console.error('Error loading settings:', err);
+        setError('Failed to load settings.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleSaveDefaults = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const result = await apiClient.settings.update({
+        [DEFAULTS_SETTING_KEYS.MAX_TURNS]: maxTurns,
+        [DEFAULTS_SETTING_KEYS.MAX_CONCURRENT_AGENTS]: maxConcurrentAgents,
+      });
+      if (result.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        console.error('Failed to save settings:', result.error);
+        setError('Failed to save settings.');
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError('Failed to save settings.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -393,6 +447,13 @@ function DefaultsSection(): React.JSX.Element {
           Configure default settings for new projects and agents.
         </p>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <Warning className="h-4 w-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-surface p-4">
         <h3 className="font-medium text-fg">Agent Defaults</h3>
@@ -412,7 +473,8 @@ function DefaultsSection(): React.JSX.Element {
               onChange={(e) => setMaxTurns(e.target.value)}
               min={1}
               max={200}
-              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              disabled={isLoading}
+              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
             />
             <p className="mt-1 text-xs text-fg-subtle">
               Maximum API turns per agent execution (1-200)
@@ -430,7 +492,8 @@ function DefaultsSection(): React.JSX.Element {
               onChange={(e) => setMaxConcurrentAgents(e.target.value)}
               min={1}
               max={10}
-              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              disabled={isLoading}
+              className="mt-1 w-32 rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
             />
             <p className="mt-1 text-xs text-fg-subtle">
               Maximum agents that can run simultaneously per project (1-10)
@@ -439,7 +502,18 @@ function DefaultsSection(): React.JSX.Element {
         </div>
 
         <div className="mt-6">
-          <Button onClick={handleSaveDefaults}>Save Defaults</Button>
+          <Button onClick={handleSaveDefaults} disabled={isLoading || isSaving}>
+            {isSaving ? (
+              <>
+                <CircleNotch className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
+              'Saved!'
+            ) : (
+              'Save Defaults'
+            )}
+          </Button>
         </div>
       </div>
     </div>

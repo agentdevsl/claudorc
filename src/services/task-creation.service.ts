@@ -3,13 +3,14 @@ import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
 import { type NewTask, tasks } from '@/db/schema/tasks';
-import { getTaskCreationModel } from '@/lib/constants/models';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '@/lib/constants/models';
 import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
 import type { DurableStreamsService } from './durable-streams.service';
 import type { SessionService } from './session.service';
+import type { SettingsService } from './settings.service';
 
 // ============================================================================
 // Types
@@ -176,7 +177,8 @@ export class TaskCreationService {
   constructor(
     private db: Database,
     private streams: DurableStreamsService,
-    private sessionService?: SessionService
+    private sessionService?: SessionService,
+    private settingsService?: SettingsService
   ) {}
 
   /** Maximum total questions to ask across all rounds */
@@ -290,7 +292,10 @@ export class TaskCreationService {
 
     // Create V2 session with task system enabled
     // Use configured tools from settings, ensuring AskUserQuestion is always included
-    const taskCreationModel = getTaskCreationModel();
+    // Get model from SettingsService if available, otherwise use default
+    const taskCreationModel = this.settingsService
+      ? await this.settingsService.getTaskCreationModel()
+      : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
     const baseTools = configuredTools ?? DEFAULT_TASK_CREATION_TOOLS;
     const allowedTools = baseTools.includes('AskUserQuestion')
       ? baseTools
@@ -1071,7 +1076,8 @@ export class TaskCreationService {
 export function createTaskCreationService(
   db: Database,
   streams: DurableStreamsService,
-  sessionService?: SessionService
+  sessionService?: SessionService,
+  settingsService?: SettingsService
 ): TaskCreationService {
-  return new TaskCreationService(db, streams, sessionService);
+  return new TaskCreationService(db, streams, sessionService, settingsService);
 }

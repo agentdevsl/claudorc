@@ -243,7 +243,41 @@ export type UpdateSandboxConfigInput = {
 };
 
 // API client methods
+// Settings types
+export type SettingsResponse = {
+  settings: Record<string, unknown>;
+};
+
+export type SettingsUpdateResponse = {
+  ok: true;
+};
+
 export const apiClient = {
+  settings: {
+    /**
+     * Get settings by keys (or all settings if no keys provided)
+     * @param keys - Optional array of setting keys to retrieve
+     */
+    get: (keys?: string[]) => {
+      const params = new URLSearchParams();
+      if (keys && keys.length > 0) {
+        params.set('keys', keys.join(','));
+      }
+      const query = params.toString();
+      return apiServerFetch<SettingsResponse>(`/api/settings${query ? `?${query}` : ''}`);
+    },
+
+    /**
+     * Update settings
+     * @param settings - Map of setting keys to values
+     */
+    update: (settings: Record<string, unknown>) =>
+      apiServerFetch<SettingsUpdateResponse>('/api/settings', {
+        method: 'PUT',
+        body: { settings },
+      }),
+  },
+
   projects: {
     list: (params?: { limit?: number }) =>
       apiServerFetch<ProjectListResponse>(
