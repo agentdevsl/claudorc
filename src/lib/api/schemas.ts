@@ -441,3 +441,14 @@ export const updateWorkflowSchema = z.object({
   /** AI confidence score (0-100) */
   aiConfidence: z.number().min(0).max(100).nullable().optional(),
 });
+
+// Settings schemas
+export const getSettingsSchema = z.object({
+  /** Comma-separated list of setting keys to retrieve (optional, returns all if not specified) */
+  keys: z.string().optional(),
+});
+
+export const updateSettingsSchema = z.object({
+  /** Map of setting keys to values */
+  settings: z.record(z.string(), z.unknown()),
+});

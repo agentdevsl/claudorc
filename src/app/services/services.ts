@@ -8,6 +8,7 @@ import { ProjectService } from '@/services/project.service';
 import { SandboxConfigService } from '@/services/sandbox-config.service';
 import type { DurableStreamsServer } from '@/services/session.service';
 import { SessionService } from '@/services/session.service';
+import { SettingsService } from '@/services/settings.service';
 import { TaskService } from '@/services/task.service';
 import {
   createTaskCreationService,
@@ -28,6 +29,7 @@ export type Services = {
   planModeService: PlanModeService;
   projectService: ProjectService;
   sandboxConfigService: SandboxConfigService;
+  settingsService: SettingsService;
   taskCreationService: TaskCreationService;
   taskService: TaskService;
   sessionService: SessionService;
@@ -82,6 +84,7 @@ export function createServices(context: {
     const templateService = new TemplateService(context.db);
     const sandboxConfigService = new SandboxConfigService(context.db);
     const githubTokenService = new GitHubTokenService(context.db);
+    const settingsService = new SettingsService(context.db);
 
     // Create durable streams service wrapper
     const durableStreamsService = new DurableStreamsService(context.streams);
@@ -99,7 +102,8 @@ export function createServices(context: {
     const taskCreationService = createTaskCreationService(
       context.db,
       durableStreamsService,
-      sessionService
+      sessionService,
+      settingsService
     );
 
     console.log('[Services] All services initialized successfully');
@@ -111,6 +115,7 @@ export function createServices(context: {
       planModeService,
       projectService,
       sandboxConfigService,
+      settingsService,
       taskCreationService,
       taskService,
       sessionService,

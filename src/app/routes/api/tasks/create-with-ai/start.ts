@@ -1,5 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 import { getApiServicesOrThrow, type Services } from '@/app/routes/api/runtime';
+
+const StartTaskCreationSchema = z.object({
+  projectId: z.string().min(1, 'projectId is required'),
+  allowedTools: z.array(z.string()).optional(),
+});
 
 export const Route = createFileRoute('/api/tasks/create-with-ai/start')({
   server: {
@@ -27,13 +33,15 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/start')({
 
         try {
           const body = await request.json();
-          const { projectId } = body as { projectId: string };
+          const parseResult = StartTaskCreationSchema.safeParse(body);
 
-          if (!projectId) {
+          if (!parseResult.success) {
+            const firstIssue = parseResult.error.issues[0];
             return new Response(
               JSON.stringify({
-                error: 'projectId is required',
-                code: 'MISSING_PROJECT_ID',
+                error: firstIssue?.message || 'Invalid request body',
+                code: 'VALIDATION_ERROR',
+                details: parseResult.error.issues,
               }),
               {
                 status: 400,
@@ -42,7 +50,12 @@ export const Route = createFileRoute('/api/tasks/create-with-ai/start')({
             );
           }
 
-          const result = await services.taskCreationService.startConversation(projectId);
+          const { projectId, allowedTools } = parseResult.data;
+
+          const result = await services.taskCreationService.startConversation(
+            projectId,
+            allowedTools
+          );
 
           if (!result.ok) {
             return new Response(

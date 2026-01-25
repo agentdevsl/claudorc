@@ -36,6 +36,7 @@ import { Route as CatalogWorkflowIdRouteImport } from './routes/catalog/$workflo
 import { Route as ApiWorkflowsRouteImport } from './routes/api/workflows'
 import { Route as ApiTemplatesRouteImport } from './routes/api/templates'
 import { Route as ApiTasksRouteImport } from './routes/api/tasks'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
 import { Route as ApiGithubRouteImport } from './routes/api/github'
@@ -231,6 +232,11 @@ const ApiTemplatesRoute = ApiTemplatesRouteImport.update({
 const ApiTasksRoute = ApiTasksRouteImport.update({
   id: '/api/tasks',
   path: '/api/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsRoute = ApiSettingsRouteImport.update({
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionsRoute = ApiSessionsRouteImport.update({
@@ -554,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
+  '/api/settings': typeof ApiSettingsRoute
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/api/workflows': typeof ApiWorkflowsRouteWithChildren
@@ -642,6 +649,7 @@ export interface FileRoutesByTo {
   '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
+  '/api/settings': typeof ApiSettingsRoute
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/api/workflows': typeof ApiWorkflowsRouteWithChildren
@@ -732,6 +740,7 @@ export interface FileRoutesById {
   '/api/github': typeof ApiGithubRoute
   '/api/projects': typeof ApiProjectsRouteWithChildren
   '/api/sessions': typeof ApiSessionsRouteWithChildren
+  '/api/settings': typeof ApiSettingsRoute
   '/api/tasks': typeof ApiTasksRouteWithChildren
   '/api/templates': typeof ApiTemplatesRouteWithChildren
   '/api/workflows': typeof ApiWorkflowsRouteWithChildren
@@ -823,6 +832,7 @@ export interface FileRouteTypes {
     | '/api/github'
     | '/api/projects'
     | '/api/sessions'
+    | '/api/settings'
     | '/api/tasks'
     | '/api/templates'
     | '/api/workflows'
@@ -911,6 +921,7 @@ export interface FileRouteTypes {
     | '/api/github'
     | '/api/projects'
     | '/api/sessions'
+    | '/api/settings'
     | '/api/tasks'
     | '/api/templates'
     | '/api/workflows'
@@ -1000,6 +1011,7 @@ export interface FileRouteTypes {
     | '/api/github'
     | '/api/projects'
     | '/api/sessions'
+    | '/api/settings'
     | '/api/tasks'
     | '/api/templates'
     | '/api/workflows'
@@ -1090,6 +1102,7 @@ export interface RootRouteChildren {
   ApiGithubRoute: typeof ApiGithubRoute
   ApiProjectsRoute: typeof ApiProjectsRouteWithChildren
   ApiSessionsRoute: typeof ApiSessionsRouteWithChildren
+  ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTasksRoute: typeof ApiTasksRouteWithChildren
   ApiTemplatesRoute: typeof ApiTemplatesRouteWithChildren
   ApiWorkflowsRoute: typeof ApiWorkflowsRouteWithChildren
@@ -1313,6 +1326,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tasks'
       fullPath: '/api/tasks'
       preLoaderRoute: typeof ApiTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
+      preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sessions': {
@@ -1981,6 +2001,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGithubRoute: ApiGithubRoute,
   ApiProjectsRoute: ApiProjectsRouteWithChildren,
   ApiSessionsRoute: ApiSessionsRouteWithChildren,
+  ApiSettingsRoute: ApiSettingsRoute,
   ApiTasksRoute: ApiTasksRouteWithChildren,
   ApiTemplatesRoute: ApiTemplatesRouteWithChildren,
   ApiWorkflowsRoute: ApiWorkflowsRouteWithChildren,

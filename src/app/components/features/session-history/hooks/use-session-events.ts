@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import type {
   SessionDetail,
@@ -7,8 +7,11 @@ import type {
   SessionSort,
   StreamEntry,
   StreamEntryType,
+  ToolCallEntry,
+  ToolCallStats,
 } from '../types';
 import { calculateTimeOffset, formatTimeOffset } from '../utils/format-duration';
+import { calculateToolCallStats, parseToolCallsFromEvents } from '../utils/parse-tool-calls';
 
 // Types for API responses
 interface SessionListResponse {
@@ -70,12 +73,20 @@ export function useSessions(projectId: string, filters?: SessionFilters, sort?: 
 
         if (filters?.dateFrom) {
           const fromDate = new Date(filters.dateFrom);
-          filtered = filtered.filter((s) => new Date(s.createdAt) >= fromDate);
+          if (Number.isNaN(fromDate.getTime())) {
+            console.warn('[useSessions] Invalid dateFrom filter value:', filters.dateFrom);
+          } else {
+            filtered = filtered.filter((s) => new Date(s.createdAt) >= fromDate);
+          }
         }
 
         if (filters?.dateTo) {
           const toDate = new Date(filters.dateTo);
-          filtered = filtered.filter((s) => new Date(s.createdAt) <= toDate);
+          if (Number.isNaN(toDate.getTime())) {
+            console.warn('[useSessions] Invalid dateTo filter value:', filters.dateTo);
+          } else {
+            filtered = filtered.filter((s) => new Date(s.createdAt) <= toDate);
+          }
         }
 
         // Apply sorting
@@ -248,7 +259,32 @@ export function useSessionDetail(sessionId: string | null): UseSessionDetailRetu
 }
 
 /**
- * Parse session events into stream entries for display
+ * Tool start event data structure
+ */
+interface ToolStartData {
+  id?: string;
+  tool?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+}
+
+/**
+ * Tool result event data structure
+ */
+interface ToolResultData {
+  id?: string;
+  tool?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  output?: unknown;
+  error?: string;
+  isError?: boolean;
+  duration?: number;
+}
+
+/**
+ * Parse session events into stream entries for display.
+ * Consolidates tool:start and tool:result events into single entries.
  */
 export function parseEventsToStreamEntries(
   events: SessionDetail['events'],
@@ -258,7 +294,27 @@ export function parseEventsToStreamEntries(
     return [];
   }
 
-  return events.map((event) => {
+  // Build a map of tool:start events by ID for pairing
+  const toolStartEvents = new Map<
+    string,
+    { event: SessionDetail['events'][0]; data: ToolStartData }
+  >();
+
+  for (const event of events) {
+    if (event.type === 'tool:start') {
+      const data = event.data as ToolStartData;
+      if (data.id) {
+        toolStartEvents.set(data.id, { event, data });
+      }
+    }
+  }
+
+  // Track which tool:start events have been paired with results
+  const pairedToolStartIds = new Set<string>();
+
+  const entries: StreamEntry[] = [];
+
+  for (const event of events) {
     const timeOffsetMs = calculateTimeOffset(event.timestamp, sessionStartTime);
     const timeOffset = formatTimeOffset(timeOffsetMs);
 
@@ -310,7 +366,7 @@ export function parseEventsToStreamEntries(
             }
           : undefined;
 
-        return {
+        entries.push({
           id: event.id,
           type,
           timestamp: event.timestamp,
@@ -318,37 +374,71 @@ export function parseEventsToStreamEntries(
           content,
           model,
           usage,
-        };
+        });
+        continue;
       }
 
       case 'tool:start': {
+        // Check if this start event will be paired with a result
+        const toolData = event.data as ToolStartData;
+        const toolId = toolData.id;
+
+        // Look ahead to see if there's a matching result event
+        const hasMatchingResult = toolId
+          ? events.some((e) => e.type === 'tool:result' && (e.data as ToolResultData).id === toolId)
+          : false;
+
+        if (hasMatchingResult) {
+          // Skip this event - it will be consolidated with the result
+          continue;
+        }
+
+        // No matching result - show as running
         type = 'tool';
-        const toolData = event.data as { name?: string; input?: Record<string, unknown> };
-        content = `Executing ${toolData.name ?? 'tool'}...`;
+        const toolName = toolData.tool ?? toolData.name ?? 'Unknown';
+        content = `${toolName}`;
         toolCall = {
-          name: toolData.name ?? 'Unknown',
+          name: toolName,
           input: toolData.input ?? {},
           status: 'running',
+          startTimeOffset: timeOffset,
         };
         break;
       }
 
       case 'tool:result': {
         type = 'tool';
-        const resultData = event.data as {
-          name?: string;
-          input?: Record<string, unknown>;
-          output?: unknown;
-          error?: string;
-        };
-        content = resultData.error
-          ? `Tool ${resultData.name ?? 'unknown'} failed`
-          : `Tool ${resultData.name ?? 'unknown'} completed`;
+        const resultData = event.data as ToolResultData;
+        const toolId = resultData.id;
+
+        // Get tool name from result or paired start event
+        const toolName = resultData.tool ?? resultData.name ?? 'Unknown';
+        const hasError = resultData.error || resultData.isError;
+
+        // Find the paired start event for timing info
+        let startTimeOffset = timeOffset;
+        let duration: number | undefined;
+
+        if (toolId) {
+          const startEntry = toolStartEvents.get(toolId);
+          if (startEntry) {
+            pairedToolStartIds.add(toolId);
+            const startOffsetMs = calculateTimeOffset(startEntry.event.timestamp, sessionStartTime);
+            startTimeOffset = formatTimeOffset(startOffsetMs);
+            duration = resultData.duration ?? event.timestamp - startEntry.event.timestamp;
+          }
+        }
+
+        content = toolName;
         toolCall = {
-          name: resultData.name ?? 'Unknown',
+          name: toolName,
           input: resultData.input ?? {},
           output: resultData.output,
-          status: resultData.error ? 'error' : 'complete',
+          status: hasError ? 'error' : 'complete',
+          startTimeOffset,
+          endTimeOffset: timeOffset,
+          duration,
+          error: hasError ? (resultData.error ?? 'Tool execution failed') : undefined,
         };
         break;
       }
@@ -368,27 +458,66 @@ export function parseEventsToStreamEntries(
         content = JSON.stringify(event.data);
     }
 
-    return {
+    entries.push({
       id: event.id,
       type,
       timestamp: event.timestamp,
       timeOffset,
       content,
       toolCall,
-    };
-  });
-}
-
-/**
- * Hook for session events with parsed stream entries
- */
-export function useSessionEvents(session: SessionDetail | null) {
-  if (!session) {
-    return { entries: [] as StreamEntry[], isLoading: false };
+    });
   }
 
-  const sessionStartTime = new Date(session.createdAt).getTime();
-  const entries = parseEventsToStreamEntries(session.events, sessionStartTime);
+  return entries;
+}
 
-  return { entries, isLoading: false };
+const EMPTY_STATS: ToolCallStats = {
+  totalCalls: 0,
+  errorCount: 0,
+  avgDurationMs: 0,
+  totalDurationMs: 0,
+  toolBreakdown: [],
+};
+
+const EMPTY_RESULT = {
+  entries: [] as StreamEntry[],
+  toolCalls: [] as ToolCallEntry[],
+  toolCallStats: EMPTY_STATS,
+  isLoading: false,
+  error: undefined as string | undefined,
+};
+
+/**
+ * Hook for session events with parsed stream entries and tool call data.
+ * Memoizes parsing results to avoid recomputation on every render.
+ */
+export function useSessionEvents(session: SessionDetail | null) {
+  return useMemo(() => {
+    if (!session) {
+      return EMPTY_RESULT;
+    }
+
+    // Validate session timestamp
+    const sessionStartDate = new Date(session.createdAt);
+    const sessionStartTime = sessionStartDate.getTime();
+
+    if (Number.isNaN(sessionStartTime)) {
+      console.error(
+        '[useSessionEvents] Invalid session createdAt timestamp:',
+        session.createdAt,
+        'Session ID:',
+        session.id
+      );
+      return {
+        ...EMPTY_RESULT,
+        error: 'Session has invalid timestamp data',
+      };
+    }
+
+    const entries = parseEventsToStreamEntries(session.events, sessionStartTime);
+    const toolCalls = parseToolCallsFromEvents(session.events, sessionStartTime);
+    const toolCallStats = calculateToolCallStats(toolCalls);
+
+    return { entries, toolCalls, toolCallStats, isLoading: false, error: undefined };
+  }, [session]);
 }

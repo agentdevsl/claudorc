@@ -18,6 +18,7 @@ import { formatDuration, formatTimeOfDay } from '../utils/format-duration';
 import { ExportDropdown } from './export-dropdown';
 import { SessionSummary } from './session-summary';
 import { StreamViewer } from './stream-viewer';
+import { ToolCallTimeline } from './tool-call-timeline';
 
 export function SessionDetailView({
   session,
@@ -26,7 +27,7 @@ export function SessionDetailView({
   onDelete,
   onRefresh,
 }: SessionDetailViewProps): React.JSX.Element {
-  const { entries, isLoading: eventsLoading } = useSessionEvents(session);
+  const { entries, toolCalls, toolCallStats, isLoading: eventsLoading } = useSessionEvents(session);
 
   // Loading state
   if (isLoading) {
@@ -132,6 +133,12 @@ export function SessionDetailView({
     value: `${formattedDate} at ${formatTimeOfDay(session.createdAt)}`,
   });
 
+  metaItems.push({
+    icon: <Wrench className="h-3.5 w-3.5" />,
+    label: 'Tools',
+    value: toolCallStats.totalCalls.toString(),
+  });
+
   return (
     <section
       className="flex flex-1 flex-col overflow-hidden bg-canvas"
@@ -183,6 +190,11 @@ export function SessionDetailView({
 
       {/* Stream viewer */}
       <StreamViewer entries={entries} isLoading={eventsLoading} />
+
+      {/* Tool Calls Timeline - only show if there are tool calls */}
+      {toolCalls.length > 0 && (
+        <ToolCallTimeline toolCalls={toolCalls} stats={toolCallStats} isLoading={eventsLoading} />
+      )}
 
       {/* Session summary */}
       <SessionSummary

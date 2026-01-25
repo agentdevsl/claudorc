@@ -1180,7 +1180,7 @@ export function NewTaskDialog({
                       onClick={handleSend}
                       disabled={!input.trim() || isStreaming || status !== 'active'}
                       className={cn(
-                        'absolute right-2 bottom-2 h-8 w-8 rounded-md',
+                        'absolute right-2 bottom-3 h-8 w-8 rounded-md',
                         'flex items-center justify-center transition-all duration-300',
                         input.trim() && !isStreaming && status === 'active'
                           ? 'bg-claude text-white hover:bg-claude/90 shadow-[0_0_12px_rgba(217,119,87,0.5)] animate-pulse'

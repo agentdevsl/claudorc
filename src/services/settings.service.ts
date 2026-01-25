@@ -1,0 +1,266 @@
+import { eq, inArray } from 'drizzle-orm';
+import type { Setting } from '../db/schema/settings.js';
+import { settings } from '../db/schema/settings.js';
+import type { AppError } from '../lib/errors/base.js';
+import { createError } from '../lib/errors/base.js';
+import type { Result } from '../lib/utils/result.js';
+import { err, ok } from '../lib/utils/result.js';
+import type { Database } from '../types/database.js';
+
+export type SettingsError = AppError;
+
+export const SettingsErrors = {
+  NOT_FOUND: createError('SETTING_NOT_FOUND', 'Setting not found', 404),
+  INVALID_KEY: createError('INVALID_SETTING_KEY', 'Setting key is invalid', 400),
+  INVALID_VALUE: createError('INVALID_SETTING_VALUE', 'Setting value is invalid', 400),
+  DATABASE_ERROR: (message: string) => createError('SETTINGS_DATABASE_ERROR', message, 500),
+};
+
+export class SettingsService {
+  constructor(private db: Database) {}
+
+  /**
+   * Get a single setting by key
+   */
+  async get(key: string): Promise<Result<Setting | null, SettingsError>> {
+    try {
+      const setting = await this.db.query.settings.findFirst({
+        where: eq(settings.key, key),
+      });
+      return ok(setting ?? null);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  /**
+   * Get multiple settings by keys
+   * Returns a map of key -> value (parsed JSON, or raw string if parsing fails)
+   */
+  async getMany(keys: string[]): Promise<Result<Record<string, unknown>, SettingsError>> {
+    try {
+      if (keys.length === 0) {
+        return ok({});
+      }
+
+      const results = await this.db.query.settings.findMany({
+        where: inArray(settings.key, keys),
+      });
+
+      const settingsMap: Record<string, unknown> = {};
+      for (const setting of results) {
+        try {
+          settingsMap[setting.key] = JSON.parse(setting.value);
+        } catch (parseError) {
+          // If JSON parsing fails, use raw value but log for debugging
+          console.warn(
+            '[SettingsService] Failed to parse setting value as JSON, using raw value.',
+            'Key:',
+            setting.key,
+            'Error:',
+            parseError instanceof Error ? parseError.message : String(parseError)
+          );
+          settingsMap[setting.key] = setting.value;
+        }
+      }
+
+      return ok(settingsMap);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  /**
+   * Get all settings
+   * Returns a map of key -> value (parsed JSON, or raw string if parsing fails)
+   */
+  async getAll(): Promise<Result<Record<string, unknown>, SettingsError>> {
+    try {
+      const results = await this.db.query.settings.findMany();
+
+      const settingsMap: Record<string, unknown> = {};
+      for (const setting of results) {
+        try {
+          settingsMap[setting.key] = JSON.parse(setting.value);
+        } catch (parseError) {
+          // If JSON parsing fails, use raw value but log for debugging
+          console.warn(
+            '[SettingsService] Failed to parse setting value as JSON, using raw value.',
+            'Key:',
+            setting.key,
+            'Error:',
+            parseError instanceof Error ? parseError.message : String(parseError)
+          );
+          settingsMap[setting.key] = setting.value;
+        }
+      }
+
+      return ok(settingsMap);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  /**
+   * Set a single setting
+   */
+  async set(key: string, value: unknown): Promise<Result<Setting, SettingsError>> {
+    try {
+      if (!key || typeof key !== 'string' || key.length === 0) {
+        return err(SettingsErrors.INVALID_KEY);
+      }
+
+      const serializedValue = JSON.stringify(value);
+      const now = new Date().toISOString();
+
+      // Use upsert (insert or replace on conflict)
+      const [result] = await this.db
+        .insert(settings)
+        .values({
+          key,
+          value: serializedValue,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: {
+            value: serializedValue,
+            updatedAt: now,
+          },
+        })
+        .returning();
+
+      if (!result) {
+        return err(SettingsErrors.DATABASE_ERROR('Failed to save setting'));
+      }
+
+      return ok(result);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  /**
+   * Set multiple settings at once
+   */
+  async setMany(settingsToSet: Record<string, unknown>): Promise<Result<void, SettingsError>> {
+    try {
+      const entries = Object.entries(settingsToSet);
+      if (entries.length === 0) {
+        return ok(undefined);
+      }
+
+      const now = new Date().toISOString();
+
+      // Use a transaction to ensure atomicity
+      await this.db.transaction(async (tx) => {
+        for (const [key, value] of entries) {
+          const serializedValue = JSON.stringify(value);
+          await tx
+            .insert(settings)
+            .values({
+              key,
+              value: serializedValue,
+              updatedAt: now,
+            })
+            .onConflictDoUpdate({
+              target: settings.key,
+              set: {
+                value: serializedValue,
+                updatedAt: now,
+              },
+            });
+        }
+      });
+
+      return ok(undefined);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  /**
+   * Delete a setting by key
+   */
+  async delete(key: string): Promise<Result<void, SettingsError>> {
+    try {
+      await this.db.delete(settings).where(eq(settings.key, key));
+      return ok(undefined);
+    } catch (error) {
+      return err(SettingsErrors.DATABASE_ERROR(String(error)));
+    }
+  }
+
+  // ============================================
+  // Typed getters/setters for known settings
+  // ============================================
+
+  private static readonly TASK_CREATION_MODEL_KEY = 'taskCreation.model';
+  private static readonly TASK_CREATION_TOOLS_KEY = 'taskCreation.tools';
+  private static readonly DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+  private static readonly DEFAULT_TOOLS = ['Read', 'Glob', 'Grep', 'AskUserQuestion'];
+
+  /**
+   * Get a setting value by key, returning defaultValue if not found
+   */
+  async getValue<T>(key: string, defaultValue: T): Promise<T> {
+    const result = await this.get(key);
+    if (!result.ok || !result.value) {
+      return defaultValue;
+    }
+    try {
+      return JSON.parse(result.value.value) as T;
+    } catch (parseError) {
+      console.warn(
+        '[SettingsService] Failed to parse setting value, returning default.',
+        'Key:',
+        key,
+        'Error:',
+        parseError instanceof Error ? parseError.message : String(parseError)
+      );
+      return defaultValue;
+    }
+  }
+
+  /**
+   * Get the model used for AI task creation
+   */
+  async getTaskCreationModel(): Promise<string> {
+    return this.getValue<string>(
+      SettingsService.TASK_CREATION_MODEL_KEY,
+      SettingsService.DEFAULT_MODEL
+    );
+  }
+
+  /**
+   * Set the model used for AI task creation
+   */
+  async setTaskCreationModel(model: string): Promise<Result<void, SettingsError>> {
+    const result = await this.set(SettingsService.TASK_CREATION_MODEL_KEY, model);
+    if (!result.ok) {
+      return err(result.error);
+    }
+    return ok(undefined);
+  }
+
+  /**
+   * Get the tools available for AI task creation
+   */
+  async getTaskCreationTools(): Promise<string[]> {
+    return this.getValue<string[]>(
+      SettingsService.TASK_CREATION_TOOLS_KEY,
+      SettingsService.DEFAULT_TOOLS
+    );
+  }
+
+  /**
+   * Set the tools available for AI task creation
+   */
+  async setTaskCreationTools(tools: string[]): Promise<Result<void, SettingsError>> {
+    const result = await this.set(SettingsService.TASK_CREATION_TOOLS_KEY, tools);
+    if (!result.ok) {
+      return err(result.error);
+    }
+    return ok(undefined);
+  }
+}

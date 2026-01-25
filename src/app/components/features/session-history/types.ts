@@ -1,6 +1,55 @@
 import type { SessionStatus } from '@/db/schema/enums';
 import type { SessionEvent, SessionEventType } from '@/services/session.service';
 
+// ===== Tool Call Types =====
+
+/**
+ * Tool call execution status
+ * - running: Tool has started but no result received
+ * - complete: Tool finished successfully
+ * - error: Tool finished with an error
+ */
+export type ToolCallStatus = 'running' | 'complete' | 'error';
+
+export interface ToolCallEntry {
+  /** Unique ID for the tool call (from tool:start event) */
+  readonly id: string;
+  /** Tool name (e.g., "Read", "Grep", "Edit") */
+  readonly tool: string;
+  /** Input parameters passed to the tool */
+  readonly input: Record<string, unknown> | undefined;
+  /** Output result from the tool (undefined if still running) */
+  readonly output?: unknown;
+  /** Execution status */
+  readonly status: ToolCallStatus;
+  /** Execution duration in milliseconds (undefined if still running) */
+  readonly duration?: number;
+  /** Timestamp when tool started (Unix ms) */
+  readonly timestamp: number;
+  /** Formatted time offset from session start (e.g. "1:35" or "1:23:45" for times over an hour) */
+  readonly timeOffset: string;
+  /** Error message if status is 'error' */
+  readonly error?: string;
+}
+
+export interface ToolCallStats {
+  readonly totalCalls: number;
+  readonly errorCount: number;
+  readonly avgDurationMs: number;
+  /** Total execution time across all tool calls in milliseconds */
+  readonly totalDurationMs: number;
+  readonly toolBreakdown: ReadonlyArray<{ readonly tool: string; readonly count: number }>;
+}
+
+// ===== Tool Call Status Colors =====
+
+/** Text colors for tool call status - used for icon coloring */
+export const TOOL_CALL_STATUS_COLORS = {
+  running: { text: 'text-accent' },
+  complete: { text: 'text-success' },
+  error: { text: 'text-danger' },
+} as const satisfies Record<ToolCallStatus, { text: string }>;
+
 // ===== Session Filter Types =====
 
 export interface SessionFilters {
@@ -76,16 +125,24 @@ export interface StreamEntry {
   id: string;
   type: StreamEntryType;
   timestamp: number;
-  /** Formatted time offset from session start (e.g. "1:35") */
+  /** Formatted time offset from session start (e.g. "1:35" or "1:23:45" for times over an hour) */
   timeOffset: string;
   content: string;
   /** Tool call details if type is 'tool' */
-  toolCall?: {
-    name: string;
-    input: Record<string, unknown>;
-    output?: unknown;
-    status: 'pending' | 'running' | 'complete' | 'error';
-  };
+  toolCall?: Readonly<{
+    readonly name: string;
+    readonly input: Record<string, unknown>;
+    readonly output?: unknown;
+    readonly status: ToolCallStatus;
+    /** Time offset when tool started */
+    readonly startTimeOffset: string;
+    /** Time offset when tool completed (undefined if still running) */
+    readonly endTimeOffset?: string;
+    /** Duration in milliseconds (undefined if still running) */
+    readonly duration?: number;
+    /** Error message if status is 'error' */
+    readonly error?: string;
+  }>;
   /** Model used for this message (assistant messages only) */
   model?: string;
   /** Token usage for this message */
@@ -216,6 +273,35 @@ export interface ExportDropdownProps {
   onExport: (format: ExportFormat) => void;
   /** Disabled state */
   disabled?: boolean;
+}
+
+// ===== Tool Call Component Props =====
+
+export interface ToolCallCardProps {
+  /** Tool call entry data */
+  toolCall: ToolCallEntry;
+  /** Whether the card is expanded by default */
+  defaultExpanded?: boolean;
+  /** Callback when card is expanded/collapsed */
+  onExpandedChange?: (expanded: boolean) => void;
+}
+
+export interface ToolCallSummaryBarProps {
+  /** Tool call statistics */
+  stats: ToolCallStats;
+}
+
+export interface ToolCallTimelineProps {
+  /** Tool call entries to display */
+  toolCalls: ToolCallEntry[];
+  /** Tool call statistics */
+  stats: ToolCallStats;
+  /** Loading state */
+  isLoading?: boolean;
+  /** Filter by tool name */
+  filterTool?: string;
+  /** Callback when filter changes */
+  onFilterChange?: (tool: string | undefined) => void;
 }
 
 // ===== Status Colors =====

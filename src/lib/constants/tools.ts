@@ -47,11 +47,29 @@ export function getAgentTools(): string[] {
 
 /**
  * Get tools for task creation from localStorage or default.
+ * This is the synchronous version for backwards compatibility.
+ * Prefer using getTaskCreationToolsAsync() in new code.
  */
 export function getTaskCreationTools(): string[] {
   if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_TOOLS;
   const stored = localStorage.getItem('task_creation_tools');
   return stored ? JSON.parse(stored) : DEFAULT_TASK_CREATION_TOOLS;
+}
+
+/**
+ * Get tools for task creation from the API (async version).
+ * Falls back to localStorage/default if API call fails.
+ * Use this in React components and async contexts.
+ */
+export async function getTaskCreationToolsAsync(): Promise<string[]> {
+  // Server-side: return default
+  if (typeof window === 'undefined') {
+    return DEFAULT_TASK_CREATION_TOOLS;
+  }
+
+  // Client-side: use the settings hook helper
+  const { getTaskCreationToolsAsync: fetchFromApi } = await import('@/lib/hooks/use-settings');
+  return fetchFromApi();
 }
 
 /**

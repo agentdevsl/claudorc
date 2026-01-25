@@ -3,12 +3,14 @@ import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
 import { type NewTask, tasks } from '@/db/schema/tasks';
-import { getTaskCreationModel } from '@/lib/constants/models';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '@/lib/constants/models';
+import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
 import type { DurableStreamsService } from './durable-streams.service';
 import type { SessionService } from './session.service';
+import type { SettingsService } from './settings.service';
 
 // ============================================================================
 // Types
@@ -124,12 +126,12 @@ const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structu
 
 Your role is to:
 1. Understand what the user wants (from their initial message)
-2. Ask 2-5 clarifying questions to gather important missing details
+2. Use the AskUserQuestion tool to gather 2-5 clarifying questions
 3. Generate a high-quality task suggestion based on the user's answers
 
 ## Phase 1: Clarifying Questions
 
-When you receive the user's initial request, respond with a JSON block containing clarifying questions.
+When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
 Ask questions that will help you create a better, more specific task. Focus on:
 - Scope and boundaries (what's included/excluded)
 - Technical approach or implementation preference
@@ -137,35 +139,15 @@ Ask questions that will help you create a better, more specific task. Focus on:
 - Dependencies or blockers
 - Acceptance criteria
 
-ALWAYS respond with a clarifying_questions JSON block:
-
-\`\`\`json
-{
-  "type": "clarifying_questions",
-  "questions": [
-    {
-      "header": "Scope",
-      "question": "What specific functionality should this include?",
-      "options": [
-        { "label": "Option A", "description": "Brief description of option A" },
-        { "label": "Option B", "description": "Brief description of option B" },
-        { "label": "Option C", "description": "Brief description of option C" }
-      ]
-    }
-  ]
-}
-\`\`\`
-
 Guidelines for questions:
 - Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
-- Include "Custom" or "Other" as a last option if appropriate
-- Ask 2-5 questions maximum per round
+- Ask 2-5 questions maximum
 
 ## Phase 2: Task Suggestion
 
-After receiving answers, generate the task suggestion:
+After receiving answers from AskUserQuestion, generate the task suggestion as a JSON block:
 
 \`\`\`json
 {
@@ -181,7 +163,7 @@ Field guidelines:
 - labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
 - priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
 
-CRITICAL: Always ask clarifying questions first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
+CRITICAL: Always use the AskUserQuestion tool first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
 
 // ============================================================================
 // Service Implementation
@@ -195,7 +177,8 @@ export class TaskCreationService {
   constructor(
     private db: Database,
     private streams: DurableStreamsService,
-    private sessionService?: SessionService
+    private sessionService?: SessionService,
+    private settingsService?: SettingsService
   ) {}
 
   /** Maximum total questions to ask across all rounds */
@@ -291,9 +274,12 @@ export class TaskCreationService {
 
   /**
    * Start a new task creation conversation
+   * @param projectId - The project to create a task for
+   * @param configuredTools - Optional tools configured in settings (from frontend localStorage)
    */
   async startConversation(
-    projectId: string
+    projectId: string,
+    configuredTools?: string[]
   ): Promise<Result<TaskCreationSession, TaskCreationError>> {
     // Verify project exists
     const project = await this.db.query.projects.findFirst({
@@ -305,11 +291,20 @@ export class TaskCreationService {
     }
 
     // Create V2 session with task system enabled
-    // Use configurable model from preferences/environment
-    const taskCreationModel = getTaskCreationModel();
+    // Use configured tools from settings, ensuring AskUserQuestion is always included
+    // Get model from SettingsService if available, otherwise use default
+    const taskCreationModel = this.settingsService
+      ? await this.settingsService.getTaskCreationModel()
+      : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+    const baseTools = configuredTools ?? DEFAULT_TASK_CREATION_TOOLS;
+    const allowedTools = baseTools.includes('AskUserQuestion')
+      ? baseTools
+      : [...baseTools, 'AskUserQuestion'];
+
     const v2Session = unstable_v2_createSession({
       model: taskCreationModel,
       env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
+      allowedTools,
     });
 
     // Create our session wrapper
@@ -452,6 +447,12 @@ export class TaskCreationService {
       let outputTokens = 0;
       let modelUsed = '';
 
+      // Track in-flight tool calls for emitting tool:start/tool:result events
+      const inFlightTools = new Map<
+        number,
+        { id: string; name: string; input: string; startTime: number }
+      >();
+
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
         // Capture session ID for resume capability
@@ -463,7 +464,9 @@ export class TaskCreationService {
         if (msg.type === 'stream_event') {
           const event = msg.event as {
             type: string;
-            delta?: { type: string; text?: string };
+            index?: number;
+            content_block?: { type: string; id?: string; name?: string };
+            delta?: { type: string; text?: string; partial_json?: string };
             message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
             usage?: { input_tokens?: number; output_tokens?: number };
           };
@@ -481,6 +484,123 @@ export class TaskCreationService {
           // Capture message_delta for output token usage
           if (event.type === 'message_delta' && event.usage) {
             outputTokens = event.usage.output_tokens ?? 0;
+          }
+
+          // Handle tool_use content_block_start - emit tool:start event
+          if (
+            event.type === 'content_block_start' &&
+            event.content_block?.type === 'tool_use' &&
+            event.index !== undefined
+          ) {
+            const toolId = event.content_block.id ?? createId();
+            const toolName = event.content_block.name ?? 'unknown';
+
+            console.log(
+              `[TaskCreationService] Detected tool_use block: ${toolName} (${toolId}), dbSessionId: ${session.dbSessionId}`
+            );
+
+            inFlightTools.set(event.index, {
+              id: toolId,
+              name: toolName,
+              input: '',
+              startTime: Date.now(),
+            });
+
+            // Publish tool:start event to session
+            if (session.dbSessionId && this.sessionService) {
+              try {
+                const publishResult = await this.sessionService.publish(session.dbSessionId, {
+                  id: createId(),
+                  type: 'tool:start',
+                  timestamp: Date.now(),
+                  data: {
+                    id: toolId,
+                    tool: toolName,
+                    input: {},
+                  },
+                });
+                if (publishResult.ok) {
+                  console.log(
+                    `[TaskCreationService] Published tool:start for ${toolName}, offset: ${publishResult.value.offset}`
+                  );
+                } else {
+                  console.error(
+                    `[TaskCreationService] Failed to publish tool:start: ${publishResult.error.message}`
+                  );
+                }
+              } catch (error) {
+                console.error('[TaskCreationService] Failed to publish tool:start:', error);
+              }
+            } else {
+              console.warn(
+                `[TaskCreationService] Cannot publish tool:start - dbSessionId: ${session.dbSessionId}, hasSessionService: ${!!this.sessionService}`
+              );
+            }
+          }
+
+          // Handle input_json_delta - accumulate tool input
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta?.type === 'input_json_delta' &&
+            event.delta.partial_json &&
+            event.index !== undefined
+          ) {
+            const toolInfo = inFlightTools.get(event.index);
+            if (toolInfo) {
+              toolInfo.input += event.delta.partial_json;
+            }
+          }
+
+          // Handle content_block_stop - emit tool:result event for completed tools
+          if (event.type === 'content_block_stop' && event.index !== undefined) {
+            const toolInfo = inFlightTools.get(event.index);
+            if (toolInfo) {
+              const duration = Date.now() - toolInfo.startTime;
+
+              // Parse the accumulated input JSON
+              let parsedInput: Record<string, unknown> = {};
+              try {
+                if (toolInfo.input) {
+                  parsedInput = JSON.parse(toolInfo.input);
+                }
+              } catch (parseError) {
+                console.warn(
+                  '[TaskCreationService] Failed to parse tool input JSON.',
+                  'ToolId:',
+                  toolInfo.id,
+                  'ToolName:',
+                  toolInfo.name,
+                  'InputLength:',
+                  toolInfo.input.length,
+                  'Error:',
+                  parseError instanceof Error ? parseError.message : String(parseError)
+                );
+              }
+
+              // Publish tool:result event with the accumulated input and duration
+              if (session.dbSessionId && this.sessionService) {
+                try {
+                  // Publish tool:result event
+                  await this.sessionService.publish(session.dbSessionId, {
+                    id: createId(),
+                    type: 'tool:result',
+                    timestamp: Date.now(),
+                    data: {
+                      id: toolInfo.id,
+                      tool: toolInfo.name,
+                      input: parsedInput,
+                      output: null, // Output comes from the actual tool execution, not available here
+                      duration,
+                      isError: false,
+                    },
+                  });
+                } catch (error) {
+                  console.error('[TaskCreationService] Failed to publish tool:result:', error);
+                }
+              }
+
+              inFlightTools.delete(event.index);
+            }
           }
 
           if (
@@ -519,6 +639,7 @@ export class TaskCreationService {
           const message = msg.message as {
             model?: string;
             usage?: { input_tokens?: number; output_tokens?: number };
+            content?: Array<{ type: string; id?: string; name?: string; input?: unknown }>;
           };
           if (message?.model) {
             modelUsed = message.model;
@@ -526,6 +647,55 @@ export class TaskCreationService {
           if (message?.usage) {
             inputTokens = message.usage.input_tokens ?? 0;
             outputTokens = message.usage.output_tokens ?? 0;
+          }
+
+          // Extract tool_use blocks from assistant message content
+          if (message?.content && session.dbSessionId && this.sessionService) {
+            for (const block of message.content) {
+              if (block.type === 'tool_use' && block.id && block.name) {
+                // Emit tool:start and tool:result for tool_use blocks not seen via streaming
+                const toolId = block.id;
+                const existingTool = Array.from(inFlightTools.values()).find(
+                  (t) => t.id === toolId
+                );
+
+                if (!existingTool) {
+                  try {
+                    const timestamp = Date.now();
+                    // Emit tool:start
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:start',
+                      timestamp,
+                      data: {
+                        id: toolId,
+                        tool: block.name,
+                        input: (block.input as Record<string, unknown>) ?? {},
+                      },
+                    });
+                    // Emit tool:result immediately (we don't have the actual result)
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:result',
+                      timestamp: timestamp + 1,
+                      data: {
+                        id: toolId,
+                        tool: block.name,
+                        input: (block.input as Record<string, unknown>) ?? {},
+                        output: null,
+                        duration: 0,
+                        isError: false,
+                      },
+                    });
+                  } catch (error) {
+                    console.error(
+                      '[TaskCreationService] Failed to publish tool events from assistant:',
+                      error
+                    );
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -538,6 +708,44 @@ export class TaskCreationService {
           if (result.usage) {
             inputTokens = result.usage.input_tokens ?? inputTokens;
             outputTokens = result.usage.output_tokens ?? outputTokens;
+          }
+        }
+
+        // Handle tool_progress messages - these indicate tool execution in progress
+        if (msg.type === 'tool_progress') {
+          const progress = msg as {
+            tool_use_id: string;
+            tool_name: string;
+            elapsed_time_seconds: number;
+          };
+
+          console.log(
+            `[TaskCreationService] Tool progress - ${progress.tool_name} (${progress.tool_use_id}): ${progress.elapsed_time_seconds}s`
+          );
+
+          // If we haven't seen this tool yet, emit a tool:start event
+          // This handles cases where the tool_use block wasn't captured via stream_event
+          const existingTool = Array.from(inFlightTools.values()).find(
+            (t) => t.id === progress.tool_use_id
+          );
+          if (!existingTool && session.dbSessionId && this.sessionService) {
+            try {
+              await this.sessionService.publish(session.dbSessionId, {
+                id: createId(),
+                type: 'tool:start',
+                timestamp: Date.now(),
+                data: {
+                  id: progress.tool_use_id,
+                  tool: progress.tool_name,
+                  input: {},
+                },
+              });
+            } catch (error) {
+              console.error(
+                '[TaskCreationService] Failed to publish tool:start from progress:',
+                error
+              );
+            }
           }
         }
       }
@@ -868,7 +1076,8 @@ export class TaskCreationService {
 export function createTaskCreationService(
   db: Database,
   streams: DurableStreamsService,
-  sessionService?: SessionService
+  sessionService?: SessionService,
+  settingsService?: SettingsService
 ): TaskCreationService {
-  return new TaskCreationService(db, streams, sessionService);
+  return new TaskCreationService(db, streams, sessionService, settingsService);
 }

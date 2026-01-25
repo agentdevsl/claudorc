@@ -49,6 +49,9 @@ describe('TaskCreationService', () => {
   }
 
   beforeEach(async () => {
+    // Clear mocks at the start to ensure clean state from previous tests
+    vi.clearAllMocks();
+
     await setupTestDatabase();
     const db = getTestDb();
 
@@ -83,7 +86,6 @@ describe('TaskCreationService', () => {
     } as unknown as SessionService;
 
     service = new TaskCreationService(db, mockStreams, mockSessionService);
-    vi.clearAllMocks();
   });
 
   afterEach(async () => {
@@ -469,8 +471,12 @@ describe('TaskCreationService', () => {
         ])
       );
 
-      await service.sendMessage(sessionId, 'Create a task');
-      await service.acceptSuggestion(sessionId);
+      const sendResult = await service.sendMessage(sessionId, 'Create a task');
+      expect(sendResult.ok).toBe(true);
+
+      const acceptResult = await service.acceptSuggestion(sessionId);
+      expect(acceptResult.ok).toBe(true);
+      if (!acceptResult.ok) return;
 
       expect(mockV2Session.close).toHaveBeenCalled();
       expect(mockSessionService.close).toHaveBeenCalledWith('mock-db-session-id');
