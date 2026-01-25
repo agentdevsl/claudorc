@@ -452,6 +452,12 @@ export class TaskCreationService {
       let outputTokens = 0;
       let modelUsed = '';
 
+      // Track in-flight tool calls for emitting tool:start/tool:result events
+      const inFlightTools = new Map<
+        number,
+        { id: string; name: string; input: string; startTime: number }
+      >();
+
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
         // Capture session ID for resume capability
@@ -463,7 +469,9 @@ export class TaskCreationService {
         if (msg.type === 'stream_event') {
           const event = msg.event as {
             type: string;
-            delta?: { type: string; text?: string };
+            index?: number;
+            content_block?: { type: string; id?: string; name?: string };
+            delta?: { type: string; text?: string; partial_json?: string };
             message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
             usage?: { input_tokens?: number; output_tokens?: number };
           };
@@ -481,6 +489,96 @@ export class TaskCreationService {
           // Capture message_delta for output token usage
           if (event.type === 'message_delta' && event.usage) {
             outputTokens = event.usage.output_tokens ?? 0;
+          }
+
+          // Handle tool_use content_block_start - emit tool:start event
+          if (
+            event.type === 'content_block_start' &&
+            event.content_block?.type === 'tool_use' &&
+            event.index !== undefined
+          ) {
+            const toolId = event.content_block.id ?? createId();
+            const toolName = event.content_block.name ?? 'unknown';
+
+            inFlightTools.set(event.index, {
+              id: toolId,
+              name: toolName,
+              input: '',
+              startTime: Date.now(),
+            });
+
+            // Publish tool:start event to session
+            if (session.dbSessionId && this.sessionService) {
+              try {
+                await this.sessionService.publish(session.dbSessionId, {
+                  id: createId(),
+                  type: 'tool:start',
+                  timestamp: Date.now(),
+                  data: {
+                    id: toolId,
+                    tool: toolName,
+                    input: {},
+                  },
+                });
+              } catch (error) {
+                console.error('[TaskCreationService] Failed to publish tool:start:', error);
+              }
+            }
+          }
+
+          // Handle input_json_delta - accumulate tool input
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta?.type === 'input_json_delta' &&
+            event.delta.partial_json &&
+            event.index !== undefined
+          ) {
+            const toolInfo = inFlightTools.get(event.index);
+            if (toolInfo) {
+              toolInfo.input += event.delta.partial_json;
+            }
+          }
+
+          // Handle content_block_stop - emit tool:result event for completed tools
+          if (event.type === 'content_block_stop' && event.index !== undefined) {
+            const toolInfo = inFlightTools.get(event.index);
+            if (toolInfo) {
+              const duration = Date.now() - toolInfo.startTime;
+
+              // Parse the accumulated input JSON
+              let parsedInput: Record<string, unknown> = {};
+              try {
+                if (toolInfo.input) {
+                  parsedInput = JSON.parse(toolInfo.input);
+                }
+              } catch {
+                console.warn('[TaskCreationService] Failed to parse tool input JSON');
+              }
+
+              // Update the tool:start event with parsed input (re-publish with correct input)
+              if (session.dbSessionId && this.sessionService) {
+                try {
+                  // Publish tool:result event
+                  await this.sessionService.publish(session.dbSessionId, {
+                    id: createId(),
+                    type: 'tool:result',
+                    timestamp: Date.now(),
+                    data: {
+                      id: toolInfo.id,
+                      tool: toolInfo.name,
+                      input: parsedInput,
+                      output: null, // Output comes from the actual tool execution, not available here
+                      duration,
+                      isError: false,
+                    },
+                  });
+                } catch (error) {
+                  console.error('[TaskCreationService] Failed to publish tool:result:', error);
+                }
+              }
+
+              inFlightTools.delete(event.index);
+            }
           }
 
           if (
@@ -519,6 +617,7 @@ export class TaskCreationService {
           const message = msg.message as {
             model?: string;
             usage?: { input_tokens?: number; output_tokens?: number };
+            content?: Array<{ type: string; id?: string; name?: string; input?: unknown }>;
           };
           if (message?.model) {
             modelUsed = message.model;
@@ -526,6 +625,55 @@ export class TaskCreationService {
           if (message?.usage) {
             inputTokens = message.usage.input_tokens ?? 0;
             outputTokens = message.usage.output_tokens ?? 0;
+          }
+
+          // Extract tool_use blocks from assistant message content
+          if (message?.content && session.dbSessionId && this.sessionService) {
+            for (const block of message.content) {
+              if (block.type === 'tool_use' && block.id && block.name) {
+                // Emit tool:start and tool:result for tool_use blocks not seen via streaming
+                const toolId = block.id;
+                const existingTool = Array.from(inFlightTools.values()).find(
+                  (t) => t.id === toolId
+                );
+
+                if (!existingTool) {
+                  try {
+                    const timestamp = Date.now();
+                    // Emit tool:start
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:start',
+                      timestamp,
+                      data: {
+                        id: toolId,
+                        tool: block.name,
+                        input: (block.input as Record<string, unknown>) ?? {},
+                      },
+                    });
+                    // Emit tool:result immediately (we don't have the actual result)
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:result',
+                      timestamp: timestamp + 1,
+                      data: {
+                        id: toolId,
+                        tool: block.name,
+                        input: (block.input as Record<string, unknown>) ?? {},
+                        output: null,
+                        duration: 0,
+                        isError: false,
+                      },
+                    });
+                  } catch (error) {
+                    console.error(
+                      '[TaskCreationService] Failed to publish tool events from assistant:',
+                      error
+                    );
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -538,6 +686,44 @@ export class TaskCreationService {
           if (result.usage) {
             inputTokens = result.usage.input_tokens ?? inputTokens;
             outputTokens = result.usage.output_tokens ?? outputTokens;
+          }
+        }
+
+        // Handle tool_progress messages - these indicate tool execution in progress
+        if (msg.type === 'tool_progress') {
+          const progress = msg as {
+            tool_use_id: string;
+            tool_name: string;
+            elapsed_time_seconds: number;
+          };
+
+          console.log(
+            `[TaskCreationService] Tool progress - ${progress.tool_name} (${progress.tool_use_id}): ${progress.elapsed_time_seconds}s`
+          );
+
+          // If we haven't seen this tool yet, emit a tool:start event
+          // This handles cases where the tool_use block wasn't captured via stream_event
+          const existingTool = Array.from(inFlightTools.values()).find(
+            (t) => t.id === progress.tool_use_id
+          );
+          if (!existingTool && session.dbSessionId && this.sessionService) {
+            try {
+              await this.sessionService.publish(session.dbSessionId, {
+                id: createId(),
+                type: 'tool:start',
+                timestamp: Date.now(),
+                data: {
+                  id: progress.tool_use_id,
+                  tool: progress.tool_name,
+                  input: {},
+                },
+              });
+            } catch (error) {
+              console.error(
+                '[TaskCreationService] Failed to publish tool:start from progress:',
+                error
+              );
+            }
           }
         }
       }

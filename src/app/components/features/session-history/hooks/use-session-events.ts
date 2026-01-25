@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import type {
   SessionDetail,
@@ -7,8 +7,11 @@ import type {
   SessionSort,
   StreamEntry,
   StreamEntryType,
+  ToolCallEntry,
+  ToolCallStats,
 } from '../types';
 import { calculateTimeOffset, formatTimeOffset } from '../utils/format-duration';
+import { calculateToolCallStats, parseToolCallsFromEvents } from '../utils/parse-tool-calls';
 
 // Types for API responses
 interface SessionListResponse {
@@ -70,12 +73,20 @@ export function useSessions(projectId: string, filters?: SessionFilters, sort?: 
 
         if (filters?.dateFrom) {
           const fromDate = new Date(filters.dateFrom);
-          filtered = filtered.filter((s) => new Date(s.createdAt) >= fromDate);
+          if (Number.isNaN(fromDate.getTime())) {
+            console.warn('[useSessions] Invalid dateFrom filter value:', filters.dateFrom);
+          } else {
+            filtered = filtered.filter((s) => new Date(s.createdAt) >= fromDate);
+          }
         }
 
         if (filters?.dateTo) {
           const toDate = new Date(filters.dateTo);
-          filtered = filtered.filter((s) => new Date(s.createdAt) <= toDate);
+          if (Number.isNaN(toDate.getTime())) {
+            console.warn('[useSessions] Invalid dateTo filter value:', filters.dateTo);
+          } else {
+            filtered = filtered.filter((s) => new Date(s.createdAt) <= toDate);
+          }
         }
 
         // Apply sorting
@@ -379,16 +390,52 @@ export function parseEventsToStreamEntries(
   });
 }
 
+const EMPTY_STATS: ToolCallStats = {
+  totalCalls: 0,
+  errorCount: 0,
+  avgDurationMs: 0,
+  toolBreakdown: [],
+};
+
+const EMPTY_RESULT = {
+  entries: [] as StreamEntry[],
+  toolCalls: [] as ToolCallEntry[],
+  toolCallStats: EMPTY_STATS,
+  isLoading: false,
+  error: undefined as string | undefined,
+};
+
 /**
- * Hook for session events with parsed stream entries
+ * Hook for session events with parsed stream entries and tool call data.
+ * Memoizes parsing results to avoid recomputation on every render.
  */
 export function useSessionEvents(session: SessionDetail | null) {
-  if (!session) {
-    return { entries: [] as StreamEntry[], isLoading: false };
-  }
+  return useMemo(() => {
+    if (!session) {
+      return EMPTY_RESULT;
+    }
 
-  const sessionStartTime = new Date(session.createdAt).getTime();
-  const entries = parseEventsToStreamEntries(session.events, sessionStartTime);
+    // Validate session timestamp
+    const sessionStartDate = new Date(session.createdAt);
+    const sessionStartTime = sessionStartDate.getTime();
 
-  return { entries, isLoading: false };
+    if (Number.isNaN(sessionStartTime)) {
+      console.error(
+        '[useSessionEvents] Invalid session createdAt timestamp:',
+        session.createdAt,
+        'Session ID:',
+        session.id
+      );
+      return {
+        ...EMPTY_RESULT,
+        error: 'Session has invalid timestamp data',
+      };
+    }
+
+    const entries = parseEventsToStreamEntries(session.events, sessionStartTime);
+    const toolCalls = parseToolCallsFromEvents(session.events, sessionStartTime);
+    const toolCallStats = calculateToolCallStats(toolCalls);
+
+    return { entries, toolCalls, toolCallStats, isLoading: false, error: undefined };
+  }, [session]);
 }
