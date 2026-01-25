@@ -17,6 +17,7 @@ import type { Edge, Node } from '@xyflow/react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { DEFAULT_WORKFLOW_MODEL } from '@/lib/constants/models';
+import { getNodeColors } from '@/lib/constants/node-colors';
 import { cn } from '@/lib/utils/cn';
 import { layoutWorkflowForReactFlow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
@@ -61,7 +62,7 @@ interface AIGenerateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: TemplateWithContent[];
-  onGenerate: (nodes: Node[], edges: Edge[]) => void;
+  onGenerate: (nodes: Node[], edges: Edge[], sourceName: string, description?: string) => void;
 }
 
 /**
@@ -317,7 +318,7 @@ export function AIGenerateDialog({
 
   // Handle generate button click
   const handleGenerate = useCallback(async () => {
-    if (!aiWorkflow) return;
+    if (!aiWorkflow || !selected) return;
 
     // Apply layout algorithm and convert DSL nodes/edges to ReactFlow format
     const { nodes: reactFlowNodes, edges: reactFlowEdges } = await layoutWorkflowForReactFlow(
@@ -325,14 +326,14 @@ export function AIGenerateDialog({
       aiWorkflow.edges as WorkflowEdge[]
     );
 
-    onGenerate(reactFlowNodes, reactFlowEdges);
+    onGenerate(reactFlowNodes, reactFlowEdges, selected.name, aiWorkflow.description ?? undefined);
 
     // Reset state
     setSelected(null);
     setAiWorkflow(null);
     setSearchQuery('');
     setError(null);
-  }, [aiWorkflow, onGenerate]);
+  }, [aiWorkflow, selected, onGenerate]);
 
   // Handle dialog close - reset state
   const handleOpenChange = useCallback(
@@ -652,36 +653,51 @@ export function AIGenerateDialog({
 
                     {/* Preview Steps */}
                     <div className="flex flex-col gap-2">
-                      {aiWorkflow.nodes.map((node, index) => (
-                        <div key={node.id}>
-                          {/* Step Card */}
-                          <div className="flex items-start gap-3 py-2.5 px-3 bg-[var(--bg-subtle)] border border-[var(--border-muted)] rounded-[var(--radius)]">
-                            <span className="w-[22px] h-[22px] rounded-full bg-[var(--bg-muted)] border border-[var(--border-default)] text-[var(--fg-muted)] text-[11px] font-semibold flex items-center justify-center flex-shrink-0">
-                              {index + 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-semibold text-[var(--fg-default)] mb-0.5">
-                                {node.label}
+                      {aiWorkflow.nodes.map((node, index) => {
+                        const nodeColors = getNodeColors(node.type);
+                        return (
+                          <div key={node.id}>
+                            {/* Step Card */}
+                            <div className="flex items-start gap-3 py-2.5 px-3 bg-[var(--bg-subtle)] border border-[var(--border-muted)] rounded-[var(--radius)]">
+                              <span
+                                className={cn(
+                                  'w-[22px] h-[22px] rounded-full text-[11px] font-semibold flex items-center justify-center flex-shrink-0',
+                                  nodeColors.bgClass,
+                                  nodeColors.textClass
+                                )}
+                              >
+                                {index + 1}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-[var(--fg-default)] mb-0.5">
+                                  {node.label}
+                                </div>
+                                {node.description && (
+                                  <p className="text-[11px] text-[var(--fg-muted)] line-clamp-1">
+                                    {node.description}
+                                  </p>
+                                )}
                               </div>
-                              {node.description && (
-                                <p className="text-[11px] text-[var(--fg-muted)] line-clamp-1">
-                                  {node.description}
-                                </p>
-                              )}
+                              <span
+                                className={cn(
+                                  'text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0',
+                                  nodeColors.bgClass,
+                                  nodeColors.textClass
+                                )}
+                              >
+                                {node.type}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--done-muted)] text-[var(--done-fg)] flex-shrink-0">
-                              {node.type}
-                            </span>
-                          </div>
 
-                          {/* Arrow Connector */}
-                          {index < aiWorkflow.nodes.length - 1 && (
-                            <div className="flex justify-center py-1">
-                              <ArrowDown className="h-4 w-4 text-[var(--fg-subtle)]" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            {/* Arrow Connector */}
+                            {index < aiWorkflow.nodes.length - 1 && (
+                              <div className="flex justify-center py-1">
+                                <ArrowDown className="h-4 w-4 text-[var(--fg-subtle)]" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}

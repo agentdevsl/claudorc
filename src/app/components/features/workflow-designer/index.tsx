@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 
 import type { Workflow } from '@/db/schema/workflows';
+import { calculateUniformNodeWidth } from '@/lib/workflow-dsl/layout';
+import type { WorkflowNode } from '@/lib/workflow-dsl/types';
 import { AIGenerateDialog } from './AIGenerateDialog';
 import { type SavedWorkflow, SavedWorkflowsPanel } from './SavedWorkflowsPanel';
 import { WorkflowCanvas } from './WorkflowCanvas';
@@ -40,12 +42,17 @@ function mapToCompactNodeType(type: string): string {
       return 'compactStart';
     case 'end':
       return 'compactEnd';
-    case 'command':
-      return 'compactCommand';
+    case 'context':
+      return 'compactContext';
     case 'skill':
       return 'compactSkill';
     case 'agent':
       return 'compactAgent';
+    case 'conditional':
+    case 'loop':
+    case 'parallel':
+      // Control flow nodes use their standard (non-compact) type
+      return type;
     default:
       // Warn about unmapped types - may indicate a bug or missing mapping
       console.warn(
@@ -75,6 +82,37 @@ const getDefaultNodes = (): Node[] => [
 ];
 
 /**
+ * Convert ReactFlow nodes back to DSL format for saving.
+ */
+const reactFlowNodesToWorkflowNodes = (nodes: Node[]): Workflow['nodes'] => {
+  return nodes.map((node) => {
+    const { nodeType, nodeIndex, uniformWidth, ...dataRest } = node.data as Record<string, unknown>;
+    return {
+      id: node.id,
+      type: (nodeType as string) || 'context',
+      position: node.position,
+      ...dataRest,
+    };
+  }) as Workflow['nodes'];
+};
+
+/**
+ * Convert ReactFlow edges back to DSL format for saving.
+ */
+const reactFlowEdgesToWorkflowEdges = (edges: Edge[]): Workflow['edges'] => {
+  return edges.map((edge) => {
+    const { edgeType, ...dataRest } = (edge.data as Record<string, unknown>) || {};
+    return {
+      id: edge.id,
+      type: (edgeType as string) || edge.type || 'sequential',
+      sourceNodeId: edge.source,
+      targetNodeId: edge.target,
+      ...dataRest,
+    };
+  }) as Workflow['edges'];
+};
+
+/**
  * Convert DB workflow (DSL types) to ReactFlow nodes/edges.
  *
  * DSL types use:
@@ -86,6 +124,11 @@ const getDefaultNodes = (): Node[] => [
  * - Edges: source/target fields
  */
 const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[] } => {
+  // Calculate uniform width for consistent sizing across all nodes
+  const uniformWidth = workflow.nodes
+    ? calculateUniformNodeWidth(workflow.nodes as WorkflowNode[])
+    : undefined;
+
   const nodes: Node[] =
     workflow.nodes?.map((n, index) => {
       // Extract common fields for ReactFlow data object
@@ -98,6 +141,7 @@ const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[
           ...rest, // Put remaining fields (label, description, etc.) into data
           nodeIndex: index, // For staggered animation
           nodeType: type, // Original type for reference
+          uniformWidth, // Apply calculated uniform width
         },
       };
     }) ?? getDefaultNodes();
@@ -160,6 +204,10 @@ export function WorkflowDesigner({
   const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>([]);
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(
     initialWorkflow?.id ?? null
+  );
+  const [workflowName, setWorkflowName] = useState<string>(initialWorkflow?.name ?? '');
+  const [workflowDescription, setWorkflowDescription] = useState<string>(
+    initialWorkflow?.description ?? ''
   );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [workflowsLoading, setWorkflowsLoading] = useState(true);
@@ -244,10 +292,14 @@ export function WorkflowDesigner({
 
   // Callback when AI workflow is generated from the dialog
   const handleAIWorkflowGenerated = useCallback(
-    (newNodes: Node[], newEdges: Edge[]) => {
+    (newNodes: Node[], newEdges: Edge[], sourceName: string, description?: string) => {
       setNodes(newNodes);
       setEdges(newEdges);
       setAiDialogOpen(false);
+      // Set workflow name and description based on AI generation
+      setWorkflowName(sourceName);
+      setWorkflowDescription(description ?? '');
+      setActiveWorkflowId(null); // This is a new workflow, not an update
       // Mark as unsaved since we have new content
       setHasUnsavedChanges(true);
     },
@@ -261,29 +313,77 @@ export function WorkflowDesigner({
     setIsSaving(true);
     setError(null);
     try {
-      // TODO: Call save API endpoint when available
-      console.log('Saving workflow...', { nodes, edges, viewport });
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Convert ReactFlow format back to DSL format
+      const workflowNodes = reactFlowNodesToWorkflowNodes(nodes);
+      const workflowEdges = reactFlowEdgesToWorkflowEdges(edges);
+
+      let savedWorkflow: Workflow;
+
+      if (activeWorkflowId) {
+        // Update existing workflow
+        const response = await fetch(`/api/workflows/${activeWorkflowId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodes: workflowNodes,
+            edges: workflowEdges,
+            viewport,
+          }),
+        });
+
+        const result = await response.json();
+        if (!result.ok) {
+          throw new Error(result.error?.message || 'Failed to update workflow');
+        }
+        savedWorkflow = result.data;
+      } else {
+        // Create new workflow - use stored name/description from AI generation
+        const name = workflowName || `Workflow ${new Date().toLocaleString()}`;
+        const response = await fetch('/api/workflows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            description: workflowDescription || undefined,
+            nodes: workflowNodes,
+            edges: workflowEdges,
+            viewport,
+            status: 'draft',
+          }),
+        });
+
+        const result = await response.json();
+        if (!result.ok) {
+          throw new Error(result.error?.message || 'Failed to create workflow');
+        }
+        savedWorkflow = result.data;
+        setActiveWorkflowId(savedWorkflow.id);
+      }
 
       // Mark as saved and update saved workflows list
       markAsSaved();
 
-      // Update the workflow in the list if it exists
-      if (activeWorkflowId) {
-        setSavedWorkflows((prev) =>
-          prev.map((w) =>
-            w.id === activeWorkflowId
-              ? {
-                  ...w,
-                  updatedAt: new Date(),
-                  nodeCount: nodes.length,
-                  edgeCount: edges.length,
-                }
-              : w
-          )
-        );
-      }
+      // Update or add the workflow in the list
+      setSavedWorkflows((prev) => {
+        const existingIndex = prev.findIndex((w) => w.id === savedWorkflow.id);
+        const workflowSummary: SavedWorkflow = {
+          id: savedWorkflow.id,
+          name: savedWorkflow.name,
+          description: savedWorkflow.description ?? undefined,
+          updatedAt: new Date(savedWorkflow.updatedAt),
+          nodeCount: savedWorkflow.nodes?.length ?? 0,
+          edgeCount: savedWorkflow.edges?.length ?? 0,
+        };
+
+        if (existingIndex >= 0) {
+          // Update existing
+          const updated = [...prev];
+          updated[existingIndex] = workflowSummary;
+          return updated;
+        }
+        // Add new at the beginning
+        return [workflowSummary, ...prev];
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('Failed to save workflow:', err);
@@ -291,7 +391,16 @@ export function WorkflowDesigner({
     } finally {
       setIsSaving(false);
     }
-  }, [readOnly, nodes, edges, viewport, markAsSaved, activeWorkflowId]);
+  }, [
+    readOnly,
+    nodes,
+    edges,
+    viewport,
+    markAsSaved,
+    activeWorkflowId,
+    workflowName,
+    workflowDescription,
+  ]);
 
   // Clear handler / Create new workflow
   const handleCreateNew = useCallback(() => {
@@ -300,6 +409,8 @@ export function WorkflowDesigner({
     setNodes(getDefaultNodes());
     setEdges([]);
     setActiveWorkflowId(null);
+    setWorkflowName('');
+    setWorkflowDescription('');
     setHasUnsavedChanges(false);
     lastSavedStateRef.current = '';
   }, [readOnly, setNodes, setEdges]);
@@ -320,6 +431,8 @@ export function WorkflowDesigner({
           setNodes(loaded.nodes);
           setEdges(loaded.edges);
           setActiveWorkflowId(workflow.id);
+          setWorkflowName(result.data.name || workflow.name);
+          setWorkflowDescription(result.data.description || '');
 
           // Mark initial state as saved
           setTimeout(() => {
@@ -342,8 +455,14 @@ export function WorkflowDesigner({
   const handleDeleteWorkflow = useCallback(
     async (workflowId: string) => {
       try {
-        // TODO: Call delete API endpoint
-        console.log('Deleting workflow:', workflowId);
+        const response = await fetch(`/api/workflows/${workflowId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok && response.status !== 204) {
+          const result = await response.json();
+          throw new Error(result.error?.message || 'Failed to delete workflow');
+        }
 
         // Remove from list
         setSavedWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
@@ -354,7 +473,8 @@ export function WorkflowDesigner({
         }
       } catch (err) {
         console.error('[Designer] Failed to delete workflow:', err);
-        setError('Failed to delete workflow');
+        const message = err instanceof Error ? err.message : 'Failed to delete workflow';
+        setError(message);
       }
     },
     [activeWorkflowId, handleCreateNew]

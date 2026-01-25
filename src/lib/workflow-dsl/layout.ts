@@ -50,12 +50,77 @@ export interface LayoutOptions {
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeWidth: 480, // Matches CSS min-width for uniform node sizing
+  nodeWidth: 280, // Base width for ELK positioning (matches CSS fallback)
   nodeHeight: 32, // Compact node height
   nodeSpacing: 30, // Horizontal spacing between parallel nodes
   layerSpacing: 45, // Vertical gap between layers
   edgeRouting: 'ORTHOGONAL',
 };
+
+// =============================================================================
+// DYNAMIC NODE WIDTH CALCULATION
+// =============================================================================
+
+/** Approximate character widths for width estimation */
+const CHAR_WIDTH = {
+  label: 7, // ~11px font, semi-bold
+  mono: 6.5, // ~10px mono font
+};
+
+/** Fixed width components */
+const NODE_PADDING = {
+  icon: 18, // Icon width
+  badge: 40, // Type badge width
+  padding: 24, // Left/right padding + gaps
+  separator: 10, // Dot separator + gaps
+};
+
+const MIN_NODE_WIDTH = 150;
+const MAX_NODE_WIDTH = 450;
+const MAX_SECONDARY_CHARS = 25; // Cap secondary text for width calculation
+
+/**
+ * Estimates the width needed for a single node based on its content.
+ */
+function estimateNodeWidth(node: WorkflowNode): number {
+  const label = node.label || '';
+
+  // Get secondary text (skillId, content, etc.)
+  let secondaryText = '';
+  if (node.type === 'skill' && 'skillId' in node) {
+    secondaryText = (node.skillId as string) || '';
+  } else if (node.type === 'context' && 'content' in node) {
+    secondaryText = (node.content as string) || '';
+  }
+
+  // Calculate text widths (cap secondary text to avoid overly wide nodes)
+  const labelWidth = label.length * CHAR_WIDTH.label;
+  const cappedSecondaryLength = Math.min(secondaryText.length, MAX_SECONDARY_CHARS);
+  const secondaryWidth = secondaryText ? cappedSecondaryLength * CHAR_WIDTH.mono : 0;
+
+  // Total width = icon + label + separator (if secondary) + secondary + badge + padding
+  const hasSecondary = secondaryText.length > 0;
+  const contentWidth = labelWidth + (hasSecondary ? NODE_PADDING.separator + secondaryWidth : 0);
+  const totalWidth = NODE_PADDING.icon + contentWidth + NODE_PADDING.badge + NODE_PADDING.padding;
+
+  return Math.max(MIN_NODE_WIDTH, Math.min(MAX_NODE_WIDTH, totalWidth));
+}
+
+/**
+ * Calculates the uniform width needed to fit all nodes.
+ * Returns the maximum width across all nodes, clamped to min/max bounds.
+ */
+export function calculateUniformNodeWidth(nodes: WorkflowNode[]): number {
+  if (nodes.length === 0) return MIN_NODE_WIDTH;
+
+  const maxWidth = nodes.reduce((max, node) => {
+    const width = estimateNodeWidth(node);
+    return Math.max(max, width);
+  }, MIN_NODE_WIDTH);
+
+  // Round up to nearest 10px for cleaner values
+  return Math.ceil(maxWidth / 10) * 10;
+}
 
 // =============================================================================
 // ELK LAYOUT
@@ -233,24 +298,34 @@ function mapToCompactNodeType(type: WorkflowNode['type']): string {
       return 'compactStart';
     case 'end':
       return 'compactEnd';
-    case 'command':
-      return 'compactCommand';
+    case 'context':
+      return 'compactContext';
     case 'skill':
       return 'compactSkill';
     case 'agent':
       return 'compactAgent';
-    default:
-      // Log that this type has no compact equivalent (e.g., conditional, loop, parallel)
-      console.warn(
-        `[layoutWorkflow] Node type "${type}" has no compact variant - using as-is. Node may render with default styling.`
-      );
+    case 'conditional':
+    case 'loop':
+    case 'parallel':
+      // Control flow nodes use their standard (non-compact) type
+      // because they have special rendering requirements
       return type;
+    default: {
+      // TypeScript exhaustiveness check - if this is reached, we have an unhandled type
+      const exhaustiveCheck: never = type;
+      console.error(
+        `[layoutWorkflow] Unhandled node type "${exhaustiveCheck}". Node may not render correctly.`
+      );
+      return type as string;
+    }
   }
 }
 
 export interface ToReactFlowNodesOptions {
   /** Use compact node types (v3 design) - default: true */
   useCompactNodes?: boolean;
+  /** Uniform width for all nodes (calculated dynamically if not provided) */
+  uniformWidth?: number;
 }
 
 /**
@@ -264,7 +339,10 @@ export function toReactFlowNodes(
   nodes: WorkflowNode[],
   options: ToReactFlowNodesOptions = {}
 ): ReactFlowNode[] {
-  const { useCompactNodes = true } = options;
+  const { useCompactNodes = true, uniformWidth } = options;
+
+  // Calculate uniform width if not provided
+  const nodeWidth = uniformWidth ?? calculateUniformNodeWidth(nodes);
 
   return nodes.map((node, index) => ({
     id: node.id,
@@ -278,6 +356,8 @@ export function toReactFlowNodes(
       nodeIndex: index,
       // Original node type for reference
       nodeType: node.type,
+      // Uniform width for CSS styling
+      uniformWidth: nodeWidth,
       // Spread node-specific properties
       ...extractNodeSpecificData(node),
     },
@@ -343,6 +423,7 @@ export interface LayoutWorkflowForReactFlowOptions extends LayoutOptions {
 
 /**
  * Applies layout to workflow and returns ReactFlow-compatible nodes and edges.
+ * Calculates dynamic uniform node width based on content for consistent visual styling.
  *
  * @param nodes - Array of workflow nodes
  * @param edges - Array of workflow edges
@@ -355,9 +436,18 @@ export async function layoutWorkflowForReactFlow(
   options?: LayoutWorkflowForReactFlowOptions
 ): Promise<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }> {
   const { useCompactNodes = true, ...layoutOptions } = options ?? {};
+
+  // Calculate uniform width based on content for CSS styling
+  // Note: ELK uses its default nodeWidth for positioning calculations
+  // to ensure stable layout, but we pass the calculated width to nodes
+  // for consistent visual rendering
+  const uniformWidth = calculateUniformNodeWidth(nodes);
+
+  // Apply layout (uses default nodeWidth for ELK positioning)
   const layoutedNodes = await layoutWorkflow(nodes, edges, layoutOptions);
+
   return {
-    nodes: toReactFlowNodes(layoutedNodes, { useCompactNodes }),
+    nodes: toReactFlowNodes(layoutedNodes, { useCompactNodes, uniformWidth }),
     edges: toReactFlowEdges(edges),
   };
 }
@@ -378,13 +468,10 @@ function extractNodeSpecificData(node: WorkflowNode): Record<string, unknown> {
         inputs: node.inputs,
         outputs: node.outputs,
       };
-    case 'command':
+    case 'context':
       return {
-        command: node.command,
+        content: node.content,
         args: node.args,
-        workingDirectory: node.workingDirectory,
-        environment: node.environment,
-        timeout: node.timeout,
       };
     case 'agent':
       return {

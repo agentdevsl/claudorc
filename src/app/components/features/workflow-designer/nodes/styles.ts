@@ -34,7 +34,7 @@ export const baseNodeVariants = cva(
 export type BaseNodeVariants = VariantProps<typeof baseNodeVariants>;
 
 /**
- * Rectangle node styles (Skill, Command, Agent, Loop)
+ * Rectangle node styles (Skill, Context, Agent, Loop)
  * Sophisticated card-like appearance with subtle type indicators
  */
 export const rectangleNodeVariants = cva(
@@ -66,7 +66,7 @@ export const rectangleNodeVariants = cva(
       },
       nodeType: {
         skill: 'border-l-[3px] border-l-[var(--secondary-fg)]',
-        command: 'border-l-[3px] border-l-[var(--attention-fg)]',
+        context: 'border-l-[3px] border-l-[var(--attention-fg)]',
         agent: 'border-l-[3px] border-l-[var(--accent-fg)]',
         loop: 'border-l-[3px] border-l-[var(--done-fg)]',
       },
@@ -216,7 +216,7 @@ export const nodeIconVariants = cva('text-[18px] select-none flex-shrink-0', {
   variants: {
     nodeType: {
       skill: 'text-[var(--secondary-fg)]',
-      command: 'text-[var(--attention-fg)]',
+      context: 'text-[var(--attention-fg)]',
       agent: 'text-[var(--accent-fg)]',
       loop: 'text-[var(--done-fg)]',
       conditional: 'text-[var(--fg-muted)]',
@@ -246,7 +246,7 @@ export const nodeLabelVariants = cva(
     variants: {
       nodeType: {
         skill: 'text-[var(--fg-default)]',
-        command: 'text-[var(--fg-default)]',
+        context: 'text-[var(--fg-default)]',
         agent: 'text-[var(--fg-default)]',
         loop: 'text-[var(--fg-default)]',
         conditional: 'text-[var(--fg-default)]',
@@ -285,7 +285,7 @@ export const nodeTypeBadgeVariants = cva(
     variants: {
       nodeType: {
         skill: 'bg-[var(--secondary-subtle)] text-[var(--secondary-fg)]',
-        command: 'bg-[var(--attention-subtle)] text-[var(--attention-fg)]',
+        context: 'bg-[var(--attention-subtle)] text-[var(--attention-fg)]',
         agent: 'bg-[var(--accent-subtle)] text-[var(--accent-fg)]',
         loop: 'bg-[var(--done-subtle)] text-[var(--done-fg)]',
         conditional: 'bg-[var(--bg-muted)] text-[var(--fg-muted)]',

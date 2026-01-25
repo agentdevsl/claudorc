@@ -214,36 +214,17 @@ function TypeSpecificFields({
         </>
       );
 
-    case 'command':
+    case 'context':
       return (
-        <>
-          <FieldGroup label="Command">
-            <TextInput
-              value={node.command}
-              onChange={(e) => onUpdateNode(node.id, { ...node, command: e.target.value })}
-              placeholder="e.g., npm run build"
-              className="font-mono text-xs"
-            />
-          </FieldGroup>
-          {node.workingDirectory && (
-            <ReadOnlyField label="Working Directory" value={node.workingDirectory} />
-          )}
-          {node.timeout !== undefined && (
-            <FieldGroup label="Timeout (ms)">
-              <TextInput
-                type="number"
-                value={node.timeout.toString()}
-                onChange={(e) =>
-                  onUpdateNode(node.id, {
-                    ...node,
-                    timeout: e.target.value ? parseInt(e.target.value, 10) : undefined,
-                  })
-                }
-                placeholder="30000"
-              />
-            </FieldGroup>
-          )}
-        </>
+        <FieldGroup label="Content">
+          <Textarea
+            value={node.content}
+            onChange={(e) => onUpdateNode(node.id, { ...node, content: e.target.value })}
+            placeholder="Context or prompting content..."
+            rows={4}
+            className="text-sm"
+          />
+        </FieldGroup>
       );
 
     case 'agent':
