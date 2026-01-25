@@ -12,9 +12,18 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorkflowPreviewSvg } from '@/app/components/features/workflow-preview';
 import { Button } from '@/app/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/components/ui/select';
 import type { Workflow } from '@/db/schema/workflows';
 import { cn } from '@/lib/utils/cn';
 import type { WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
+
+type WorkflowStatus = 'draft' | 'published' | 'archived';
 
 export const Route = createFileRoute('/catalog/')({
   component: CatalogPage,
@@ -34,6 +43,19 @@ type WorkflowListItem = {
   createdAt: string;
   updatedAt: string;
 };
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const NODE_TYPE_COLORS = {
+  start: '#3fb950', // success-fg
+  end: '#f85149', // danger-fg
+  skill: '#f778ba', // secondary-fg
+  context: '#d29922', // attention-fg
+  agent: '#58a6ff', // accent-fg
+  logic: '#a371f7', // done-fg
+} as const;
 
 // =============================================================================
 // Helper Functions
@@ -220,14 +242,18 @@ interface DetailPanelProps {
   workflow: WorkflowListItem | null;
   onEdit: () => void;
   onDelete: () => void;
+  onStatusChange: (status: WorkflowStatus) => void;
   isDeleting: boolean;
+  isUpdatingStatus: boolean;
 }
 
 function DetailPanel({
   workflow,
   onEdit,
   onDelete,
+  onStatusChange,
   isDeleting,
+  isUpdatingStatus,
 }: DetailPanelProps): React.JSX.Element {
   if (!workflow) {
     return (
@@ -243,16 +269,6 @@ function DetailPanel({
   const stats = calculateStats(workflow.nodes ?? []);
   const nodes = workflow.nodes ?? [];
   const edges = workflow.edges ?? [];
-
-  // Node type colors per design system
-  const typeColors = {
-    start: '#3fb950', // success-fg
-    end: '#f85149', // danger-fg
-    skill: '#f778ba', // secondary-fg
-    context: '#d29922', // attention-fg
-    agent: '#58a6ff', // accent-fg
-    logic: '#a371f7', // done-fg
-  } as const;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-surface">
@@ -273,18 +289,34 @@ function DetailPanel({
         <div className="flex items-start justify-between mb-6">
           <div>
             <h2 className="text-xl font-semibold text-fg mb-2">{workflow.name}</h2>
-            <div className="flex gap-2">
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold uppercase rounded-full',
-                  workflow.status === 'published'
-                    ? 'bg-success-muted text-success'
-                    : 'bg-surface-emphasis text-fg-muted'
-                )}
+            <div className="flex items-center gap-2">
+              <Select
+                value={workflow.status ?? 'draft'}
+                onValueChange={(value) => onStatusChange(value as WorkflowStatus)}
+                disabled={isUpdatingStatus}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                {workflow.status ?? 'Draft'}
-              </span>
+                <SelectTrigger
+                  className={cn(
+                    'h-7 w-32 text-[11px] font-semibold uppercase',
+                    workflow.status === 'published'
+                      ? 'border-success/30 text-success'
+                      : workflow.status === 'archived'
+                        ? 'border-fg-subtle/30 text-fg-subtle'
+                        : 'border-border text-fg-muted'
+                  )}
+                >
+                  {isUpdatingStatus ? (
+                    <Spinner className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <SelectValue />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="flex gap-2">
@@ -331,28 +363,25 @@ function DetailPanel({
               Node Breakdown
             </h3>
             <div className="flex flex-wrap gap-2">
-              {stats.startCount > 0 && (
-                <BreakdownItem type="start" count={stats.startCount} color={typeColors.start} />
-              )}
-              {stats.skillCount > 0 && (
-                <BreakdownItem type="skill" count={stats.skillCount} color={typeColors.skill} />
-              )}
-              {stats.agentCount > 0 && (
-                <BreakdownItem type="agent" count={stats.agentCount} color={typeColors.agent} />
-              )}
-              {stats.contextCount > 0 && (
-                <BreakdownItem
-                  type="context"
-                  count={stats.contextCount}
-                  color={typeColors.context}
-                />
-              )}
-              {stats.logicCount > 0 && (
-                <BreakdownItem type="logic" count={stats.logicCount} color={typeColors.logic} />
-              )}
-              {stats.endCount > 0 && (
-                <BreakdownItem type="end" count={stats.endCount} color={typeColors.end} />
-              )}
+              {(
+                [
+                  { type: 'start', count: stats.startCount },
+                  { type: 'skill', count: stats.skillCount },
+                  { type: 'agent', count: stats.agentCount },
+                  { type: 'context', count: stats.contextCount },
+                  { type: 'logic', count: stats.logicCount },
+                  { type: 'end', count: stats.endCount },
+                ] as const
+              )
+                .filter((item) => item.count > 0)
+                .map((item) => (
+                  <BreakdownItem
+                    key={item.type}
+                    type={item.type}
+                    count={item.count}
+                    color={NODE_TYPE_COLORS[item.type]}
+                  />
+                ))}
             </div>
           </div>
         )}
@@ -385,6 +414,7 @@ function CatalogPage(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   const fetchWorkflows = useCallback(async () => {
     setIsLoading(true);
@@ -406,23 +436,25 @@ function CatalogPage(): React.JSX.Element {
           updatedAt: w.updatedAt,
         }));
         setWorkflows(items);
-
-        if (items.length > 0 && !selectedId) {
-          setSelectedId(items[0]?.id ?? null);
-        }
-      } else {
-        setError(result.error?.message ?? 'Failed to load workflows');
+        return items;
       }
+      setError(result.error?.message ?? 'Failed to load workflows');
+      return [];
     } catch (err) {
       console.error('[Catalog] Fetch error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load workflows');
+      return [];
     } finally {
       setIsLoading(false);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
-    fetchWorkflows();
+    fetchWorkflows().then((items) => {
+      if (items.length > 0) {
+        setSelectedId((current) => current ?? items[0]?.id ?? null);
+      }
+    });
   }, [fetchWorkflows]);
 
   const filteredWorkflows = useMemo(() => {
@@ -483,6 +515,36 @@ function CatalogPage(): React.JSX.Element {
   const handleCreateWorkflow = useCallback(() => {
     navigate({ to: '/designer' });
   }, [navigate]);
+
+  const handleStatusChange = useCallback(async (workflowId: string, newStatus: WorkflowStatus) => {
+    setUpdatingStatusId(workflowId);
+
+    try {
+      const response = await fetch(`/api/workflows/${workflowId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        setWorkflows((prev) =>
+          prev.map((w) =>
+            w.id === workflowId
+              ? { ...w, status: newStatus, updatedAt: new Date().toISOString() }
+              : w
+          )
+        );
+      } else {
+        const result = await response.json();
+        setError(result.error?.message ?? 'Failed to update workflow status');
+      }
+    } catch (err) {
+      console.error('[Catalog] Status update error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update workflow status');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -587,7 +649,11 @@ function CatalogPage(): React.JSX.Element {
               onDelete={() =>
                 selectedWorkflow && handleDeleteWorkflow(selectedWorkflow.id, selectedWorkflow.name)
               }
+              onStatusChange={(status) =>
+                selectedWorkflow && handleStatusChange(selectedWorkflow.id, status)
+              }
               isDeleting={deletingId === selectedWorkflow?.id}
+              isUpdatingStatus={updatingStatusId === selectedWorkflow?.id}
             />
           </div>
         )}

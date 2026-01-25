@@ -22,6 +22,14 @@ export interface WorkflowPreviewSvgProps {
 /**
  * Node colors from design-tokens.css (same as compact nodes)
  */
+// Shared color config for logic node types (conditional, loop, parallel)
+const LOGIC_NODE_COLOR = {
+  fill: '#a371f7', // --done-fg
+  fillMuted: 'rgba(163, 113, 247, 0.15)',
+  stroke: 'rgba(163, 113, 247, 0.35)',
+  text: '#a371f7',
+} as const;
+
 const NODE_COLORS: Record<
   NodeType,
   { fill: string; fillMuted: string; stroke: string; text: string }
@@ -56,24 +64,9 @@ const NODE_COLORS: Record<
     stroke: 'rgba(88, 166, 255, 0.35)',
     text: '#58a6ff',
   },
-  conditional: {
-    fill: '#a371f7', // --done-fg
-    fillMuted: 'rgba(163, 113, 247, 0.15)',
-    stroke: 'rgba(163, 113, 247, 0.35)',
-    text: '#a371f7',
-  },
-  loop: {
-    fill: '#a371f7',
-    fillMuted: 'rgba(163, 113, 247, 0.15)',
-    stroke: 'rgba(163, 113, 247, 0.35)',
-    text: '#a371f7',
-  },
-  parallel: {
-    fill: '#a371f7',
-    fillMuted: 'rgba(163, 113, 247, 0.15)',
-    stroke: 'rgba(163, 113, 247, 0.35)',
-    text: '#a371f7',
-  },
+  conditional: LOGIC_NODE_COLOR,
+  loop: LOGIC_NODE_COLOR,
+  parallel: LOGIC_NODE_COLOR,
 };
 
 const EDGE_COLOR = '#30363d'; // --border-default
@@ -127,12 +120,7 @@ function measureText(text: string, fontSize: number): number {
 /**
  * Get badge width based on label length and available space
  */
-function getBadgeWidth(
-  label: string,
-  _type: NodeType,
-  size: 'mini' | 'large',
-  maxChars: number
-): number {
+function getBadgeWidth(label: string, size: 'mini' | 'large', maxChars: number): number {
   const fontSize = FONT_SIZE[size];
   const padding = BADGE_PADDING[size];
   const iconSize = ICON_SIZE[size];
@@ -225,7 +213,7 @@ function layoutLinear(
     let currentRowWidth = 0;
 
     for (const node of nodes) {
-      const badgeWidth = getBadgeWidth(node.label, node.type, size, maxChars);
+      const badgeWidth = getBadgeWidth(node.label, size, maxChars);
       const neededWidth = currentRow.length > 0 ? badgeWidth + hGap : badgeWidth;
 
       if (currentRowWidth + neededWidth <= availableWidth) {
@@ -262,7 +250,7 @@ function layoutLinear(
     // Calculate row width
     const rowBadgeWidths: number[] = [];
     for (const node of row) {
-      const w = getBadgeWidth(node.label, node.type, size, bestMaxChars);
+      const w = getBadgeWidth(node.label, size, bestMaxChars);
       rowBadgeWidths.push(w);
     }
 
@@ -368,6 +356,14 @@ function LogicIcon({ size, color }: IconProps) {
   );
 }
 
+const NODE_TYPE_ICONS: Partial<Record<NodeType, typeof PlayIcon>> = {
+  start: PlayIcon,
+  end: StopIcon,
+  skill: LightningIcon,
+  context: TerminalIcon,
+  agent: RobotIcon,
+};
+
 // =============================================================================
 // Badge Node Component
 // =============================================================================
@@ -400,24 +396,8 @@ function BadgeNode({ node, x, y, width, size, maxChars }: BadgeNodeProps) {
   const displayLabel =
     node.label.length > maxChars ? `${node.label.slice(0, maxChars)}…` : node.label;
 
-  // Icon component based on type
-  const renderIcon = () => {
-    const iconColor = isStartOrEnd ? BG_DEFAULT : colors.fill;
-    switch (node.type) {
-      case 'start':
-        return <PlayIcon size={iconSize} color={iconColor} />;
-      case 'end':
-        return <StopIcon size={iconSize} color={iconColor} />;
-      case 'skill':
-        return <LightningIcon size={iconSize} color={iconColor} />;
-      case 'context':
-        return <TerminalIcon size={iconSize} color={iconColor} />;
-      case 'agent':
-        return <RobotIcon size={iconSize} color={iconColor} />;
-      default:
-        return <LogicIcon size={iconSize} color={iconColor} />;
-    }
-  };
+  const iconColor = isStartOrEnd ? BG_DEFAULT : colors.fill;
+  const IconComponent = NODE_TYPE_ICONS[node.type] ?? LogicIcon;
 
   return (
     <g>
@@ -429,32 +409,22 @@ function BadgeNode({ node, x, y, width, size, maxChars }: BadgeNodeProps) {
         height={height}
         rx={radius}
         fill={isStartOrEnd ? colors.fillMuted : BG_DEFAULT}
-        stroke={isStartOrEnd ? colors.stroke : colors.stroke}
+        stroke={colors.stroke}
         strokeWidth={1}
       />
 
-      {/* Icon circle for start/end */}
-      {isStartOrEnd && (
-        <circle
-          cx={iconX + iconSize / 2}
-          cy={y}
-          r={iconSize / 2 + (size === 'mini' ? 1 : 2)}
-          fill={colors.fill}
-        />
-      )}
-
-      {/* Icon circle background for other types */}
-      {!isStartOrEnd && (
-        <circle
-          cx={iconX + iconSize / 2}
-          cy={y}
-          r={iconSize / 2 + (size === 'mini' ? 1 : 2)}
-          fill={colors.fillMuted}
-        />
-      )}
+      {/* Icon circle background */}
+      <circle
+        cx={iconX + iconSize / 2}
+        cy={y}
+        r={iconSize / 2 + (size === 'mini' ? 1 : 2)}
+        fill={isStartOrEnd ? colors.fill : colors.fillMuted}
+      />
 
       {/* Icon */}
-      <g transform={`translate(${iconX}, ${iconY})`}>{renderIcon()}</g>
+      <g transform={`translate(${iconX}, ${iconY})`}>
+        <IconComponent size={iconSize} color={iconColor} />
+      </g>
 
       {/* Label text */}
       <text
