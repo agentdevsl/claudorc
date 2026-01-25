@@ -406,6 +406,9 @@ export function createWorkflowDesignerRoutes({ templateService }: WorkflowDesign
     }
 
     // Build final workflow object
+    // Convert aiConfidence from 0-1 float to 0-100 integer for database storage
+    const aiConfidencePercent = Math.round(aiConfidence * 100);
+
     const workflow: Workflow = {
       id: createId(),
       name: templateName,
@@ -417,7 +420,7 @@ export function createWorkflowDesignerRoutes({ templateService }: WorkflowDesign
       status: 'draft',
       aiGenerated: true,
       aiModel: WORKFLOW_AI_MODEL,
-      aiConfidence,
+      aiConfidence: aiConfidencePercent,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

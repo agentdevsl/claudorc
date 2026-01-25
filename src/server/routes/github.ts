@@ -307,7 +307,11 @@ export function createGitHubRoutes({ githubService }: GitHubDeps) {
       const exitCode = await proc.exited;
 
       if (exitCode !== 0) {
-        const stderr = await new Response(proc.stderr).text();
+        let stderr = await new Response(proc.stderr).text();
+        // Redact token from error message to prevent leaking secrets
+        if (token) {
+          stderr = stderr.replace(new RegExp(token, 'g'), '*****');
+        }
         console.error('[Clone from template] Failed:', stderr);
         return json(
           {

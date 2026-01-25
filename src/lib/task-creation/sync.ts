@@ -214,7 +214,13 @@ function handleMessageEvent(sessionId: string, data: MessageEventData): void {
 }
 
 function handleQuestionsEvent(sessionId: string, data: QuestionsEventData): void {
-  console.log('[TaskCreation Sync] Received questions:', data.questions.questions.length);
+  console.log('[TaskCreation Sync] Received questions:', {
+    id: data.questions.id,
+    count: data.questions.questions.length,
+    round: data.questions.round,
+    totalAsked: data.questions.totalAsked,
+    headers: data.questions.questions.map((q) => q.header),
+  });
   updateSession(sessionId, {
     status: 'waiting_user',
     pendingQuestions: data.questions,

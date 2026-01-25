@@ -10,12 +10,14 @@ export const corsHeaders = {
 } as const;
 
 /**
- * Create a JSON response with CORS headers
+ * Create a JSON response.
+ * NOTE: CORS is handled by Hono middleware in router.ts.
+ * Do not add CORS headers here to avoid duplication.
  */
 export function json<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 

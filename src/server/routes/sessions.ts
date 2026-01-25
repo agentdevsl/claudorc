@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { SessionService } from '../../services/session.service.js';
-import { json } from '../shared.js';
+import { isValidId, json } from '../shared.js';
 
 interface SessionsDeps {
   sessionService: SessionService;
@@ -21,7 +21,7 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
     try {
       const result = await sessionService.list({ limit, offset });
       if (!result.ok) {
-        return json({ ok: false, error: result.error }, 400);
+        return json({ ok: false, error: result.error }, result.error.status ?? 400);
       }
 
       return json({
@@ -45,13 +45,21 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
   // GET /api/sessions/:id/events
   app.get('/:id/events', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
     const limit = parseInt(c.req.query('limit') ?? '100', 10);
     const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
     try {
       const result = await sessionService.getEventsBySession(id, { limit, offset });
       if (!result.ok) {
-        return json({ ok: false, error: result.error }, 404);
+        return json({ ok: false, error: result.error }, result.error.status ?? 404);
       }
 
       return json({
@@ -72,10 +80,17 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
   app.get('/:id/summary', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
     try {
       const result = await sessionService.getSessionSummary(id);
       if (!result.ok) {
-        return json({ ok: false, error: result.error }, 404);
+        return json({ ok: false, error: result.error }, result.error.status ?? 404);
       }
 
       // Return default values if no summary exists yet
@@ -104,10 +119,17 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
     try {
       const result = await sessionService.getById(id);
       if (!result.ok) {
-        return json({ ok: false, error: result.error }, 404);
+        return json({ ok: false, error: result.error }, result.error.status ?? 404);
       }
 
       return json({ ok: true, data: result.value });

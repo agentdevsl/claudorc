@@ -140,10 +140,10 @@ const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structu
 
 Your role is to:
 1. Understand what the user wants (from their initial message)
-2. Use the AskUserQuestion tool to gather 2-5 clarifying questions
+2. Use the AskUserQuestion tool ONCE to gather 3-5 clarifying questions
 3. Generate a high-quality task suggestion based on the user's answers
 
-## Phase 1: Clarifying Questions
+## Phase 1: Clarifying Questions (ONE ROUND ONLY)
 
 When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
 Ask questions that will help you create a better, more specific task. Focus on:
@@ -158,11 +158,15 @@ Guidelines for questions:
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
 - Set multiSelect: true if the user should be able to select multiple options
-- Ask 2-5 questions maximum
+- Ask 3-5 questions in ONE call - this is your only chance to ask questions
 
-## Phase 2: Task Suggestion
+## Phase 2: Task Suggestion (IMMEDIATELY AFTER RECEIVING ANSWERS)
 
-After receiving answers from AskUserQuestion, generate the task suggestion as a JSON block:
+CRITICAL: After the user answers your questions, you MUST immediately generate the task suggestion.
+DO NOT call AskUserQuestion again. DO NOT ask follow-up questions.
+The user's answers are sufficient - proceed directly to generating the task.
+
+Generate the task suggestion as a JSON block:
 
 \`\`\`json
 {
@@ -644,7 +648,7 @@ export class TaskCreationService {
                 }
               }
 
-              // Check for AskUserQuestion tool_use - BREAK immediately to pause for user input
+              // Check for AskUserQuestion tool_use - BREAK to pause for user input
               if (
                 block.type === 'tool_use' &&
                 block.name === 'AskUserQuestion' &&
@@ -652,7 +656,7 @@ export class TaskCreationService {
                 block.id
               ) {
                 console.log(
-                  '[TaskCreationService] 🛑 AskUserQuestion tool detected - BREAKING stream to wait for user input!'
+                  '[TaskCreationService] 🛑 AskUserQuestion tool detected - BREAKING for user input'
                 );
                 console.log(
                   '[TaskCreationService] Tool input:',
@@ -672,14 +676,31 @@ export class TaskCreationService {
                   questions: input.questions,
                 };
 
-                // BREAK out of the streaming loop to pause execution
-                // The SDK would auto-execute this tool, but we want to pause for real user input
+                // Publish tool:start event for AskUserQuestion (V2 path)
+                if (session.dbSessionId && this.sessionService) {
+                  try {
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:start',
+                      timestamp: Date.now(),
+                      data: {
+                        id: block.id,
+                        tool: 'AskUserQuestion',
+                        input: block.input as Record<string, unknown>,
+                      },
+                    });
+                    console.log('[TaskCreationService] Published tool:start for AskUserQuestion');
+                  } catch (error) {
+                    console.error('[TaskCreationService] Failed to publish tool:start:', error);
+                  }
+                }
+                // BREAK out of the inner loop
                 break;
               }
             }
           }
 
-          // If we found AskUserQuestion, break out of the outer loop too
+          // If we found AskUserQuestion, break out of the outer stream loop too
           if (askUserQuestionInput) {
             console.log('[TaskCreationService] 🛑 Breaking out of stream loop for AskUserQuestion');
             break;
@@ -1326,16 +1347,45 @@ export class TaskCreationService {
         pendingToolUseId
       );
 
-      // Format the tool result content
+      // Format the tool result content - include full question context so Claude knows what was asked
       const toolResultContent = {
-        answers: Object.fromEntries(
+        questionsAsked: questions.map((q, i) => ({
+          header: q.header,
+          question: q.question,
+          options: q.options.map((o) => o.label),
+          userAnswer: answers[String(i)] ?? 'Not answered',
+        })),
+        summary: Object.fromEntries(
           Object.entries(answers).map(([index, answer]) => {
             const question = questions[Number(index)];
             return [question?.header ?? `Question ${index}`, answer];
           })
         ),
-        formatted: answerMessage,
+        instruction:
+          'The user has answered these questions. Do NOT ask the same or similar questions again. If you need more information, ask about DIFFERENT topics. Otherwise, proceed to generate the task suggestion.',
       };
+
+      // Publish tool:result event for AskUserQuestion
+      if (session.dbSessionId && this.sessionService) {
+        try {
+          await this.sessionService.publish(session.dbSessionId, {
+            id: createId(),
+            type: 'tool:result',
+            timestamp: Date.now(),
+            data: {
+              id: pendingToolUseId,
+              tool: 'AskUserQuestion',
+              input: { questions },
+              output: toolResultContent,
+              duration: 0, // User response time not tracked
+              isError: false,
+            },
+          });
+          console.log('[TaskCreationService] Published tool:result for AskUserQuestion');
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to publish tool:result:', error);
+        }
+      }
 
       // Construct SDKUserMessage with tool_use_result
       const toolResultMessage = {
@@ -1354,6 +1404,14 @@ export class TaskCreationService {
         tool_use_result: toolResultContent,
         session_id: session.sdkSessionId,
       };
+
+      // DEBUG: Log full tool result being sent
+      console.log('[TaskCreationService] 📤 Full tool result message:', {
+        tool_use_id: pendingToolUseId,
+        session_id: session.sdkSessionId,
+        questionRound: session.questionRound,
+        toolResultContent: JSON.stringify(toolResultContent, null, 2),
+      });
 
       // Send tool result and continue streaming
       return this.sendToolResultAndStream(session, toolResultMessage);
@@ -1422,6 +1480,15 @@ export class TaskCreationService {
           hasSessionId: !!msg.session_id,
         });
 
+        // DEBUG: Log user messages to see what the SDK recorded as our tool result
+        if (msg.type === 'user') {
+          const userMsg = msg as { message?: { content?: unknown } };
+          console.log('[TaskCreationService] 📥 User message in stream:', {
+            hasMessage: !!userMsg.message,
+            contentPreview: JSON.stringify(userMsg.message?.content)?.slice(0, 500),
+          });
+        }
+
         // Check for assistant messages with tool_use content or text
         if (msg.type === 'assistant') {
           const assistantMsg = msg as {
@@ -1453,6 +1520,11 @@ export class TaskCreationService {
                 console.log(
                   '[TaskCreationService] 🛑 AskUserQuestion detected in tool result response!'
                 );
+                // DEBUG: Log the full questions being asked in round 2+
+                console.log(
+                  '[TaskCreationService] 📋 Round 2+ Questions:',
+                  JSON.stringify(block.input, null, 2)
+                );
                 const input = block.input as {
                   questions: Array<{
                     question: string;
@@ -1465,6 +1537,27 @@ export class TaskCreationService {
                   toolUseId: block.id,
                   questions: input.questions,
                 };
+
+                // Publish tool:start event for round 2+ AskUserQuestion
+                if (session.dbSessionId && this.sessionService) {
+                  try {
+                    await this.sessionService.publish(session.dbSessionId, {
+                      id: createId(),
+                      type: 'tool:start',
+                      timestamp: Date.now(),
+                      data: {
+                        id: block.id,
+                        tool: 'AskUserQuestion',
+                        input: block.input as Record<string, unknown>,
+                      },
+                    });
+                    console.log(
+                      '[TaskCreationService] Published tool:start for AskUserQuestion (round 2+)'
+                    );
+                  } catch (error) {
+                    console.error('[TaskCreationService] Failed to publish tool:start:', error);
+                  }
+                }
                 break;
               }
             }

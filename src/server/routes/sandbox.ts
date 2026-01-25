@@ -306,13 +306,16 @@ export function createK8sRoutes() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect to cluster';
       console.error('[K8s Status] Error:', message);
-      return json({
-        ok: true,
-        data: {
-          healthy: false,
-          message,
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'K8S_CONNECTION_ERROR',
+            message,
+          },
         },
-      });
+        500
+      );
     }
   });
 

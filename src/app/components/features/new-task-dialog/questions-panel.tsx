@@ -183,6 +183,26 @@ export function QuestionsPanel({
     }
   );
 
+  // DEBUG: Log which questions are answered
+  console.log('[QuestionsPanel] Answer check:', {
+    totalQuestions: pendingQuestions.questions.length,
+    selectedAnswers,
+    allAnswered,
+    questionStatus: pendingQuestions.questions.map((q, i) => ({
+      index: i,
+      header: q.header,
+      multiSelect: q.multiSelect,
+      answer: selectedAnswers[String(i)],
+      isAnswered:
+        selectedAnswers[String(i)] !== undefined &&
+        (q.multiSelect
+          ? Array.isArray(selectedAnswers[String(i)]) &&
+            (selectedAnswers[String(i)] as string[]).length > 0
+          : typeof selectedAnswers[String(i)] === 'string' &&
+            (selectedAnswers[String(i)] as string).length > 0),
+    })),
+  });
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-gradient-to-br from-surface via-surface to-claude/[0.02]">
       {/* Header */}

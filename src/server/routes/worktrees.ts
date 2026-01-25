@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { WorktreeService } from '../../services/worktree.service.js';
-import { json } from '../shared.js';
+import { isValidId, json } from '../shared.js';
 
 interface WorktreesDeps {
   worktreeService: WorktreeService;
@@ -46,11 +46,19 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
 
   // POST /api/worktrees
   app.post('/', async (c) => {
-    const body = (await c.req.json()) as {
+    let body: {
       projectId: string;
       taskId: string;
       baseBranch?: string;
     };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
     if (!body.projectId || !body.taskId) {
       return json(
@@ -89,7 +97,15 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
 
   // POST /api/worktrees/prune
   app.post('/prune', async (c) => {
-    const body = (await c.req.json()) as { projectId?: string };
+    let body: { projectId?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
     const projectId = body.projectId;
 
     if (!projectId) {
@@ -123,7 +139,23 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   // POST /api/worktrees/:id/commit
   app.post('/:id/commit', async (c) => {
     const id = c.req.param('id');
-    const body = (await c.req.json()) as { message: string };
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid worktree ID format' } },
+        400
+      );
+    }
+
+    let body: { message: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
     if (!body.message) {
       return json(
@@ -156,12 +188,28 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   // POST /api/worktrees/:id/merge
   app.post('/:id/merge', async (c) => {
     const id = c.req.param('id');
-    const body = (await c.req.json()) as {
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid worktree ID format' } },
+        400
+      );
+    }
+
+    let body: {
       targetBranch?: string;
       deleteAfterMerge?: boolean;
       squash?: boolean;
       commitMessage?: string;
     };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
     try {
       const result = await worktreeService.merge(id, body.targetBranch);
@@ -212,6 +260,13 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   app.get('/:id/diff', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid worktree ID format' } },
+        400
+      );
+    }
+
     try {
       const result = await worktreeService.getDiff(id);
 
@@ -233,6 +288,13 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   // GET /api/worktrees/:id
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid worktree ID format' } },
+        400
+      );
+    }
 
     try {
       const result = await worktreeService.getStatus(id);
@@ -257,6 +319,14 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   // DELETE /api/worktrees/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid worktree ID format' } },
+        400
+      );
+    }
+
     const force = c.req.query('force') === 'true';
 
     try {

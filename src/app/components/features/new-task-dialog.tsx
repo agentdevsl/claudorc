@@ -849,7 +849,6 @@ export function NewTaskDialog({
   const [selectedPriority, setSelectedPriority] = useState<Priority>('medium');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string | string[]>>({});
-  const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -867,30 +866,24 @@ export function NewTaskDialog({
   }, [suggestion]);
 
   // Reset selected answers when new questions arrive
-  // When isAnsweringQuestions is true, we just submitted answers and are waiting for new questions.
-  // Once new questions arrive, we reset both the answers and the isAnsweringQuestions flag.
   const pendingQuestionsId = pendingQuestions?.id;
   const prevQuestionsIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
+    console.log('[NewTaskDialog] Questions effect:', {
+      pendingQuestionsId,
+      prevId: prevQuestionsIdRef.current,
+      isNew: pendingQuestionsId !== prevQuestionsIdRef.current,
+      round: pendingQuestions?.round,
+      headers: pendingQuestions?.questions.map((q) => q.header),
+    });
     // Check if this is a NEW set of questions (different ID)
     if (pendingQuestionsId && pendingQuestionsId !== prevQuestionsIdRef.current) {
+      console.log('[NewTaskDialog] New questions detected! Resetting answers.');
       // Always reset answers for new questions (they have different indices)
       setSelectedAnswers({});
-      // If we were answering, we can now reset that flag since new questions arrived
-      if (isAnsweringQuestions) {
-        setIsAnsweringQuestions(false);
-      }
     }
     prevQuestionsIdRef.current = pendingQuestionsId;
-  }, [pendingQuestionsId, isAnsweringQuestions]);
-
-  // Reset isAnsweringQuestions when conversation completes without new questions
-  // (e.g., task created, error, or status changes away from waiting_user)
-  useEffect(() => {
-    if (isAnsweringQuestions && status !== 'waiting_user' && status !== 'active') {
-      setIsAnsweringQuestions(false);
-    }
-  }, [status, isAnsweringQuestions]);
+  }, [pendingQuestionsId, pendingQuestions]);
 
   // Start conversation when dialog opens
   useEffect(() => {
@@ -912,7 +905,6 @@ export function NewTaskDialog({
       setSelectedPriority('medium');
       setSelectedTags([]);
       setSelectedAnswers({});
-      setIsAnsweringQuestions(false);
     } else {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -1037,21 +1029,23 @@ export function NewTaskDialog({
   };
 
   // Handle submitting answers to questions
-  // Note: We don't reset isAnsweringQuestions in finally because the SSE event
-  // with new questions arrives AFTER the API call returns. The useEffect below
-  // handles resetting it when new questions are processed.
+  // isStreaming state from durable streams automatically tracks processing
   const handleSubmitAnswers = useCallback(async () => {
     if (!pendingQuestions) return;
-    setIsAnsweringQuestions(true);
-    await answerQuestions(selectedAnswers);
+    try {
+      await answerQuestions(selectedAnswers);
+    } catch (error) {
+      console.error('[NewTaskDialog] Error submitting answers:', error);
+    }
   }, [pendingQuestions, answerQuestions, selectedAnswers]);
 
   // Handle skipping questions
-  // Note: Same as handleSubmitAnswers - don't reset isAnsweringQuestions here,
-  // let the useEffect handle it when status changes or new questions arrive.
   const handleSkipQuestions = useCallback(async () => {
-    setIsAnsweringQuestions(true);
-    await skipQuestions();
+    try {
+      await skipQuestions();
+    } catch (error) {
+      console.error('[NewTaskDialog] Error skipping questions:', error);
+    }
   }, [skipQuestions]);
 
   // Handle selecting an answer for a question (supports both single and multi-select)
@@ -1112,7 +1106,7 @@ export function NewTaskDialog({
           ) : (
             <div className="flex flex-1 overflow-hidden">
               {/* LEFT PANEL - Main content */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
                 {/* Compact Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -1246,7 +1240,7 @@ export function NewTaskDialog({
                       onSelectAnswer={handleSelectAnswer}
                       onSubmitAnswers={handleSubmitAnswers}
                       onSkip={handleSkipQuestions}
-                      isSubmitting={isAnsweringQuestions}
+                      isSubmitting={isStreaming}
                     />
                   </div>
                 )}

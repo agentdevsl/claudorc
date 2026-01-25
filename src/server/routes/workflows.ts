@@ -6,7 +6,7 @@ import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { workflows } from '../../db/schema/workflows.js';
 import type { Database } from '../../types/database.js';
-import { json } from '../shared.js';
+import { isValidId, json } from '../shared.js';
 
 interface WorkflowsDeps {
   db: Database;
@@ -149,6 +149,13 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
 
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid workflow ID format' } },
+        400
+      );
+    }
+
     try {
       const workflow = await db.query.workflows.findFirst({
         where: eq(workflows.id, id),
@@ -177,7 +184,15 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
   // PATCH /api/workflows/:id
   app.patch('/:id', async (c) => {
     const id = c.req.param('id');
-    const body = (await c.req.json()) as {
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid workflow ID format' } },
+        400
+      );
+    }
+
+    let body: {
       name?: string;
       description?: string;
       nodes?: unknown[];
@@ -192,6 +207,14 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
       aiModel?: string | null;
       aiConfidence?: number | null;
     };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
     try {
       // Check if workflow exists
@@ -257,6 +280,13 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
   // DELETE /api/workflows/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid workflow ID format' } },
+        400
+      );
+    }
 
     try {
       // Check if workflow exists

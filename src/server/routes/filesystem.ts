@@ -32,7 +32,13 @@ export function createFilesystemRoutes() {
       lastModified: string;
     };
 
+    type AccessWarning = {
+      path: string;
+      error: string;
+    };
+
     const repos: LocalRepo[] = [];
+    const warnings: AccessWarning[] = [];
 
     for (const searchDir of searchDirs) {
       if (!existsSync(searchDir)) continue;
@@ -57,27 +63,31 @@ export function createFilesystemRoutes() {
               });
             }
           } catch (error) {
-            // Log skipped entries for debugging
-            console.debug(
-              `[Discover] Skipping ${fullPath}:`,
-              error instanceof Error ? error.message : 'access denied'
-            );
+            // Track skipped entries so user knows why repos might be missing
+            const errorMsg = error instanceof Error ? error.message : 'access denied';
+            console.warn(`[Discover] Skipping ${fullPath}: ${errorMsg}`);
+            warnings.push({ path: fullPath, error: errorMsg });
           }
         }
       } catch (error) {
-        // Log unreadable directories for debugging
-        console.debug(
-          `[Discover] Cannot read ${searchDir}:`,
-          error instanceof Error ? error.message : 'access denied'
-        );
+        // Track unreadable directories so user knows why repos might be missing
+        const errorMsg = error instanceof Error ? error.message : 'access denied';
+        console.warn(`[Discover] Cannot read ${searchDir}: ${errorMsg}`);
+        warnings.push({ path: searchDir, error: errorMsg });
       }
     }
 
     // Sort by last modified (most recent first)
     repos.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
-    // Limit to 20 most recent
-    return json({ ok: true, data: { repos: repos.slice(0, 20) } });
+    // Limit to 20 most recent, include warnings if any directories were inaccessible
+    return json({
+      ok: true,
+      data: {
+        repos: repos.slice(0, 20),
+        ...(warnings.length > 0 && { warnings }),
+      },
+    });
   });
 
   return app;

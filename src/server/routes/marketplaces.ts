@@ -57,16 +57,24 @@ export function createMarketplacesRoutes({ marketplaceService }: MarketplacesDep
 
   // POST /api/marketplaces
   app.post('/', async (c) => {
+    let body: {
+      name: string;
+      githubUrl?: string;
+      githubOwner?: string;
+      githubRepo?: string;
+      branch?: string;
+      pluginsPath?: string;
+    };
     try {
-      const body = (await c.req.json()) as {
-        name: string;
-        githubUrl?: string;
-        githubOwner?: string;
-        githubRepo?: string;
-        branch?: string;
-        pluginsPath?: string;
-      };
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
+    try {
       if (!body.name) {
         return json(
           { ok: false, error: { code: 'MISSING_NAME', message: 'Name is required' } },
@@ -89,7 +97,7 @@ export function createMarketplacesRoutes({ marketplaceService }: MarketplacesDep
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
-      return json({ ok: true, data: result.value });
+      return json({ ok: true, data: result.value }, 201);
     } catch (error) {
       console.error('[Marketplaces] Create error:', error);
       return json(
