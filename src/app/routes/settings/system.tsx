@@ -1,19 +1,24 @@
+import type { Icon } from '@phosphor-icons/react';
 import {
   ArrowClockwise,
   Check,
   CircleNotch,
+  Clock,
   Database,
   GithubLogo,
   Globe,
   HardDrives,
   Heartbeat,
+  Lightning,
   Warning,
   X,
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { ConfigSection } from '@/app/components/ui/config-section';
 import { apiClient } from '@/lib/api/client';
+import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/settings/system')({
   component: SystemHealthPage,
@@ -47,51 +52,84 @@ function formatUptime(seconds: number): string {
   return `${secs}s`;
 }
 
-function StatusBadge({
+// ============================================================================
+// StatusCard Component (internal card pattern from model-optimizations)
+// ============================================================================
+
+function StatusCard({
+  icon: IconComponent,
+  title,
+  subtitle,
   status,
-  label,
+  statusLabel,
 }: {
-  status: 'ok' | 'error' | 'not_configured' | 'unknown';
-  label?: string;
-}): React.JSX.Element {
-  const config = {
-    ok: {
-      bg: 'bg-success-muted',
-      text: 'text-success',
-      icon: Check,
-      defaultLabel: 'Healthy',
-    },
-    error: {
-      bg: 'bg-danger-muted',
-      text: 'text-danger',
-      icon: X,
-      defaultLabel: 'Error',
-    },
-    not_configured: {
-      bg: 'bg-attention-muted',
-      text: 'text-attention',
-      icon: Warning,
-      defaultLabel: 'Not Configured',
-    },
-    unknown: {
-      bg: 'bg-surface-subtle',
-      text: 'text-fg-muted',
-      icon: CircleNotch,
-      defaultLabel: 'Checking...',
-    },
+  icon: Icon;
+  title: string;
+  subtitle?: string;
+  status: 'ok' | 'error' | 'not_configured';
+  statusLabel: string;
+}) {
+  const statusStyles = {
+    ok: { bg: 'bg-success-muted', text: 'text-success', icon: Check },
+    error: { bg: 'bg-danger-muted', text: 'text-danger', icon: X },
+    not_configured: { bg: 'bg-attention-muted', text: 'text-attention', icon: Warning },
   };
 
-  const { bg, text, icon: Icon, defaultLabel } = config[status];
+  const style = statusStyles[status];
+  const StatusIcon = style.icon;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${bg} ${text}`}
-    >
-      <Icon className={`h-3.5 w-3.5 ${status === 'unknown' ? 'animate-spin' : ''}`} weight="bold" />
-      {label ?? defaultLabel}
-    </span>
+    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-surface-subtle/30 p-4 transition-all hover:border-border">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+          <IconComponent className="h-4 w-4 text-fg-muted" weight="duotone" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-fg">{title}</h3>
+          {subtitle && <p className="text-xs text-fg-muted">{subtitle}</p>}
+        </div>
+      </div>
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+          style.bg,
+          style.text
+        )}
+      >
+        <StatusIcon className="h-3.5 w-3.5" weight="bold" />
+        {statusLabel}
+      </span>
+    </div>
   );
 }
+
+// ============================================================================
+// MetricCard Component (internal card pattern from model-optimizations)
+// ============================================================================
+
+function MetricCard({
+  label,
+  value,
+  unit,
+}: {
+  label: string;
+  value: string | number;
+  unit?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-4 transition-all hover:border-border">
+      <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">{label}</p>
+      <p className="mt-1 font-mono text-lg font-semibold text-fg">
+        {value}
+        {unit && <span className="ml-0.5 text-sm font-normal text-fg-muted">{unit}</span>}
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
 
 function SystemHealthPage(): React.JSX.Element {
   const [backendHealth, setBackendHealth] = useState<HealthStatus | null>(null);
@@ -131,203 +169,185 @@ function SystemHealthPage(): React.JSX.Element {
 
   useEffect(() => {
     checkHealth();
-    // Auto-refresh every 30 seconds
     const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
   }, [checkHealth]);
 
   const overallStatus =
-    frontendHealth?.status === 'ok' && backendHealth?.status === 'healthy' ? 'ok' : 'error';
+    frontendHealth?.status === 'ok' && backendHealth?.status === 'healthy' ? 'healthy' : 'degraded';
 
   return (
-    <div data-testid="system-health-settings" className="mx-auto max-w-4xl px-8 py-8">
-      {/* Page Header */}
-      <header className="mb-8">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-          <Heartbeat className="h-7 w-7 text-fg-muted" />
-          System Health
-        </h1>
-        <p className="mt-2 text-fg-muted">
-          Monitor the health status of frontend and backend services.
-        </p>
-      </header>
+    <div data-testid="system-health-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
+      {/* Page Header with gradient accent */}
+      <header className="relative mb-10">
+        {/* Decorative background elements */}
+        <div className="absolute -left-4 -top-4 h-24 w-24 rounded-full bg-accent/5 blur-2xl" />
+        <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-claude/5 blur-xl" />
 
-      <div className="space-y-6">
-        {/* Overall Status */}
-        <div className="rounded-lg border border-border bg-surface p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div
-                className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                  overallStatus === 'ok' ? 'bg-success-muted' : 'bg-danger-muted'
-                }`}
-              >
-                {overallStatus === 'ok' ? (
-                  <Check className="h-6 w-6 text-success" weight="bold" />
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-muted to-accent-subtle ring-1 ring-accent/20">
+              <Heartbeat className="h-6 w-6 text-accent" weight="duotone" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">System Health</h1>
+              <p className="text-sm text-fg-muted">Monitor the health status of all services</p>
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border/50 bg-surface-subtle/50 px-5 py-3">
+            <div className="flex flex-wrap gap-6">
+              <div className="flex items-center gap-2">
+                {overallStatus === 'healthy' ? (
+                  <Check className="h-4 w-4 text-success" weight="bold" />
                 ) : (
-                  <Warning className="h-6 w-6 text-danger" weight="bold" />
+                  <Warning className="h-4 w-4 text-attention" weight="bold" />
                 )}
+                <span className="text-xs text-fg-muted">
+                  Status:{' '}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      overallStatus === 'healthy' ? 'text-success' : 'text-attention'
+                    )}
+                  >
+                    {overallStatus === 'healthy' ? 'All Operational' : 'Degraded'}
+                  </span>
+                </span>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-fg">
-                  {overallStatus === 'ok' ? 'All Systems Operational' : 'System Issues Detected'}
-                </h2>
-                {lastChecked && (
-                  <p className="text-sm text-fg-muted">
-                    Last checked: {lastChecked.toLocaleTimeString()}
-                  </p>
-                )}
-              </div>
+              {lastChecked && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-fg-subtle" />
+                  <span className="text-xs text-fg-muted">
+                    Last checked:{' '}
+                    <span className="font-medium text-fg">{lastChecked.toLocaleTimeString()}</span>
+                  </span>
+                </div>
+              )}
             </div>
             <Button variant="outline" size="sm" onClick={checkHealth} disabled={isLoading}>
               {isLoading ? (
-                <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
+                <CircleNotch className="h-4 w-4 animate-spin" />
               ) : (
-                <ArrowClockwise className="mr-2 h-4 w-4" />
+                <ArrowClockwise className="h-4 w-4" />
               )}
               Refresh
             </Button>
           </div>
         </div>
+      </header>
 
-        {/* Frontend Health */}
-        <div className="rounded-lg border border-border bg-surface">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent-muted">
-              <Globe className="h-4 w-4 text-accent" />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-semibold text-fg">Frontend (Vite)</h2>
-              <p className="text-xs text-fg-muted">React application server</p>
-            </div>
-            <StatusBadge status={frontendHealth?.status ?? 'unknown'} />
+      <div className="space-y-5">
+        {/* Frontend Section */}
+        <ConfigSection
+          icon={Globe}
+          title="Frontend Server"
+          description="Vite development server on port 3000"
+          badge="UI"
+          badgeColor="accent"
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <MetricCard label="Port" value="3000" />
+            <MetricCard label="Server" value="Vite" />
+            <MetricCard label="Status" value={frontendHealth?.viteServer ? 'Running' : 'Offline'} />
           </div>
-          <div className="p-5">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-fg-muted">Port:</span>
-                <span className="ml-2 font-mono text-fg">3000</span>
+        </ConfigSection>
+
+        {/* Backend Section */}
+        <ConfigSection
+          icon={HardDrives}
+          title="Backend Server"
+          description="Bun API server on port 3001"
+          badge="API"
+          badgeColor="claude"
+        >
+          {backendHealth ? (
+            <div className="space-y-5">
+              {/* Metrics */}
+              <div className="grid gap-4 sm:grid-cols-4">
+                <MetricCard label="Port" value="3001" />
+                <MetricCard label="Uptime" value={formatUptime(backendHealth.uptime)} />
+                <MetricCard label="Response" value={backendHealth.responseTimeMs} unit="ms" />
+                <MetricCard label="Runtime" value="Bun" />
               </div>
+
+              {/* Service Checks */}
               <div>
-                <span className="text-fg-muted">Status:</span>
-                <span className="ml-2 text-fg">
-                  {frontendHealth?.viteServer ? 'Running' : 'Not responding'}
-                </span>
+                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                  Service Checks
+                </p>
+                <div className="space-y-2">
+                  <StatusCard
+                    icon={Database}
+                    title="SQLite Database"
+                    subtitle={
+                      backendHealth.checks.database.latencyMs !== undefined
+                        ? `${backendHealth.checks.database.latencyMs}ms latency`
+                        : undefined
+                    }
+                    status={backendHealth.checks.database.status}
+                    statusLabel={
+                      backendHealth.checks.database.status === 'ok' ? 'Healthy' : 'Error'
+                    }
+                  />
+                  <StatusCard
+                    icon={GithubLogo}
+                    title="GitHub Integration"
+                    subtitle={
+                      backendHealth.checks.github.login
+                        ? `@${backendHealth.checks.github.login}`
+                        : undefined
+                    }
+                    status={backendHealth.checks.github.status}
+                    statusLabel={
+                      backendHealth.checks.github.status === 'ok'
+                        ? 'Connected'
+                        : backendHealth.checks.github.status === 'not_configured'
+                          ? 'Not Configured'
+                          : 'Error'
+                    }
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Backend Health */}
-        <div className="rounded-lg border border-border bg-surface">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-done-muted">
-              <HardDrives className="h-4 w-4 text-done" />
+          ) : (
+            <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-danger-muted">
+                <Warning className="h-6 w-6 text-danger" weight="duotone" />
+              </div>
+              <p className="font-medium text-danger">Backend server is not responding</p>
+              <p className="mt-1 text-sm text-fg-muted">
+                Make sure the API server is running on port 3001
+              </p>
+              <code className="mt-3 block rounded-lg border border-border/50 bg-surface/50 px-4 py-2 font-mono text-xs text-fg-muted">
+                bun run src/server/api.ts
+              </code>
             </div>
-            <div className="flex-1">
-              <h2 className="font-semibold text-fg">Backend (Bun API)</h2>
-              <p className="text-xs text-fg-muted">Database and API server</p>
+          )}
+        </ConfigSection>
+
+        {/* Help Card */}
+        <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+              <Lightning className="h-4 w-4 text-fg-muted" weight="duotone" />
             </div>
-            <StatusBadge
-              status={
-                backendHealth ? (backendHealth.status === 'healthy' ? 'ok' : 'error') : 'error'
-              }
-              label={
-                backendHealth
-                  ? backendHealth.status === 'healthy'
-                    ? 'Healthy'
-                    : 'Degraded'
-                  : 'Offline'
-              }
-            />
-          </div>
-          <div className="p-5 space-y-4">
-            {backendHealth ? (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-fg-muted">Port:</span>
-                    <span className="ml-2 font-mono text-fg">3001</span>
-                  </div>
-                  <div>
-                    <span className="text-fg-muted">Uptime:</span>
-                    <span className="ml-2 text-fg">{formatUptime(backendHealth.uptime)}</span>
-                  </div>
-                  <div>
-                    <span className="text-fg-muted">Response time:</span>
-                    <span className="ml-2 text-fg">{backendHealth.responseTimeMs}ms</span>
-                  </div>
-                </div>
-
-                {/* Service Checks */}
-                <div className="border-t border-border pt-4">
-                  <h3 className="mb-3 text-sm font-medium text-fg">Service Checks</h3>
-                  <div className="space-y-3">
-                    {/* Database */}
-                    <div className="flex items-center justify-between rounded-md bg-surface-subtle px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-4 w-4 text-fg-muted" />
-                        <span className="text-sm text-fg">SQLite Database</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {backendHealth.checks.database.latencyMs !== undefined && (
-                          <span className="text-xs text-fg-muted">
-                            {backendHealth.checks.database.latencyMs}ms
-                          </span>
-                        )}
-                        <StatusBadge status={backendHealth.checks.database.status} />
-                      </div>
-                    </div>
-
-                    {/* GitHub */}
-                    <div className="flex items-center justify-between rounded-md bg-surface-subtle px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <GithubLogo className="h-4 w-4 text-fg-muted" />
-                        <span className="text-sm text-fg">GitHub Integration</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {backendHealth.checks.github.login && (
-                          <span className="text-xs text-fg-muted">
-                            @{backendHealth.checks.github.login}
-                          </span>
-                        )}
-                        <StatusBadge status={backendHealth.checks.github.status} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-md bg-danger-muted/30 p-4 text-center">
-                <Warning className="mx-auto h-8 w-8 text-danger" />
-                <p className="mt-2 text-sm font-medium text-danger">
-                  Backend server is not responding
-                </p>
-                <p className="mt-1 text-xs text-fg-muted">
-                  Make sure the API server is running on port 3001
-                </p>
-                <code className="mt-3 block rounded bg-surface-subtle px-3 py-2 text-xs font-mono text-fg-muted">
-                  bun run src/server/api.ts
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium text-fg">Troubleshooting</h3>
+              <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">
+                If services are offline, restart them. Frontend runs on{' '}
+                <code className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[11px]">
+                  localhost:3000
+                </code>{' '}
+                and backend on{' '}
+                <code className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[11px]">
+                  localhost:3001
                 </code>
-              </div>
-            )}
+                .
+              </p>
+            </div>
           </div>
-        </div>
-
-        {/* Help Text */}
-        <div className="rounded-md border border-border bg-surface-subtle p-4">
-          <p className="text-sm text-fg-muted">
-            <strong className="mr-1 text-fg">Tip:</strong>
-            If services are showing as offline, try restarting them. The frontend runs on{' '}
-            <code className="rounded bg-surface px-1.5 py-0.5 text-xs font-mono">
-              localhost:3000
-            </code>{' '}
-            and the backend API runs on{' '}
-            <code className="rounded bg-surface px-1.5 py-0.5 text-xs font-mono">
-              localhost:3001
-            </code>
-            .
-          </p>
         </div>
       </div>
     </div>

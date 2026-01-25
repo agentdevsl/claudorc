@@ -43,6 +43,7 @@ export type TaskCreationEventType =
   | 'task-creation:message'
   | 'task-creation:token'
   | 'task-creation:suggestion'
+  | 'task-creation:questions'
   | 'task-creation:completed'
   | 'task-creation:cancelled'
   | 'task-creation:error';
@@ -190,6 +191,21 @@ export interface TaskCreationSuggestionEvent {
     description: string;
     labels: string[];
     priority: 'high' | 'medium' | 'low';
+  };
+}
+
+export interface TaskCreationQuestionsEvent {
+  sessionId: string;
+  questions: {
+    id: string;
+    questions: Array<{
+      header: string;
+      question: string;
+      options: Array<{ label: string; description?: string }>;
+    }>;
+    round: number;
+    totalAsked: number;
+    maxQuestions: number;
   };
 }
 
@@ -399,6 +415,13 @@ export class DurableStreamsService {
     data: TaskCreationSuggestionEvent
   ): Promise<void> {
     await this.publish(streamId, 'task-creation:suggestion', data);
+  }
+
+  async publishTaskCreationQuestions(
+    streamId: string,
+    data: TaskCreationQuestionsEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:questions', data);
   }
 
   async publishTaskCreationCompleted(

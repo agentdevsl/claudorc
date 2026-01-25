@@ -1,20 +1,131 @@
-import { Brain, Check } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import {
+  Brain,
+  Check,
+  Circuitry,
+  Cpu,
+  Gauge,
+  GearFine,
+  Lightning,
+  Robot,
+  Sparkle,
+  TreeStructure,
+} from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { ConfigSection } from '@/app/components/ui/config-section';
 import { ModelSelector } from '@/app/components/ui/model-selector';
+import { ToolAccessSelector } from '@/app/components/ui/tool-access-selector';
 import {
   DEFAULT_AGENT_MODEL,
   DEFAULT_ANTHROPIC_BASE_URL,
   DEFAULT_TASK_CREATION_MODEL,
   DEFAULT_WORKFLOW_MODEL,
 } from '@/lib/constants/models';
+import {
+  DEFAULT_AGENT_TOOLS,
+  DEFAULT_TASK_CREATION_TOOLS,
+  DEFAULT_WORKFLOW_TOOLS,
+} from '@/lib/constants/tools';
+import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/settings/model-optimizations')({
   component: ModelOptimizationsPage,
 });
 
+// Model + Tools configuration card
+function ConfigCard({
+  icon: IconComponent,
+  title,
+  description,
+  model,
+  onModelChange,
+  tools,
+  onToolsChange,
+  modelTestId,
+  toolsTestId,
+}: {
+  icon: Icon;
+  title: string;
+  description: string;
+  model: string | null;
+  onModelChange: (value: string | null) => void;
+  tools: string[];
+  onToolsChange: (tools: string[]) => void;
+  modelTestId?: string;
+  toolsTestId?: string;
+}) {
+  const [showTools, setShowTools] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border">
+      {/* Card header */}
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+          <IconComponent className="h-4 w-4 text-fg-muted" weight="duotone" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium text-fg">{title}</h3>
+          <p className="mt-0.5 text-xs text-fg-muted leading-relaxed">{description}</p>
+        </div>
+      </div>
+
+      {/* Model selector */}
+      <div className="mb-4">
+        <span className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-subtle">
+          <Brain className="h-3 w-3" />
+          Model
+        </span>
+        <ModelSelector value={model} onChange={onModelChange} data-testid={modelTestId} />
+      </div>
+
+      {/* Tools toggle */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowTools(!showTools)}
+          className="mb-3 flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium uppercase tracking-wider text-fg-subtle transition-colors hover:bg-surface-emphasis/50 hover:text-fg-muted"
+        >
+          <span className="flex items-center gap-2">
+            <GearFine className="h-3 w-3" />
+            Tool Access
+          </span>
+          <span
+            className={cn(
+              'rounded-full px-2 py-0.5 text-[10px] transition-colors',
+              tools.length === 0
+                ? 'bg-success-muted text-success'
+                : 'bg-surface-emphasis text-fg-muted'
+            )}
+          >
+            {tools.length === 0 ? 'All' : `${tools.length} tools`}
+          </span>
+        </button>
+
+        <div
+          className={cn(
+            'grid transition-all duration-200',
+            showTools ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="rounded-lg border border-border/50 bg-surface/50 p-4">
+              <ToolAccessSelector
+                value={tools}
+                onChange={onToolsChange}
+                data-testid={toolsTestId}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModelOptimizationsPage(): React.JSX.Element {
+  // Model settings
   const [defaultModel, setDefaultModel] = useState<string | null>(() => {
     if (typeof window === 'undefined') return DEFAULT_AGENT_MODEL;
     return localStorage.getItem('default_model') || DEFAULT_AGENT_MODEL;
@@ -30,129 +141,256 @@ function ModelOptimizationsPage(): React.JSX.Element {
     return localStorage.getItem('workflow_model') || DEFAULT_WORKFLOW_MODEL;
   });
 
+  // Tool access settings
+  const [agentTools, setAgentTools] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_AGENT_TOOLS;
+    const stored = localStorage.getItem('agent_tools');
+    return stored ? JSON.parse(stored) : DEFAULT_AGENT_TOOLS;
+  });
+
+  const [taskCreationTools, setTaskCreationTools] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_TASK_CREATION_TOOLS;
+    const stored = localStorage.getItem('task_creation_tools');
+    return stored ? JSON.parse(stored) : DEFAULT_TASK_CREATION_TOOLS;
+  });
+
+  const [workflowTools, setWorkflowTools] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_WORKFLOW_TOOLS;
+    const stored = localStorage.getItem('workflow_tools');
+    return stored ? JSON.parse(stored) : DEFAULT_WORKFLOW_TOOLS;
+  });
+
   const [apiEndpoint, setApiEndpoint] = useState(() => {
     if (typeof window === 'undefined') return DEFAULT_ANTHROPIC_BASE_URL;
     return localStorage.getItem('anthropic_base_url') || DEFAULT_ANTHROPIC_BASE_URL;
   });
 
   const [saved, setSaved] = useState(false);
+  const [showAgentTools, setShowAgentTools] = useState(false);
 
   const handleSave = () => {
     localStorage.setItem('default_model', defaultModel ?? DEFAULT_AGENT_MODEL);
     localStorage.setItem('task_creation_model', taskCreationModel ?? DEFAULT_TASK_CREATION_MODEL);
     localStorage.setItem('workflow_model', workflowModel ?? DEFAULT_WORKFLOW_MODEL);
+    localStorage.setItem('agent_tools', JSON.stringify(agentTools));
+    localStorage.setItem('task_creation_tools', JSON.stringify(taskCreationTools));
+    localStorage.setItem('workflow_tools', JSON.stringify(workflowTools));
     localStorage.setItem('anthropic_base_url', apiEndpoint);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
   return (
-    <div data-testid="model-optimizations-settings" className="mx-auto max-w-4xl px-8 py-8">
-      {/* Page Header */}
-      <header className="mb-8">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-          <Brain className="h-7 w-7 text-fg-muted" />
-          Model Optimizations
-        </h1>
-        <p className="mt-2 text-fg-muted">
-          Configure AI models for different features. Choose faster models for quick tasks or more
-          capable models for complex work.
-        </p>
+    <div data-testid="model-optimizations-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
+      {/* Page Header with gradient accent */}
+      <header className="relative mb-10">
+        {/* Decorative background element */}
+        <div className="absolute -left-4 -top-4 h-24 w-24 rounded-full bg-accent/5 blur-2xl" />
+        <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-claude/5 blur-xl" />
+
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-muted to-accent-subtle ring-1 ring-accent/20">
+              <Gauge className="h-6 w-6 text-accent" weight="duotone" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">
+                Model &amp; Tool Configuration
+              </h1>
+              <p className="text-sm text-fg-muted">
+                Fine-tune AI capabilities for different workflows
+              </p>
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap gap-6 rounded-lg border border-border/50 bg-surface-subtle/50 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-fg-subtle" />
+              <span className="text-xs text-fg-muted">
+                <span className="font-medium text-fg">3</span> configurations
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Lightning className="h-4 w-4 text-attention-fg" />
+              <span className="text-xs text-fg-muted">
+                <span className="font-medium text-fg">
+                  {agentTools.length === 0 ? 'All' : agentTools.length}
+                </span>{' '}
+                agent tools
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Circuitry className="h-4 w-4 text-done-fg" />
+              <span className="text-xs text-fg-muted">
+                API:{' '}
+                <span className="font-mono text-[11px] text-fg">
+                  {apiEndpoint === DEFAULT_ANTHROPIC_BASE_URL ? 'Default' : 'Custom'}
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div className="space-y-6">
-        {/* Agent Execution */}
-        <div
-          data-testid="agent-execution-section"
-          className="rounded-lg border border-border bg-surface"
+      <div className="space-y-5">
+        {/* Agent Execution - Primary Configuration */}
+        <ConfigSection
+          icon={Robot}
+          title="Agent Execution"
+          description="Primary model and tool access for task agents"
+          badge="Core"
+          badgeColor="claude"
+          testId="agent-execution-section"
         >
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold text-fg">Agent Execution</h2>
-            <p className="text-sm text-fg-muted">
-              Model used when agents work on tasks (in-progress column)
-            </p>
-          </div>
-
-          <div className="p-5">
+          <div className="space-y-6">
+            {/* Model selector with visual enhancement */}
             <div>
-              <label htmlFor="default-model" className="block text-sm font-medium text-fg">
+              <span className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                <Brain className="h-3.5 w-3.5" />
                 Default Agent Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                The default model for agent execution. Can be overridden per-task.
+              </span>
+              <p className="mb-3 text-sm text-fg-muted">
+                The model used when agents work on in-progress tasks. Can be overridden per-task.
               </p>
-              <ModelSelector
-                value={defaultModel}
-                onChange={setDefaultModel}
-                data-testid="default-model-selector"
-              />
+              <div className="max-w-sm">
+                <ModelSelector
+                  value={defaultModel}
+                  onChange={setDefaultModel}
+                  data-testid="default-model-selector"
+                />
+              </div>
+            </div>
+
+            {/* Tools section with collapsible detail */}
+            <div className="rounded-lg border border-border/50 bg-surface-subtle/30 p-4">
+              <button
+                type="button"
+                onClick={() => setShowAgentTools(!showAgentTools)}
+                className="flex w-full items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-emphasis">
+                    <GearFine className="h-4 w-4 text-fg-muted" weight="duotone" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-medium text-fg">Tool Access</h3>
+                    <p className="text-xs text-fg-muted">
+                      {agentTools.length === 0
+                        ? 'All tools enabled for maximum capability'
+                        : `${agentTools.length} tools enabled`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-medium',
+                      agentTools.length === 0
+                        ? 'bg-success-muted text-success'
+                        : 'bg-surface-emphasis text-fg-muted'
+                    )}
+                  >
+                    {agentTools.length === 0 ? 'All Tools' : `${agentTools.length} Selected`}
+                  </span>
+                  <div
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-md transition-all',
+                      showAgentTools ? 'bg-accent-muted rotate-180' : 'bg-surface-emphasis'
+                    )}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      className={cn(
+                        'h-3.5 w-3.5',
+                        showAgentTools ? 'text-accent' : 'text-fg-muted'
+                      )}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+
+              <div
+                className={cn(
+                  'grid transition-all duration-200',
+                  showAgentTools ? 'mt-4 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="rounded-lg border border-border/50 bg-surface/50 p-4">
+                    <ToolAccessSelector
+                      value={agentTools}
+                      onChange={setAgentTools}
+                      data-testid="agent-tools-selector"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </ConfigSection>
 
-        {/* AI Features */}
-        <div
-          data-testid="ai-features-section"
-          className="rounded-lg border border-border bg-surface"
+        {/* AI Features Section */}
+        <ConfigSection
+          icon={Sparkle}
+          title="AI Features"
+          description="Models and tools for AI-assisted workflows"
+          badge="Assistants"
+          badgeColor="accent"
+          testId="ai-features-section"
         >
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold text-fg">AI Features</h2>
-            <p className="text-sm text-fg-muted">
-              Models for AI-powered features like task generation and workflow design
-            </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ConfigCard
+              icon={Lightning}
+              title="Task Creation"
+              description="AI assistant for generating task descriptions and acceptance criteria"
+              model={taskCreationModel}
+              onModelChange={setTaskCreationModel}
+              tools={taskCreationTools}
+              onToolsChange={setTaskCreationTools}
+              modelTestId="task-creation-model-selector"
+              toolsTestId="task-creation-tools-selector"
+            />
+            <ConfigCard
+              icon={TreeStructure}
+              title="Workflow Designer"
+              description="AI-powered workflow generation from skill definitions"
+              model={workflowModel}
+              onModelChange={setWorkflowModel}
+              tools={workflowTools}
+              onToolsChange={setWorkflowTools}
+              modelTestId="workflow-model-selector"
+              toolsTestId="workflow-tools-selector"
+            />
           </div>
-
-          <div className="space-y-6 p-5">
-            {/* Task Creation Model */}
-            <div>
-              <label htmlFor="task-creation-model" className="block text-sm font-medium text-fg">
-                Task Creation Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                Model for the "Generate task with AI" assistant
-              </p>
-              <ModelSelector
-                value={taskCreationModel}
-                onChange={setTaskCreationModel}
-                data-testid="task-creation-model-selector"
-              />
-            </div>
-
-            {/* Workflow Designer Model */}
-            <div>
-              <label htmlFor="workflow-model" className="block text-sm font-medium text-fg">
-                Workflow Designer Model
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                Model for generating workflows from skill content
-              </p>
-              <ModelSelector
-                value={workflowModel}
-                onChange={setWorkflowModel}
-                data-testid="workflow-model-selector"
-              />
-            </div>
-          </div>
-        </div>
+        </ConfigSection>
 
         {/* API Configuration */}
-        <div
-          data-testid="api-config-section"
-          className="rounded-lg border border-border bg-surface"
+        <ConfigSection
+          icon={Circuitry}
+          title="API Configuration"
+          description="Advanced connection settings"
+          defaultOpen={false}
+          testId="api-config-section"
         >
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold text-fg">API Configuration</h2>
-            <p className="text-sm text-fg-muted">Advanced API settings</p>
-          </div>
-
-          <div className="p-5">
-            <div>
-              <label htmlFor="api-endpoint" className="block text-sm font-medium text-fg">
-                API Base URL
-              </label>
-              <p className="mb-2 text-xs text-fg-muted">
-                Anthropic API base URL. Can also be set via ANTHROPIC_BASE_URL env var.
-              </p>
+          <div>
+            <label
+              htmlFor="api-endpoint"
+              className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-subtle"
+            >
+              API Base URL
+            </label>
+            <p className="mb-3 text-sm text-fg-muted">
+              Custom Anthropic API endpoint. Use the default unless you have a specific proxy or
+              self-hosted deployment.
+            </p>
+            <div className="relative max-w-lg">
               <input
                 id="api-endpoint"
                 data-testid="api-endpoint-input"
@@ -160,29 +398,46 @@ function ModelOptimizationsPage(): React.JSX.Element {
                 value={apiEndpoint}
                 onChange={(e) => setApiEndpoint(e.target.value)}
                 placeholder={DEFAULT_ANTHROPIC_BASE_URL}
-                className="w-full max-w-md rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="w-full rounded-lg border border-border bg-surface-subtle px-4 py-2.5 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
               />
+              {apiEndpoint !== DEFAULT_ANTHROPIC_BASE_URL && (
+                <button
+                  type="button"
+                  onClick={() => setApiEndpoint(DEFAULT_ANTHROPIC_BASE_URL)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs text-fg-muted hover:bg-surface-emphasis hover:text-fg transition-colors"
+                >
+                  Reset
+                </button>
+              )}
             </div>
+            <p className="mt-2 text-xs text-fg-subtle">
+              Can also be set via{' '}
+              <code className="rounded bg-surface-emphasis px-1.5 py-0.5">ANTHROPIC_BASE_URL</code>{' '}
+              environment variable
+            </p>
           </div>
-        </div>
+        </ConfigSection>
 
-        {/* Save Button */}
-        <div className="flex items-center gap-3">
-          <Button data-testid="save-model-settings" onClick={handleSave}>
+        {/* Save Button - Sticky footer style */}
+        <div className="sticky bottom-4 z-10 flex items-center justify-between rounded-xl border border-border bg-surface/95 px-5 py-4 shadow-lg backdrop-blur-sm">
+          <p className="text-sm text-fg-muted">Changes are saved to your browser's local storage</p>
+          <Button
+            data-testid="save-model-settings"
+            onClick={handleSave}
+            className={cn(
+              'min-w-[140px] transition-all',
+              saved && 'bg-success-emphasis hover:bg-success-emphasis'
+            )}
+          >
             {saved ? (
               <>
                 <Check className="h-4 w-4" weight="bold" />
                 Saved!
               </>
             ) : (
-              'Save Model Settings'
+              'Save Settings'
             )}
           </Button>
-          {saved && (
-            <span data-testid="save-success" className="text-sm text-success">
-              Model settings saved successfully
-            </span>
-          )}
         </div>
       </div>
     </div>
