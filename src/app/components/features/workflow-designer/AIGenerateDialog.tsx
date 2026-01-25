@@ -61,7 +61,7 @@ interface AIGenerateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: TemplateWithContent[];
-  onGenerate: (nodes: Node[], edges: Edge[], sourceName: string) => void;
+  onGenerate: (nodes: Node[], edges: Edge[], sourceName: string, description?: string) => void;
 }
 
 /**
@@ -345,7 +345,7 @@ export function AIGenerateDialog({
       aiWorkflow.edges as WorkflowEdge[]
     );
 
-    onGenerate(reactFlowNodes, reactFlowEdges, selected.name);
+    onGenerate(reactFlowNodes, reactFlowEdges, selected.name, aiWorkflow.description ?? undefined);
 
     // Reset state
     setSelected(null);

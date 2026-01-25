@@ -54,6 +54,7 @@ Generate a JSON object with this structure:
 
 \`\`\`json
 {
+  "description": "A brief 1-2 sentence description of what this workflow accomplishes",
   "nodes": [
     {
       "id": "unique_node_id",

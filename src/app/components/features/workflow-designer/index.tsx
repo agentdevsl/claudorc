@@ -206,6 +206,9 @@ export function WorkflowDesigner({
     initialWorkflow?.id ?? null
   );
   const [workflowName, setWorkflowName] = useState<string>(initialWorkflow?.name ?? '');
+  const [workflowDescription, setWorkflowDescription] = useState<string>(
+    initialWorkflow?.description ?? ''
+  );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [workflowsLoading, setWorkflowsLoading] = useState(true);
 
@@ -289,12 +292,13 @@ export function WorkflowDesigner({
 
   // Callback when AI workflow is generated from the dialog
   const handleAIWorkflowGenerated = useCallback(
-    (newNodes: Node[], newEdges: Edge[], sourceName: string) => {
+    (newNodes: Node[], newEdges: Edge[], sourceName: string, description?: string) => {
       setNodes(newNodes);
       setEdges(newEdges);
       setAiDialogOpen(false);
-      // Set workflow name based on source and mark as new workflow
+      // Set workflow name and description based on AI generation
       setWorkflowName(sourceName);
+      setWorkflowDescription(description ?? '');
       setActiveWorkflowId(null); // This is a new workflow, not an update
       // Mark as unsaved since we have new content
       setHasUnsavedChanges(true);
@@ -333,13 +337,14 @@ export function WorkflowDesigner({
         }
         savedWorkflow = result.data;
       } else {
-        // Create new workflow - use stored name from AI generation or fallback to timestamp
+        // Create new workflow - use stored name/description from AI generation
         const name = workflowName || `Workflow ${new Date().toLocaleString()}`;
         const response = await fetch('/api/workflows', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name,
+            description: workflowDescription || undefined,
             nodes: workflowNodes,
             edges: workflowEdges,
             viewport,
@@ -386,7 +391,16 @@ export function WorkflowDesigner({
     } finally {
       setIsSaving(false);
     }
-  }, [readOnly, nodes, edges, viewport, markAsSaved, activeWorkflowId, workflowName]);
+  }, [
+    readOnly,
+    nodes,
+    edges,
+    viewport,
+    markAsSaved,
+    activeWorkflowId,
+    workflowName,
+    workflowDescription,
+  ]);
 
   // Clear handler / Create new workflow
   const handleCreateNew = useCallback(() => {
@@ -396,6 +410,7 @@ export function WorkflowDesigner({
     setEdges([]);
     setActiveWorkflowId(null);
     setWorkflowName('');
+    setWorkflowDescription('');
     setHasUnsavedChanges(false);
     lastSavedStateRef.current = '';
   }, [readOnly, setNodes, setEdges]);
@@ -417,6 +432,7 @@ export function WorkflowDesigner({
           setEdges(loaded.edges);
           setActiveWorkflowId(workflow.id);
           setWorkflowName(result.data.name || workflow.name);
+          setWorkflowDescription(result.data.description || '');
 
           // Mark initial state as saved
           setTimeout(() => {

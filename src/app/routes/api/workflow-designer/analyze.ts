@@ -114,6 +114,7 @@ const analyzeWorkflowSchema = z
 // =============================================================================
 
 const aiWorkflowResponseSchema = z.object({
+  description: z.string().optional(),
   nodes: z.array(z.unknown()),
   edges: z.array(z.unknown()),
   aiGenerated: z.boolean().optional(),
@@ -174,6 +175,7 @@ function buildTemplateContent(
  * Parses and validates the AI response into workflow nodes and edges
  */
 function parseAIResponse(responseText: string): {
+  description?: string;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   aiConfidence: number;
@@ -236,6 +238,7 @@ function parseAIResponse(responseText: string): {
   }
 
   return {
+    description: validated.data.description,
     nodes,
     edges,
     aiConfidence: validated.data.aiConfidence ?? 0.5,
@@ -528,12 +531,14 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
         let nodes: WorkflowNode[];
         let edges: WorkflowEdge[];
         let aiConfidence: number;
+        let aiDescription: string | undefined;
 
         try {
           const result = parseAIResponse(aiResponse);
           nodes = result.nodes;
           edges = result.edges;
           aiConfidence = result.aiConfidence;
+          aiDescription = result.description;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           console.error('[workflow-analyze] AI response parsing error:', message);
@@ -564,10 +569,11 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
         // applies ELK layout before rendering.
 
         // Build final workflow object
+        // Prefer AI-generated description over template description
         const workflow: Workflow = {
           id: createId(),
           name: templateName,
-          description: templateDescription,
+          description: aiDescription || templateDescription,
           nodes,
           edges,
           sourceTemplateId: templateId,
