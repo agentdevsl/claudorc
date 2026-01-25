@@ -1812,6 +1812,97 @@ async function handleDeleteApiKey(service: string): Promise<Response> {
   return json({ ok: true, data: null });
 }
 
+// ============ Settings Handlers ============
+
+async function handleGetSettings(url: URL): Promise<Response> {
+  const keysParam = url.searchParams.get('keys');
+
+  try {
+    if (keysParam) {
+      // Get specific keys
+      const keys = keysParam
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      if (keys.length === 0) {
+        return json({ ok: true, data: { settings: {} } });
+      }
+
+      const results = await db
+        .select()
+        .from(schema.settings)
+        .where(or(...keys.map((k) => eq(schema.settings.key, k))));
+
+      const settingsMap: Record<string, unknown> = {};
+      for (const row of results) {
+        try {
+          settingsMap[row.key] = JSON.parse(row.value);
+        } catch {
+          settingsMap[row.key] = row.value;
+        }
+      }
+
+      return json({ ok: true, data: { settings: settingsMap } });
+    } else {
+      // Get all settings
+      const results = await db.select().from(schema.settings);
+
+      const settingsMap: Record<string, unknown> = {};
+      for (const row of results) {
+        try {
+          settingsMap[row.key] = JSON.parse(row.value);
+        } catch {
+          settingsMap[row.key] = row.value;
+        }
+      }
+
+      return json({ ok: true, data: { settings: settingsMap } });
+    }
+  } catch (error) {
+    console.error('[API] Error getting settings:', error);
+    return json(
+      { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to get settings' } },
+      500
+    );
+  }
+}
+
+async function handleUpdateSettings(request: Request): Promise<Response> {
+  try {
+    const body = await request.json();
+
+    if (!body.settings || typeof body.settings !== 'object') {
+      return json(
+        { ok: false, error: { code: 'VALIDATION_ERROR', message: 'settings object is required' } },
+        400
+      );
+    }
+
+    const settingsToUpdate = body.settings as Record<string, unknown>;
+
+    // Upsert each setting
+    for (const [key, value] of Object.entries(settingsToUpdate)) {
+      const jsonValue = JSON.stringify(value);
+      await db
+        .insert(schema.settings)
+        .values({ key, value: jsonValue })
+        .onConflictDoUpdate({
+          target: schema.settings.key,
+          set: { value: jsonValue, updatedAt: new Date().toISOString() },
+        });
+    }
+
+    return json({ ok: true });
+  } catch (error) {
+    console.error('[API] Error updating settings:', error);
+    return json(
+      { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update settings' } },
+      500
+    );
+  }
+}
+
 // ============ Sandbox Config Handlers ============
 
 async function handleListSandboxConfigs(url: URL): Promise<Response> {
@@ -3873,6 +3964,14 @@ async function handleRequest(request: Request): Promise<Response> {
         return handleDeleteApiKey(service);
       }
     }
+  }
+
+  // Settings routes
+  if (path === '/api/settings' && method === 'GET') {
+    return handleGetSettings(url);
+  }
+  if (path === '/api/settings' && method === 'PUT') {
+    return handleUpdateSettings(request);
   }
 
   // Sandbox Config routes

@@ -282,6 +282,12 @@ CREATE TABLE IF NOT EXISTS "workflows" (
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS "settings" (
+  "key" TEXT PRIMARY KEY NOT NULL,
+  "value" TEXT NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
 -- Seed the official Anthropic plugins marketplace (idempotent)
 INSERT OR IGNORE INTO "marketplaces" (
   "id", "name", "github_owner", "github_repo", "branch", "plugins_path", "is_default", "is_enabled", "status"
