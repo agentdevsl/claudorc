@@ -35,7 +35,7 @@ export class SettingsService {
 
   /**
    * Get multiple settings by keys
-   * Returns a map of key -> value (parsed JSON)
+   * Returns a map of key -> value (parsed JSON, or raw string if parsing fails)
    */
   async getMany(keys: string[]): Promise<Result<Record<string, unknown>, SettingsError>> {
     try {
@@ -51,8 +51,15 @@ export class SettingsService {
       for (const setting of results) {
         try {
           settingsMap[setting.key] = JSON.parse(setting.value);
-        } catch {
-          // If JSON parsing fails, use raw value
+        } catch (parseError) {
+          // If JSON parsing fails, use raw value but log for debugging
+          console.warn(
+            '[SettingsService] Failed to parse setting value as JSON, using raw value.',
+            'Key:',
+            setting.key,
+            'Error:',
+            parseError instanceof Error ? parseError.message : String(parseError)
+          );
           settingsMap[setting.key] = setting.value;
         }
       }
@@ -65,7 +72,7 @@ export class SettingsService {
 
   /**
    * Get all settings
-   * Returns a map of key -> value (parsed JSON)
+   * Returns a map of key -> value (parsed JSON, or raw string if parsing fails)
    */
   async getAll(): Promise<Result<Record<string, unknown>, SettingsError>> {
     try {
@@ -75,8 +82,15 @@ export class SettingsService {
       for (const setting of results) {
         try {
           settingsMap[setting.key] = JSON.parse(setting.value);
-        } catch {
-          // If JSON parsing fails, use raw value
+        } catch (parseError) {
+          // If JSON parsing fails, use raw value but log for debugging
+          console.warn(
+            '[SettingsService] Failed to parse setting value as JSON, using raw value.',
+            'Key:',
+            setting.key,
+            'Error:',
+            parseError instanceof Error ? parseError.message : String(parseError)
+          );
           settingsMap[setting.key] = setting.value;
         }
       }
@@ -196,7 +210,14 @@ export class SettingsService {
     }
     try {
       return JSON.parse(result.value.value) as T;
-    } catch {
+    } catch (parseError) {
+      console.warn(
+        '[SettingsService] Failed to parse setting value, returning default.',
+        'Key:',
+        key,
+        'Error:',
+        parseError instanceof Error ? parseError.message : String(parseError)
+      );
       return defaultValue;
     }
   }

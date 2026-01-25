@@ -129,20 +129,20 @@ export interface StreamEntry {
   timeOffset: string;
   content: string;
   /** Tool call details if type is 'tool' */
-  toolCall?: {
-    name: string;
-    input: Record<string, unknown>;
-    output?: unknown;
-    status: ToolCallStatus;
+  toolCall?: Readonly<{
+    readonly name: string;
+    readonly input: Record<string, unknown>;
+    readonly output?: unknown;
+    readonly status: ToolCallStatus;
     /** Time offset when tool started */
-    startTimeOffset: string;
+    readonly startTimeOffset: string;
     /** Time offset when tool completed (undefined if still running) */
-    endTimeOffset?: string;
+    readonly endTimeOffset?: string;
     /** Duration in milliseconds (undefined if still running) */
-    duration?: number;
+    readonly duration?: number;
     /** Error message if status is 'error' */
-    error?: string;
-  };
+    readonly error?: string;
+  }>;
   /** Model used for this message (assistant messages only) */
   model?: string;
   /** Token usage for this message */

@@ -49,6 +49,9 @@ describe('TaskCreationService', () => {
   }
 
   beforeEach(async () => {
+    // Clear mocks at the start to ensure clean state from previous tests
+    vi.clearAllMocks();
+
     await setupTestDatabase();
     const db = getTestDb();
 
@@ -83,7 +86,6 @@ describe('TaskCreationService', () => {
     } as unknown as SessionService;
 
     service = new TaskCreationService(db, mockStreams, mockSessionService);
-    vi.clearAllMocks();
   });
 
   afterEach(async () => {

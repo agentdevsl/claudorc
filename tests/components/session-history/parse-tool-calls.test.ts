@@ -453,6 +453,20 @@ describe('calculateToolCallStats', () => {
     expect(result.avgDurationMs).toBe(200);
   });
 
+  it('calculates totalDurationMs correctly (sum of all durations)', () => {
+    const toolCalls: ToolCallEntry[] = [
+      createToolCallEntry({ id: '1', tool: 'Read', status: 'complete', duration: 100 }),
+      createToolCallEntry({ id: '2', tool: 'Grep', status: 'complete', duration: 200 }),
+      createToolCallEntry({ id: '3', tool: 'Edit', status: 'running', duration: undefined }), // No duration (running)
+      createToolCallEntry({ id: '4', tool: 'Bash', status: 'complete', duration: 300 }),
+    ];
+
+    const result = calculateToolCallStats(toolCalls);
+
+    // Total of 100 + 200 + 300 = 600 (excludes running call with no duration)
+    expect(result.totalDurationMs).toBe(600);
+  });
+
   it('creates toolBreakdown sorted by count descending', () => {
     const toolCalls: ToolCallEntry[] = [
       createToolCallEntry({ id: '1', tool: 'Read', status: 'complete' }),

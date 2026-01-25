@@ -539,6 +539,388 @@ describe('TaskCreationService', () => {
     });
   });
 
+  describe('answerQuestions', () => {
+    it('returns error when session not found', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const result = await service.answerQuestions('missing', 'q-id', { '0': 'answer' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toEqual(TaskCreationErrors.SESSION_NOT_FOUND);
+      }
+    });
+
+    it('returns error when questions ID does not match', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      // No pending questions, so any ID will mismatch
+      const result = await service.answerQuestions(startResult.value.id, 'wrong-id', {
+        '0': 'answer',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('INVALID_QUESTIONS_ID');
+      }
+    });
+
+    it('formats answers correctly and sends to AI', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      // Mock streaming response for initial message
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: { content: [{ type: 'text', text: 'Response' }] },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      // Manually set pending questions on the session
+      const session = service.getSession(startResult.value.id);
+      if (!session) return;
+
+      session.pendingQuestions = {
+        id: 'q-123',
+        questions: [
+          { header: 'Scope', question: 'What is the scope?', options: [{ label: 'Full' }] },
+          { header: 'Priority', question: 'What priority?', options: [{ label: 'High' }] },
+        ],
+        round: 1,
+        totalAsked: 2,
+        maxQuestions: 10,
+      };
+      session.status = 'waiting_user';
+
+      // Answer the questions
+      const result = await service.answerQuestions(startResult.value.id, 'q-123', {
+        '0': 'Full scope',
+        '1': 'High priority',
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('active');
+        expect(result.value.pendingQuestions).toBeNull();
+      }
+
+      // Verify the message sent contains the formatted answers
+      const sentMessage = v2Session.send.mock.calls.find((call) =>
+        (call[0] as string).includes('Here are my answers')
+      );
+      expect(sentMessage).toBeDefined();
+      expect(sentMessage?.[0]).toContain('Scope: Full scope');
+      expect(sentMessage?.[0]).toContain('Priority: High priority');
+    });
+  });
+
+  describe('skipQuestions', () => {
+    it('returns error when session not found', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const result = await service.skipQuestions('missing');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toEqual(TaskCreationErrors.SESSION_NOT_FOUND);
+      }
+    });
+
+    it('sends skip message and clears pendingQuestions', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      // Mock streaming response
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: { content: [{ type: 'text', text: 'Generating task' }] },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      // Manually set pending questions on the session
+      const session = service.getSession(startResult.value.id);
+      if (!session) return;
+
+      session.pendingQuestions = {
+        id: 'q-123',
+        questions: [{ header: 'Scope', question: 'What scope?', options: [] }],
+        round: 1,
+        totalAsked: 1,
+        maxQuestions: 10,
+      };
+      session.status = 'waiting_user';
+
+      const result = await service.skipQuestions(startResult.value.id);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('active');
+        expect(result.value.pendingQuestions).toBeNull();
+      }
+
+      // Verify skip message was sent
+      const sentMessage = v2Session.send.mock.calls.find((call) =>
+        (call[0] as string).includes('proceed with generating the task')
+      );
+      expect(sentMessage).toBeDefined();
+    });
+  });
+
+  describe('clarifying questions parsing', () => {
+    it('parses clarifying questions from response', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const questionsJson = JSON.stringify({
+        type: 'clarifying_questions',
+        questions: [
+          {
+            header: 'Scope',
+            question: 'What is the scope of this task?',
+            options: [
+              { label: 'Full feature', description: 'Complete implementation' },
+              { label: 'MVP only', description: 'Minimal implementation' },
+            ],
+          },
+        ],
+      });
+
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: {
+            content: [{ type: 'text', text: `\`\`\`json\n${questionsJson}\n\`\`\`` }],
+          },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      const result = await service.sendMessage(startResult.value.id, 'Create a login feature');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pendingQuestions).not.toBeNull();
+        expect(result.value.pendingQuestions?.questions).toHaveLength(1);
+        expect(result.value.pendingQuestions?.questions[0]?.header).toBe('Scope');
+        expect(result.value.status).toBe('waiting_user');
+      }
+    });
+
+    it('returns null for invalid clarifying questions JSON', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: {
+            content: [
+              { type: 'text', text: '```json\n{"type": "clarifying_questions", invalid}\n```' },
+            ],
+          },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      const result = await service.sendMessage(startResult.value.id, 'Create a task');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pendingQuestions).toBeNull();
+      }
+    });
+
+    it('returns null when questions array is empty', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const questionsJson = JSON.stringify({
+        type: 'clarifying_questions',
+        questions: [],
+      });
+
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: {
+            content: [{ type: 'text', text: `\`\`\`json\n${questionsJson}\n\`\`\`` }],
+          },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      const result = await service.sendMessage(startResult.value.id, 'Create a task');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pendingQuestions).toBeNull();
+      }
+    });
+
+    it('filters out questions with missing required fields', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const questionsJson = JSON.stringify({
+        type: 'clarifying_questions',
+        questions: [
+          { header: 'Valid', question: 'Valid question?', options: [{ label: 'Yes' }] },
+          { header: 'Missing question field', options: [{ label: 'Yes' }] }, // No question
+          { header: 'Missing options', question: 'Where?' }, // No options
+          { question: 'Missing header?', options: [{ label: 'Yes' }] }, // No header
+        ],
+      });
+
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: {
+            content: [{ type: 'text', text: `\`\`\`json\n${questionsJson}\n\`\`\`` }],
+          },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      const result = await service.sendMessage(startResult.value.id, 'Create a task');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Only the valid question should be kept
+        expect(result.value.pendingQuestions?.questions).toHaveLength(1);
+        expect(result.value.pendingQuestions?.questions[0]?.header).toBe('Valid');
+      }
+    });
+
+    it('tracks question round and total asked correctly', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const questionsJson = JSON.stringify({
+        type: 'clarifying_questions',
+        questions: [
+          { header: 'Q1', question: 'First?', options: [{ label: 'Yes' }] },
+          { header: 'Q2', question: 'Second?', options: [{ label: 'No' }] },
+        ],
+      });
+
+      async function* mockStream() {
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: {
+            content: [{ type: 'text', text: `\`\`\`json\n${questionsJson}\n\`\`\`` }],
+          },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      const result = await service.sendMessage(startResult.value.id, 'Create a task');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pendingQuestions?.round).toBe(1);
+        expect(result.value.pendingQuestions?.totalAsked).toBe(2);
+        expect(result.value.questionRound).toBe(1);
+        expect(result.value.totalQuestionsAsked).toBe(2);
+      }
+    });
+  });
+
   describe('suggestion parsing', () => {
     it('handles invalid JSON gracefully', async () => {
       const db = createDbMock();

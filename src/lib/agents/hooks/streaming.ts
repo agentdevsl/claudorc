@@ -33,20 +33,28 @@ const LOG_PREFIX = '[streaming]';
 /**
  * Creates a unique key for tracking in-flight tool calls.
  * Uses tool name + stringified input to match PreToolUse with PostToolUse.
+ *
+ * Note: If the same tool is invoked twice with identical inputs before
+ * either completes, pairing may be incorrect (FIFO assumption).
  */
 function createToolCallKey(toolName: string, toolInput: Record<string, unknown>): string {
   try {
     return `${toolName}:${JSON.stringify(toolInput)}`;
   } catch (error) {
-    // Log the error - fallback will cause pairing mismatch which is a degraded state
+    // Fallback uses timestamp which won't match any PostToolUse,
+    // causing the tool result to become an orphan (no pairing)
+    const fallbackKey = `${toolName}:${Date.now()}:unmatched`;
     console.error(
       LOG_PREFIX,
-      'Failed to serialize tool input for pairing. Tool:',
+      'Failed to serialize tool input for pairing - tool events will not be paired.',
+      'Tool:',
       toolName,
+      'FallbackKey:',
+      fallbackKey,
       'Error:',
       error instanceof Error ? error.message : String(error)
     );
-    return `${toolName}:${Date.now()}`;
+    return fallbackKey;
   }
 }
 

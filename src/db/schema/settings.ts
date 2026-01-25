@@ -3,10 +3,10 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /**
  * Settings table for storing user preferences (replaces localStorage)
- * Keys: 'task_creation_model', 'task_creation_tools'
+ * Keys: 'taskCreation.model', 'taskCreation.tools'
  */
 export const settings = sqliteTable('settings', {
-  // The setting name (e.g., 'task_creation_model', 'task_creation_tools')
+  // The setting name (e.g., 'taskCreation.model', 'taskCreation.tools')
   key: text('key').primaryKey(),
   // JSON-encoded value
   value: text('value').notNull(),

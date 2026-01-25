@@ -83,8 +83,13 @@ function isToolResultData(data: unknown): data is ToolResultData {
  *
  * Pairs tool:start events with their corresponding tool:result events by ID.
  * Calculates duration from timestamp differences.
- * Handles orphan tool:start events (still running).
- * Logs warnings for malformed or orphan events.
+ *
+ * Logs warnings for:
+ *   - Malformed events (missing/invalid id)
+ *   - Orphan tool:result events (results without matching starts)
+ *
+ * Note: Orphan tool:start events (no result yet) are returned with status 'running'
+ * and do not generate warnings - this is expected for in-progress tool calls.
  *
  * @param events - Array of session events
  * @param sessionStartTime - Unix timestamp (ms) when session started
