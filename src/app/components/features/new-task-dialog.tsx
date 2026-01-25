@@ -32,14 +32,20 @@ interface DialogSize {
 
 const MIN_WIDTH = 800;
 const MIN_HEIGHT = 500;
-const DEFAULT_WIDTH = Math.min(1200, window.innerWidth * 0.95);
-const DEFAULT_HEIGHT = Math.min(800, window.innerHeight * 0.85);
+
+/**
+ * Calculate default dialog dimensions based on current viewport size.
+ * Called at runtime to ensure accurate values after window resizes.
+ */
+function getDialogDefaults(): DialogSize {
+  return {
+    width: Math.min(1200, window.innerWidth * 0.95),
+    height: Math.min(800, window.innerHeight * 0.85),
+  };
+}
 
 function useResizableDialog() {
-  const [size, setSize] = useState<DialogSize>({
-    width: DEFAULT_WIDTH,
-    height: DEFAULT_HEIGHT,
-  });
+  const [size, setSize] = useState<DialogSize>(getDialogDefaults);
   const [isResizing, setIsResizing] = useState(false);
   const startPos = useRef({ x: 0, y: 0 });
   const startSize = useRef({ width: 0, height: 0 });
@@ -87,10 +93,7 @@ function useResizableDialog() {
   }, [isResizing]);
 
   const reset = useCallback(() => {
-    setSize({
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT,
-    });
+    setSize(getDialogDefaults());
   }, []);
 
   return { size, isResizing, handleMouseDown, reset };

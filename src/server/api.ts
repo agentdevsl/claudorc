@@ -2166,6 +2166,59 @@ async function handleK8sNamespaces(url: URL): Promise<Response> {
 // Store active SSE connections for streaming
 const sseConnections = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
 
+/**
+ * Send task creation state updates to SSE client.
+ * Extracts common SSE event sending logic used across message, answer, and skip handlers.
+ */
+function sendTaskCreationSSEUpdate(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  sessionId: string,
+  session: {
+    messages: Array<{ id: string; role: string; content: string }>;
+    pendingQuestions?: unknown;
+    suggestion?: unknown;
+  }
+): void {
+  // Send assistant message event
+  const lastMessage = session.messages[session.messages.length - 1];
+  if (lastMessage && lastMessage.role === 'assistant') {
+    const messageData = JSON.stringify({
+      type: 'task-creation:message',
+      data: {
+        sessionId,
+        messageId: lastMessage.id,
+        role: lastMessage.role,
+        content: lastMessage.content,
+      },
+    });
+    controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
+  }
+
+  // Send questions event if pending
+  if (session.pendingQuestions) {
+    const questionsData = JSON.stringify({
+      type: 'task-creation:questions',
+      data: {
+        sessionId,
+        questions: session.pendingQuestions,
+      },
+    });
+    controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
+  }
+
+  // Send suggestion event if available (only when no pending questions)
+  if (session.suggestion && !session.pendingQuestions) {
+    const suggestionData = JSON.stringify({
+      type: 'task-creation:suggestion',
+      data: {
+        sessionId,
+        suggestion: session.suggestion,
+      },
+    });
+    controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+  }
+}
+
 async function handleTaskCreationStart(request: Request): Promise<Response> {
   try {
     const body = await request.json();
@@ -2237,67 +2290,7 @@ async function handleTaskCreationMessage(request: Request): Promise<Response> {
 
     // Send events to SSE based on session state
     if (controller) {
-      const session = result.value;
-
-      // Send assistant message event
-      const lastMessage = session.messages[session.messages.length - 1];
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const messageData = JSON.stringify({
-          type: 'task-creation:message',
-          data: {
-            sessionId,
-            messageId: lastMessage.id,
-            role: lastMessage.role,
-            content: lastMessage.content,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
-      }
-
-      // Send questions event if pending
-      if (session.pendingQuestions) {
-        const questionsData = JSON.stringify({
-          type: 'task-creation:questions',
-          data: {
-            sessionId,
-            questions: session.pendingQuestions,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
-      }
-
-      // Send suggestion event if available
-      if (session.suggestion && !session.pendingQuestions) {
-        const suggestionData = JSON.stringify({
-          type: 'task-creation:suggestion',
-          data: {
-            sessionId,
-            suggestion: session.suggestion,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
-      }
-    }
-
-    // Send message completion to SSE
-    if (controller) {
-      const session = result.value;
-      const lastMessage = session.messages[session.messages.length - 1];
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const msgData = JSON.stringify({
-          type: 'task-creation:message',
-          data: { messageId: lastMessage.id, role: lastMessage.role, content: lastMessage.content },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${msgData}\n\n`));
-      }
-      // Send suggestion if available
-      if (session.suggestion) {
-        const suggestionData = JSON.stringify({
-          type: 'task-creation:suggestion',
-          data: { suggestion: session.suggestion },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
-      }
+      sendTaskCreationSSEUpdate(controller, sessionId, result.value);
     }
 
     return json({ ok: true, data: { messageId: 'msg-sent' } });
@@ -2427,48 +2420,9 @@ async function handleTaskCreationAnswer(request: Request): Promise<Response> {
       return json({ ok: false, error: result.error }, 400);
     }
 
-    // Send events to SSE based on session state (same pattern as handleTaskCreationMessage)
+    // Send events to SSE based on session state
     if (controller) {
-      const session = result.value;
-
-      // Send assistant message event
-      const lastMessage = session.messages[session.messages.length - 1];
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const messageData = JSON.stringify({
-          type: 'task-creation:message',
-          data: {
-            sessionId,
-            messageId: lastMessage.id,
-            role: lastMessage.role,
-            content: lastMessage.content,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
-      }
-
-      // Send questions event if pending (for follow-up questions)
-      if (session.pendingQuestions) {
-        const questionsData = JSON.stringify({
-          type: 'task-creation:questions',
-          data: {
-            sessionId,
-            questions: session.pendingQuestions,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
-      }
-
-      // Send suggestion event if available
-      if (session.suggestion && !session.pendingQuestions) {
-        const suggestionData = JSON.stringify({
-          type: 'task-creation:suggestion',
-          data: {
-            sessionId,
-            suggestion: session.suggestion,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
-      }
+      sendTaskCreationSSEUpdate(controller, sessionId, result.value);
     }
 
     return json({ ok: true, data: { sessionId, status: result.value.status } });
@@ -2507,48 +2461,9 @@ async function handleTaskCreationSkip(request: Request): Promise<Response> {
       return json({ ok: false, error: result.error }, 400);
     }
 
-    // Send events to SSE based on session state (same pattern as handleTaskCreationMessage)
+    // Send events to SSE based on session state
     if (controller) {
-      const session = result.value;
-
-      // Send assistant message event
-      const lastMessage = session.messages[session.messages.length - 1];
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const messageData = JSON.stringify({
-          type: 'task-creation:message',
-          data: {
-            sessionId,
-            messageId: lastMessage.id,
-            role: lastMessage.role,
-            content: lastMessage.content,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${messageData}\n\n`));
-      }
-
-      // Send questions event if pending
-      if (session.pendingQuestions) {
-        const questionsData = JSON.stringify({
-          type: 'task-creation:questions',
-          data: {
-            sessionId,
-            questions: session.pendingQuestions,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
-      }
-
-      // Send suggestion event if available
-      if (session.suggestion && !session.pendingQuestions) {
-        const suggestionData = JSON.stringify({
-          type: 'task-creation:suggestion',
-          data: {
-            sessionId,
-            suggestion: session.suggestion,
-          },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
-      }
+      sendTaskCreationSSEUpdate(controller, sessionId, result.value);
     }
 
     return json({ ok: true, data: { sessionId, status: result.value.status } });

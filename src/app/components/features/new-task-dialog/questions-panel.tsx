@@ -169,7 +169,7 @@ export function QuestionsPanel({
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {pendingQuestions.questions.map((question: ClarifyingQuestion, index: number) => (
           <QuestionCard
-            key={`${pendingQuestions.id}-${question.header}`}
+            key={`${pendingQuestions.id}-${index}`}
             question={question}
             selectedAnswer={selectedAnswers[String(index)]}
             onSelectAnswer={(answer) => onSelectAnswer(index, answer)}
