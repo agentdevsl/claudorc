@@ -56,15 +56,20 @@ export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4';
  * Get the task creation model from environment or localStorage.
  */
 export function getTaskCreationModel(): string {
-  // Server-side: check environment variable
-  if (typeof window === 'undefined') {
+  // Server-side or test environment: check environment variable
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
     const envModel = process.env.TASK_CREATION_MODEL;
     if (envModel) return getFullModelId(envModel);
     return getFullModelId(DEFAULT_TASK_CREATION_MODEL);
   }
   // Client-side: check localStorage
-  const storedModel = localStorage.getItem('task_creation_model');
-  return storedModel ? getFullModelId(storedModel) : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+  try {
+    const storedModel = localStorage.getItem('task_creation_model');
+    return storedModel ? getFullModelId(storedModel) : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+  } catch {
+    // localStorage may be blocked or unavailable
+    return getFullModelId(DEFAULT_TASK_CREATION_MODEL);
+  }
 }
 
 /** Model ID type from available models */

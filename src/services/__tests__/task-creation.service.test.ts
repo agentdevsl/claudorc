@@ -40,6 +40,12 @@ const createV2SessionMock = () => ({
   close: vi.fn(),
 });
 
+const createSessionServiceMock = () => ({
+  create: vi.fn().mockResolvedValue({ ok: true, value: { id: 'db-session-1' } }),
+  publish: vi.fn().mockResolvedValue({ ok: true, value: { offset: 1 } }),
+  close: vi.fn().mockResolvedValue({ ok: true }),
+});
+
 describe('TaskCreationService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,6 +96,44 @@ describe('TaskCreationService', () => {
       if (!result.ok) {
         expect(result.error).toEqual(TaskCreationErrors.PROJECT_NOT_FOUND);
       }
+    });
+
+    it('uses custom configured tools when provided', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1', name: 'Test Project' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const result = await service.startConversation('p1', ['Read', 'Grep']);
+
+      expect(result.ok).toBe(true);
+      expect(unstable_v2_createSession).toHaveBeenCalledWith({
+        model: 'claude-sonnet-4-20250514',
+        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+        allowedTools: ['Read', 'Grep', 'AskUserQuestion'],
+      });
+    });
+
+    it('does not duplicate AskUserQuestion if already in configured tools', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1', name: 'Test Project' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      const service = new TaskCreationService(db as never, streams as never);
+      const result = await service.startConversation('p1', ['Read', 'AskUserQuestion']);
+
+      expect(result.ok).toBe(true);
+      expect(unstable_v2_createSession).toHaveBeenCalledWith({
+        model: 'claude-sonnet-4-20250514',
+        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+        allowedTools: ['Read', 'AskUserQuestion'],
+      });
     });
   });
 
@@ -643,6 +687,217 @@ describe('TaskCreationService', () => {
         expect(result.value.suggestion?.labels).toEqual([]);
         expect(result.value.suggestion?.priority).toBe('medium');
       }
+    });
+  });
+
+  describe('tool event tracking', () => {
+    it('publishes tool:start event when receiving content_block_start with tool_use', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const sessionService = createSessionServiceMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      async function* mockStream() {
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: { type: 'tool_use', id: 'tool-1', name: 'Read' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: { type: 'content_block_stop', index: 0 },
+        };
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: { content: [{ type: 'text', text: 'Done' }] },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(
+        db as never,
+        streams as never,
+        sessionService as never
+      );
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      await service.sendMessage(startResult.value.id, 'test message');
+
+      // Find the tool:start publish call
+      const toolStartCall = sessionService.publish.mock.calls.find(
+        (call) => call[1]?.type === 'tool:start'
+      );
+
+      expect(toolStartCall).toBeDefined();
+      expect(toolStartCall?.[1]?.data).toMatchObject({
+        id: 'tool-1',
+        tool: 'Read',
+      });
+    });
+
+    it('publishes tool:result event when receiving content_block_stop', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const sessionService = createSessionServiceMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      async function* mockStream() {
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: { type: 'tool_use', id: 'tool-1', name: 'Read' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: '{"file_path": "/test.txt"}' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: { type: 'content_block_stop', index: 0 },
+        };
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: { content: [{ type: 'text', text: 'Done' }] },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(
+        db as never,
+        streams as never,
+        sessionService as never
+      );
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      await service.sendMessage(startResult.value.id, 'test message');
+
+      // Find the tool:result publish call
+      const toolResultCall = sessionService.publish.mock.calls.find(
+        (call) => call[1]?.type === 'tool:result'
+      );
+
+      expect(toolResultCall).toBeDefined();
+      expect(toolResultCall?.[1]?.data).toMatchObject({
+        id: 'tool-1',
+        tool: 'Read',
+        input: { file_path: '/test.txt' },
+        isError: false,
+      });
+      expect(toolResultCall?.[1]?.data?.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    it('accumulates input_json_delta events correctly', async () => {
+      const db = createDbMock();
+      const streams = createStreamsMock();
+      const sessionService = createSessionServiceMock();
+      const v2Session = createV2SessionMock();
+
+      db.query.projects.findFirst.mockResolvedValue({ id: 'p1' });
+      vi.mocked(unstable_v2_createSession).mockReturnValue(v2Session as never);
+
+      async function* mockStream() {
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: { type: 'tool_use', id: 'tool-1', name: 'Grep' },
+          },
+        };
+        // Split the JSON across multiple delta events
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: '{"pattern": "' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: 'test' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: '", "path": "/src"}' },
+          },
+        };
+        yield {
+          type: 'stream_event',
+          session_id: 'sdk-session-1',
+          event: { type: 'content_block_stop', index: 0 },
+        };
+        yield {
+          type: 'assistant',
+          session_id: 'sdk-session-1',
+          message: { content: [{ type: 'text', text: 'Done' }] },
+        };
+      }
+      v2Session.stream.mockReturnValue(mockStream());
+
+      const service = new TaskCreationService(
+        db as never,
+        streams as never,
+        sessionService as never
+      );
+      const startResult = await service.startConversation('p1');
+
+      expect(startResult.ok).toBe(true);
+      if (!startResult.ok) return;
+
+      await service.sendMessage(startResult.value.id, 'test message');
+
+      // Find the tool:result publish call
+      const toolResultCall = sessionService.publish.mock.calls.find(
+        (call) => call[1]?.type === 'tool:result'
+      );
+
+      expect(toolResultCall).toBeDefined();
+      expect(toolResultCall?.[1]?.data).toMatchObject({
+        id: 'tool-1',
+        tool: 'Grep',
+        input: { pattern: 'test', path: '/src' },
+      });
     });
   });
 });

@@ -347,6 +347,58 @@ describe('parseToolCallsFromEvents', () => {
     expect(result[0]?.status).toBe('error');
     expect(result[0]?.error).toBe('Tool execution failed');
   });
+
+  it('clamps negative duration to 0 when result timestamp is before start timestamp', () => {
+    const startEvent = createMockEvent({
+      type: 'tool:start',
+      timestamp: sessionStartTime + 2000, // Start at 2s
+      data: { id: 'tool-neg', tool: 'Read', input: { path: '/test' } },
+    });
+    const resultEvent = createMockEvent({
+      type: 'tool:result',
+      timestamp: sessionStartTime + 1000, // Result at 1s - BEFORE start!
+      data: { id: 'tool-neg', tool: 'Read', output: 'data', isError: false },
+    });
+
+    const result = parseToolCallsFromEvents([startEvent, resultEvent], sessionStartTime);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.duration).toBe(0); // Should be 0, not -1000
+  });
+
+  it('does not include orphan tool:result events (results without matching starts)', () => {
+    const orphanResult = createMockEvent({
+      type: 'tool:result',
+      timestamp: sessionStartTime + 1000,
+      data: { id: 'orphan-id', tool: 'Read', output: 'data', isError: false },
+    });
+
+    const result = parseToolCallsFromEvents([orphanResult], sessionStartTime);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('rejects tool:start events with array data', () => {
+    const arrayDataEvent = createMockEvent({
+      type: 'tool:start',
+      timestamp: sessionStartTime + 100,
+      data: ['not', 'an', 'object'],
+    });
+
+    const result = parseToolCallsFromEvents([arrayDataEvent], sessionStartTime);
+    expect(result).toHaveLength(0);
+  });
+
+  it('rejects tool:start events with empty string id', () => {
+    const emptyIdEvent = createMockEvent({
+      type: 'tool:start',
+      timestamp: sessionStartTime + 100,
+      data: { id: '', tool: 'Read', input: {} },
+    });
+
+    const result = parseToolCallsFromEvents([emptyIdEvent], sessionStartTime);
+    expect(result).toHaveLength(0);
+  });
 });
 
 describe('calculateToolCallStats', () => {
@@ -357,6 +409,7 @@ describe('calculateToolCallStats', () => {
       totalCalls: 0,
       errorCount: 0,
       avgDurationMs: 0,
+      totalDurationMs: 0,
       toolBreakdown: [],
     });
   });

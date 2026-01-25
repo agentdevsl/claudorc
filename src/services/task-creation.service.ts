@@ -450,9 +450,6 @@ export class TaskCreationService {
 
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
-        // Debug: Log all message types
-        console.log(`[TaskCreationService] SDK message type: ${msg.type}`);
-
         // Capture session ID for resume capability
         if (msg.session_id && !session.sdkSessionId) {
           session.sdkSessionId = msg.session_id;
@@ -468,14 +465,6 @@ export class TaskCreationService {
             message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
             usage?: { input_tokens?: number; output_tokens?: number };
           };
-
-          // Debug logging for all event types (except text_delta which is too verbose)
-          if (event.type !== 'content_block_delta' || event.delta?.type !== 'text_delta') {
-            console.log(
-              `[TaskCreationService] stream_event: ${event.type}`,
-              event.content_block ? `(block: ${event.content_block.type})` : ''
-            );
-          }
 
           // Capture message_start for model info (legacy SDK V1 path)
           if (event.type === 'message_start' && event.message) {
@@ -569,11 +558,21 @@ export class TaskCreationService {
                 if (toolInfo.input) {
                   parsedInput = JSON.parse(toolInfo.input);
                 }
-              } catch {
-                console.warn('[TaskCreationService] Failed to parse tool input JSON');
+              } catch (parseError) {
+                console.warn(
+                  '[TaskCreationService] Failed to parse tool input JSON.',
+                  'ToolId:',
+                  toolInfo.id,
+                  'ToolName:',
+                  toolInfo.name,
+                  'InputLength:',
+                  toolInfo.input.length,
+                  'Error:',
+                  parseError instanceof Error ? parseError.message : String(parseError)
+                );
               }
 
-              // Update the tool:start event with parsed input (re-publish with correct input)
+              // Publish tool:result event with the accumulated input and duration
               if (session.dbSessionId && this.sessionService) {
                 try {
                   // Publish tool:result event
