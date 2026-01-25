@@ -54,11 +54,23 @@ export interface TaskCreationMessage {
 
 export type TaskCreationSessionStatus = 'active' | 'waiting_user' | 'completed' | 'cancelled';
 
-/** V2 Session interface */
+/** V2 Session interface - matches SDK's SDKSession */
 interface V2Session {
-  send(message: string): Promise<void>;
+  send(message: string | SDKUserMessage): Promise<void>;
   stream(): AsyncGenerator<SDKMessage>;
   close(): void;
+}
+
+/** SDK User Message for tool results */
+interface SDKUserMessage {
+  type: 'user';
+  message: {
+    role: 'user';
+    content: Array<{ type: 'tool_result'; tool_use_id: string; content: string }>;
+  };
+  parent_tool_use_id: string | null;
+  tool_use_result?: unknown;
+  session_id: string;
 }
 
 export interface TaskCreationSession {
@@ -75,6 +87,7 @@ export interface TaskCreationSession {
   completedAt: string | null;
   /** SDK session ID for resuming */
   sdkSessionId: string | null;
+  pendingToolUseId: string | null;
   /** V2 session object */
   v2Session: V2Session | null;
   /** Whether system prompt has been sent */
@@ -297,6 +310,7 @@ export class TaskCreationService {
    */
   private parseAskUserQuestionToolInput(
     input: {
+      toolUseId: string;
       questions: Array<{
         question: string;
         header: string;
@@ -343,6 +357,10 @@ export class TaskCreationService {
       })),
       multiSelect: q.multiSelect ?? false,
     }));
+
+    // Store the tool_use_id for responding with tool result
+    session.pendingToolUseId = input.toolUseId;
+    console.log('[TaskCreationService] Stored pending tool_use_id:', input.toolUseId);
 
     return {
       id: createId(),
@@ -433,6 +451,7 @@ export class TaskCreationService {
       createdAt: new Date().toISOString(),
       completedAt: null,
       sdkSessionId: null,
+      pendingToolUseId: null,
       v2Session: v2Session as V2Session,
       systemPromptSent: false,
       dbSessionId,
@@ -543,6 +562,7 @@ export class TaskCreationService {
 
       // Track AskUserQuestion tool call specifically for pausing conversation
       let askUserQuestionInput: {
+        toolUseId: string;
         questions: Array<{
           question: string;
           header: string;
@@ -625,7 +645,12 @@ export class TaskCreationService {
               }
 
               // Check for AskUserQuestion tool_use - BREAK immediately to pause for user input
-              if (block.type === 'tool_use' && block.name === 'AskUserQuestion' && block.input) {
+              if (
+                block.type === 'tool_use' &&
+                block.name === 'AskUserQuestion' &&
+                block.input &&
+                block.id
+              ) {
                 console.log(
                   '[TaskCreationService] 🛑 AskUserQuestion tool detected - BREAKING stream to wait for user input!'
                 );
@@ -633,7 +658,19 @@ export class TaskCreationService {
                   '[TaskCreationService] Tool input:',
                   JSON.stringify(block.input, null, 2)
                 );
-                askUserQuestionInput = block.input as NonNullable<typeof askUserQuestionInput>;
+                console.log('[TaskCreationService] Tool use ID:', block.id);
+                const input = block.input as {
+                  questions: Array<{
+                    question: string;
+                    header: string;
+                    multiSelect: boolean;
+                    options: Array<{ label: string; description?: string }>;
+                  }>;
+                };
+                askUserQuestionInput = {
+                  toolUseId: block.id,
+                  questions: input.questions,
+                };
 
                 // BREAK out of the streaming loop to pause execution
                 // The SDK would auto-execute this tool, but we want to pause for real user input
@@ -776,13 +813,18 @@ export class TaskCreationService {
                   (parsedInput.questions as unknown[]).length,
                   'questions'
                 );
-                askUserQuestionInput = parsedInput as {
-                  questions: Array<{
-                    question: string;
-                    header: string;
-                    multiSelect: boolean;
-                    options: Array<{ label: string; description?: string }>;
-                  }>;
+                askUserQuestionInput = {
+                  toolUseId: toolInfo.id,
+                  questions: (
+                    parsedInput as {
+                      questions: Array<{
+                        question: string;
+                        header: string;
+                        multiSelect: boolean;
+                        options: Array<{ label: string; description?: string }>;
+                      }>;
+                    }
+                  ).questions,
                 };
               }
 
@@ -1255,6 +1297,7 @@ export class TaskCreationService {
 
     // Store reference for type safety (validated above)
     const { questions } = session.pendingQuestions;
+    const pendingToolUseId = session.pendingToolUseId;
 
     // Format answers as a message to send to the AI
     const formattedAnswers = Object.entries(answers)
@@ -1270,12 +1313,219 @@ export class TaskCreationService {
       '\n'
     );
 
-    // Clear pending questions and resume active status
+    // Clear pending questions and tool use ID
     session.pendingQuestions = null;
+    session.pendingToolUseId = null;
     session.status = 'active';
 
-    // Send the answers as a new message
+    // If we have a pending tool_use_id, send as a tool result
+    // This properly continues the SDK conversation from where we paused
+    if (pendingToolUseId && session.v2Session && session.sdkSessionId) {
+      console.log(
+        '[TaskCreationService] Sending answer as tool result for tool_use_id:',
+        pendingToolUseId
+      );
+
+      // Format the tool result content
+      const toolResultContent = {
+        answers: Object.fromEntries(
+          Object.entries(answers).map(([index, answer]) => {
+            const question = questions[Number(index)];
+            return [question?.header ?? `Question ${index}`, answer];
+          })
+        ),
+        formatted: answerMessage,
+      };
+
+      // Construct SDKUserMessage with tool_use_result
+      const toolResultMessage = {
+        type: 'user' as const,
+        message: {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'tool_result' as const,
+              tool_use_id: pendingToolUseId,
+              content: JSON.stringify(toolResultContent),
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+        tool_use_result: toolResultContent,
+        session_id: session.sdkSessionId,
+      };
+
+      // Send tool result and continue streaming
+      return this.sendToolResultAndStream(session, toolResultMessage);
+    }
+
+    // Fallback: Send as regular message if no tool context
+    console.log('[TaskCreationService] No pending tool_use_id, sending as regular message');
     return this.sendMessage(sessionId, answerMessage);
+  }
+
+  /**
+   * Send a tool result and stream the response
+   */
+  private async sendToolResultAndStream(
+    session: TaskCreationSession,
+    toolResultMessage: {
+      type: 'user';
+      message: {
+        role: 'user';
+        content: Array<{ type: 'tool_result'; tool_use_id: string; content: string }>;
+      };
+      parent_tool_use_id: null;
+      tool_use_result: unknown;
+      session_id: string;
+    }
+  ): Promise<Result<TaskCreationSession, TaskCreationError>> {
+    if (!session.v2Session) {
+      return err(TaskCreationErrors.API_ERROR('No active V2 session'));
+    }
+
+    try {
+      console.log('[TaskCreationService] Sending tool result message...');
+      await session.v2Session.send(toolResultMessage);
+
+      // Stream and process response - simplified version focusing on key events
+      let accumulated = '';
+      let askUserQuestionInput: {
+        toolUseId: string;
+        questions: Array<{
+          question: string;
+          header: string;
+          multiSelect: boolean;
+          options: Array<{ label: string; description?: string }>;
+        }>;
+      } | null = null;
+
+      // Helper to apply pending questions
+      const applyPendingQuestions = async (questions: PendingQuestions): Promise<void> => {
+        session.pendingQuestions = questions;
+        session.questionRound = questions.round;
+        session.totalQuestionsAsked = questions.totalAsked;
+        session.status = 'waiting_user';
+
+        try {
+          await this.streams.publishTaskCreationQuestions(session.id, {
+            sessionId: session.id,
+            questions,
+          });
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to publish questions:', error);
+        }
+      };
+
+      for await (const msg of session.v2Session.stream()) {
+        console.log(`[TaskCreationService] 📨 Stream msg type: ${msg.type}`, {
+          hasSessionId: !!msg.session_id,
+        });
+
+        // Check for assistant messages with tool_use content or text
+        if (msg.type === 'assistant') {
+          const assistantMsg = msg as {
+            type: 'assistant';
+            message?: {
+              content?: Array<{
+                type: string;
+                id?: string;
+                name?: string;
+                input?: unknown;
+                text?: string;
+              }>;
+            };
+          };
+
+          if (assistantMsg.message?.content) {
+            for (const block of assistantMsg.message.content) {
+              if (block.type === 'text' && block.text) {
+                accumulated += block.text;
+              }
+
+              // Check for AskUserQuestion tool_use
+              if (
+                block.type === 'tool_use' &&
+                block.name === 'AskUserQuestion' &&
+                block.input &&
+                block.id
+              ) {
+                console.log(
+                  '[TaskCreationService] 🛑 AskUserQuestion detected in tool result response!'
+                );
+                const input = block.input as {
+                  questions: Array<{
+                    question: string;
+                    header: string;
+                    multiSelect: boolean;
+                    options: Array<{ label: string; description?: string }>;
+                  }>;
+                };
+                askUserQuestionInput = {
+                  toolUseId: block.id,
+                  questions: input.questions,
+                };
+                break;
+              }
+            }
+          }
+
+          if (askUserQuestionInput) {
+            break;
+          }
+        }
+
+        // Handle result message
+        if (msg.type === 'result') {
+          break;
+        }
+      }
+
+      console.log('[TaskCreationService] 📊 Tool result stream completed:', {
+        accumulatedTextLength: accumulated.length,
+        hasAskUserQuestionToolInput: !!askUserQuestionInput,
+      });
+
+      // Process AskUserQuestion if detected
+      if (askUserQuestionInput) {
+        const questions = this.parseAskUserQuestionToolInput(askUserQuestionInput, session);
+        if (questions) {
+          console.log('[TaskCreationService] Parsed AskUserQuestion from tool result response');
+          if (accumulated) {
+            await this.addAssistantMessage(session, accumulated, undefined);
+          }
+          await applyPendingQuestions(questions);
+          return ok(session);
+        }
+      }
+
+      // Add assistant response if we have content
+      if (accumulated) {
+        await this.addAssistantMessage(session, accumulated, undefined);
+
+        // Try to parse task suggestion from response
+        const suggestion = this.parseSuggestion(accumulated);
+        if (suggestion) {
+          console.log('[TaskCreationService] Parsed task suggestion from tool result response');
+          session.suggestion = suggestion;
+          session.status = 'completed';
+
+          try {
+            await this.streams.publishTaskCreationSuggestion(session.id, {
+              sessionId: session.id,
+              suggestion,
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] Failed to publish suggestion:', error);
+          }
+        }
+      }
+
+      return ok(session);
+    } catch (error) {
+      console.error('[TaskCreationService] Error sending tool result:', error);
+      return err(TaskCreationErrors.API_ERROR('Failed to send tool result'));
+    }
   }
 
   /**
