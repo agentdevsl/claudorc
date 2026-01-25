@@ -312,13 +312,29 @@ export class TaskCreationService {
       return null;
     }
 
+    // Check if we've already asked the max number of questions
+    const remainingQuestions = TaskCreationService.MAX_QUESTIONS - session.totalQuestionsAsked;
+    if (remainingQuestions <= 0) {
+      console.log(
+        '[TaskCreationService] Max questions reached (%d), skipping additional questions',
+        TaskCreationService.MAX_QUESTIONS
+      );
+      return null;
+    }
+
+    // Limit questions to remaining capacity
+    const questionsToProcess = rawQuestions.slice(0, remainingQuestions);
     console.log(
       '[TaskCreationService] Parsing AskUserQuestion tool input:',
+      questionsToProcess.length,
+      'of',
       rawQuestions.length,
-      'questions'
+      'questions (limit:',
+      remainingQuestions,
+      'remaining)'
     );
 
-    const questions: ClarifyingQuestion[] = rawQuestions.map((q) => ({
+    const questions: ClarifyingQuestion[] = questionsToProcess.map((q) => ({
       header: q.header,
       question: q.question,
       options: q.options.map((opt) => ({
