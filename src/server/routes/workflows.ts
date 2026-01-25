@@ -73,7 +73,7 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
 
   // POST /api/workflows
   app.post('/', async (c) => {
-    const body = (await c.req.json()) as {
+    let body: {
       name: string;
       description?: string;
       nodes?: unknown[];
@@ -88,6 +88,14 @@ export function createWorkflowsRoutes({ db }: WorkflowsDeps) {
       aiModel?: string;
       aiConfidence?: number;
     };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
 
     if (!body.name) {
       return json(

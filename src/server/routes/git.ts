@@ -164,11 +164,16 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
             // Get commit count (commits ahead of main/master)
             let commitCount = 0;
             try {
-              const { stdout: countOutput } = await commandRunner.exec(
-                `git rev-list --count main..${name} 2>/dev/null || git rev-list --count master..${name} 2>/dev/null || echo "0"`,
-                project.path
-              );
-              commitCount = parseInt(countOutput.trim(), 10) || 0;
+              // Validate branch name before interpolating into shell command (prevent command injection)
+              if (!isValidBranchName(name)) {
+                console.warn('[Git] Skipping commit count for invalid branch name:', name);
+              } else {
+                const { stdout: countOutput } = await commandRunner.exec(
+                  `git rev-list --count main..${name} 2>/dev/null || git rev-list --count master..${name} 2>/dev/null || echo "0"`,
+                  project.path
+                );
+                commitCount = parseInt(countOutput.trim(), 10) || 0;
+              }
             } catch (error) {
               // Commit count is optional - branch may not have a main/master base
               console.debug(
@@ -397,11 +402,19 @@ export function createGitRoutes({ db, commandRunner }: GitDeps) {
             // Get commit count from main/master
             let commitCount = 0;
             try {
-              const { stdout: countOutput } = await commandRunner.exec(
-                `git rev-list --count main..${fullName} 2>/dev/null || git rev-list --count master..${fullName} 2>/dev/null || echo "0"`,
-                project.path
-              );
-              commitCount = parseInt(countOutput.trim(), 10) || 0;
+              // Validate branch name before interpolating into shell command (prevent command injection)
+              if (!isValidBranchName(fullName)) {
+                console.warn(
+                  '[Git] Skipping commit count for invalid remote branch name:',
+                  fullName
+                );
+              } else {
+                const { stdout: countOutput } = await commandRunner.exec(
+                  `git rev-list --count main..${fullName} 2>/dev/null || git rev-list --count master..${fullName} 2>/dev/null || echo "0"`,
+                  project.path
+                );
+                commitCount = parseInt(countOutput.trim(), 10) || 0;
+              }
             } catch (error) {
               // Commit count is optional - branch may not have a main/master base
               console.debug(

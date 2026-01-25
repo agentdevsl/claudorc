@@ -867,13 +867,30 @@ export function NewTaskDialog({
   }, [suggestion]);
 
   // Reset selected answers when new questions arrive
+  // When isAnsweringQuestions is true, we just submitted answers and are waiting for new questions.
+  // Once new questions arrive, we reset both the answers and the isAnsweringQuestions flag.
   const pendingQuestionsId = pendingQuestions?.id;
+  const prevQuestionsIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (pendingQuestionsId) {
+    // Check if this is a NEW set of questions (different ID)
+    if (pendingQuestionsId && pendingQuestionsId !== prevQuestionsIdRef.current) {
+      // Always reset answers for new questions (they have different indices)
       setSelectedAnswers({});
+      // If we were answering, we can now reset that flag since new questions arrived
+      if (isAnsweringQuestions) {
+        setIsAnsweringQuestions(false);
+      }
+    }
+    prevQuestionsIdRef.current = pendingQuestionsId;
+  }, [pendingQuestionsId, isAnsweringQuestions]);
+
+  // Reset isAnsweringQuestions when conversation completes without new questions
+  // (e.g., task created, error, or status changes away from waiting_user)
+  useEffect(() => {
+    if (isAnsweringQuestions && status !== 'waiting_user' && status !== 'active') {
       setIsAnsweringQuestions(false);
     }
-  }, [pendingQuestionsId]);
+  }, [status, isAnsweringQuestions]);
 
   // Start conversation when dialog opens
   useEffect(() => {
@@ -910,9 +927,10 @@ export function NewTaskDialog({
   }, [createdTaskId, onTaskCreated, onOpenChange]);
 
   // Auto-scroll to bottom when messages change or streaming
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger deps for scroll behavior
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  }, [messages, streamingContent]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
@@ -1019,24 +1037,21 @@ export function NewTaskDialog({
   };
 
   // Handle submitting answers to questions
+  // Note: We don't reset isAnsweringQuestions in finally because the SSE event
+  // with new questions arrives AFTER the API call returns. The useEffect below
+  // handles resetting it when new questions are processed.
   const handleSubmitAnswers = useCallback(async () => {
     if (!pendingQuestions) return;
     setIsAnsweringQuestions(true);
-    try {
-      await answerQuestions(selectedAnswers);
-    } finally {
-      setIsAnsweringQuestions(false);
-    }
+    await answerQuestions(selectedAnswers);
   }, [pendingQuestions, answerQuestions, selectedAnswers]);
 
   // Handle skipping questions
+  // Note: Same as handleSubmitAnswers - don't reset isAnsweringQuestions here,
+  // let the useEffect handle it when status changes or new questions arrive.
   const handleSkipQuestions = useCallback(async () => {
     setIsAnsweringQuestions(true);
-    try {
-      await skipQuestions();
-    } finally {
-      setIsAnsweringQuestions(false);
-    }
+    await skipQuestions();
   }, [skipQuestions]);
 
   // Handle selecting an answer for a question (supports both single and multi-select)

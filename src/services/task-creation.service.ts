@@ -144,6 +144,7 @@ Guidelines for questions:
 - Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
+- Set multiSelect: true if the user should be able to select multiple options
 - Ask 2-5 questions maximum
 
 ## Phase 2: Task Suggestion
@@ -232,10 +233,26 @@ export class TaskCreationService {
     console.log('[TaskCreationService] Found JSON block, attempting to parse');
 
     try {
-      const parsed = JSON.parse(jsonMatch[1]);
-      console.log('[TaskCreationService] Parsed JSON type:', parsed.type);
+      const jsonContent = jsonMatch[1];
+      console.log(
+        '[TaskCreationService] 📄 Raw JSON block (first 200 chars):',
+        jsonContent.substring(0, 200)
+      );
+
+      const parsed = JSON.parse(jsonContent);
+      console.log('[TaskCreationService] 📋 Parsed JSON block:', {
+        type: parsed.type,
+        hasQuestions: !!parsed.questions,
+        questionsCount: parsed.questions?.length,
+        keys: Object.keys(parsed),
+      });
+
       if (parsed.type !== 'clarifying_questions') {
-        console.log('[TaskCreationService] Not clarifying_questions type, skipping');
+        console.log(
+          '[TaskCreationService] ⏭️ Not clarifying_questions type, skipping (found: ' +
+            parsed.type +
+            ')'
+        );
         return null;
       }
 
@@ -289,18 +306,19 @@ export class TaskCreationService {
     },
     session: TaskCreationSession
   ): PendingQuestions | null {
-    if (!input.questions || input.questions.length === 0) {
+    const { questions: rawQuestions } = input;
+    if (!rawQuestions || rawQuestions.length === 0) {
       console.log('[TaskCreationService] AskUserQuestion input has no questions');
       return null;
     }
 
     console.log(
-      '[TaskCreationService] Parsing AskUserQuestion tool input with',
-      input.questions.length,
+      '[TaskCreationService] Parsing AskUserQuestion tool input:',
+      rawQuestions.length,
       'questions'
     );
 
-    const questions: ClarifyingQuestion[] = input.questions.map((q) => ({
+    const questions: ClarifyingQuestion[] = rawQuestions.map((q) => ({
       header: q.header,
       question: q.question,
       options: q.options.map((opt) => ({
@@ -338,15 +356,22 @@ export class TaskCreationService {
     }
 
     // Create V2 session with task system enabled
-    // Use configured tools from settings, ensuring AskUserQuestion is always included
+    // Use configured tools from settings, ensuring AskUserQuestion is included
     // Get model from SettingsService if available, otherwise use default
     const taskCreationModel = this.settingsService
       ? await this.settingsService.getTaskCreationModel()
       : getFullModelId(DEFAULT_TASK_CREATION_MODEL);
     const baseTools = configuredTools ?? DEFAULT_TASK_CREATION_TOOLS;
+    // Ensure AskUserQuestion is always included
     const allowedTools = baseTools.includes('AskUserQuestion')
       ? baseTools
       : [...baseTools, 'AskUserQuestion'];
+
+    console.log('[TaskCreationService] Creating V2 session:', {
+      model: taskCreationModel,
+      allowedTools,
+      hasAskUserQuestion: allowedTools.includes('AskUserQuestion'),
+    });
 
     const v2Session = unstable_v2_createSession({
       model: taskCreationModel,
@@ -512,9 +537,100 @@ export class TaskCreationService {
 
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
+        // Log ALL message types to debug event format
+        console.log(`[TaskCreationService] 📨 Stream msg type: ${msg.type}`, {
+          hasSessionId: !!msg.session_id,
+          msgKeys: Object.keys(msg).filter((k) => k !== 'session_id'),
+        });
+
         // Capture session ID for resume capability
         if (msg.session_id && !session.sdkSessionId) {
           session.sdkSessionId = msg.session_id;
+        }
+
+        // Check for user messages with tool_use_result (SDK V2 format)
+        if (msg.type === 'user') {
+          const userMsg = msg as {
+            type: 'user';
+            message?: {
+              content?: Array<{
+                type: string;
+                tool_use_id?: string;
+                content?: unknown;
+              }>;
+            };
+            tool_use_result?: {
+              tool_use_id?: string;
+              tool_name?: string;
+              input?: unknown;
+              output?: unknown;
+            };
+          };
+
+          // Check tool_use_result field
+          if (userMsg.tool_use_result) {
+            const toolResult = userMsg.tool_use_result;
+            console.log('[TaskCreationService] 🛠️ SDK V2 tool_use_result found:', {
+              toolName: toolResult.tool_name,
+              hasInput: !!toolResult.input,
+            });
+
+            if (toolResult.tool_name === 'AskUserQuestion' && toolResult.input) {
+              console.log('[TaskCreationService] ✅ AskUserQuestion from SDK V2 captured!');
+              askUserQuestionInput = toolResult.input as NonNullable<typeof askUserQuestionInput>;
+            }
+          }
+        }
+
+        // Check for assistant messages with tool_use content
+        if (msg.type === 'assistant') {
+          const assistantMsg = msg as {
+            type: 'assistant';
+            message?: {
+              content?: Array<{
+                type: string;
+                id?: string;
+                name?: string;
+                input?: unknown;
+                text?: string;
+              }>;
+            };
+          };
+
+          // Accumulate text content from assistant messages
+          if (assistantMsg.message?.content) {
+            for (const block of assistantMsg.message.content) {
+              if (block.type === 'text' && block.text) {
+                accumulated += block.text;
+                // Stream token to UI
+                if (onToken) {
+                  onToken(block.text, accumulated);
+                }
+              }
+
+              // Check for AskUserQuestion tool_use - BREAK immediately to pause for user input
+              if (block.type === 'tool_use' && block.name === 'AskUserQuestion' && block.input) {
+                console.log(
+                  '[TaskCreationService] 🛑 AskUserQuestion tool detected - BREAKING stream to wait for user input!'
+                );
+                console.log(
+                  '[TaskCreationService] Tool input:',
+                  JSON.stringify(block.input, null, 2)
+                );
+                askUserQuestionInput = block.input as NonNullable<typeof askUserQuestionInput>;
+
+                // BREAK out of the streaming loop to pause execution
+                // The SDK would auto-execute this tool, but we want to pause for real user input
+                break;
+              }
+            }
+          }
+
+          // If we found AskUserQuestion, break out of the outer loop too
+          if (askUserQuestionInput) {
+            console.log('[TaskCreationService] 🛑 Breaking out of stream loop for AskUserQuestion');
+            break;
+          }
         }
 
         // Handle partial streaming messages
@@ -553,8 +669,11 @@ export class TaskCreationService {
             const toolName = event.content_block.name ?? 'unknown';
 
             console.log(
-              `[TaskCreationService] Detected tool_use block: ${toolName} (${toolId}), dbSessionId: ${session.dbSessionId}`
+              `[TaskCreationService] 🔧 TOOL DETECTED: ${toolName} (id: ${toolId}, index: ${event.index})`
             );
+            if (toolName === 'AskUserQuestion') {
+              console.log('[TaskCreationService] ✅ AskUserQuestion tool is being called!');
+            }
 
             inFlightTools.set(event.index, {
               id: toolId,
@@ -832,9 +951,33 @@ export class TaskCreationService {
         );
       }
 
+      // Log what we have after streaming
+      console.log('[TaskCreationService] 📊 Stream completed:', {
+        accumulatedTextLength: accumulated.length,
+        hasAskUserQuestionToolInput: !!askUserQuestionInput,
+        inFlightToolsCount: inFlightTools.size,
+      });
+
+      // Helper to apply pending questions to session state
+      const applyPendingQuestions = async (questions: PendingQuestions): Promise<void> => {
+        session.pendingQuestions = questions;
+        session.questionRound = questions.round;
+        session.totalQuestionsAsked = questions.totalAsked;
+        session.status = 'waiting_user';
+
+        try {
+          await this.streams.publishTaskCreationQuestions(sessionId, { sessionId, questions });
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to publish questions:', error);
+        }
+      };
+
+      // Build usage info for message persistence
+      const usageInfo = totalTokens > 0 ? { modelUsed, inputTokens, outputTokens } : undefined;
+
       // Check if we have an AskUserQuestion tool call to handle (takes priority)
       if (askUserQuestionInput) {
-        console.log('[TaskCreationService] Processing AskUserQuestion tool call');
+        console.log('[TaskCreationService] Processing AskUserQuestion tool call (priority path)');
         const questions = this.parseAskUserQuestionToolInput(askUserQuestionInput, session);
         if (questions) {
           console.log(
@@ -842,137 +985,46 @@ export class TaskCreationService {
             questions.questions.length,
             'questions'
           );
-          session.pendingQuestions = questions;
-          session.questionRound = questions.round;
-          session.totalQuestionsAsked = questions.totalAsked;
-          session.status = 'waiting_user';
 
-          // Add any accumulated text as assistant message before showing questions
           if (accumulated) {
-            const assistantMessage: TaskCreationMessage = {
-              id: createId(),
-              role: 'assistant',
-              content: accumulated,
-              timestamp: new Date().toISOString(),
-            };
-            session.messages.push(assistantMessage);
-
-            // Publish assistant message
-            try {
-              await this.streams.publishTaskCreationMessage(sessionId, {
-                sessionId,
-                messageId: assistantMessage.id,
-                role: 'assistant',
-                content: assistantMessage.content,
-              });
-            } catch (error) {
-              console.error('[TaskCreationService] Failed to publish assistant message:', error);
-            }
-
-            // Persist assistant message to database
-            if (session.dbSessionId && this.sessionService) {
-              try {
-                await this.sessionService.publish(session.dbSessionId, {
-                  id: assistantMessage.id,
-                  type: 'chunk',
-                  timestamp: Date.now(),
-                  data: {
-                    role: 'assistant',
-                    content: accumulated,
-                    model: modelUsed || undefined,
-                    usage: totalTokens > 0 ? { inputTokens, outputTokens, totalTokens } : undefined,
-                  },
-                });
-              } catch (error) {
-                console.error('[TaskCreationService] Failed to persist assistant message:', error);
-              }
-            }
+            await this.addAssistantMessage(session, accumulated, usageInfo);
           }
-
-          // Publish questions event
-          try {
-            await this.streams.publishTaskCreationQuestions(sessionId, {
-              sessionId,
-              questions,
-            });
-          } catch (error) {
-            console.error('[TaskCreationService] Failed to publish questions:', error);
-          }
-
+          await applyPendingQuestions(questions);
           return ok(session);
         }
       }
 
       // Add assistant response if we have content
       if (accumulated) {
-        const assistantMessage: TaskCreationMessage = {
-          id: createId(),
-          role: 'assistant',
-          content: accumulated,
-          timestamp: new Date().toISOString(),
-        };
-        session.messages.push(assistantMessage);
-
-        // Publish assistant message
-        try {
-          await this.streams.publishTaskCreationMessage(sessionId, {
-            sessionId,
-            messageId: assistantMessage.id,
-            role: 'assistant',
-            content: assistantMessage.content,
-          });
-        } catch (error) {
-          console.error('[TaskCreationService] Failed to publish assistant message:', error);
-        }
-
-        // Persist assistant message to database for session history
-        if (session.dbSessionId && this.sessionService) {
-          try {
-            await this.sessionService.publish(session.dbSessionId, {
-              id: assistantMessage.id,
-              type: 'chunk',
-              timestamp: Date.now(),
-              data: {
-                role: 'assistant',
-                content: accumulated,
-                model: modelUsed || undefined,
-                usage: totalTokens > 0 ? { inputTokens, outputTokens, totalTokens } : undefined,
-              },
-            });
-          } catch (error) {
-            console.error('[TaskCreationService] Failed to persist assistant message:', error);
-          }
-        }
+        await this.addAssistantMessage(session, accumulated, usageInfo);
 
         // Parse clarifying questions from response (legacy JSON block format - fallback)
+        console.log(
+          '[TaskCreationService] Fallback: Trying to parse JSON block from text response...'
+        );
         const questions = this.parseClarifyingQuestions(accumulated, session);
         if (questions) {
           console.log(
             '[TaskCreationService] Parsed clarifying questions from JSON block:',
-            questions.questions.length
+            questions.questions.length,
+            'questions'
           );
-          session.pendingQuestions = questions;
-          session.questionRound = questions.round;
-          session.totalQuestionsAsked = questions.totalAsked;
-          session.status = 'waiting_user';
-
-          // Publish questions event
-          try {
-            await this.streams.publishTaskCreationQuestions(sessionId, {
-              sessionId,
-              questions,
-            });
-          } catch (error) {
-            console.error('[TaskCreationService] Failed to publish questions:', error);
-          }
+          await applyPendingQuestions(questions);
         } else {
           // Parse suggestion from response (only if no questions)
+          console.log(
+            '[TaskCreationService] No questions found, trying to parse task suggestion...'
+          );
           const suggestion = this.parseSuggestion(accumulated);
           if (suggestion) {
+            console.log('[TaskCreationService] Found task suggestion:', {
+              title: suggestion.title.substring(0, 50),
+              priority: suggestion.priority,
+              labelsCount: suggestion.labels.length,
+            });
             session.suggestion = suggestion;
             session.pendingQuestions = null;
 
-            // Publish suggestion event
             try {
               await this.streams.publishTaskCreationSuggestion(sessionId, {
                 sessionId,
@@ -1011,6 +1063,64 @@ export class TaskCreationService {
       .filter((block: { type: string }) => block.type === 'text')
       .map((block: { type: string; text?: string }) => block.text ?? '')
       .join('');
+  }
+
+  /**
+   * Create and persist an assistant message, publishing to streams and database
+   */
+  private async addAssistantMessage(
+    session: TaskCreationSession,
+    content: string,
+    usage?: { modelUsed: string; inputTokens: number; outputTokens: number }
+  ): Promise<TaskCreationMessage> {
+    const message: TaskCreationMessage = {
+      id: createId(),
+      role: 'assistant',
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    session.messages.push(message);
+
+    // Publish to real-time stream
+    try {
+      await this.streams.publishTaskCreationMessage(session.id, {
+        sessionId: session.id,
+        messageId: message.id,
+        role: 'assistant',
+        content,
+      });
+    } catch (error) {
+      console.error('[TaskCreationService] Failed to publish assistant message:', error);
+    }
+
+    // Persist to database for session history
+    if (session.dbSessionId && this.sessionService) {
+      try {
+        const totalTokens = usage ? usage.inputTokens + usage.outputTokens : 0;
+        await this.sessionService.publish(session.dbSessionId, {
+          id: message.id,
+          type: 'chunk',
+          timestamp: Date.now(),
+          data: {
+            role: 'assistant',
+            content,
+            model: usage?.modelUsed || undefined,
+            usage:
+              totalTokens > 0 && usage
+                ? {
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                    totalTokens,
+                  }
+                : undefined,
+          },
+        });
+      } catch (error) {
+        console.error('[TaskCreationService] Failed to persist assistant message:', error);
+      }
+    }
+
+    return message;
   }
 
   /**
@@ -1127,17 +1237,22 @@ export class TaskCreationService {
       });
     }
 
+    // Store reference for type safety (validated above)
+    const { questions } = session.pendingQuestions;
+
     // Format answers as a message to send to the AI
-    const answerLines: string[] = ['Here are my answers to your questions:'];
-    for (const [index, answer] of Object.entries(answers)) {
-      const question = session.pendingQuestions.questions[Number(index)];
-      if (question) {
-        // Format answer: join array values for multi-select, use string directly for single-select
+    const formattedAnswers = Object.entries(answers)
+      .map(([index, answer]) => {
+        const question = questions[Number(index)];
+        if (!question) return null;
         const formattedAnswer = Array.isArray(answer) ? answer.join(', ') : answer;
-        answerLines.push(`- ${question.header}: ${formattedAnswer}`);
-      }
-    }
-    const answerMessage = answerLines.join('\n');
+        return `- ${question.header}: ${formattedAnswer}`;
+      })
+      .filter((line): line is string => line !== null);
+
+    const answerMessage = ['Here are my answers to your questions:', ...formattedAnswers].join(
+      '\n'
+    );
 
     // Clear pending questions and resume active status
     session.pendingQuestions = null;
