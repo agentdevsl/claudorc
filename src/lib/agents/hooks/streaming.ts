@@ -120,6 +120,15 @@ export function createStreamingHooks(
           // Clean up the in-flight tracking
           inFlightToolCalls.delete(toolCallKey);
 
+          // Extract error message if the tool call failed
+          const isError = input.tool_response.is_error ?? false;
+          const errorMessage = isError
+            ? input.tool_response.content
+                .filter((c): c is { type: 'text'; text: string } => c.type === 'text' && !!c.text)
+                .map((c) => c.text)
+                .join('\n') || 'Tool execution failed'
+            : undefined;
+
           // Publish tool completion event
           try {
             await sessionService.publish(sessionId, {
@@ -133,7 +142,8 @@ export function createStreamingHooks(
                 input: input.tool_input,
                 output: input.tool_response,
                 duration: input.duration_ms,
-                isError: input.tool_response.is_error ?? false,
+                isError,
+                error: errorMessage,
               },
             });
           } catch (error) {

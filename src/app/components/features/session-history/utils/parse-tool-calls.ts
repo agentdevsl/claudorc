@@ -231,10 +231,11 @@ export function calculateToolCallStats(toolCalls: readonly ToolCallEntry[]): Too
   const totalCalls = toolCalls.length;
   const errorCount = toolCalls.filter((tc) => tc.status === 'error').length;
 
-  // Calculate average duration for all calls with recorded duration (complete or error)
+  // Calculate average and total duration for all calls with recorded duration (complete or error)
   const callsWithDuration = toolCalls.filter((tc) => tc.duration !== undefined && tc.duration >= 0);
-  const totalDuration = callsWithDuration.reduce((sum, tc) => sum + (tc.duration ?? 0), 0);
-  const avgDurationMs = callsWithDuration.length > 0 ? totalDuration / callsWithDuration.length : 0;
+  const totalDurationMs = callsWithDuration.reduce((sum, tc) => sum + (tc.duration ?? 0), 0);
+  const avgDurationMs =
+    callsWithDuration.length > 0 ? totalDurationMs / callsWithDuration.length : 0;
 
   // Calculate breakdown by tool name
   const toolCountMap = new Map<string, number>();
@@ -252,6 +253,7 @@ export function calculateToolCallStats(toolCalls: readonly ToolCallEntry[]): Too
     totalCalls,
     errorCount,
     avgDurationMs,
+    totalDurationMs,
     toolBreakdown,
   };
 }

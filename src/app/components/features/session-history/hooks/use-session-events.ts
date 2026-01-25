@@ -259,7 +259,32 @@ export function useSessionDetail(sessionId: string | null): UseSessionDetailRetu
 }
 
 /**
- * Parse session events into stream entries for display
+ * Tool start event data structure
+ */
+interface ToolStartData {
+  id?: string;
+  tool?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+}
+
+/**
+ * Tool result event data structure
+ */
+interface ToolResultData {
+  id?: string;
+  tool?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  output?: unknown;
+  error?: string;
+  isError?: boolean;
+  duration?: number;
+}
+
+/**
+ * Parse session events into stream entries for display.
+ * Consolidates tool:start and tool:result events into single entries.
  */
 export function parseEventsToStreamEntries(
   events: SessionDetail['events'],
@@ -269,7 +294,27 @@ export function parseEventsToStreamEntries(
     return [];
   }
 
-  return events.map((event) => {
+  // Build a map of tool:start events by ID for pairing
+  const toolStartEvents = new Map<
+    string,
+    { event: SessionDetail['events'][0]; data: ToolStartData }
+  >();
+
+  for (const event of events) {
+    if (event.type === 'tool:start') {
+      const data = event.data as ToolStartData;
+      if (data.id) {
+        toolStartEvents.set(data.id, { event, data });
+      }
+    }
+  }
+
+  // Track which tool:start events have been paired with results
+  const pairedToolStartIds = new Set<string>();
+
+  const entries: StreamEntry[] = [];
+
+  for (const event of events) {
     const timeOffsetMs = calculateTimeOffset(event.timestamp, sessionStartTime);
     const timeOffset = formatTimeOffset(timeOffsetMs);
 
@@ -321,7 +366,7 @@ export function parseEventsToStreamEntries(
             }
           : undefined;
 
-        return {
+        entries.push({
           id: event.id,
           type,
           timestamp: event.timestamp,
@@ -329,47 +374,71 @@ export function parseEventsToStreamEntries(
           content,
           model,
           usage,
-        };
+        });
+        continue;
       }
 
       case 'tool:start': {
+        // Check if this start event will be paired with a result
+        const toolData = event.data as ToolStartData;
+        const toolId = toolData.id;
+
+        // Look ahead to see if there's a matching result event
+        const hasMatchingResult = toolId
+          ? events.some((e) => e.type === 'tool:result' && (e.data as ToolResultData).id === toolId)
+          : false;
+
+        if (hasMatchingResult) {
+          // Skip this event - it will be consolidated with the result
+          continue;
+        }
+
+        // No matching result - show as running
         type = 'tool';
-        const toolData = event.data as {
-          tool?: string;
-          name?: string;
-          input?: Record<string, unknown>;
-        };
-        // Support both 'tool' (newer streaming hooks) and 'name' (legacy) fields
         const toolName = toolData.tool ?? toolData.name ?? 'Unknown';
-        content = `Executing ${toolName}...`;
+        content = `${toolName}`;
         toolCall = {
           name: toolName,
           input: toolData.input ?? {},
           status: 'running',
+          startTimeOffset: timeOffset,
         };
         break;
       }
 
       case 'tool:result': {
         type = 'tool';
-        const resultData = event.data as {
-          tool?: string;
-          name?: string;
-          input?: Record<string, unknown>;
-          output?: unknown;
-          error?: string;
-          isError?: boolean;
-        };
-        // Support both 'tool' (newer streaming hooks) and 'name' (legacy) fields
+        const resultData = event.data as ToolResultData;
+        const toolId = resultData.id;
+
+        // Get tool name from result or paired start event
         const toolName = resultData.tool ?? resultData.name ?? 'Unknown';
-        // Support both 'error' (legacy) and 'isError' (newer) fields
         const hasError = resultData.error || resultData.isError;
-        content = hasError ? `Tool ${toolName} failed` : `Tool ${toolName} completed`;
+
+        // Find the paired start event for timing info
+        let startTimeOffset = timeOffset;
+        let duration: number | undefined;
+
+        if (toolId) {
+          const startEntry = toolStartEvents.get(toolId);
+          if (startEntry) {
+            pairedToolStartIds.add(toolId);
+            const startOffsetMs = calculateTimeOffset(startEntry.event.timestamp, sessionStartTime);
+            startTimeOffset = formatTimeOffset(startOffsetMs);
+            duration = resultData.duration ?? event.timestamp - startEntry.event.timestamp;
+          }
+        }
+
+        content = toolName;
         toolCall = {
           name: toolName,
           input: resultData.input ?? {},
           output: resultData.output,
           status: hasError ? 'error' : 'complete',
+          startTimeOffset,
+          endTimeOffset: timeOffset,
+          duration,
+          error: hasError ? (resultData.error ?? 'Tool execution failed') : undefined,
         };
         break;
       }
@@ -389,21 +458,24 @@ export function parseEventsToStreamEntries(
         content = JSON.stringify(event.data);
     }
 
-    return {
+    entries.push({
       id: event.id,
       type,
       timestamp: event.timestamp,
       timeOffset,
       content,
       toolCall,
-    };
-  });
+    });
+  }
+
+  return entries;
 }
 
 const EMPTY_STATS: ToolCallStats = {
   totalCalls: 0,
   errorCount: 0,
   avgDurationMs: 0,
+  totalDurationMs: 0,
   toolBreakdown: [],
 };
 

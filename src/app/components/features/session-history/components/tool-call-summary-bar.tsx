@@ -1,4 +1,4 @@
-import { Clock, Gear, WarningCircle } from '@phosphor-icons/react';
+import { Clock, Gear, Timer, WarningCircle } from '@phosphor-icons/react';
 import type * as React from 'react';
 import type { ToolCallSummaryBarProps } from '../types';
 import { formatDuration } from '../utils/format-duration';
@@ -28,6 +28,14 @@ export function ToolCallSummaryBar({ stats }: ToolCallSummaryBarProps): React.JS
             {stats.errorCount}
           </span>{' '}
           Errors
+        </span>
+
+        <span className="h-3 w-px bg-border" />
+
+        <span className="flex items-center gap-1 text-fg-muted">
+          <Timer className="h-3.5 w-3.5" weight="bold" />
+          Total:{' '}
+          <span className="font-medium text-fg">{formatDuration(stats.totalDurationMs)}</span>
         </span>
 
         <span className="h-3 w-px bg-border" />

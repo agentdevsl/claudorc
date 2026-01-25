@@ -36,6 +36,8 @@ export interface ToolCallStats {
   readonly totalCalls: number;
   readonly errorCount: number;
   readonly avgDurationMs: number;
+  /** Total execution time across all tool calls in milliseconds */
+  readonly totalDurationMs: number;
   readonly toolBreakdown: ReadonlyArray<{ readonly tool: string; readonly count: number }>;
 }
 
@@ -132,6 +134,14 @@ export interface StreamEntry {
     input: Record<string, unknown>;
     output?: unknown;
     status: ToolCallStatus;
+    /** Time offset when tool started */
+    startTimeOffset: string;
+    /** Time offset when tool completed (undefined if still running) */
+    endTimeOffset?: string;
+    /** Duration in milliseconds (undefined if still running) */
+    duration?: number;
+    /** Error message if status is 'error' */
+    error?: string;
   };
   /** Model used for this message (assistant messages only) */
   model?: string;

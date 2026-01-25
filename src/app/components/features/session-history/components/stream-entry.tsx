@@ -1,11 +1,15 @@
 import {
+  ArrowRight,
   CaretDown,
   CaretRight,
+  CheckCircle,
   Code,
   Gear,
   Lightning,
+  Spinner,
   Terminal,
   User,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
@@ -42,6 +46,34 @@ const typeIcons = {
   assistant: Code,
   tool: Gear,
 } as const;
+
+const statusIcons = {
+  running: Spinner,
+  complete: CheckCircle,
+  error: WarningCircle,
+} as const;
+
+const statusColors = {
+  running: 'text-accent',
+  complete: 'text-success',
+  error: 'text-danger',
+} as const;
+
+/**
+ * Format duration in milliseconds to human readable string
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+}
 
 export function StreamEntry({ entry, isCurrent = false }: StreamEntryProps): React.JSX.Element {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -108,21 +140,58 @@ export function StreamEntry({ entry, isCurrent = false }: StreamEntryProps): Rea
               className="flex w-full items-center justify-between p-3"
               onClick={() => setIsExpanded(!isExpanded)}
             >
-              <span className="font-mono text-xs font-medium text-warning">
-                {entry.toolCall.name}
-              </span>
-              <span className="flex items-center gap-2 text-xs text-fg-muted">
-                {isExpanded ? 'Hide details' : 'Show details'}
-                {isExpanded ? (
-                  <CaretDown className="h-3 w-3" />
-                ) : (
-                  <CaretRight className="h-3 w-3" />
-                )}
-              </span>
+              <div className="flex items-center gap-2">
+                {/* Status icon */}
+                {(() => {
+                  const StatusIcon = statusIcons[entry.toolCall.status];
+                  const statusColor = statusColors[entry.toolCall.status];
+                  return (
+                    <StatusIcon
+                      className={cn('h-4 w-4', statusColor, {
+                        'animate-spin': entry.toolCall.status === 'running',
+                      })}
+                      weight={entry.toolCall.status === 'running' ? 'regular' : 'fill'}
+                    />
+                  );
+                })()}
+                <span className="font-mono text-xs font-medium text-fg">{entry.toolCall.name}</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Timeline: start → end (duration) */}
+                <span className="flex items-center gap-1.5 font-mono text-[10px] text-fg-subtle">
+                  <span>{entry.toolCall.startTimeOffset}</span>
+                  {entry.toolCall.endTimeOffset && (
+                    <>
+                      <ArrowRight className="h-3 w-3" />
+                      <span>{entry.toolCall.endTimeOffset}</span>
+                    </>
+                  )}
+                  {entry.toolCall.duration !== undefined && (
+                    <span className="ml-1 rounded bg-surface-subtle px-1 py-0.5 text-fg-muted">
+                      {formatDuration(entry.toolCall.duration)}
+                    </span>
+                  )}
+                </span>
+
+                <span className="flex items-center gap-1 text-xs text-fg-muted">
+                  {isExpanded ? (
+                    <CaretDown className="h-3 w-3" />
+                  ) : (
+                    <CaretRight className="h-3 w-3" />
+                  )}
+                </span>
+              </div>
             </button>
 
             {isExpanded && (
               <div className="border-t border-border bg-surface-subtle p-3">
+                {/* Error message if present */}
+                {entry.toolCall.error && (
+                  <div className="mb-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+                    {entry.toolCall.error}
+                  </div>
+                )}
                 <pre className="overflow-x-auto font-mono text-xs text-fg-muted">
                   <code>
                     {JSON.stringify(
