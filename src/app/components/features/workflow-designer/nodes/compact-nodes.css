@@ -255,22 +255,22 @@
   box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-end) 20%, transparent);
 }
 
-/* ===== Command Node ===== */
-.compact-node.command .compact-node-icon {
+/* ===== Context Node ===== */
+.compact-node.context .compact-node-icon {
   background: color-mix(in srgb, var(--compact-node-command) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--compact-node-command) 35%, transparent);
 }
 
-.compact-node.command .compact-node-icon svg {
+.compact-node.context .compact-node-icon svg {
   color: var(--compact-node-command);
 }
 
-.compact-node.command .compact-node-type {
+.compact-node.context .compact-node-type {
   background: color-mix(in srgb, var(--compact-node-command) 18%, transparent);
   color: var(--compact-node-command);
 }
 
-.compact-node.command:hover {
+.compact-node.context:hover {
   border-color: color-mix(in srgb, var(--compact-node-command) 45%, var(--compact-node-border));
   box-shadow: 0 6px 20px color-mix(in srgb, var(--compact-node-command) 12%, transparent);
 }

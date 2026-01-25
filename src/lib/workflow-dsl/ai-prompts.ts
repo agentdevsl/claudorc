@@ -8,7 +8,7 @@
 /**
  * System prompt for AI workflow generation
  */
-export const WORKFLOW_GENERATION_SYSTEM_PROMPT = `You are a workflow DSL generator that analyzes templates containing skills, commands, and agents to produce structured workflow definitions.
+export const WORKFLOW_GENERATION_SYSTEM_PROMPT = `You are a workflow DSL generator that analyzes templates containing skills and agents to produce structured workflow definitions.
 
 ## Your Task
 
@@ -24,21 +24,22 @@ A workflow consists of:
 
 - **start**: Entry point with optional input definitions
 - **end**: Exit point with optional output mappings
-- **skill**: Invokes a registered skill (e.g., /speckit.specify, /commit, /review-pr). Use this for ANY step that mentions invoking a skill with "/" prefix.
-- **command**: Executes a shell command, git operation, or CLI action (e.g., git commit, npm test, gh pr create)
+- **skill**: Invokes a registered skill with "/" prefix (e.g., /speckit.specify, /commit, /review-pr)
+- **context**: Provides context, prompting instructions, or non-skill content
 - **agent**: Invokes an AI agent with specific configuration (e.g., "use opus agents", "concurrent agents")
 - **conditional**: Branching logic based on conditions (e.g., "if tests pass", "otherwise")
 - **loop**: Iterates over a collection or until a condition (e.g., "repeat 2 times", "until all pass")
 - **parallel**: Executes multiple branches concurrently (e.g., "concurrent", "in parallel")
 
-### CRITICAL: Skill Recognition
+### CRITICAL: Type Classification Rules
 
-When the source content mentions invoking skills with "/" prefix like:
-- "/speckit.specify" → Create a SKILL node with skillId="speckit.specify", skillName="Specify"
-- "/speckit.plan" → Create a SKILL node with skillId="speckit.plan", skillName="Plan"
-- "/commit" → Create a SKILL node with skillId="commit", skillName="Commit"
+**Simple rule: If it starts with "/" → it's a SKILL. Otherwise → it's CONTEXT.**
 
-DO NOT collapse skill invocations into command nodes. Each skill invocation should be its own node.
+- "/speckit.specify" → SKILL node with skillId="speckit.specify"
+- "/commit" → SKILL node with skillId="commit"
+- "/review-pr" → SKILL node with skillId="review-pr"
+- "Validate the implementation" → CONTEXT node
+- "Ensure tests pass" → CONTEXT node
 
 ### Edge Types
 
@@ -56,7 +57,7 @@ Generate a JSON object with this structure:
   "nodes": [
     {
       "id": "unique_node_id",
-      "type": "start|skill|command|agent|conditional|loop|parallel|end",
+      "type": "start|skill|context|agent|conditional|loop|parallel|end",
       "label": "Short Label (2-4 words max)",
       "position": { "x": 0, "y": 0 },
       "description": "Optional description",
@@ -77,16 +78,18 @@ Generate a JSON object with this structure:
 }
 \`\`\`
 
-## IMPORTANT: Label and Command Formatting
+## IMPORTANT: Label Formatting
 
 **Labels must be SHORT (2-4 words max)**:
 - Good: "Validate Issue", "Create Spec", "Run Tests", "Commit Changes"
 - Bad: "Validate GitHub Issue and Add Labels", "Create Feature Specification Document"
 
-**For skill/command nodes, use the EXACT /name as the command/skillId**:
-- For skills: skillId="/speckit.specify" or skillId="speckit.specify"
-- For commands: command="/commit" or the actual shell command like "git commit"
-- The /name should appear in the node's command or skillId field, NOT in the label
+**For skill nodes, use the name without "/" prefix as skillId**:
+- For "/speckit.specify": skillId="speckit.specify", skillName="Specify"
+- For "/commit": skillId="commit", skillName="Commit"
+
+**For context nodes, use the content field for the full context text**:
+- content="Validate the implementation against requirements"
 
 ## Guidelines
 
@@ -95,8 +98,8 @@ Generate a JSON object with this structure:
 2. **PRESERVE ALL STEPS** - Do NOT simplify or collapse steps. If the source has 12 steps, generate 12+ nodes (plus start/end). Each numbered item or bullet point should become its own node.
 
 3. **Use correct node types**:
-   - \`skill\` - For ANY "/skillname" invocation (e.g., /speckit.specify, /commit)
-   - \`command\` - For shell commands, git operations, CI/CD checks
+   - \`skill\` - For ANY "/name" invocation (items starting with "/")
+   - \`context\` - For prompting/context content (items NOT starting with "/")
    - \`agent\` - For AI agent invocations (e.g., "use opus agents", "concurrent agents")
    - \`loop\` - For repetition (e.g., "repeat 2 times", "iterate until")
    - \`parallel\` - For concurrent execution (e.g., "concurrent agents", "in parallel")
@@ -125,28 +128,25 @@ Generate a JSON object with this structure:
 For content like:
 \`\`\`
 1. /speckit.specify - Create feature specification
-2. git commit - Commit changes
+2. Validate implementation approach
 3. /speckit.plan - Generate implementation plan
 4. Perform code review using concurrent opus agents, repeat 2 times
 5. Create PR with summary
 \`\`\`
 
-If /speckit.specify and /speckit.plan are in the COMMANDS list, generate:
+Generate:
 1. start node
-2. command node: command="speckit.specify", label="Create Feature Specification", description="/speckit.specify - Create feature specification"
-3. command node: command="git commit", label="Commit Changes", description="Commit changes"
-4. command node: command="speckit.plan", label="Generate Implementation Plan", description="/speckit.plan - Generate implementation plan"
+2. skill node: skillId="speckit.specify", skillName="Create Spec", description="/speckit.specify - Create feature specification"
+3. context node: content="Validate implementation approach", label="Validate Approach"
+4. skill node: skillId="speckit.plan", skillName="Generate Plan", description="/speckit.plan - Generate implementation plan"
 5. loop node: description="Perform code review using concurrent opus agents", maxIterations=2
-6. command node: command="gh pr create", description="Create PR with summary"
+6. context node: content="Create PR with summary", label="Create PR"
 7. end node
-
-If /speckit.specify and /speckit.plan are in the SKILLS list, generate skill nodes instead:
-2. skill node: skillId="speckit.specify", skillName="Create Feature Specification", description="/speckit.specify - Create feature specification"
 
 IMPORTANT:
 - Each step in the source becomes a separate node. Do not combine or simplify steps.
-- ALWAYS preserve the original /name in the command or skillId field (without the leading slash).
-- The type (skill vs command) is determined by which list the /name appears in above.`;
+- If an item starts with "/" → SKILL node
+- If an item does NOT start with "/" → CONTEXT node`;
 
 /**
  * User prompt template for analyzing a specific template
@@ -158,7 +158,7 @@ export const createWorkflowAnalysisPrompt = (template: {
   skills?: Array<{ id: string; name: string; description?: string }>;
   commands?: Array<{ name: string; command: string; description?: string }>;
   agents?: Array<{ id: string; name: string; description?: string; systemPrompt?: string }>;
-  // Known names from all templates for cross-referencing
+  // Known skill names for cross-referencing (all / prefixed items are skills)
   knownSkillNames?: string[];
   knownCommandNames?: string[];
 }): string => {
@@ -187,9 +187,10 @@ ${template.skills
 `;
   }
 
+  // Commands are now treated as context - show them for reference but they become context nodes
   if (template.commands && template.commands.length > 0) {
     prompt += `
-### Available Commands
+### Available Context Items
 
 ${template.commands
   .map(
@@ -215,30 +216,17 @@ ${template.agents
 `;
   }
 
-  // Add known skill/command names for cross-referencing
-  if (
-    (template.knownSkillNames && template.knownSkillNames.length > 0) ||
-    (template.knownCommandNames && template.knownCommandNames.length > 0)
-  ) {
+  // Add known skill names for cross-referencing
+  const allKnownSkills = [
+    ...(template.knownSkillNames || []),
+    ...(template.knownCommandNames || []),
+  ];
+  if (allKnownSkills.length > 0) {
     prompt += `
-## KNOWN SKILL AND COMMAND NAMES (for type identification)
+## KNOWN SKILLS (all "/" prefixed items)
 
-Use this reference to determine if a "/" reference is a SKILL or COMMAND:
-
-`;
-    if (template.knownSkillNames && template.knownSkillNames.length > 0) {
-      prompt += `**SKILLS** (use type: "skill" for these):
-${template.knownSkillNames.map((n) => `- /${n}`).join('\n')}
-
-`;
-    }
-    if (template.knownCommandNames && template.knownCommandNames.length > 0) {
-      prompt += `**COMMANDS** (use type: "command" for these):
-${template.knownCommandNames.map((n) => `- /${n}`).join('\n')}
-
-`;
-    }
-    prompt += `When the content references any of the above with "/" prefix, use the corresponding node type.
+All items with "/" prefix are SKILLS:
+${allKnownSkills.map((n) => `- /${n}`).join('\n')}
 `;
   }
 
@@ -249,19 +237,17 @@ Analyze the template content above and generate a complete workflow DSL JSON.
 
 CRITICAL RULES:
 - Create ONE NODE for EACH numbered step or bullet point in the content
-- If a step references a known SKILL (from the list above), use type: "skill" with skillId and skillName
-- If a step references a known COMMAND (from the list above), use type: "command"
-- For git/shell operations not in the lists, use type: "command"
-- Use "agent" type when AI agents are mentioned
+- **If a step starts with "/" or references a /name → use type: "skill"**
+- **If a step does NOT start with "/" → use type: "context"**
+- Use "agent" type when AI agents are explicitly mentioned
 - Use "loop" type for "repeat X times" or iterations
 - Use "parallel" type for "concurrent" operations
 - PRESERVE the full description text from each step
-- IMPORTANT: When a step references a /name (like /speckit.specify), PRESERVE the exact /name in the skillId or command field. Do NOT convert it to a human-readable label only - keep the original reference.
 
 Steps:
 1. Count all numbered items/bullets in the source - you need at least that many nodes
-2. For each step, check if it references a known skill or command from the lists above
-3. Create the appropriate node type based on the reference
+2. For each step, check if it starts with "/" or contains a /name reference
+3. "/" items → skill nodes; non-"/" items → context nodes
 4. Copy the FULL step description into the node's description field
 5. Connect nodes sequentially with edges
 6. Add start node at beginning, end node at the end
@@ -295,7 +281,7 @@ Analyze the workflow above and:
 
 2. **Validate node configurations**:
    - Skill nodes have valid skillId and skillName
-   - Command nodes have valid command strings
+   - Context nodes have valid content strings
    - Agent nodes have required agentId and agentName
    - Conditional nodes have valid branch definitions
    - Loop and parallel nodes reference existing nodes
@@ -343,8 +329,8 @@ Based on the natural language description above, generate a complete workflow DS
    - Note any loops or iterations
 
 2. **Create appropriate nodes**:
-   - Use skill nodes for high-level operations (review, commit, deploy, etc.)
-   - Use command nodes for specific shell commands
+   - Use skill nodes for "/" prefixed operations (e.g., /commit, /review-pr)
+   - Use context nodes for prompting/context content
    - Use agent nodes for AI-powered tasks
    - Use conditional nodes for decision points
    - Use parallel nodes for concurrent operations

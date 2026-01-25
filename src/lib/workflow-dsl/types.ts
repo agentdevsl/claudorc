@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 export const nodeTypeSchema = z.enum([
   'skill',
-  'command',
+  'context',
   'agent',
   'conditional',
   'loop',
@@ -56,19 +56,16 @@ export const skillNodeSchema = baseNodeSchema.extend({
 export type SkillNode = z.infer<typeof skillNodeSchema>;
 
 // -----------------------------------------------------------------------------
-// Command Node
+// Context Node
 // -----------------------------------------------------------------------------
 
-export const commandNodeSchema = baseNodeSchema.extend({
-  type: z.literal('command'),
-  command: z.string().min(1),
+export const contextNodeSchema = baseNodeSchema.extend({
+  type: z.literal('context'),
+  content: z.string().min(1),
   args: z.array(z.string()).optional(),
-  workingDirectory: z.string().optional(),
-  environment: z.record(z.string(), z.string()).optional(),
-  timeout: z.number().positive().optional(),
 });
 
-export type CommandNode = z.infer<typeof commandNodeSchema>;
+export type ContextNode = z.infer<typeof contextNodeSchema>;
 
 // -----------------------------------------------------------------------------
 // Agent Handoff Schema
@@ -195,7 +192,7 @@ export type EndNode = z.infer<typeof endNodeSchema>;
 
 export const workflowNodeSchema = z.discriminatedUnion('type', [
   skillNodeSchema,
-  commandNodeSchema,
+  contextNodeSchema,
   agentNodeSchema,
   conditionalNodeSchema,
   loopNodeSchema,

@@ -233,18 +233,26 @@ function mapToCompactNodeType(type: WorkflowNode['type']): string {
       return 'compactStart';
     case 'end':
       return 'compactEnd';
-    case 'command':
-      return 'compactCommand';
+    case 'context':
+      return 'compactContext';
     case 'skill':
       return 'compactSkill';
     case 'agent':
       return 'compactAgent';
-    default:
-      // Log that this type has no compact equivalent (e.g., conditional, loop, parallel)
-      console.warn(
-        `[layoutWorkflow] Node type "${type}" has no compact variant - using as-is. Node may render with default styling.`
-      );
+    case 'conditional':
+    case 'loop':
+    case 'parallel':
+      // Control flow nodes use their standard (non-compact) type
+      // because they have special rendering requirements
       return type;
+    default: {
+      // TypeScript exhaustiveness check - if this is reached, we have an unhandled type
+      const exhaustiveCheck: never = type;
+      console.error(
+        `[layoutWorkflow] Unhandled node type "${exhaustiveCheck}". Node may not render correctly.`
+      );
+      return type as string;
+    }
   }
 }
 
@@ -378,13 +386,10 @@ function extractNodeSpecificData(node: WorkflowNode): Record<string, unknown> {
         inputs: node.inputs,
         outputs: node.outputs,
       };
-    case 'command':
+    case 'context':
       return {
-        command: node.command,
+        content: node.content,
         args: node.args,
-        workingDirectory: node.workingDirectory,
-        environment: node.environment,
-        timeout: node.timeout,
       };
     case 'agent':
       return {

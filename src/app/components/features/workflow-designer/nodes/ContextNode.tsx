@@ -11,23 +11,23 @@ import {
   nodeTypeBadgeVariants,
   rectangleNodeVariants,
 } from './styles';
-import type { CommandNodeData } from './types';
+import type { ContextNodeData } from './types';
 
-type CommandNodeType = Node<CommandNodeData, 'command'>;
+type ContextNodeType = Node<ContextNodeData, 'context'>;
 
 /**
- * CommandNode - Sophisticated card representing a command execution.
+ * ContextNode - Sophisticated card representing context/prompting content.
  * Features:
  * - Icon + label header row
  * - AI-generated summary/description
- * - Type badge with slash command format
+ * - Type badge for context identification
  */
-function CommandNodeComponent({ data, selected }: NodeProps<CommandNodeType>): React.JSX.Element {
-  const nodeData = data as CommandNodeData;
+function ContextNodeComponent({ data, selected }: NodeProps<ContextNodeType>): React.JSX.Element {
+  const nodeData = data as ContextNodeData;
 
   return (
     <div
-      className={cn(rectangleNodeVariants({ selected: selected ?? false, nodeType: 'command' }))}
+      className={cn(rectangleNodeVariants({ selected: selected ?? false, nodeType: 'context' }))}
     >
       {/* Target handle - top */}
       <Handle
@@ -40,12 +40,12 @@ function CommandNodeComponent({ data, selected }: NodeProps<CommandNodeType>): R
       {/* Header row with icon and label */}
       <div className={cn(nodeHeaderVariants())}>
         <Terminal
-          className={cn(nodeIconVariants({ nodeType: 'command' }))}
+          className={cn(nodeIconVariants({ nodeType: 'context' }))}
           weight="duotone"
           aria-hidden="true"
         />
-        <span className={cn(nodeLabelVariants({ nodeType: 'command' }))} title={nodeData.label}>
-          /{nodeData.label || 'command'}
+        <span className={cn(nodeLabelVariants({ nodeType: 'context' }))} title={nodeData.label}>
+          {nodeData.label || 'context'}
         </span>
       </div>
 
@@ -56,15 +56,15 @@ function CommandNodeComponent({ data, selected }: NodeProps<CommandNodeType>): R
         </p>
       )}
 
-      {/* Type badge and command */}
+      {/* Type badge and content */}
       <div className="flex items-center gap-[var(--space-2)] mt-[var(--space-1)]">
-        <span className={cn(nodeTypeBadgeVariants({ nodeType: 'command' }))}>Command</span>
-        {nodeData.command && nodeData.command !== nodeData.label && (
+        <span className={cn(nodeTypeBadgeVariants({ nodeType: 'context' }))}>Context</span>
+        {nodeData.content && nodeData.content !== nodeData.label && (
           <span
             className="text-[10px] text-[var(--fg-subtle)] font-mono truncate max-w-[100px]"
-            title={nodeData.command}
+            title={nodeData.content}
           >
-            {nodeData.command}
+            {nodeData.content}
           </span>
         )}
       </div>
@@ -80,5 +80,5 @@ function CommandNodeComponent({ data, selected }: NodeProps<CommandNodeType>): R
   );
 }
 
-export const CommandNode = memo(CommandNodeComponent);
-CommandNode.displayName = 'CommandNode';
+export const ContextNode = memo(ContextNodeComponent);
+ContextNode.displayName = 'ContextNode';

@@ -244,7 +244,8 @@ function parseAIResponse(responseText: string): {
 }
 
 /**
- * Post-process nodes to correct types based on known skill/command lists.
+ * Post-process nodes to correct types based on known skills.
+ * Simple rule: "/" prefixed items → skill nodes, everything else → context nodes.
  * This ensures deterministic type identification rather than relying on AI interpretation.
  */
 function correctNodeTypes(
@@ -261,35 +262,40 @@ function correctNodeTypes(
       .trim();
   };
 
-  // Create lookup maps with original names preserved
-  const skillMap = new Map<string, string>();
+  // Combine all known names into a single skill set (commands are now just context)
+  const allKnownSkills = new Set<string>();
   for (const skill of knownSkills) {
-    skillMap.set(normalizeForLookup(skill), skill);
+    allKnownSkills.add(normalizeForLookup(skill));
+  }
+  for (const cmd of knownCommands) {
+    allKnownSkills.add(normalizeForLookup(cmd));
   }
 
-  const commandMap = new Map<string, string>();
-  for (const cmd of knownCommands) {
-    commandMap.set(normalizeForLookup(cmd), cmd);
-  }
+  // Pattern includes : for namespaced skills like /commit-commands:commit
+  const SKILL_REF_PATTERN = /\/[\w.\-_:]+/g;
 
   // Extract /name references from text
   const extractSlashReferences = (text: string): string[] => {
-    const matches = text.match(/\/[\w.\-_]+/g) || [];
+    const matches = text.match(SKILL_REF_PATTERN) || [];
     return matches.map((m) => m.replace(/^\//, ''));
   };
 
+  // Check if text contains a slash reference
+  const hasSlashReference = (text: string): boolean => {
+    return SKILL_REF_PATTERN.test(text);
+  };
+
   return nodes.map((node) => {
-    // Skip start/end nodes
-    if (node.type === 'start' || node.type === 'end') {
+    // Skip start/end/agent/loop/parallel/conditional nodes
+    if (['start', 'end', 'agent', 'loop', 'parallel', 'conditional'].includes(node.type)) {
       return node;
     }
 
-    // Collect ALL text fields to search, regardless of current node type
-    // This is crucial because the AI might have misclassified the type
+    // Collect ALL text fields to search
     const textsToSearch: string[] = [node.label];
     if (node.description) textsToSearch.push(node.description);
 
-    // Always check skill-related fields (they might exist even if type is wrong)
+    // Check skill-related fields
     if ('skillName' in node && node.skillName) {
       textsToSearch.push(node.skillName as string);
     }
@@ -297,7 +303,12 @@ function correctNodeTypes(
       textsToSearch.push(node.skillId as string);
     }
 
-    // Always check command field
+    // Check content field (for context nodes)
+    if ('content' in node && node.content) {
+      textsToSearch.push(node.content as string);
+    }
+
+    // Check command field (legacy)
     if ('command' in node && node.command) {
       textsToSearch.push(node.command as string);
     }
@@ -305,66 +316,60 @@ function correctNodeTypes(
     // Extract any /name references from all text fields
     const slashRefs: string[] = [];
     for (const text of textsToSearch) {
-      if (text) slashRefs.push(...extractSlashReferences(text));
-    }
-
-    // Also add the raw text values for direct matching
-    const namesToCheck = [...textsToSearch.filter(Boolean), ...slashRefs];
-
-    // Helper to find a match in the map (exact or prefix match)
-    const findInMap = (map: Map<string, string>, normalized: string): string | undefined => {
-      // Exact match
-      if (map.has(normalized)) {
-        return map.get(normalized);
-      }
-      // Check if normalized starts with any known name (e.g., "speckitspecifyparent" starts with "speckitspecify")
-      for (const [key, value] of map) {
-        if (normalized.startsWith(key) || key.startsWith(normalized)) {
-          return value;
-        }
-      }
-      return undefined;
-    };
-
-    // Check each name against known lists
-    for (const name of namesToCheck) {
-      const normalized = normalizeForLookup(name);
-
-      // Check if it's a known command FIRST (commands take precedence for slash commands)
-      const matchedCommand = findInMap(commandMap, normalized);
-      if (matchedCommand) {
-        if (node.type !== 'command') {
-          console.log(
-            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to command (matched: ${matchedCommand})`
-          );
-          return {
-            ...node,
-            type: 'command',
-            command: matchedCommand,
-          } as WorkflowNode;
-        }
-        return node;
-      }
-
-      // Check if it's a known skill
-      const matchedSkill = findInMap(skillMap, normalized);
-      if (matchedSkill) {
-        if (node.type !== 'skill') {
-          console.log(
-            `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to skill (matched: ${matchedSkill})`
-          );
-          return {
-            ...node,
-            type: 'skill',
-            skillId: matchedSkill,
-            skillName: node.label,
-          } as WorkflowNode;
-        }
-        return node;
+      if (text) {
+        slashRefs.push(...extractSlashReferences(text));
       }
     }
 
-    // No match found - keep original type
+    // Check if any text has a slash reference or matches a known skill
+    const hasSlash = textsToSearch.some((t) => t && hasSlashReference(t));
+    const matchedSkill = slashRefs.find((ref) => {
+      const normalized = normalizeForLookup(ref);
+      // Check exact match or prefix match
+      if (allKnownSkills.has(normalized)) return true;
+      for (const known of allKnownSkills) {
+        if (normalized.startsWith(known) || known.startsWith(normalized)) return true;
+      }
+      return false;
+    });
+
+    // If has "/" reference or matches known skill → skill node
+    if (hasSlash || matchedSkill) {
+      const skillId = matchedSkill || slashRefs[0] || node.label;
+      if (node.type !== 'skill') {
+        console.log(
+          `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to skill (matched: ${skillId})`
+        );
+        return {
+          ...node,
+          type: 'skill',
+          skillId: skillId,
+          skillName: node.label,
+        } as WorkflowNode;
+      }
+      return node;
+    }
+
+    // Otherwise → context node
+    if (node.type !== 'context') {
+      console.log(
+        `[workflow-analyze] Correcting node "${node.label}" from ${node.type} to context`,
+        {
+          textsSearched: textsToSearch.filter(Boolean).slice(0, 3),
+          slashRefsFound: slashRefs,
+          reason:
+            slashRefs.length === 0
+              ? 'No slash references found in node text'
+              : `Slash refs [${slashRefs.join(', ')}] did not match any known skills`,
+        }
+      );
+      return {
+        ...node,
+        type: 'context',
+        content: node.description || node.label,
+      } as WorkflowNode;
+    }
+
     return node;
   });
 }

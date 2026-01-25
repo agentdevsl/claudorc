@@ -40,12 +40,17 @@ function mapToCompactNodeType(type: string): string {
       return 'compactStart';
     case 'end':
       return 'compactEnd';
-    case 'command':
-      return 'compactCommand';
+    case 'context':
+      return 'compactContext';
     case 'skill':
       return 'compactSkill';
     case 'agent':
       return 'compactAgent';
+    case 'conditional':
+    case 'loop':
+    case 'parallel':
+      // Control flow nodes use their standard (non-compact) type
+      return type;
     default:
       // Warn about unmapped types - may indicate a bug or missing mapping
       console.warn(

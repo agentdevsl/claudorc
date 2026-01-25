@@ -112,7 +112,7 @@ export function WorkflowCanvas({
             if (t.includes('start') || t.includes('Start')) return 'var(--success-fg)';
             if (t.includes('end') || t.includes('End')) return 'var(--danger-fg)';
             if (t.includes('skill') || t.includes('Skill')) return 'var(--secondary-fg)';
-            if (t.includes('command') || t.includes('Command')) return 'var(--attention-fg)';
+            if (t.includes('context') || t.includes('Context')) return 'var(--attention-fg)';
             if (t.includes('agent') || t.includes('Agent')) return 'var(--accent-fg)';
             return 'var(--fg-muted)';
           }}

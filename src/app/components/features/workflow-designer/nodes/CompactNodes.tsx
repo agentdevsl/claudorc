@@ -16,7 +16,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils/cn';
 import type {
   AgentNodeData,
-  CommandNodeData,
+  ContextNodeData,
   EndNodeData,
   SkillNodeData,
   StartNodeData,
@@ -117,22 +117,22 @@ function CompactEndNodeComponent({
 export const CompactEndNode = memo(CompactEndNodeComponent);
 CompactEndNode.displayName = 'CompactEndNode';
 
-// ===== Compact Command Node =====
+// ===== Compact Context Node =====
 
-type CompactCommandNodeType = Node<CommandNodeData, 'compactCommand'>;
+type CompactContextNodeType = Node<ContextNodeData, 'compactContext'>;
 
-function CompactCommandNodeComponent({
+function CompactContextNodeComponent({
   data,
   selected,
-}: NodeProps<CompactCommandNodeType>): React.JSX.Element {
-  const nodeData = data as CommandNodeData;
-  const nodeIndex = (nodeData as CommandNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+}: NodeProps<CompactContextNodeType>): React.JSX.Element {
+  const nodeData = data as ContextNodeData;
+  const nodeIndex = (nodeData as ContextNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
 
-  // Display the command, truncated if needed
-  const displayCommand = nodeData.command || nodeData.label || 'command';
+  // Display the context content, truncated if needed
+  const displayContext = nodeData.content || nodeData.label || 'context';
 
   return (
-    <div className={cn('compact-node command', selected && 'selected')} data-node-index={nodeIndex}>
+    <div className={cn('compact-node context', selected && 'selected')} data-node-index={nodeIndex}>
       {/* Target handle - top */}
       <Handle type="target" position={Position.Top} id="target" />
 
@@ -141,16 +141,16 @@ function CompactCommandNodeComponent({
       </div>
       <div className="compact-node-content">
         <span className="compact-node-label">{nodeData.label}</span>
-        {displayCommand && displayCommand !== nodeData.label && (
+        {displayContext && displayContext !== nodeData.label && (
           <>
             <span className="compact-node-sep" />
-            <span className="compact-node-cmd" title={displayCommand}>
-              {displayCommand}
+            <span className="compact-node-cmd" title={displayContext}>
+              {displayContext}
             </span>
           </>
         )}
       </div>
-      <span className="compact-node-type">cmd</span>
+      <span className="compact-node-type">ctx</span>
 
       {/* Source handle - bottom */}
       <Handle type="source" position={Position.Bottom} id="source" />
@@ -158,8 +158,8 @@ function CompactCommandNodeComponent({
   );
 }
 
-export const CompactCommandNode = memo(CompactCommandNodeComponent);
-CompactCommandNode.displayName = 'CompactCommandNode';
+export const CompactContextNode = memo(CompactContextNodeComponent);
+CompactContextNode.displayName = 'CompactContextNode';
 
 // ===== Compact Skill Node =====
 
@@ -254,7 +254,7 @@ CompactAgentNode.displayName = 'CompactAgentNode';
 export const compactNodeTypes = {
   compactStart: CompactStartNode,
   compactEnd: CompactEndNode,
-  compactCommand: CompactCommandNode,
+  compactContext: CompactContextNode,
   compactSkill: CompactSkillNode,
   compactAgent: CompactAgentNode,
 } as const;

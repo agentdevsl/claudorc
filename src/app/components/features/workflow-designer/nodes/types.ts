@@ -24,13 +24,15 @@ export interface SkillNodeData extends BaseNodeData {
 }
 
 /**
- * Command node data
+ * Context node data
  */
-export interface CommandNodeData extends BaseNodeData {
+export interface ContextNodeData extends BaseNodeData {
   /** Discriminant property */
-  nodeType: 'command';
-  /** Command to execute */
-  command?: string;
+  nodeType: 'context';
+  /** Context content */
+  content?: string;
+  /** Optional arguments for templating */
+  args?: string[];
 }
 
 /**
@@ -106,7 +108,7 @@ export interface EndNodeData extends BaseNodeData {
  */
 export type WorkflowNodeData =
   | SkillNodeData
-  | CommandNodeData
+  | ContextNodeData
   | AgentNodeData
   | ConditionalNodeData
   | LoopNodeData
@@ -119,7 +121,7 @@ export type WorkflowNodeData =
  */
 export type WorkflowNodeType =
   | 'skill'
-  | 'command'
+  | 'context'
   | 'agent'
   | 'conditional'
   | 'loop'
