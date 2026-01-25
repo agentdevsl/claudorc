@@ -1,11 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { getApiServicesOrThrow } from '@/app/routes/api/runtime';
+import { getApiServices } from '@/app/routes/api/runtime';
 import { withErrorHandling } from '@/lib/api/middleware';
 import { failure, success } from '@/lib/api/response';
 import { getSettingsSchema, updateSettingsSchema } from '@/lib/api/schemas';
 import { parseBody, parseQuery } from '@/lib/api/validation';
-
-const { settingsService } = getApiServicesOrThrow();
 
 export const Route = createFileRoute('/api/settings')({
   server: {
@@ -19,6 +17,13 @@ export const Route = createFileRoute('/api/settings')({
        * Returns: { settings: { [key: string]: unknown } }
        */
       GET: withErrorHandling(async ({ request }) => {
+        // Get services at request time, not module load time
+        const services = getApiServices();
+        if (!services.ok) {
+          return Response.json(failure(services.error), { status: services.error.status });
+        }
+        const { settingsService } = services.value;
+
         const parsed = parseQuery(new URL(request.url).searchParams, getSettingsSchema);
         if (!parsed.ok) {
           return Response.json(failure(parsed.error), { status: 400 });
@@ -50,6 +55,13 @@ export const Route = createFileRoute('/api/settings')({
        * Returns: { ok: true }
        */
       PUT: withErrorHandling(async ({ request }) => {
+        // Get services at request time, not module load time
+        const services = getApiServices();
+        if (!services.ok) {
+          return Response.json(failure(services.error), { status: services.error.status });
+        }
+        const { settingsService } = services.value;
+
         const parsed = await parseBody(request, updateSettingsSchema);
         if (!parsed.ok) {
           return Response.json(failure(parsed.error), { status: 400 });
