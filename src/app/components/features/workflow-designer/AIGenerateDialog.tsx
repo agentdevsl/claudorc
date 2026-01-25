@@ -78,6 +78,26 @@ type TagFilter = {
   label: string;
 };
 
+/**
+ * Returns color classes for node type badges in the preview
+ */
+function getNodeTypeColors(nodeType: string): { bg: string; text: string } {
+  switch (nodeType) {
+    case 'start':
+      return { bg: 'bg-[var(--success-muted)]', text: 'text-[var(--success-fg)]' };
+    case 'end':
+      return { bg: 'bg-[var(--danger-muted)]', text: 'text-[var(--danger-fg)]' };
+    case 'skill':
+      return { bg: 'bg-[var(--secondary-muted)]', text: 'text-[var(--secondary-fg)]' };
+    case 'context':
+      return { bg: 'bg-[var(--attention-muted)]', text: 'text-[var(--attention-fg)]' };
+    case 'agent':
+      return { bg: 'bg-[var(--accent-muted)]', text: 'text-[var(--accent-fg)]' };
+    default:
+      return { bg: 'bg-[var(--bg-muted)]', text: 'text-[var(--fg-muted)]' };
+  }
+}
+
 export function AIGenerateDialog({
   open,
   onOpenChange,
@@ -656,7 +676,13 @@ export function AIGenerateDialog({
                         <div key={node.id}>
                           {/* Step Card */}
                           <div className="flex items-start gap-3 py-2.5 px-3 bg-[var(--bg-subtle)] border border-[var(--border-muted)] rounded-[var(--radius)]">
-                            <span className="w-[22px] h-[22px] rounded-full bg-[var(--bg-muted)] border border-[var(--border-default)] text-[var(--fg-muted)] text-[11px] font-semibold flex items-center justify-center flex-shrink-0">
+                            <span
+                              className={cn(
+                                'w-[22px] h-[22px] rounded-full text-[11px] font-semibold flex items-center justify-center flex-shrink-0',
+                                getNodeTypeColors(node.type).bg,
+                                getNodeTypeColors(node.type).text
+                              )}
+                            >
                               {index + 1}
                             </span>
                             <div className="flex-1 min-w-0">
@@ -669,7 +695,13 @@ export function AIGenerateDialog({
                                 </p>
                               )}
                             </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--done-muted)] text-[var(--done-fg)] flex-shrink-0">
+                            <span
+                              className={cn(
+                                'text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0',
+                                getNodeTypeColors(node.type).bg,
+                                getNodeTypeColors(node.type).text
+                              )}
+                            >
                               {node.type}
                             </span>
                           </div>

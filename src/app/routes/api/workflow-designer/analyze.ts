@@ -16,7 +16,6 @@ import {
   createWorkflowAnalysisPrompt,
   WORKFLOW_GENERATION_SYSTEM_PROMPT,
 } from '@/lib/workflow-dsl/ai-prompts';
-import { layoutWorkflow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
 import { workflowEdgeSchema, workflowNodeSchema } from '@/lib/workflow-dsl/types';
 import { ApiKeyService } from '@/services/api-key.service';
@@ -559,21 +558,10 @@ export const Route = createFileRoute('/api/workflow-designer/analyze')({
           );
         }
 
-        // Apply ELK layout to position nodes
-        try {
-          nodes = await layoutWorkflow(nodes, edges, {
-            algorithm: 'layered',
-            direction: 'DOWN',
-            nodeWidth: 200,
-            nodeHeight: 60,
-            nodeSpacing: 50,
-            layerSpacing: 80,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error('[workflow-analyze] Layout error:', message);
-          return Response.json(failure(WorkflowErrors.LAYOUT_FAILED(message)), { status: 500 });
-        }
+        // Note: Layout is handled by the frontend (layoutWorkflowForReactFlow)
+        // to ensure consistent node dimensions with the compact node CSS styling.
+        // Nodes are returned with position: { x: 0, y: 0 } and the frontend
+        // applies ELK layout before rendering.
 
         // Build final workflow object
         const workflow: Workflow = {

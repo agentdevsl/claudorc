@@ -69,9 +69,18 @@ function CompactStartNodeComponent({
 }: NodeProps<CompactStartNodeType>): React.JSX.Element {
   const nodeData = data as StartNodeData;
   const nodeIndex = (nodeData as StartNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+  const uniformWidth = (nodeData as StartNodeData & { uniformWidth?: number }).uniformWidth;
 
   return (
-    <div className={cn('compact-node start', selected && 'selected')} data-node-index={nodeIndex}>
+    <div
+      className={cn('compact-node start', selected && 'selected')}
+      data-node-index={nodeIndex}
+      style={
+        uniformWidth
+          ? ({ '--compact-node-uniform-width': `${uniformWidth}px` } as React.CSSProperties)
+          : undefined
+      }
+    >
       <div className="compact-node-icon">
         <PlayIcon />
       </div>
@@ -98,9 +107,18 @@ function CompactEndNodeComponent({
 }: NodeProps<CompactEndNodeType>): React.JSX.Element {
   const nodeData = data as EndNodeData;
   const nodeIndex = (nodeData as EndNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+  const uniformWidth = (nodeData as EndNodeData & { uniformWidth?: number }).uniformWidth;
 
   return (
-    <div className={cn('compact-node end', selected && 'selected')} data-node-index={nodeIndex}>
+    <div
+      className={cn('compact-node end', selected && 'selected')}
+      data-node-index={nodeIndex}
+      style={
+        uniformWidth
+          ? ({ '--compact-node-uniform-width': `${uniformWidth}px` } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* Target handle - top only */}
       <Handle type="target" position={Position.Top} id="target" />
 
@@ -127,12 +145,21 @@ function CompactContextNodeComponent({
 }: NodeProps<CompactContextNodeType>): React.JSX.Element {
   const nodeData = data as ContextNodeData;
   const nodeIndex = (nodeData as ContextNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+  const uniformWidth = (nodeData as ContextNodeData & { uniformWidth?: number }).uniformWidth;
 
   // Display the context content, truncated if needed
   const displayContext = nodeData.content || nodeData.label || 'context';
 
   return (
-    <div className={cn('compact-node context', selected && 'selected')} data-node-index={nodeIndex}>
+    <div
+      className={cn('compact-node context', selected && 'selected')}
+      data-node-index={nodeIndex}
+      style={
+        uniformWidth
+          ? ({ '--compact-node-uniform-width': `${uniformWidth}px` } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* Target handle - top */}
       <Handle type="target" position={Position.Top} id="target" />
 
@@ -171,12 +198,21 @@ function CompactSkillNodeComponent({
 }: NodeProps<CompactSkillNodeType>): React.JSX.Element {
   const nodeData = data as SkillNodeData;
   const nodeIndex = (nodeData as SkillNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+  const uniformWidth = (nodeData as SkillNodeData & { uniformWidth?: number }).uniformWidth;
 
   // Display the skill ID if different from label
   const displaySkillId = nodeData.skillId || nodeData.label || 'skill';
 
   return (
-    <div className={cn('compact-node skill', selected && 'selected')} data-node-index={nodeIndex}>
+    <div
+      className={cn('compact-node skill', selected && 'selected')}
+      data-node-index={nodeIndex}
+      style={
+        uniformWidth
+          ? ({ '--compact-node-uniform-width': `${uniformWidth}px` } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* Target handle - top */}
       <Handle type="target" position={Position.Top} id="target" />
 
@@ -215,12 +251,21 @@ function CompactAgentNodeComponent({
 }: NodeProps<CompactAgentNodeType>): React.JSX.Element {
   const nodeData = data as AgentNodeData;
   const nodeIndex = (nodeData as AgentNodeData & { nodeIndex?: number }).nodeIndex ?? 0;
+  const uniformWidth = (nodeData as AgentNodeData & { uniformWidth?: number }).uniformWidth;
 
   // Display agent config or model info
   const displayInfo = nodeData.agentConfigId || 'agent';
 
   return (
-    <div className={cn('compact-node agent', selected && 'selected')} data-node-index={nodeIndex}>
+    <div
+      className={cn('compact-node agent', selected && 'selected')}
+      data-node-index={nodeIndex}
+      style={
+        uniformWidth
+          ? ({ '--compact-node-uniform-width': `${uniformWidth}px` } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* Target handle - top */}
       <Handle type="target" position={Position.Top} id="target" />
 

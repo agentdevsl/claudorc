@@ -93,8 +93,9 @@
   opacity: 0;
   transform: translateY(6px);
   animation: fadeSlideIn 0.3s ease forwards;
-  /* Uniform width ensures ReactFlow handles align for straight edges */
-  min-width: var(--compact-node-uniform-width, 480px);
+  /* Fixed uniform width ensures all nodes align for straight edges */
+  width: var(--compact-node-uniform-width, 280px);
+  max-width: var(--compact-node-uniform-width, 280px);
 }
 
 /* Staggered animation delays based on node index */
@@ -167,7 +168,11 @@
 .compact-node-content {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .compact-node-label {
@@ -175,6 +180,8 @@
   font-weight: 500;
   color: var(--compact-node-fg);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Separator dot */
@@ -192,7 +199,11 @@
   color: var(--compact-node-fg-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   opacity: 0.7;
+  max-width: 200px; /* Limit width to allow centering */
+  flex-shrink: 1;
 }
 
 /* Type badge - micro */
