@@ -11,7 +11,6 @@ export interface WorkflowPreviewSvgProps {
   edges: WorkflowEdge[];
   width?: number;
   height?: number;
-  showLabels?: boolean;
   className?: string;
 }
 
@@ -20,7 +19,8 @@ export interface WorkflowPreviewSvgProps {
 // =============================================================================
 
 /**
- * Node colors from design-tokens.css (same as compact nodes)
+ * Node colors from specs/application/wireframes/design-tokens.css
+ * Aligned with src/app/components/features/workflow-designer/nodes/compact-nodes.css
  */
 // Shared color config for logic node types (conditional, loop, parallel)
 const LOGIC_NODE_COLOR = {
@@ -113,7 +113,7 @@ const MIN_BADGE_WIDTH = {
  * Calculate text width approximation
  */
 function measureText(text: string, fontSize: number): number {
-  // Average character width is ~0.6 of font size for this font
+  // Average character width is ~0.55 of font size for Mona Sans
   return text.length * fontSize * 0.55;
 }
 
@@ -181,8 +181,9 @@ function layoutDots(
 }
 
 /**
- * Linear wrapping layout - nodes flow left to right in 2 rows
- * Start begins row 1, End finishes row 2
+ * Linear wrapping layout - nodes flow left to right, targeting 2 rows.
+ * Dynamically adjusts label truncation to fit nodes within available space.
+ * Node order: start first, middle nodes by position, end last.
  */
 function layoutLinear(
   nodes: WorkflowNode[],
@@ -451,9 +452,9 @@ export function WorkflowPreviewSvg({
   edges,
   width = 64,
   height = 48,
-  showLabels: _showLabels = false,
   className,
 }: WorkflowPreviewSvgProps): React.JSX.Element {
+  // Size threshold: 200px+ renders full badge labels, smaller renders compact dots
   const size: 'mini' | 'large' = width > 200 ? 'large' : 'mini';
 
   // Sort nodes: start first, then middle nodes by position, then end last
@@ -464,7 +465,8 @@ export function WorkflowPreviewSvg({
     const endNode = nodes.find((n) => n.type === 'end');
     const middleNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
 
-    // Sort middle nodes by position
+    // Sort by dominant axis: if workflow is more vertical than horizontal,
+    // sort by Y position; otherwise sort by X for natural reading order
     const xRange =
       Math.max(...middleNodes.map((n) => n.position.x), 0) -
       Math.min(...middleNodes.map((n) => n.position.x), 0);

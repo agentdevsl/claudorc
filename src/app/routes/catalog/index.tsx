@@ -37,11 +37,11 @@ type WorkflowListItem = {
   id: string;
   name: string;
   description: string | null;
-  status: string | null;
+  status: WorkflowStatus | null;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO 8601 datetime
+  updatedAt: string; // ISO 8601 datetime
 };
 
 // =============================================================================
@@ -274,13 +274,7 @@ function DetailPanel({
     <div className="flex-1 flex flex-col overflow-hidden bg-surface">
       {/* Large preview - 300px height, bg-canvas per wireframe */}
       <div className="h-[300px] bg-canvas border-b border-border flex items-center justify-center p-6">
-        <WorkflowPreviewSvg
-          nodes={nodes}
-          edges={edges}
-          width={600}
-          height={250}
-          showLabels={true}
-        />
+        <WorkflowPreviewSvg nodes={nodes} edges={edges} width={600} height={250} />
       </div>
 
       {/* Detail content - matches wireframe .detail-content */}
@@ -422,6 +416,17 @@ function CatalogPage(): React.JSX.Element {
 
     try {
       const response = await fetch('/api/workflows');
+      if (!response.ok) {
+        let errorMessage = `Server error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error?.message ?? errorMessage;
+        } catch {
+          // Response was not JSON, use status-based message
+        }
+        setError(errorMessage);
+        return [];
+      }
       const result = await response.json();
 
       if (result.ok) {
@@ -499,8 +504,14 @@ function CatalogPage(): React.JSX.Element {
             setSelectedId(remaining[0]?.id ?? null);
           }
         } else {
-          const result = await response.json();
-          setError(result.error?.message ?? 'Failed to delete workflow');
+          let errorMessage = `Failed to delete workflow (${response.status})`;
+          try {
+            const result = await response.json();
+            errorMessage = result.error?.message ?? errorMessage;
+          } catch {
+            // Response was not valid JSON
+          }
+          setError(errorMessage);
         }
       } catch (err) {
         console.error('[Catalog] Delete error:', err);
@@ -535,8 +546,14 @@ function CatalogPage(): React.JSX.Element {
           )
         );
       } else {
-        const result = await response.json();
-        setError(result.error?.message ?? 'Failed to update workflow status');
+        let errorMessage = `Failed to update workflow status (${response.status})`;
+        try {
+          const result = await response.json();
+          errorMessage = result.error?.message ?? errorMessage;
+        } catch {
+          // Response was not valid JSON
+        }
+        setError(errorMessage);
       }
     } catch (err) {
       console.error('[Catalog] Status update error:', err);
