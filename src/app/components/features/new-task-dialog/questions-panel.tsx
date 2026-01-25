@@ -33,14 +33,16 @@ function ProgressBar({
   totalAsked: number;
   maxQuestions: number;
 }): React.JSX.Element {
-  const percentage = (totalAsked / maxQuestions) * 100;
+  // Cap displayed values at max to avoid showing "12 of 10"
+  const displayedTotal = Math.min(totalAsked, maxQuestions);
+  const percentage = Math.min((totalAsked / maxQuestions) * 100, 100);
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[10px]">
         <span className="font-medium text-fg-muted">Clarifying Questions</span>
         <span className="text-fg-subtle">
-          {totalAsked} of {maxQuestions}
+          {displayedTotal} of {maxQuestions}
         </span>
       </div>
       <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
