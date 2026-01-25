@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils/cn';
 
 interface QuestionsPanelProps {
   pendingQuestions: PendingQuestions;
-  selectedAnswers: Record<string, string>;
-  onSelectAnswer: (questionIndex: number, answer: string) => void;
+  selectedAnswers: Record<string, string | string[]>;
+  onSelectAnswer: (questionIndex: number, answer: string | string[]) => void;
   onSubmitAnswers: () => void;
   onSkip: () => void;
   isSubmitting: boolean;
@@ -55,6 +55,7 @@ function ProgressBar({
 
 /**
  * Single question card with options
+ * Supports both single-select (radio) and multi-select (checkbox) modes
  */
 function QuestionCard({
   question,
@@ -62,9 +63,35 @@ function QuestionCard({
   onSelectAnswer,
 }: {
   question: ClarifyingQuestion;
-  selectedAnswer: string | undefined;
-  onSelectAnswer: (answer: string) => void;
+  selectedAnswer: string | string[] | undefined;
+  onSelectAnswer: (answer: string | string[]) => void;
 }): React.JSX.Element {
+  const isMultiSelect = question.multiSelect ?? false;
+
+  // Normalize selected values to array for easier checking
+  const selectedValues: string[] = Array.isArray(selectedAnswer)
+    ? selectedAnswer
+    : selectedAnswer
+      ? [selectedAnswer]
+      : [];
+
+  const handleOptionClick = (optionLabel: string) => {
+    if (isMultiSelect) {
+      // Toggle selection for multi-select
+      const isCurrentlySelected = selectedValues.includes(optionLabel);
+      if (isCurrentlySelected) {
+        // Remove from selection
+        onSelectAnswer(selectedValues.filter((v) => v !== optionLabel));
+      } else {
+        // Add to selection
+        onSelectAnswer([...selectedValues, optionLabel]);
+      }
+    } else {
+      // Single-select: just set the value
+      onSelectAnswer(optionLabel);
+    }
+  };
+
   return (
     <div className="bg-surface border border-border rounded-lg p-3 space-y-2.5">
       {/* Header chip */}
@@ -72,6 +99,11 @@ function QuestionCard({
         <span className="px-2 py-0.5 bg-claude/10 text-claude text-[10px] font-semibold rounded">
           {question.header}
         </span>
+        {isMultiSelect && (
+          <span className="px-1.5 py-0.5 bg-surface-muted text-fg-subtle text-[9px] font-medium rounded">
+            Select multiple
+          </span>
+        )}
       </div>
 
       {/* Question text */}
@@ -80,12 +112,12 @@ function QuestionCard({
       {/* Options */}
       <div className="space-y-1.5">
         {question.options.map((option: ClarifyingQuestionOption) => {
-          const isSelected = selectedAnswer === option.label;
+          const isSelected = selectedValues.includes(option.label);
           return (
             <button
               key={`${question.header}-${option.label}`}
               type="button"
-              onClick={() => onSelectAnswer(option.label)}
+              onClick={() => handleOptionClick(option.label)}
               className={cn(
                 'w-full text-left px-3 py-2 rounded-lg border transition-all',
                 isSelected
@@ -96,7 +128,9 @@ function QuestionCard({
               <div className="flex items-start gap-2">
                 <div
                   className={cn(
-                    'mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0',
+                    'mt-0.5 w-4 h-4 border-2 flex items-center justify-center shrink-0',
+                    // Checkbox (rounded) for multi-select, radio (rounded-full) for single-select
+                    isMultiSelect ? 'rounded' : 'rounded-full',
                     isSelected ? 'border-claude bg-claude' : 'border-border'
                   )}
                 >
@@ -131,8 +165,20 @@ export function QuestionsPanel({
   onSkip,
   isSubmitting,
 }: QuestionsPanelProps): React.JSX.Element {
+  // Check if all questions are answered
+  // For single-select: answer must be defined (string)
+  // For multi-select: answer must be defined and have at least one selection (array with length > 0)
   const allAnswered = pendingQuestions.questions.every(
-    (_question: ClarifyingQuestion, index: number) => selectedAnswers[String(index)] !== undefined
+    (question: ClarifyingQuestion, index: number) => {
+      const answer = selectedAnswers[String(index)];
+      if (answer === undefined) return false;
+      if (question.multiSelect) {
+        // Multi-select requires at least one selection
+        return Array.isArray(answer) && answer.length > 0;
+      }
+      // Single-select just needs a value
+      return typeof answer === 'string' && answer.length > 0;
+    }
   );
 
   return (

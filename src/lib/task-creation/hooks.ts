@@ -55,8 +55,8 @@ export interface UseTaskCreationActions {
   acceptSuggestion: (
     overrides?: Partial<TaskSuggestion>
   ) => Promise<{ ok: boolean; error?: string }>;
-  /** Answer clarifying questions */
-  answerQuestions: (answers: Record<string, string>) => Promise<void>;
+  /** Answer clarifying questions (supports both single and multi-select) */
+  answerQuestions: (answers: Record<string, string | string[]>) => Promise<void>;
   /** Skip clarifying questions */
   skipQuestions: () => Promise<void>;
   /** Cancel the session */
@@ -233,9 +233,9 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     [sessionId, suggestion]
   );
 
-  // Answer clarifying questions
+  // Answer clarifying questions (supports both single and multi-select)
   const answerQuestions = useCallback(
-    async (answers: Record<string, string>) => {
+    async (answers: Record<string, string | string[]>) => {
       if (!sessionId || !pendingQuestions) {
         console.error('[useTaskCreation] No active session or pending questions');
         setLocalError('No active session or pending questions');

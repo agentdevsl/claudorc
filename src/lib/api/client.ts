@@ -843,7 +843,11 @@ export const apiClient = {
     /**
      * Answer clarifying questions
      */
-    answerQuestions: (sessionId: string, questionsId: string, answers: Record<string, string>) =>
+    answerQuestions: (
+      sessionId: string,
+      questionsId: string,
+      answers: Record<string, string | string[]>
+    ) =>
       apiServerFetch<{
         sessionId: string;
         status: string;

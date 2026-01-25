@@ -244,7 +244,7 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
       const { sessionId, questionsId, answers } = body as {
         sessionId: string;
         questionsId: string;
-        answers: Record<string, string>;
+        answers: Record<string, string | string[]>;
       };
 
       if (!sessionId || !questionsId || !answers) {

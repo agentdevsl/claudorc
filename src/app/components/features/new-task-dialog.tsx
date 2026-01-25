@@ -848,7 +848,7 @@ export function NewTaskDialog({
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('medium');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string | string[]>>({});
   const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1039,8 +1039,8 @@ export function NewTaskDialog({
     }
   }, [skipQuestions]);
 
-  // Handle selecting an answer for a question
-  const handleSelectAnswer = useCallback((questionIndex: number, answer: string) => {
+  // Handle selecting an answer for a question (supports both single and multi-select)
+  const handleSelectAnswer = useCallback((questionIndex: number, answer: string | string[]) => {
     setSelectedAnswers((prev) => ({
       ...prev,
       [String(questionIndex)]: answer,

@@ -34,6 +34,7 @@ export interface ClarifyingQuestion {
   header: string;
   question: string;
   options: ClarifyingQuestionOption[];
+  multiSelect?: boolean;
 }
 
 export interface PendingQuestions {
@@ -212,7 +213,7 @@ export class TaskCreationService {
   }
 
   /**
-   * Parse clarifying questions from assistant response text
+   * Parse clarifying questions from assistant response text (legacy JSON block format)
    */
   private parseClarifyingQuestions(
     text: string,
@@ -254,6 +255,7 @@ export class TaskCreationService {
             label: opt.label || '',
             description: opt.description,
           })),
+          multiSelect: q.multiSelect ?? false,
         });
       }
 
@@ -270,6 +272,51 @@ export class TaskCreationService {
       console.error('[TaskCreationService] Failed to parse clarifying questions JSON:', error);
       return null;
     }
+  }
+
+  /**
+   * Parse AskUserQuestion tool input into PendingQuestions
+   * This handles the SDK tool call format used by Claude Code
+   */
+  private parseAskUserQuestionToolInput(
+    input: {
+      questions: Array<{
+        question: string;
+        header: string;
+        multiSelect: boolean;
+        options: Array<{ label: string; description?: string }>;
+      }>;
+    },
+    session: TaskCreationSession
+  ): PendingQuestions | null {
+    if (!input.questions || input.questions.length === 0) {
+      console.log('[TaskCreationService] AskUserQuestion input has no questions');
+      return null;
+    }
+
+    console.log(
+      '[TaskCreationService] Parsing AskUserQuestion tool input with',
+      input.questions.length,
+      'questions'
+    );
+
+    const questions: ClarifyingQuestion[] = input.questions.map((q) => ({
+      header: q.header,
+      question: q.question,
+      options: q.options.map((opt) => ({
+        label: opt.label,
+        description: opt.description,
+      })),
+      multiSelect: q.multiSelect ?? false,
+    }));
+
+    return {
+      id: createId(),
+      questions,
+      round: session.questionRound + 1,
+      totalAsked: session.totalQuestionsAsked + questions.length,
+      maxQuestions: TaskCreationService.MAX_QUESTIONS,
+    };
   }
 
   /**
@@ -453,6 +500,16 @@ export class TaskCreationService {
         { id: string; name: string; input: string; startTime: number }
       >();
 
+      // Track AskUserQuestion tool call specifically for pausing conversation
+      let askUserQuestionInput: {
+        questions: Array<{
+          question: string;
+          header: string;
+          multiSelect: boolean;
+          options: Array<{ label: string; description?: string }>;
+        }>;
+      } | null = null;
+
       // Stream response using V2 API
       for await (const msg of session.v2Session.stream()) {
         // Capture session ID for resume capability
@@ -575,6 +632,23 @@ export class TaskCreationService {
                   'Error:',
                   parseError instanceof Error ? parseError.message : String(parseError)
                 );
+              }
+
+              // Check if this is an AskUserQuestion tool call - capture its input
+              if (toolInfo.name === 'AskUserQuestion' && parsedInput.questions) {
+                console.log(
+                  '[TaskCreationService] Captured AskUserQuestion tool call with',
+                  (parsedInput.questions as unknown[]).length,
+                  'questions'
+                );
+                askUserQuestionInput = parsedInput as {
+                  questions: Array<{
+                    question: string;
+                    header: string;
+                    multiSelect: boolean;
+                    options: Array<{ label: string; description?: string }>;
+                  }>;
+                };
               }
 
               // Publish tool:result event with the accumulated input and duration
@@ -758,6 +832,77 @@ export class TaskCreationService {
         );
       }
 
+      // Check if we have an AskUserQuestion tool call to handle (takes priority)
+      if (askUserQuestionInput) {
+        console.log('[TaskCreationService] Processing AskUserQuestion tool call');
+        const questions = this.parseAskUserQuestionToolInput(askUserQuestionInput, session);
+        if (questions) {
+          console.log(
+            '[TaskCreationService] Parsed AskUserQuestion tool:',
+            questions.questions.length,
+            'questions'
+          );
+          session.pendingQuestions = questions;
+          session.questionRound = questions.round;
+          session.totalQuestionsAsked = questions.totalAsked;
+          session.status = 'waiting_user';
+
+          // Add any accumulated text as assistant message before showing questions
+          if (accumulated) {
+            const assistantMessage: TaskCreationMessage = {
+              id: createId(),
+              role: 'assistant',
+              content: accumulated,
+              timestamp: new Date().toISOString(),
+            };
+            session.messages.push(assistantMessage);
+
+            // Publish assistant message
+            try {
+              await this.streams.publishTaskCreationMessage(sessionId, {
+                sessionId,
+                messageId: assistantMessage.id,
+                role: 'assistant',
+                content: assistantMessage.content,
+              });
+            } catch (error) {
+              console.error('[TaskCreationService] Failed to publish assistant message:', error);
+            }
+
+            // Persist assistant message to database
+            if (session.dbSessionId && this.sessionService) {
+              try {
+                await this.sessionService.publish(session.dbSessionId, {
+                  id: assistantMessage.id,
+                  type: 'chunk',
+                  timestamp: Date.now(),
+                  data: {
+                    role: 'assistant',
+                    content: accumulated,
+                    model: modelUsed || undefined,
+                    usage: totalTokens > 0 ? { inputTokens, outputTokens, totalTokens } : undefined,
+                  },
+                });
+              } catch (error) {
+                console.error('[TaskCreationService] Failed to persist assistant message:', error);
+              }
+            }
+          }
+
+          // Publish questions event
+          try {
+            await this.streams.publishTaskCreationQuestions(sessionId, {
+              sessionId,
+              questions,
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] Failed to publish questions:', error);
+          }
+
+          return ok(session);
+        }
+      }
+
       // Add assistant response if we have content
       if (accumulated) {
         const assistantMessage: TaskCreationMessage = {
@@ -799,11 +944,11 @@ export class TaskCreationService {
           }
         }
 
-        // Parse clarifying questions from response (takes precedence)
+        // Parse clarifying questions from response (legacy JSON block format - fallback)
         const questions = this.parseClarifyingQuestions(accumulated, session);
         if (questions) {
           console.log(
-            '[TaskCreationService] Parsed clarifying questions:',
+            '[TaskCreationService] Parsed clarifying questions from JSON block:',
             questions.questions.length
           );
           session.pendingQuestions = questions;
@@ -963,11 +1108,12 @@ export class TaskCreationService {
 
   /**
    * Answer clarifying questions and continue the conversation
+   * Supports both single-select (string) and multi-select (string[]) answers
    */
   async answerQuestions(
     sessionId: string,
     questionsId: string,
-    answers: Record<string, string>
+    answers: Record<string, string | string[]>
   ): Promise<Result<TaskCreationSession, TaskCreationError>> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -986,7 +1132,9 @@ export class TaskCreationService {
     for (const [index, answer] of Object.entries(answers)) {
       const question = session.pendingQuestions.questions[Number(index)];
       if (question) {
-        answerLines.push(`- ${question.header}: ${answer}`);
+        // Format answer: join array values for multi-select, use string directly for single-select
+        const formattedAnswer = Array.isArray(answer) ? answer.join(', ') : answer;
+        answerLines.push(`- ${question.header}: ${formattedAnswer}`);
       }
     }
     const answerMessage = answerLines.join('\n');
