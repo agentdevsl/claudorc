@@ -37,6 +37,7 @@ export const clarifyingQuestionSchema = z.object({
   header: z.string(),
   question: z.string(),
   options: z.array(clarifyingQuestionOptionSchema),
+  multiSelect: z.boolean().optional().default(false),
 });
 export type ClarifyingQuestion = z.infer<typeof clarifyingQuestionSchema>;
 

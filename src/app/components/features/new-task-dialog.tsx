@@ -848,8 +848,7 @@ export function NewTaskDialog({
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('medium');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
-  const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string | string[]>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -868,12 +867,23 @@ export function NewTaskDialog({
 
   // Reset selected answers when new questions arrive
   const pendingQuestionsId = pendingQuestions?.id;
+  const prevQuestionsIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (pendingQuestionsId) {
+    console.log('[NewTaskDialog] Questions effect:', {
+      pendingQuestionsId,
+      prevId: prevQuestionsIdRef.current,
+      isNew: pendingQuestionsId !== prevQuestionsIdRef.current,
+      round: pendingQuestions?.round,
+      headers: pendingQuestions?.questions.map((q) => q.header),
+    });
+    // Check if this is a NEW set of questions (different ID)
+    if (pendingQuestionsId && pendingQuestionsId !== prevQuestionsIdRef.current) {
+      console.log('[NewTaskDialog] New questions detected! Resetting answers.');
+      // Always reset answers for new questions (they have different indices)
       setSelectedAnswers({});
-      setIsAnsweringQuestions(false);
     }
-  }, [pendingQuestionsId]);
+    prevQuestionsIdRef.current = pendingQuestionsId;
+  }, [pendingQuestionsId, pendingQuestions]);
 
   // Start conversation when dialog opens
   useEffect(() => {
@@ -895,7 +905,6 @@ export function NewTaskDialog({
       setSelectedPriority('medium');
       setSelectedTags([]);
       setSelectedAnswers({});
-      setIsAnsweringQuestions(false);
     } else {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -910,9 +919,10 @@ export function NewTaskDialog({
   }, [createdTaskId, onTaskCreated, onOpenChange]);
 
   // Auto-scroll to bottom when messages change or streaming
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger deps for scroll behavior
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  }, [messages, streamingContent]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
@@ -1019,28 +1029,27 @@ export function NewTaskDialog({
   };
 
   // Handle submitting answers to questions
+  // isStreaming state from durable streams automatically tracks processing
   const handleSubmitAnswers = useCallback(async () => {
     if (!pendingQuestions) return;
-    setIsAnsweringQuestions(true);
     try {
       await answerQuestions(selectedAnswers);
-    } finally {
-      setIsAnsweringQuestions(false);
+    } catch (error) {
+      console.error('[NewTaskDialog] Error submitting answers:', error);
     }
   }, [pendingQuestions, answerQuestions, selectedAnswers]);
 
   // Handle skipping questions
   const handleSkipQuestions = useCallback(async () => {
-    setIsAnsweringQuestions(true);
     try {
       await skipQuestions();
-    } finally {
-      setIsAnsweringQuestions(false);
+    } catch (error) {
+      console.error('[NewTaskDialog] Error skipping questions:', error);
     }
   }, [skipQuestions]);
 
-  // Handle selecting an answer for a question
-  const handleSelectAnswer = useCallback((questionIndex: number, answer: string) => {
+  // Handle selecting an answer for a question (supports both single and multi-select)
+  const handleSelectAnswer = useCallback((questionIndex: number, answer: string | string[]) => {
     setSelectedAnswers((prev) => ({
       ...prev,
       [String(questionIndex)]: answer,
@@ -1097,7 +1106,7 @@ export function NewTaskDialog({
           ) : (
             <div className="flex flex-1 overflow-hidden">
               {/* LEFT PANEL - Main content */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
                 {/* Compact Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -1224,14 +1233,14 @@ export function NewTaskDialog({
 
                 {/* Clarifying questions panel - show when waiting for user answers */}
                 {status === 'waiting_user' && pendingQuestions && (
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     <QuestionsPanel
                       pendingQuestions={pendingQuestions}
                       selectedAnswers={selectedAnswers}
                       onSelectAnswer={handleSelectAnswer}
                       onSubmitAnswers={handleSubmitAnswers}
                       onSkip={handleSkipQuestions}
-                      isSubmitting={isAnsweringQuestions}
+                      isSubmitting={isStreaming}
                     />
                   </div>
                 )}

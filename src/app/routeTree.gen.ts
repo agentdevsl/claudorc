@@ -33,70 +33,12 @@ import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
 import { Route as CatalogWorkflowIdRouteImport } from './routes/catalog/$workflowId'
-import { Route as ApiWorkflowsRouteImport } from './routes/api/workflows'
-import { Route as ApiTemplatesRouteImport } from './routes/api/templates'
-import { Route as ApiTasksRouteImport } from './routes/api/tasks'
-import { Route as ApiSettingsRouteImport } from './routes/api/settings'
-import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
-import { Route as ApiProjectsRouteImport } from './routes/api/projects'
-import { Route as ApiGithubRouteImport } from './routes/api/github'
-import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
-import { Route as ApiWorktreesIndexRouteImport } from './routes/api/worktrees/index'
-import { Route as ApiStreamsIndexRouteImport } from './routes/api/streams/index'
-import { Route as ApiModelsIndexRouteImport } from './routes/api/models/index'
 import { Route as ProjectsProjectIdWorktreesRouteImport } from './routes/projects/$projectId/worktrees'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
 import { Route as ProjectsProjectIdGitRouteImport } from './routes/projects/$projectId/git'
-import { Route as ApiWorktreesPruneRouteImport } from './routes/api/worktrees/prune'
-import { Route as ApiWorktreesIdRouteImport } from './routes/api/worktrees/$id'
-import { Route as ApiWorkflowsIdRouteImport } from './routes/api/workflows/$id'
-import { Route as ApiWorkflowDesignerAnalyzeRouteImport } from './routes/api/workflow-designer/analyze'
-import { Route as ApiWebhooksGithubRouteImport } from './routes/api/webhooks/github'
-import { Route as ApiTemplatesIdRouteImport } from './routes/api/templates/$id'
-import { Route as ApiTasksIdRouteImport } from './routes/api/tasks/$id'
-import { Route as ApiStreamsStreamIdRouteImport } from './routes/api/streams/$streamId'
-import { Route as ApiSessionsIdRouteImport } from './routes/api/sessions/$id'
-import { Route as ApiProjectsIdRouteImport } from './routes/api/projects/$id'
-import { Route as ApiPlansTaskIdRouteImport } from './routes/api/plans/$taskId'
-import { Route as ApiAgentsIdRouteImport } from './routes/api/agents/$id'
 import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/projects/$projectId/tasks/$taskId'
-import { Route as ApiWorktreesIdMergeRouteImport } from './routes/api/worktrees/$id/merge'
-import { Route as ApiWorktreesIdDiffRouteImport } from './routes/api/worktrees/$id/diff'
-import { Route as ApiWorktreesIdCommitRouteImport } from './routes/api/worktrees/$id/commit'
-import { Route as ApiTemplatesIdSyncRouteImport } from './routes/api/templates/$id/sync'
-import { Route as ApiTasksCreateWithAiStreamRouteImport } from './routes/api/tasks/create-with-ai/stream'
-import { Route as ApiTasksCreateWithAiStartRouteImport } from './routes/api/tasks/create-with-ai/start'
-import { Route as ApiTasksCreateWithAiSkipRouteImport } from './routes/api/tasks/create-with-ai/skip'
-import { Route as ApiTasksCreateWithAiMessageRouteImport } from './routes/api/tasks/create-with-ai/message'
-import { Route as ApiTasksCreateWithAiCancelRouteImport } from './routes/api/tasks/create-with-ai/cancel'
-import { Route as ApiTasksCreateWithAiAnswerRouteImport } from './routes/api/tasks/create-with-ai/answer'
-import { Route as ApiTasksCreateWithAiAcceptRouteImport } from './routes/api/tasks/create-with-ai/accept'
-import { Route as ApiTasksIdRejectRouteImport } from './routes/api/tasks/$id/reject'
-import { Route as ApiTasksIdMoveRouteImport } from './routes/api/tasks/$id/move'
-import { Route as ApiTasksIdApproveRouteImport } from './routes/api/tasks/$id/approve'
-import { Route as ApiStreamsStreamIdSubscribeRouteImport } from './routes/api/streams/$streamId/subscribe'
-import { Route as ApiSessionsIdSummaryRouteImport } from './routes/api/sessions/$id/summary'
-import { Route as ApiSessionsIdStreamRouteImport } from './routes/api/sessions/$id/stream'
-import { Route as ApiSessionsIdPresenceRouteImport } from './routes/api/sessions/$id/presence'
-import { Route as ApiSessionsIdHistoryRouteImport } from './routes/api/sessions/$id/history'
-import { Route as ApiSessionsIdExportRouteImport } from './routes/api/sessions/$id/export'
-import { Route as ApiSessionsIdEventsRouteImport } from './routes/api/sessions/$id/events'
-import { Route as ApiSessionsIdCloseRouteImport } from './routes/api/sessions/$id/close'
-import { Route as ApiSandboxK8sStatusRouteImport } from './routes/api/sandbox/k8s/status'
-import { Route as ApiSandboxK8sNamespacesRouteImport } from './routes/api/sandbox/k8s/namespaces'
-import { Route as ApiSandboxK8sContextsRouteImport } from './routes/api/sandbox/k8s/contexts'
-import { Route as ApiPlansTaskIdStreamRouteImport } from './routes/api/plans/$taskId/stream'
-import { Route as ApiPlansTaskIdStartRouteImport } from './routes/api/plans/$taskId/start'
-import { Route as ApiPlansTaskIdMessageRouteImport } from './routes/api/plans/$taskId/message'
-import { Route as ApiPlansTaskIdCancelRouteImport } from './routes/api/plans/$taskId/cancel'
-import { Route as ApiPlansTaskIdAnswerRouteImport } from './routes/api/plans/$taskId/answer'
-import { Route as ApiAgentsIdStopRouteImport } from './routes/api/agents/$id/stop'
-import { Route as ApiAgentsIdStatusRouteImport } from './routes/api/agents/$id/status'
-import { Route as ApiAgentsIdStartRouteImport } from './routes/api/agents/$id/start'
-import { Route as ApiAgentsIdResumeRouteImport } from './routes/api/agents/$id/resume'
-import { Route as ApiAgentsIdPauseRouteImport } from './routes/api/agents/$id/pause'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -219,46 +161,6 @@ const CatalogWorkflowIdRoute = CatalogWorkflowIdRouteImport.update({
   path: '/catalog/$workflowId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWorkflowsRoute = ApiWorkflowsRouteImport.update({
-  id: '/api/workflows',
-  path: '/api/workflows',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTemplatesRoute = ApiTemplatesRouteImport.update({
-  id: '/api/templates',
-  path: '/api/templates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTasksRoute = ApiTasksRouteImport.update({
-  id: '/api/tasks',
-  path: '/api/tasks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSettingsRoute = ApiSettingsRouteImport.update({
-  id: '/api/settings',
-  path: '/api/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSessionsRoute = ApiSessionsRouteImport.update({
-  id: '/api/sessions',
-  path: '/api/sessions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiProjectsRoute = ApiProjectsRouteImport.update({
-  id: '/api/projects',
-  path: '/api/projects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiGithubRoute = ApiGithubRouteImport.update({
-  id: '/api/github',
-  path: '/api/github',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAgentsRoute = ApiAgentsRouteImport.update({
-  id: '/api/agents',
-  path: '/api/agents',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
   id: '/agents/$agentId',
   path: '/agents/$agentId',
@@ -267,21 +169,6 @@ const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
 const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
   id: '/projects/$projectId/',
   path: '/projects/$projectId/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWorktreesIndexRoute = ApiWorktreesIndexRouteImport.update({
-  id: '/api/worktrees/',
-  path: '/api/worktrees/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiStreamsIndexRoute = ApiStreamsIndexRouteImport.update({
-  id: '/api/streams/',
-  path: '/api/streams/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiModelsIndexRoute = ApiModelsIndexRouteImport.update({
-  id: '/api/models/',
-  path: '/api/models/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdWorktreesRoute =
@@ -301,269 +188,17 @@ const ProjectsProjectIdGitRoute = ProjectsProjectIdGitRouteImport.update({
   path: '/projects/$projectId/git',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWorktreesPruneRoute = ApiWorktreesPruneRouteImport.update({
-  id: '/api/worktrees/prune',
-  path: '/api/worktrees/prune',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWorktreesIdRoute = ApiWorktreesIdRouteImport.update({
-  id: '/api/worktrees/$id',
-  path: '/api/worktrees/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWorkflowsIdRoute = ApiWorkflowsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiWorkflowsRoute,
-} as any)
-const ApiWorkflowDesignerAnalyzeRoute =
-  ApiWorkflowDesignerAnalyzeRouteImport.update({
-    id: '/api/workflow-designer/analyze',
-    path: '/api/workflow-designer/analyze',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiWebhooksGithubRoute = ApiWebhooksGithubRouteImport.update({
-  id: '/api/webhooks/github',
-  path: '/api/webhooks/github',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTemplatesIdRoute = ApiTemplatesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiTemplatesRoute,
-} as any)
-const ApiTasksIdRoute = ApiTasksIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiTasksRoute,
-} as any)
-const ApiStreamsStreamIdRoute = ApiStreamsStreamIdRouteImport.update({
-  id: '/api/streams/$streamId',
-  path: '/api/streams/$streamId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSessionsIdRoute = ApiSessionsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiSessionsRoute,
-} as any)
-const ApiProjectsIdRoute = ApiProjectsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiProjectsRoute,
-} as any)
-const ApiPlansTaskIdRoute = ApiPlansTaskIdRouteImport.update({
-  id: '/api/plans/$taskId',
-  path: '/api/plans/$taskId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAgentsIdRoute = ApiAgentsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiAgentsRoute,
-} as any)
 const ProjectsProjectIdTasksTaskIdRoute =
   ProjectsProjectIdTasksTaskIdRouteImport.update({
     id: '/projects/$projectId/tasks/$taskId',
     path: '/projects/$projectId/tasks/$taskId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiWorktreesIdMergeRoute = ApiWorktreesIdMergeRouteImport.update({
-  id: '/merge',
-  path: '/merge',
-  getParentRoute: () => ApiWorktreesIdRoute,
-} as any)
-const ApiWorktreesIdDiffRoute = ApiWorktreesIdDiffRouteImport.update({
-  id: '/diff',
-  path: '/diff',
-  getParentRoute: () => ApiWorktreesIdRoute,
-} as any)
-const ApiWorktreesIdCommitRoute = ApiWorktreesIdCommitRouteImport.update({
-  id: '/commit',
-  path: '/commit',
-  getParentRoute: () => ApiWorktreesIdRoute,
-} as any)
-const ApiTemplatesIdSyncRoute = ApiTemplatesIdSyncRouteImport.update({
-  id: '/sync',
-  path: '/sync',
-  getParentRoute: () => ApiTemplatesIdRoute,
-} as any)
-const ApiTasksCreateWithAiStreamRoute =
-  ApiTasksCreateWithAiStreamRouteImport.update({
-    id: '/create-with-ai/stream',
-    path: '/create-with-ai/stream',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiStartRoute =
-  ApiTasksCreateWithAiStartRouteImport.update({
-    id: '/create-with-ai/start',
-    path: '/create-with-ai/start',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiSkipRoute =
-  ApiTasksCreateWithAiSkipRouteImport.update({
-    id: '/create-with-ai/skip',
-    path: '/create-with-ai/skip',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiMessageRoute =
-  ApiTasksCreateWithAiMessageRouteImport.update({
-    id: '/create-with-ai/message',
-    path: '/create-with-ai/message',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiCancelRoute =
-  ApiTasksCreateWithAiCancelRouteImport.update({
-    id: '/create-with-ai/cancel',
-    path: '/create-with-ai/cancel',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiAnswerRoute =
-  ApiTasksCreateWithAiAnswerRouteImport.update({
-    id: '/create-with-ai/answer',
-    path: '/create-with-ai/answer',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksCreateWithAiAcceptRoute =
-  ApiTasksCreateWithAiAcceptRouteImport.update({
-    id: '/create-with-ai/accept',
-    path: '/create-with-ai/accept',
-    getParentRoute: () => ApiTasksRoute,
-  } as any)
-const ApiTasksIdRejectRoute = ApiTasksIdRejectRouteImport.update({
-  id: '/reject',
-  path: '/reject',
-  getParentRoute: () => ApiTasksIdRoute,
-} as any)
-const ApiTasksIdMoveRoute = ApiTasksIdMoveRouteImport.update({
-  id: '/move',
-  path: '/move',
-  getParentRoute: () => ApiTasksIdRoute,
-} as any)
-const ApiTasksIdApproveRoute = ApiTasksIdApproveRouteImport.update({
-  id: '/approve',
-  path: '/approve',
-  getParentRoute: () => ApiTasksIdRoute,
-} as any)
-const ApiStreamsStreamIdSubscribeRoute =
-  ApiStreamsStreamIdSubscribeRouteImport.update({
-    id: '/subscribe',
-    path: '/subscribe',
-    getParentRoute: () => ApiStreamsStreamIdRoute,
-  } as any)
-const ApiSessionsIdSummaryRoute = ApiSessionsIdSummaryRouteImport.update({
-  id: '/summary',
-  path: '/summary',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdStreamRoute = ApiSessionsIdStreamRouteImport.update({
-  id: '/stream',
-  path: '/stream',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdPresenceRoute = ApiSessionsIdPresenceRouteImport.update({
-  id: '/presence',
-  path: '/presence',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdHistoryRoute = ApiSessionsIdHistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdExportRoute = ApiSessionsIdExportRouteImport.update({
-  id: '/export',
-  path: '/export',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdEventsRoute = ApiSessionsIdEventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSessionsIdCloseRoute = ApiSessionsIdCloseRouteImport.update({
-  id: '/close',
-  path: '/close',
-  getParentRoute: () => ApiSessionsIdRoute,
-} as any)
-const ApiSandboxK8sStatusRoute = ApiSandboxK8sStatusRouteImport.update({
-  id: '/api/sandbox/k8s/status',
-  path: '/api/sandbox/k8s/status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSandboxK8sNamespacesRoute = ApiSandboxK8sNamespacesRouteImport.update({
-  id: '/api/sandbox/k8s/namespaces',
-  path: '/api/sandbox/k8s/namespaces',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSandboxK8sContextsRoute = ApiSandboxK8sContextsRouteImport.update({
-  id: '/api/sandbox/k8s/contexts',
-  path: '/api/sandbox/k8s/contexts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPlansTaskIdStreamRoute = ApiPlansTaskIdStreamRouteImport.update({
-  id: '/stream',
-  path: '/stream',
-  getParentRoute: () => ApiPlansTaskIdRoute,
-} as any)
-const ApiPlansTaskIdStartRoute = ApiPlansTaskIdStartRouteImport.update({
-  id: '/start',
-  path: '/start',
-  getParentRoute: () => ApiPlansTaskIdRoute,
-} as any)
-const ApiPlansTaskIdMessageRoute = ApiPlansTaskIdMessageRouteImport.update({
-  id: '/message',
-  path: '/message',
-  getParentRoute: () => ApiPlansTaskIdRoute,
-} as any)
-const ApiPlansTaskIdCancelRoute = ApiPlansTaskIdCancelRouteImport.update({
-  id: '/cancel',
-  path: '/cancel',
-  getParentRoute: () => ApiPlansTaskIdRoute,
-} as any)
-const ApiPlansTaskIdAnswerRoute = ApiPlansTaskIdAnswerRouteImport.update({
-  id: '/answer',
-  path: '/answer',
-  getParentRoute: () => ApiPlansTaskIdRoute,
-} as any)
-const ApiAgentsIdStopRoute = ApiAgentsIdStopRouteImport.update({
-  id: '/stop',
-  path: '/stop',
-  getParentRoute: () => ApiAgentsIdRoute,
-} as any)
-const ApiAgentsIdStatusRoute = ApiAgentsIdStatusRouteImport.update({
-  id: '/status',
-  path: '/status',
-  getParentRoute: () => ApiAgentsIdRoute,
-} as any)
-const ApiAgentsIdStartRoute = ApiAgentsIdStartRouteImport.update({
-  id: '/start',
-  path: '/start',
-  getParentRoute: () => ApiAgentsIdRoute,
-} as any)
-const ApiAgentsIdResumeRoute = ApiAgentsIdResumeRouteImport.update({
-  id: '/resume',
-  path: '/resume',
-  getParentRoute: () => ApiAgentsIdRoute,
-} as any)
-const ApiAgentsIdPauseRoute = ApiAgentsIdPauseRouteImport.update({
-  id: '/pause',
-  path: '/pause',
-  getParentRoute: () => ApiAgentsIdRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/api/agents': typeof ApiAgentsRouteWithChildren
-  '/api/github': typeof ApiGithubRoute
-  '/api/projects': typeof ApiProjectsRouteWithChildren
-  '/api/sessions': typeof ApiSessionsRouteWithChildren
-  '/api/settings': typeof ApiSettingsRoute
-  '/api/tasks': typeof ApiTasksRouteWithChildren
-  '/api/templates': typeof ApiTemplatesRouteWithChildren
-  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -586,73 +221,15 @@ export interface FileRoutesByFullPath {
   '/sessions/': typeof SessionsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/worktrees/': typeof WorktreesIndexRoute
-  '/api/agents/$id': typeof ApiAgentsIdRouteWithChildren
-  '/api/plans/$taskId': typeof ApiPlansTaskIdRouteWithChildren
-  '/api/projects/$id': typeof ApiProjectsIdRoute
-  '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
-  '/api/streams/$streamId': typeof ApiStreamsStreamIdRouteWithChildren
-  '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
-  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
-  '/api/webhooks/github': typeof ApiWebhooksGithubRoute
-  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
-  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
-  '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
-  '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
-  '/api/models/': typeof ApiModelsIndexRoute
-  '/api/streams/': typeof ApiStreamsIndexRoute
-  '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/api/agents/$id/pause': typeof ApiAgentsIdPauseRoute
-  '/api/agents/$id/resume': typeof ApiAgentsIdResumeRoute
-  '/api/agents/$id/start': typeof ApiAgentsIdStartRoute
-  '/api/agents/$id/status': typeof ApiAgentsIdStatusRoute
-  '/api/agents/$id/stop': typeof ApiAgentsIdStopRoute
-  '/api/plans/$taskId/answer': typeof ApiPlansTaskIdAnswerRoute
-  '/api/plans/$taskId/cancel': typeof ApiPlansTaskIdCancelRoute
-  '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
-  '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
-  '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
-  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
-  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
-  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
-  '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
-  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
-  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
-  '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
-  '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
-  '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
-  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
-  '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
-  '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
-  '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
-  '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
-  '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
-  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
-  '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
-  '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
-  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
-  '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
-  '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
-  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
-  '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
-  '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
-  '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/api/agents': typeof ApiAgentsRouteWithChildren
-  '/api/github': typeof ApiGithubRoute
-  '/api/projects': typeof ApiProjectsRouteWithChildren
-  '/api/sessions': typeof ApiSessionsRouteWithChildren
-  '/api/settings': typeof ApiSettingsRoute
-  '/api/tasks': typeof ApiTasksRouteWithChildren
-  '/api/templates': typeof ApiTemplatesRouteWithChildren
-  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -675,60 +252,10 @@ export interface FileRoutesByTo {
   '/sessions': typeof SessionsIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/worktrees': typeof WorktreesIndexRoute
-  '/api/agents/$id': typeof ApiAgentsIdRouteWithChildren
-  '/api/plans/$taskId': typeof ApiPlansTaskIdRouteWithChildren
-  '/api/projects/$id': typeof ApiProjectsIdRoute
-  '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
-  '/api/streams/$streamId': typeof ApiStreamsStreamIdRouteWithChildren
-  '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
-  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
-  '/api/webhooks/github': typeof ApiWebhooksGithubRoute
-  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
-  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
-  '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
-  '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
-  '/api/models': typeof ApiModelsIndexRoute
-  '/api/streams': typeof ApiStreamsIndexRoute
-  '/api/worktrees': typeof ApiWorktreesIndexRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
-  '/api/agents/$id/pause': typeof ApiAgentsIdPauseRoute
-  '/api/agents/$id/resume': typeof ApiAgentsIdResumeRoute
-  '/api/agents/$id/start': typeof ApiAgentsIdStartRoute
-  '/api/agents/$id/status': typeof ApiAgentsIdStatusRoute
-  '/api/agents/$id/stop': typeof ApiAgentsIdStopRoute
-  '/api/plans/$taskId/answer': typeof ApiPlansTaskIdAnswerRoute
-  '/api/plans/$taskId/cancel': typeof ApiPlansTaskIdCancelRoute
-  '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
-  '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
-  '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
-  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
-  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
-  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
-  '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
-  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
-  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
-  '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
-  '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
-  '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
-  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
-  '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
-  '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
-  '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
-  '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
-  '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
-  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
-  '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
-  '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
-  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
-  '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
-  '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
-  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
-  '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
-  '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
-  '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
 }
 export interface FileRoutesById {
@@ -736,14 +263,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/api/agents': typeof ApiAgentsRouteWithChildren
-  '/api/github': typeof ApiGithubRoute
-  '/api/projects': typeof ApiProjectsRouteWithChildren
-  '/api/sessions': typeof ApiSessionsRouteWithChildren
-  '/api/settings': typeof ApiSettingsRoute
-  '/api/tasks': typeof ApiTasksRouteWithChildren
-  '/api/templates': typeof ApiTemplatesRouteWithChildren
-  '/api/workflows': typeof ApiWorkflowsRouteWithChildren
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -766,60 +285,10 @@ export interface FileRoutesById {
   '/sessions/': typeof SessionsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/worktrees/': typeof WorktreesIndexRoute
-  '/api/agents/$id': typeof ApiAgentsIdRouteWithChildren
-  '/api/plans/$taskId': typeof ApiPlansTaskIdRouteWithChildren
-  '/api/projects/$id': typeof ApiProjectsIdRoute
-  '/api/sessions/$id': typeof ApiSessionsIdRouteWithChildren
-  '/api/streams/$streamId': typeof ApiStreamsStreamIdRouteWithChildren
-  '/api/tasks/$id': typeof ApiTasksIdRouteWithChildren
-  '/api/templates/$id': typeof ApiTemplatesIdRouteWithChildren
-  '/api/webhooks/github': typeof ApiWebhooksGithubRoute
-  '/api/workflow-designer/analyze': typeof ApiWorkflowDesignerAnalyzeRoute
-  '/api/workflows/$id': typeof ApiWorkflowsIdRoute
-  '/api/worktrees/$id': typeof ApiWorktreesIdRouteWithChildren
-  '/api/worktrees/prune': typeof ApiWorktreesPruneRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/worktrees': typeof ProjectsProjectIdWorktreesRoute
-  '/api/models/': typeof ApiModelsIndexRoute
-  '/api/streams/': typeof ApiStreamsIndexRoute
-  '/api/worktrees/': typeof ApiWorktreesIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/api/agents/$id/pause': typeof ApiAgentsIdPauseRoute
-  '/api/agents/$id/resume': typeof ApiAgentsIdResumeRoute
-  '/api/agents/$id/start': typeof ApiAgentsIdStartRoute
-  '/api/agents/$id/status': typeof ApiAgentsIdStatusRoute
-  '/api/agents/$id/stop': typeof ApiAgentsIdStopRoute
-  '/api/plans/$taskId/answer': typeof ApiPlansTaskIdAnswerRoute
-  '/api/plans/$taskId/cancel': typeof ApiPlansTaskIdCancelRoute
-  '/api/plans/$taskId/message': typeof ApiPlansTaskIdMessageRoute
-  '/api/plans/$taskId/start': typeof ApiPlansTaskIdStartRoute
-  '/api/plans/$taskId/stream': typeof ApiPlansTaskIdStreamRoute
-  '/api/sandbox/k8s/contexts': typeof ApiSandboxK8sContextsRoute
-  '/api/sandbox/k8s/namespaces': typeof ApiSandboxK8sNamespacesRoute
-  '/api/sandbox/k8s/status': typeof ApiSandboxK8sStatusRoute
-  '/api/sessions/$id/close': typeof ApiSessionsIdCloseRoute
-  '/api/sessions/$id/events': typeof ApiSessionsIdEventsRoute
-  '/api/sessions/$id/export': typeof ApiSessionsIdExportRoute
-  '/api/sessions/$id/history': typeof ApiSessionsIdHistoryRoute
-  '/api/sessions/$id/presence': typeof ApiSessionsIdPresenceRoute
-  '/api/sessions/$id/stream': typeof ApiSessionsIdStreamRoute
-  '/api/sessions/$id/summary': typeof ApiSessionsIdSummaryRoute
-  '/api/streams/$streamId/subscribe': typeof ApiStreamsStreamIdSubscribeRoute
-  '/api/tasks/$id/approve': typeof ApiTasksIdApproveRoute
-  '/api/tasks/$id/move': typeof ApiTasksIdMoveRoute
-  '/api/tasks/$id/reject': typeof ApiTasksIdRejectRoute
-  '/api/tasks/create-with-ai/accept': typeof ApiTasksCreateWithAiAcceptRoute
-  '/api/tasks/create-with-ai/answer': typeof ApiTasksCreateWithAiAnswerRoute
-  '/api/tasks/create-with-ai/cancel': typeof ApiTasksCreateWithAiCancelRoute
-  '/api/tasks/create-with-ai/message': typeof ApiTasksCreateWithAiMessageRoute
-  '/api/tasks/create-with-ai/skip': typeof ApiTasksCreateWithAiSkipRoute
-  '/api/tasks/create-with-ai/start': typeof ApiTasksCreateWithAiStartRoute
-  '/api/tasks/create-with-ai/stream': typeof ApiTasksCreateWithAiStreamRoute
-  '/api/templates/$id/sync': typeof ApiTemplatesIdSyncRoute
-  '/api/worktrees/$id/commit': typeof ApiWorktreesIdCommitRoute
-  '/api/worktrees/$id/diff': typeof ApiWorktreesIdDiffRoute
-  '/api/worktrees/$id/merge': typeof ApiWorktreesIdMergeRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
 }
 export interface FileRouteTypes {
@@ -828,14 +297,6 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/agents/$agentId'
-    | '/api/agents'
-    | '/api/github'
-    | '/api/projects'
-    | '/api/sessions'
-    | '/api/settings'
-    | '/api/tasks'
-    | '/api/templates'
-    | '/api/workflows'
     | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
@@ -858,73 +319,15 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/settings/'
     | '/worktrees/'
-    | '/api/agents/$id'
-    | '/api/plans/$taskId'
-    | '/api/projects/$id'
-    | '/api/sessions/$id'
-    | '/api/streams/$streamId'
-    | '/api/tasks/$id'
-    | '/api/templates/$id'
-    | '/api/webhooks/github'
-    | '/api/workflow-designer/analyze'
-    | '/api/workflows/$id'
-    | '/api/worktrees/$id'
-    | '/api/worktrees/prune'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
-    | '/api/models/'
-    | '/api/streams/'
-    | '/api/worktrees/'
     | '/projects/$projectId/'
-    | '/api/agents/$id/pause'
-    | '/api/agents/$id/resume'
-    | '/api/agents/$id/start'
-    | '/api/agents/$id/status'
-    | '/api/agents/$id/stop'
-    | '/api/plans/$taskId/answer'
-    | '/api/plans/$taskId/cancel'
-    | '/api/plans/$taskId/message'
-    | '/api/plans/$taskId/start'
-    | '/api/plans/$taskId/stream'
-    | '/api/sandbox/k8s/contexts'
-    | '/api/sandbox/k8s/namespaces'
-    | '/api/sandbox/k8s/status'
-    | '/api/sessions/$id/close'
-    | '/api/sessions/$id/events'
-    | '/api/sessions/$id/export'
-    | '/api/sessions/$id/history'
-    | '/api/sessions/$id/presence'
-    | '/api/sessions/$id/stream'
-    | '/api/sessions/$id/summary'
-    | '/api/streams/$streamId/subscribe'
-    | '/api/tasks/$id/approve'
-    | '/api/tasks/$id/move'
-    | '/api/tasks/$id/reject'
-    | '/api/tasks/create-with-ai/accept'
-    | '/api/tasks/create-with-ai/answer'
-    | '/api/tasks/create-with-ai/cancel'
-    | '/api/tasks/create-with-ai/message'
-    | '/api/tasks/create-with-ai/skip'
-    | '/api/tasks/create-with-ai/start'
-    | '/api/tasks/create-with-ai/stream'
-    | '/api/templates/$id/sync'
-    | '/api/worktrees/$id/commit'
-    | '/api/worktrees/$id/diff'
-    | '/api/worktrees/$id/merge'
     | '/projects/$projectId/tasks/$taskId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agents/$agentId'
-    | '/api/agents'
-    | '/api/github'
-    | '/api/projects'
-    | '/api/sessions'
-    | '/api/settings'
-    | '/api/tasks'
-    | '/api/templates'
-    | '/api/workflows'
     | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
@@ -947,74 +350,16 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/settings'
     | '/worktrees'
-    | '/api/agents/$id'
-    | '/api/plans/$taskId'
-    | '/api/projects/$id'
-    | '/api/sessions/$id'
-    | '/api/streams/$streamId'
-    | '/api/tasks/$id'
-    | '/api/templates/$id'
-    | '/api/webhooks/github'
-    | '/api/workflow-designer/analyze'
-    | '/api/workflows/$id'
-    | '/api/worktrees/$id'
-    | '/api/worktrees/prune'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
-    | '/api/models'
-    | '/api/streams'
-    | '/api/worktrees'
     | '/projects/$projectId'
-    | '/api/agents/$id/pause'
-    | '/api/agents/$id/resume'
-    | '/api/agents/$id/start'
-    | '/api/agents/$id/status'
-    | '/api/agents/$id/stop'
-    | '/api/plans/$taskId/answer'
-    | '/api/plans/$taskId/cancel'
-    | '/api/plans/$taskId/message'
-    | '/api/plans/$taskId/start'
-    | '/api/plans/$taskId/stream'
-    | '/api/sandbox/k8s/contexts'
-    | '/api/sandbox/k8s/namespaces'
-    | '/api/sandbox/k8s/status'
-    | '/api/sessions/$id/close'
-    | '/api/sessions/$id/events'
-    | '/api/sessions/$id/export'
-    | '/api/sessions/$id/history'
-    | '/api/sessions/$id/presence'
-    | '/api/sessions/$id/stream'
-    | '/api/sessions/$id/summary'
-    | '/api/streams/$streamId/subscribe'
-    | '/api/tasks/$id/approve'
-    | '/api/tasks/$id/move'
-    | '/api/tasks/$id/reject'
-    | '/api/tasks/create-with-ai/accept'
-    | '/api/tasks/create-with-ai/answer'
-    | '/api/tasks/create-with-ai/cancel'
-    | '/api/tasks/create-with-ai/message'
-    | '/api/tasks/create-with-ai/skip'
-    | '/api/tasks/create-with-ai/start'
-    | '/api/tasks/create-with-ai/stream'
-    | '/api/templates/$id/sync'
-    | '/api/worktrees/$id/commit'
-    | '/api/worktrees/$id/diff'
-    | '/api/worktrees/$id/merge'
     | '/projects/$projectId/tasks/$taskId'
   id:
     | '__root__'
     | '/'
     | '/settings'
     | '/agents/$agentId'
-    | '/api/agents'
-    | '/api/github'
-    | '/api/projects'
-    | '/api/sessions'
-    | '/api/settings'
-    | '/api/tasks'
-    | '/api/templates'
-    | '/api/workflows'
     | '/catalog/$workflowId'
     | '/sessions/$sessionId'
     | '/settings/agents'
@@ -1037,60 +382,10 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/settings/'
     | '/worktrees/'
-    | '/api/agents/$id'
-    | '/api/plans/$taskId'
-    | '/api/projects/$id'
-    | '/api/sessions/$id'
-    | '/api/streams/$streamId'
-    | '/api/tasks/$id'
-    | '/api/templates/$id'
-    | '/api/webhooks/github'
-    | '/api/workflow-designer/analyze'
-    | '/api/workflows/$id'
-    | '/api/worktrees/$id'
-    | '/api/worktrees/prune'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/worktrees'
-    | '/api/models/'
-    | '/api/streams/'
-    | '/api/worktrees/'
     | '/projects/$projectId/'
-    | '/api/agents/$id/pause'
-    | '/api/agents/$id/resume'
-    | '/api/agents/$id/start'
-    | '/api/agents/$id/status'
-    | '/api/agents/$id/stop'
-    | '/api/plans/$taskId/answer'
-    | '/api/plans/$taskId/cancel'
-    | '/api/plans/$taskId/message'
-    | '/api/plans/$taskId/start'
-    | '/api/plans/$taskId/stream'
-    | '/api/sandbox/k8s/contexts'
-    | '/api/sandbox/k8s/namespaces'
-    | '/api/sandbox/k8s/status'
-    | '/api/sessions/$id/close'
-    | '/api/sessions/$id/events'
-    | '/api/sessions/$id/export'
-    | '/api/sessions/$id/history'
-    | '/api/sessions/$id/presence'
-    | '/api/sessions/$id/stream'
-    | '/api/sessions/$id/summary'
-    | '/api/streams/$streamId/subscribe'
-    | '/api/tasks/$id/approve'
-    | '/api/tasks/$id/move'
-    | '/api/tasks/$id/reject'
-    | '/api/tasks/create-with-ai/accept'
-    | '/api/tasks/create-with-ai/answer'
-    | '/api/tasks/create-with-ai/cancel'
-    | '/api/tasks/create-with-ai/message'
-    | '/api/tasks/create-with-ai/skip'
-    | '/api/tasks/create-with-ai/start'
-    | '/api/tasks/create-with-ai/stream'
-    | '/api/templates/$id/sync'
-    | '/api/worktrees/$id/commit'
-    | '/api/worktrees/$id/diff'
-    | '/api/worktrees/$id/merge'
     | '/projects/$projectId/tasks/$taskId'
   fileRoutesById: FileRoutesById
 }
@@ -1098,14 +393,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
-  ApiAgentsRoute: typeof ApiAgentsRouteWithChildren
-  ApiGithubRoute: typeof ApiGithubRoute
-  ApiProjectsRoute: typeof ApiProjectsRouteWithChildren
-  ApiSessionsRoute: typeof ApiSessionsRouteWithChildren
-  ApiSettingsRoute: typeof ApiSettingsRoute
-  ApiTasksRoute: typeof ApiTasksRouteWithChildren
-  ApiTemplatesRoute: typeof ApiTemplatesRouteWithChildren
-  ApiWorkflowsRoute: typeof ApiWorkflowsRouteWithChildren
   CatalogWorkflowIdRoute: typeof CatalogWorkflowIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
   TemplatesOrgRoute: typeof TemplatesOrgRoute
@@ -1118,22 +405,10 @@ export interface RootRouteChildren {
   QueueIndexRoute: typeof QueueIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
   WorktreesIndexRoute: typeof WorktreesIndexRoute
-  ApiPlansTaskIdRoute: typeof ApiPlansTaskIdRouteWithChildren
-  ApiStreamsStreamIdRoute: typeof ApiStreamsStreamIdRouteWithChildren
-  ApiWebhooksGithubRoute: typeof ApiWebhooksGithubRoute
-  ApiWorkflowDesignerAnalyzeRoute: typeof ApiWorkflowDesignerAnalyzeRoute
-  ApiWorktreesIdRoute: typeof ApiWorktreesIdRouteWithChildren
-  ApiWorktreesPruneRoute: typeof ApiWorktreesPruneRoute
   ProjectsProjectIdGitRoute: typeof ProjectsProjectIdGitRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
   ProjectsProjectIdWorktreesRoute: typeof ProjectsProjectIdWorktreesRoute
-  ApiModelsIndexRoute: typeof ApiModelsIndexRoute
-  ApiStreamsIndexRoute: typeof ApiStreamsIndexRoute
-  ApiWorktreesIndexRoute: typeof ApiWorktreesIndexRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
-  ApiSandboxK8sContextsRoute: typeof ApiSandboxK8sContextsRoute
-  ApiSandboxK8sNamespacesRoute: typeof ApiSandboxK8sNamespacesRoute
-  ApiSandboxK8sStatusRoute: typeof ApiSandboxK8sStatusRoute
   ProjectsProjectIdTasksTaskIdRoute: typeof ProjectsProjectIdTasksTaskIdRoute
 }
 
@@ -1307,62 +582,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CatalogWorkflowIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/workflows': {
-      id: '/api/workflows'
-      path: '/api/workflows'
-      fullPath: '/api/workflows'
-      preLoaderRoute: typeof ApiWorkflowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/templates': {
-      id: '/api/templates'
-      path: '/api/templates'
-      fullPath: '/api/templates'
-      preLoaderRoute: typeof ApiTemplatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/tasks': {
-      id: '/api/tasks'
-      path: '/api/tasks'
-      fullPath: '/api/tasks'
-      preLoaderRoute: typeof ApiTasksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/settings': {
-      id: '/api/settings'
-      path: '/api/settings'
-      fullPath: '/api/settings'
-      preLoaderRoute: typeof ApiSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/sessions': {
-      id: '/api/sessions'
-      path: '/api/sessions'
-      fullPath: '/api/sessions'
-      preLoaderRoute: typeof ApiSessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/projects': {
-      id: '/api/projects'
-      path: '/api/projects'
-      fullPath: '/api/projects'
-      preLoaderRoute: typeof ApiProjectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/github': {
-      id: '/api/github'
-      path: '/api/github'
-      fullPath: '/api/github'
-      preLoaderRoute: typeof ApiGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/agents': {
-      id: '/api/agents'
-      path: '/api/agents'
-      fullPath: '/api/agents'
-      preLoaderRoute: typeof ApiAgentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/agents/$agentId': {
       id: '/agents/$agentId'
       path: '/agents/$agentId'
@@ -1375,27 +594,6 @@ declare module '@tanstack/react-router' {
       path: '/projects/$projectId'
       fullPath: '/projects/$projectId/'
       preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/worktrees/': {
-      id: '/api/worktrees/'
-      path: '/api/worktrees'
-      fullPath: '/api/worktrees/'
-      preLoaderRoute: typeof ApiWorktreesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/streams/': {
-      id: '/api/streams/'
-      path: '/api/streams'
-      fullPath: '/api/streams/'
-      preLoaderRoute: typeof ApiStreamsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/models/': {
-      id: '/api/models/'
-      path: '/api/models'
-      fullPath: '/api/models/'
-      preLoaderRoute: typeof ApiModelsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId/worktrees': {
@@ -1419,341 +617,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdGitRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/worktrees/prune': {
-      id: '/api/worktrees/prune'
-      path: '/api/worktrees/prune'
-      fullPath: '/api/worktrees/prune'
-      preLoaderRoute: typeof ApiWorktreesPruneRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/worktrees/$id': {
-      id: '/api/worktrees/$id'
-      path: '/api/worktrees/$id'
-      fullPath: '/api/worktrees/$id'
-      preLoaderRoute: typeof ApiWorktreesIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/workflows/$id': {
-      id: '/api/workflows/$id'
-      path: '/$id'
-      fullPath: '/api/workflows/$id'
-      preLoaderRoute: typeof ApiWorkflowsIdRouteImport
-      parentRoute: typeof ApiWorkflowsRoute
-    }
-    '/api/workflow-designer/analyze': {
-      id: '/api/workflow-designer/analyze'
-      path: '/api/workflow-designer/analyze'
-      fullPath: '/api/workflow-designer/analyze'
-      preLoaderRoute: typeof ApiWorkflowDesignerAnalyzeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/github': {
-      id: '/api/webhooks/github'
-      path: '/api/webhooks/github'
-      fullPath: '/api/webhooks/github'
-      preLoaderRoute: typeof ApiWebhooksGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/templates/$id': {
-      id: '/api/templates/$id'
-      path: '/$id'
-      fullPath: '/api/templates/$id'
-      preLoaderRoute: typeof ApiTemplatesIdRouteImport
-      parentRoute: typeof ApiTemplatesRoute
-    }
-    '/api/tasks/$id': {
-      id: '/api/tasks/$id'
-      path: '/$id'
-      fullPath: '/api/tasks/$id'
-      preLoaderRoute: typeof ApiTasksIdRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/streams/$streamId': {
-      id: '/api/streams/$streamId'
-      path: '/api/streams/$streamId'
-      fullPath: '/api/streams/$streamId'
-      preLoaderRoute: typeof ApiStreamsStreamIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/sessions/$id': {
-      id: '/api/sessions/$id'
-      path: '/$id'
-      fullPath: '/api/sessions/$id'
-      preLoaderRoute: typeof ApiSessionsIdRouteImport
-      parentRoute: typeof ApiSessionsRoute
-    }
-    '/api/projects/$id': {
-      id: '/api/projects/$id'
-      path: '/$id'
-      fullPath: '/api/projects/$id'
-      preLoaderRoute: typeof ApiProjectsIdRouteImport
-      parentRoute: typeof ApiProjectsRoute
-    }
-    '/api/plans/$taskId': {
-      id: '/api/plans/$taskId'
-      path: '/api/plans/$taskId'
-      fullPath: '/api/plans/$taskId'
-      preLoaderRoute: typeof ApiPlansTaskIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/agents/$id': {
-      id: '/api/agents/$id'
-      path: '/$id'
-      fullPath: '/api/agents/$id'
-      preLoaderRoute: typeof ApiAgentsIdRouteImport
-      parentRoute: typeof ApiAgentsRoute
-    }
     '/projects/$projectId/tasks/$taskId': {
       id: '/projects/$projectId/tasks/$taskId'
       path: '/projects/$projectId/tasks/$taskId'
       fullPath: '/projects/$projectId/tasks/$taskId'
       preLoaderRoute: typeof ProjectsProjectIdTasksTaskIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/api/worktrees/$id/merge': {
-      id: '/api/worktrees/$id/merge'
-      path: '/merge'
-      fullPath: '/api/worktrees/$id/merge'
-      preLoaderRoute: typeof ApiWorktreesIdMergeRouteImport
-      parentRoute: typeof ApiWorktreesIdRoute
-    }
-    '/api/worktrees/$id/diff': {
-      id: '/api/worktrees/$id/diff'
-      path: '/diff'
-      fullPath: '/api/worktrees/$id/diff'
-      preLoaderRoute: typeof ApiWorktreesIdDiffRouteImport
-      parentRoute: typeof ApiWorktreesIdRoute
-    }
-    '/api/worktrees/$id/commit': {
-      id: '/api/worktrees/$id/commit'
-      path: '/commit'
-      fullPath: '/api/worktrees/$id/commit'
-      preLoaderRoute: typeof ApiWorktreesIdCommitRouteImport
-      parentRoute: typeof ApiWorktreesIdRoute
-    }
-    '/api/templates/$id/sync': {
-      id: '/api/templates/$id/sync'
-      path: '/sync'
-      fullPath: '/api/templates/$id/sync'
-      preLoaderRoute: typeof ApiTemplatesIdSyncRouteImport
-      parentRoute: typeof ApiTemplatesIdRoute
-    }
-    '/api/tasks/create-with-ai/stream': {
-      id: '/api/tasks/create-with-ai/stream'
-      path: '/create-with-ai/stream'
-      fullPath: '/api/tasks/create-with-ai/stream'
-      preLoaderRoute: typeof ApiTasksCreateWithAiStreamRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/start': {
-      id: '/api/tasks/create-with-ai/start'
-      path: '/create-with-ai/start'
-      fullPath: '/api/tasks/create-with-ai/start'
-      preLoaderRoute: typeof ApiTasksCreateWithAiStartRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/skip': {
-      id: '/api/tasks/create-with-ai/skip'
-      path: '/create-with-ai/skip'
-      fullPath: '/api/tasks/create-with-ai/skip'
-      preLoaderRoute: typeof ApiTasksCreateWithAiSkipRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/message': {
-      id: '/api/tasks/create-with-ai/message'
-      path: '/create-with-ai/message'
-      fullPath: '/api/tasks/create-with-ai/message'
-      preLoaderRoute: typeof ApiTasksCreateWithAiMessageRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/cancel': {
-      id: '/api/tasks/create-with-ai/cancel'
-      path: '/create-with-ai/cancel'
-      fullPath: '/api/tasks/create-with-ai/cancel'
-      preLoaderRoute: typeof ApiTasksCreateWithAiCancelRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/answer': {
-      id: '/api/tasks/create-with-ai/answer'
-      path: '/create-with-ai/answer'
-      fullPath: '/api/tasks/create-with-ai/answer'
-      preLoaderRoute: typeof ApiTasksCreateWithAiAnswerRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/create-with-ai/accept': {
-      id: '/api/tasks/create-with-ai/accept'
-      path: '/create-with-ai/accept'
-      fullPath: '/api/tasks/create-with-ai/accept'
-      preLoaderRoute: typeof ApiTasksCreateWithAiAcceptRouteImport
-      parentRoute: typeof ApiTasksRoute
-    }
-    '/api/tasks/$id/reject': {
-      id: '/api/tasks/$id/reject'
-      path: '/reject'
-      fullPath: '/api/tasks/$id/reject'
-      preLoaderRoute: typeof ApiTasksIdRejectRouteImport
-      parentRoute: typeof ApiTasksIdRoute
-    }
-    '/api/tasks/$id/move': {
-      id: '/api/tasks/$id/move'
-      path: '/move'
-      fullPath: '/api/tasks/$id/move'
-      preLoaderRoute: typeof ApiTasksIdMoveRouteImport
-      parentRoute: typeof ApiTasksIdRoute
-    }
-    '/api/tasks/$id/approve': {
-      id: '/api/tasks/$id/approve'
-      path: '/approve'
-      fullPath: '/api/tasks/$id/approve'
-      preLoaderRoute: typeof ApiTasksIdApproveRouteImport
-      parentRoute: typeof ApiTasksIdRoute
-    }
-    '/api/streams/$streamId/subscribe': {
-      id: '/api/streams/$streamId/subscribe'
-      path: '/subscribe'
-      fullPath: '/api/streams/$streamId/subscribe'
-      preLoaderRoute: typeof ApiStreamsStreamIdSubscribeRouteImport
-      parentRoute: typeof ApiStreamsStreamIdRoute
-    }
-    '/api/sessions/$id/summary': {
-      id: '/api/sessions/$id/summary'
-      path: '/summary'
-      fullPath: '/api/sessions/$id/summary'
-      preLoaderRoute: typeof ApiSessionsIdSummaryRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/stream': {
-      id: '/api/sessions/$id/stream'
-      path: '/stream'
-      fullPath: '/api/sessions/$id/stream'
-      preLoaderRoute: typeof ApiSessionsIdStreamRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/presence': {
-      id: '/api/sessions/$id/presence'
-      path: '/presence'
-      fullPath: '/api/sessions/$id/presence'
-      preLoaderRoute: typeof ApiSessionsIdPresenceRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/history': {
-      id: '/api/sessions/$id/history'
-      path: '/history'
-      fullPath: '/api/sessions/$id/history'
-      preLoaderRoute: typeof ApiSessionsIdHistoryRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/export': {
-      id: '/api/sessions/$id/export'
-      path: '/export'
-      fullPath: '/api/sessions/$id/export'
-      preLoaderRoute: typeof ApiSessionsIdExportRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/events': {
-      id: '/api/sessions/$id/events'
-      path: '/events'
-      fullPath: '/api/sessions/$id/events'
-      preLoaderRoute: typeof ApiSessionsIdEventsRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sessions/$id/close': {
-      id: '/api/sessions/$id/close'
-      path: '/close'
-      fullPath: '/api/sessions/$id/close'
-      preLoaderRoute: typeof ApiSessionsIdCloseRouteImport
-      parentRoute: typeof ApiSessionsIdRoute
-    }
-    '/api/sandbox/k8s/status': {
-      id: '/api/sandbox/k8s/status'
-      path: '/api/sandbox/k8s/status'
-      fullPath: '/api/sandbox/k8s/status'
-      preLoaderRoute: typeof ApiSandboxK8sStatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/sandbox/k8s/namespaces': {
-      id: '/api/sandbox/k8s/namespaces'
-      path: '/api/sandbox/k8s/namespaces'
-      fullPath: '/api/sandbox/k8s/namespaces'
-      preLoaderRoute: typeof ApiSandboxK8sNamespacesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/sandbox/k8s/contexts': {
-      id: '/api/sandbox/k8s/contexts'
-      path: '/api/sandbox/k8s/contexts'
-      fullPath: '/api/sandbox/k8s/contexts'
-      preLoaderRoute: typeof ApiSandboxK8sContextsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/plans/$taskId/stream': {
-      id: '/api/plans/$taskId/stream'
-      path: '/stream'
-      fullPath: '/api/plans/$taskId/stream'
-      preLoaderRoute: typeof ApiPlansTaskIdStreamRouteImport
-      parentRoute: typeof ApiPlansTaskIdRoute
-    }
-    '/api/plans/$taskId/start': {
-      id: '/api/plans/$taskId/start'
-      path: '/start'
-      fullPath: '/api/plans/$taskId/start'
-      preLoaderRoute: typeof ApiPlansTaskIdStartRouteImport
-      parentRoute: typeof ApiPlansTaskIdRoute
-    }
-    '/api/plans/$taskId/message': {
-      id: '/api/plans/$taskId/message'
-      path: '/message'
-      fullPath: '/api/plans/$taskId/message'
-      preLoaderRoute: typeof ApiPlansTaskIdMessageRouteImport
-      parentRoute: typeof ApiPlansTaskIdRoute
-    }
-    '/api/plans/$taskId/cancel': {
-      id: '/api/plans/$taskId/cancel'
-      path: '/cancel'
-      fullPath: '/api/plans/$taskId/cancel'
-      preLoaderRoute: typeof ApiPlansTaskIdCancelRouteImport
-      parentRoute: typeof ApiPlansTaskIdRoute
-    }
-    '/api/plans/$taskId/answer': {
-      id: '/api/plans/$taskId/answer'
-      path: '/answer'
-      fullPath: '/api/plans/$taskId/answer'
-      preLoaderRoute: typeof ApiPlansTaskIdAnswerRouteImport
-      parentRoute: typeof ApiPlansTaskIdRoute
-    }
-    '/api/agents/$id/stop': {
-      id: '/api/agents/$id/stop'
-      path: '/stop'
-      fullPath: '/api/agents/$id/stop'
-      preLoaderRoute: typeof ApiAgentsIdStopRouteImport
-      parentRoute: typeof ApiAgentsIdRoute
-    }
-    '/api/agents/$id/status': {
-      id: '/api/agents/$id/status'
-      path: '/status'
-      fullPath: '/api/agents/$id/status'
-      preLoaderRoute: typeof ApiAgentsIdStatusRouteImport
-      parentRoute: typeof ApiAgentsIdRoute
-    }
-    '/api/agents/$id/start': {
-      id: '/api/agents/$id/start'
-      path: '/start'
-      fullPath: '/api/agents/$id/start'
-      preLoaderRoute: typeof ApiAgentsIdStartRouteImport
-      parentRoute: typeof ApiAgentsIdRoute
-    }
-    '/api/agents/$id/resume': {
-      id: '/api/agents/$id/resume'
-      path: '/resume'
-      fullPath: '/api/agents/$id/resume'
-      preLoaderRoute: typeof ApiAgentsIdResumeRouteImport
-      parentRoute: typeof ApiAgentsIdRoute
-    }
-    '/api/agents/$id/pause': {
-      id: '/api/agents/$id/pause'
-      path: '/pause'
-      fullPath: '/api/agents/$id/pause'
-      preLoaderRoute: typeof ApiAgentsIdPauseRouteImport
-      parentRoute: typeof ApiAgentsIdRoute
     }
   }
 }
@@ -1788,223 +657,10 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
   SettingsRouteChildren,
 )
 
-interface ApiAgentsIdRouteChildren {
-  ApiAgentsIdPauseRoute: typeof ApiAgentsIdPauseRoute
-  ApiAgentsIdResumeRoute: typeof ApiAgentsIdResumeRoute
-  ApiAgentsIdStartRoute: typeof ApiAgentsIdStartRoute
-  ApiAgentsIdStatusRoute: typeof ApiAgentsIdStatusRoute
-  ApiAgentsIdStopRoute: typeof ApiAgentsIdStopRoute
-}
-
-const ApiAgentsIdRouteChildren: ApiAgentsIdRouteChildren = {
-  ApiAgentsIdPauseRoute: ApiAgentsIdPauseRoute,
-  ApiAgentsIdResumeRoute: ApiAgentsIdResumeRoute,
-  ApiAgentsIdStartRoute: ApiAgentsIdStartRoute,
-  ApiAgentsIdStatusRoute: ApiAgentsIdStatusRoute,
-  ApiAgentsIdStopRoute: ApiAgentsIdStopRoute,
-}
-
-const ApiAgentsIdRouteWithChildren = ApiAgentsIdRoute._addFileChildren(
-  ApiAgentsIdRouteChildren,
-)
-
-interface ApiAgentsRouteChildren {
-  ApiAgentsIdRoute: typeof ApiAgentsIdRouteWithChildren
-}
-
-const ApiAgentsRouteChildren: ApiAgentsRouteChildren = {
-  ApiAgentsIdRoute: ApiAgentsIdRouteWithChildren,
-}
-
-const ApiAgentsRouteWithChildren = ApiAgentsRoute._addFileChildren(
-  ApiAgentsRouteChildren,
-)
-
-interface ApiProjectsRouteChildren {
-  ApiProjectsIdRoute: typeof ApiProjectsIdRoute
-}
-
-const ApiProjectsRouteChildren: ApiProjectsRouteChildren = {
-  ApiProjectsIdRoute: ApiProjectsIdRoute,
-}
-
-const ApiProjectsRouteWithChildren = ApiProjectsRoute._addFileChildren(
-  ApiProjectsRouteChildren,
-)
-
-interface ApiSessionsIdRouteChildren {
-  ApiSessionsIdCloseRoute: typeof ApiSessionsIdCloseRoute
-  ApiSessionsIdEventsRoute: typeof ApiSessionsIdEventsRoute
-  ApiSessionsIdExportRoute: typeof ApiSessionsIdExportRoute
-  ApiSessionsIdHistoryRoute: typeof ApiSessionsIdHistoryRoute
-  ApiSessionsIdPresenceRoute: typeof ApiSessionsIdPresenceRoute
-  ApiSessionsIdStreamRoute: typeof ApiSessionsIdStreamRoute
-  ApiSessionsIdSummaryRoute: typeof ApiSessionsIdSummaryRoute
-}
-
-const ApiSessionsIdRouteChildren: ApiSessionsIdRouteChildren = {
-  ApiSessionsIdCloseRoute: ApiSessionsIdCloseRoute,
-  ApiSessionsIdEventsRoute: ApiSessionsIdEventsRoute,
-  ApiSessionsIdExportRoute: ApiSessionsIdExportRoute,
-  ApiSessionsIdHistoryRoute: ApiSessionsIdHistoryRoute,
-  ApiSessionsIdPresenceRoute: ApiSessionsIdPresenceRoute,
-  ApiSessionsIdStreamRoute: ApiSessionsIdStreamRoute,
-  ApiSessionsIdSummaryRoute: ApiSessionsIdSummaryRoute,
-}
-
-const ApiSessionsIdRouteWithChildren = ApiSessionsIdRoute._addFileChildren(
-  ApiSessionsIdRouteChildren,
-)
-
-interface ApiSessionsRouteChildren {
-  ApiSessionsIdRoute: typeof ApiSessionsIdRouteWithChildren
-}
-
-const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
-  ApiSessionsIdRoute: ApiSessionsIdRouteWithChildren,
-}
-
-const ApiSessionsRouteWithChildren = ApiSessionsRoute._addFileChildren(
-  ApiSessionsRouteChildren,
-)
-
-interface ApiTasksIdRouteChildren {
-  ApiTasksIdApproveRoute: typeof ApiTasksIdApproveRoute
-  ApiTasksIdMoveRoute: typeof ApiTasksIdMoveRoute
-  ApiTasksIdRejectRoute: typeof ApiTasksIdRejectRoute
-}
-
-const ApiTasksIdRouteChildren: ApiTasksIdRouteChildren = {
-  ApiTasksIdApproveRoute: ApiTasksIdApproveRoute,
-  ApiTasksIdMoveRoute: ApiTasksIdMoveRoute,
-  ApiTasksIdRejectRoute: ApiTasksIdRejectRoute,
-}
-
-const ApiTasksIdRouteWithChildren = ApiTasksIdRoute._addFileChildren(
-  ApiTasksIdRouteChildren,
-)
-
-interface ApiTasksRouteChildren {
-  ApiTasksIdRoute: typeof ApiTasksIdRouteWithChildren
-  ApiTasksCreateWithAiAcceptRoute: typeof ApiTasksCreateWithAiAcceptRoute
-  ApiTasksCreateWithAiAnswerRoute: typeof ApiTasksCreateWithAiAnswerRoute
-  ApiTasksCreateWithAiCancelRoute: typeof ApiTasksCreateWithAiCancelRoute
-  ApiTasksCreateWithAiMessageRoute: typeof ApiTasksCreateWithAiMessageRoute
-  ApiTasksCreateWithAiSkipRoute: typeof ApiTasksCreateWithAiSkipRoute
-  ApiTasksCreateWithAiStartRoute: typeof ApiTasksCreateWithAiStartRoute
-  ApiTasksCreateWithAiStreamRoute: typeof ApiTasksCreateWithAiStreamRoute
-}
-
-const ApiTasksRouteChildren: ApiTasksRouteChildren = {
-  ApiTasksIdRoute: ApiTasksIdRouteWithChildren,
-  ApiTasksCreateWithAiAcceptRoute: ApiTasksCreateWithAiAcceptRoute,
-  ApiTasksCreateWithAiAnswerRoute: ApiTasksCreateWithAiAnswerRoute,
-  ApiTasksCreateWithAiCancelRoute: ApiTasksCreateWithAiCancelRoute,
-  ApiTasksCreateWithAiMessageRoute: ApiTasksCreateWithAiMessageRoute,
-  ApiTasksCreateWithAiSkipRoute: ApiTasksCreateWithAiSkipRoute,
-  ApiTasksCreateWithAiStartRoute: ApiTasksCreateWithAiStartRoute,
-  ApiTasksCreateWithAiStreamRoute: ApiTasksCreateWithAiStreamRoute,
-}
-
-const ApiTasksRouteWithChildren = ApiTasksRoute._addFileChildren(
-  ApiTasksRouteChildren,
-)
-
-interface ApiTemplatesIdRouteChildren {
-  ApiTemplatesIdSyncRoute: typeof ApiTemplatesIdSyncRoute
-}
-
-const ApiTemplatesIdRouteChildren: ApiTemplatesIdRouteChildren = {
-  ApiTemplatesIdSyncRoute: ApiTemplatesIdSyncRoute,
-}
-
-const ApiTemplatesIdRouteWithChildren = ApiTemplatesIdRoute._addFileChildren(
-  ApiTemplatesIdRouteChildren,
-)
-
-interface ApiTemplatesRouteChildren {
-  ApiTemplatesIdRoute: typeof ApiTemplatesIdRouteWithChildren
-}
-
-const ApiTemplatesRouteChildren: ApiTemplatesRouteChildren = {
-  ApiTemplatesIdRoute: ApiTemplatesIdRouteWithChildren,
-}
-
-const ApiTemplatesRouteWithChildren = ApiTemplatesRoute._addFileChildren(
-  ApiTemplatesRouteChildren,
-)
-
-interface ApiWorkflowsRouteChildren {
-  ApiWorkflowsIdRoute: typeof ApiWorkflowsIdRoute
-}
-
-const ApiWorkflowsRouteChildren: ApiWorkflowsRouteChildren = {
-  ApiWorkflowsIdRoute: ApiWorkflowsIdRoute,
-}
-
-const ApiWorkflowsRouteWithChildren = ApiWorkflowsRoute._addFileChildren(
-  ApiWorkflowsRouteChildren,
-)
-
-interface ApiPlansTaskIdRouteChildren {
-  ApiPlansTaskIdAnswerRoute: typeof ApiPlansTaskIdAnswerRoute
-  ApiPlansTaskIdCancelRoute: typeof ApiPlansTaskIdCancelRoute
-  ApiPlansTaskIdMessageRoute: typeof ApiPlansTaskIdMessageRoute
-  ApiPlansTaskIdStartRoute: typeof ApiPlansTaskIdStartRoute
-  ApiPlansTaskIdStreamRoute: typeof ApiPlansTaskIdStreamRoute
-}
-
-const ApiPlansTaskIdRouteChildren: ApiPlansTaskIdRouteChildren = {
-  ApiPlansTaskIdAnswerRoute: ApiPlansTaskIdAnswerRoute,
-  ApiPlansTaskIdCancelRoute: ApiPlansTaskIdCancelRoute,
-  ApiPlansTaskIdMessageRoute: ApiPlansTaskIdMessageRoute,
-  ApiPlansTaskIdStartRoute: ApiPlansTaskIdStartRoute,
-  ApiPlansTaskIdStreamRoute: ApiPlansTaskIdStreamRoute,
-}
-
-const ApiPlansTaskIdRouteWithChildren = ApiPlansTaskIdRoute._addFileChildren(
-  ApiPlansTaskIdRouteChildren,
-)
-
-interface ApiStreamsStreamIdRouteChildren {
-  ApiStreamsStreamIdSubscribeRoute: typeof ApiStreamsStreamIdSubscribeRoute
-}
-
-const ApiStreamsStreamIdRouteChildren: ApiStreamsStreamIdRouteChildren = {
-  ApiStreamsStreamIdSubscribeRoute: ApiStreamsStreamIdSubscribeRoute,
-}
-
-const ApiStreamsStreamIdRouteWithChildren =
-  ApiStreamsStreamIdRoute._addFileChildren(ApiStreamsStreamIdRouteChildren)
-
-interface ApiWorktreesIdRouteChildren {
-  ApiWorktreesIdCommitRoute: typeof ApiWorktreesIdCommitRoute
-  ApiWorktreesIdDiffRoute: typeof ApiWorktreesIdDiffRoute
-  ApiWorktreesIdMergeRoute: typeof ApiWorktreesIdMergeRoute
-}
-
-const ApiWorktreesIdRouteChildren: ApiWorktreesIdRouteChildren = {
-  ApiWorktreesIdCommitRoute: ApiWorktreesIdCommitRoute,
-  ApiWorktreesIdDiffRoute: ApiWorktreesIdDiffRoute,
-  ApiWorktreesIdMergeRoute: ApiWorktreesIdMergeRoute,
-}
-
-const ApiWorktreesIdRouteWithChildren = ApiWorktreesIdRoute._addFileChildren(
-  ApiWorktreesIdRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRouteWithChildren,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
-  ApiAgentsRoute: ApiAgentsRouteWithChildren,
-  ApiGithubRoute: ApiGithubRoute,
-  ApiProjectsRoute: ApiProjectsRouteWithChildren,
-  ApiSessionsRoute: ApiSessionsRouteWithChildren,
-  ApiSettingsRoute: ApiSettingsRoute,
-  ApiTasksRoute: ApiTasksRouteWithChildren,
-  ApiTemplatesRoute: ApiTemplatesRouteWithChildren,
-  ApiWorkflowsRoute: ApiWorkflowsRouteWithChildren,
   CatalogWorkflowIdRoute: CatalogWorkflowIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRoute,
   TemplatesOrgRoute: TemplatesOrgRoute,
@@ -2017,22 +673,10 @@ const rootRouteChildren: RootRouteChildren = {
   QueueIndexRoute: QueueIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
   WorktreesIndexRoute: WorktreesIndexRoute,
-  ApiPlansTaskIdRoute: ApiPlansTaskIdRouteWithChildren,
-  ApiStreamsStreamIdRoute: ApiStreamsStreamIdRouteWithChildren,
-  ApiWebhooksGithubRoute: ApiWebhooksGithubRoute,
-  ApiWorkflowDesignerAnalyzeRoute: ApiWorkflowDesignerAnalyzeRoute,
-  ApiWorktreesIdRoute: ApiWorktreesIdRouteWithChildren,
-  ApiWorktreesPruneRoute: ApiWorktreesPruneRoute,
   ProjectsProjectIdGitRoute: ProjectsProjectIdGitRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
   ProjectsProjectIdWorktreesRoute: ProjectsProjectIdWorktreesRoute,
-  ApiModelsIndexRoute: ApiModelsIndexRoute,
-  ApiStreamsIndexRoute: ApiStreamsIndexRoute,
-  ApiWorktreesIndexRoute: ApiWorktreesIndexRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
-  ApiSandboxK8sContextsRoute: ApiSandboxK8sContextsRoute,
-  ApiSandboxK8sNamespacesRoute: ApiSandboxK8sNamespacesRoute,
-  ApiSandboxK8sStatusRoute: ApiSandboxK8sStatusRoute,
   ProjectsProjectIdTasksTaskIdRoute: ProjectsProjectIdTasksTaskIdRoute,
 }
 export const routeTree = rootRouteImport
