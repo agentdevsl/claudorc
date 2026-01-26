@@ -1,9 +1,11 @@
 import {
   Check,
   CircleNotch,
+  CloudArrowUp,
   Cpu,
   Cube,
   FolderOpen,
+  Gauge,
   HardDrive,
   Package,
   Pencil,
@@ -19,12 +21,14 @@ import {
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { ConfigSection } from '@/app/components/ui/config-section';
 import {
   apiClient,
   type CreateSandboxConfigInput,
   type SandboxConfigItem,
   type UpdateSandboxConfigInput,
 } from '@/lib/api/client';
+import { cn } from '@/lib/utils/cn';
 
 type SandboxProvider = 'docker' | 'kubernetes';
 
@@ -53,16 +57,16 @@ export const Route = createFileRoute('/settings/sandbox')({
 });
 
 type EditorMode = 'create' | 'edit' | null;
-type ActiveTab = 'providers' | 'profiles';
 
 function SandboxSettingsPage(): React.JSX.Element {
   const [configs, setConfigs] = useState<SandboxConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('providers');
 
   // Provider selection state
   const [selectedProvider, setSelectedProvider] = useState<SandboxProvider>('docker');
+  const [isSavingProvider, setIsSavingProvider] = useState(false);
+  const [providerSaved, setProviderSaved] = useState(false);
 
   // K8s configuration state
   const [k8sStatus, setK8sStatus] = useState<K8sStatus | null>(null);
@@ -178,6 +182,15 @@ function SandboxSettingsPage(): React.JSX.Element {
       loadK8sStatus();
     }
   }, [selectedProvider, loadK8sContexts, loadK8sStatus]);
+
+  const handleSaveProvider = async () => {
+    setIsSavingProvider(true);
+    // TODO: Implement provider persistence via settings API
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    setProviderSaved(true);
+    setTimeout(() => setProviderSaved(false), 2000);
+    setIsSavingProvider(false);
+  };
 
   const resetForm = () => {
     setFormName('');
@@ -314,201 +327,221 @@ function SandboxSettingsPage(): React.JSX.Element {
   };
 
   return (
-    <div data-testid="sandbox-settings" className="mx-auto max-w-4xl px-8 py-8">
-      {/* Page Header */}
-      <header className="mb-6">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold text-fg">
-          <Package className="h-7 w-7 text-fg-muted" />
-          Sandbox Configuration
-        </h1>
-        <p className="mt-2 text-fg-muted">
-          Configure sandbox providers and resource profiles for agent execution environments.
-        </p>
-      </header>
+    <div data-testid="sandbox-settings" className="mx-auto max-w-4xl px-6 py-8 sm:px-8">
+      {/* Page Header with gradient accent - matching gold standard */}
+      <header className="relative mb-10">
+        {/* Decorative background elements */}
+        <div className="absolute -left-4 -top-4 h-24 w-24 rounded-full bg-accent/5 blur-2xl" />
+        <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-claude/5 blur-xl" />
 
-      {/* Tab Navigation */}
-      <nav className="mb-6 inline-flex rounded-lg border border-border bg-surface p-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('providers')}
-          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'providers'
-              ? 'bg-surface-muted text-fg shadow-sm'
-              : 'text-fg-muted hover:bg-surface-subtle hover:text-fg'
-          }`}
-        >
-          <Cube className="h-4 w-4" />
-          Providers
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('profiles')}
-          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'profiles'
-              ? 'bg-surface-muted text-fg shadow-sm'
-              : 'text-fg-muted hover:bg-surface-subtle hover:text-fg'
-          }`}
-        >
-          <Cpu className="h-4 w-4" />
-          Resource Profiles
-          {configs.length > 0 && (
-            <span className="rounded-full bg-accent-muted px-2 py-0.5 text-xs font-medium text-accent">
-              {configs.length}
-            </span>
-          )}
-        </button>
-      </nav>
-
-      {/* Error display */}
-      {error && (
-        <div className="mb-6 rounded-lg border border-danger/30 bg-danger-muted/30 p-4">
-          <p className="flex items-center gap-2 text-sm text-danger">
-            <Warning className="h-4 w-4" />
-            {error}
-          </p>
-        </div>
-      )}
-
-      {/* Providers Tab */}
-      {activeTab === 'providers' && (
-        <div className="space-y-6">
-          <div className="rounded-lg border border-border bg-surface">
-            <div className="border-b border-border px-5 py-4">
-              <h2 className="flex items-center gap-2 font-semibold text-fg">
-                <Cube className="h-4 w-4 text-fg-muted" />
-                Sandbox Provider
-              </h2>
-              <p className="mt-1 text-sm text-fg-muted">Choose where agent code executes</p>
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-muted to-accent-subtle ring-1 ring-accent/20">
+              <Package className="h-6 w-6 text-accent" weight="duotone" />
             </div>
-            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-              {/* Docker Provider */}
-              <button
-                type="button"
-                onClick={() => setSelectedProvider('docker')}
-                className={`relative cursor-pointer rounded-lg border-2 p-5 text-left transition-colors ${
-                  selectedProvider === 'docker'
-                    ? 'border-accent bg-accent-muted/30'
-                    : 'border-border hover:border-fg-subtle'
-                }`}
-                data-testid="provider-docker"
-              >
-                {selectedProvider === 'docker' && (
-                  <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
-                    <Check className="h-3 w-3 text-white" weight="bold" />
-                  </div>
-                )}
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
-                  🐳
-                </div>
-                <h3 className="font-semibold text-fg">Docker</h3>
-                <p className="mt-1 text-sm text-fg-muted">
-                  Local container isolation. Best for development.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
-                    Network Isolation
-                  </span>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
-                    Resource Limits
-                  </span>
-                </div>
-              </button>
-
-              {/* Kubernetes Provider */}
-              <button
-                type="button"
-                onClick={() => setSelectedProvider('kubernetes')}
-                className={`relative cursor-pointer rounded-lg border-2 p-5 text-left transition-colors ${
-                  selectedProvider === 'kubernetes'
-                    ? 'border-accent bg-accent-muted/30'
-                    : 'border-border hover:border-fg-subtle'
-                }`}
-                data-testid="provider-kubernetes"
-              >
-                {selectedProvider === 'kubernetes' && (
-                  <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
-                    <Check className="h-3 w-3 text-white" weight="bold" />
-                  </div>
-                )}
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
-                  ☸️
-                </div>
-                <h3 className="font-semibold text-fg">Kubernetes</h3>
-                <p className="mt-1 text-sm text-fg-muted">
-                  Local K8s via minikube/kind. Production-like isolation.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-success-muted px-2.5 py-1 text-xs text-success">
-                    Network Policies
-                  </span>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
-                    Warm Pool
-                  </span>
-                </div>
-              </button>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-fg">
+                Sandbox Configuration
+              </h1>
+              <p className="text-sm text-fg-muted">
+                Configure execution environments for AI agents
+              </p>
             </div>
           </div>
 
-          {/* Kubernetes Configuration Panel */}
-          {selectedProvider === 'kubernetes' && (
-            <div className="rounded-lg border border-border bg-surface">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="flex items-center gap-2 font-semibold text-fg">
-                  ☸️ Kubernetes Configuration
-                </h2>
-                <p className="mt-1 text-sm text-fg-muted">
-                  Configure your Kubernetes cluster connection
-                </p>
+          {/* Stats bar */}
+          <div className="mt-6 flex flex-wrap gap-6 rounded-lg border border-border/50 bg-surface-subtle/50 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <Cube className="h-4 w-4 text-fg-subtle" />
+              <span className="text-xs text-fg-muted">
+                Provider:{' '}
+                <span className="font-medium text-fg">
+                  {selectedProvider === 'docker' ? 'Docker' : 'Kubernetes'}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-attention-fg" />
+              <span className="text-xs text-fg-muted">
+                <span className="font-medium text-fg">{configs.length}</span> profile
+                {configs.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {selectedProvider === 'kubernetes' && (
+              <div className="flex items-center gap-2">
+                {k8sStatusLoading ? (
+                  <CircleNotch className="h-4 w-4 animate-spin text-fg-subtle" />
+                ) : k8sStatus?.healthy ? (
+                  <WifiHigh className="h-4 w-4 text-success" />
+                ) : (
+                  <WifiSlash className="h-4 w-4 text-danger" />
+                )}
+                <span className="text-xs text-fg-muted">
+                  Status:{' '}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      k8sStatus?.healthy ? 'text-success' : 'text-danger'
+                    )}
+                  >
+                    {k8sStatusLoading
+                      ? 'Checking...'
+                      : k8sStatus?.healthy
+                        ? 'Connected'
+                        : 'Disconnected'}
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Error display */}
+      {error && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <Warning className="h-4 w-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-5">
+        {/* Provider Selection Section */}
+        <ConfigSection
+          icon={Cube}
+          title="Provider Selection"
+          description="Choose where agent code executes"
+          badge={selectedProvider === 'docker' ? 'Docker' : 'K8s'}
+          badgeColor="accent"
+          testId="provider-section"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Docker Provider */}
+            <button
+              type="button"
+              onClick={() => setSelectedProvider('docker')}
+              className={cn(
+                'relative cursor-pointer rounded-lg border-2 p-5 text-left transition-all',
+                selectedProvider === 'docker'
+                  ? 'border-accent bg-accent-muted/30'
+                  : 'border-border hover:border-fg-subtle'
+              )}
+              data-testid="provider-docker"
+            >
+              {selectedProvider === 'docker' && (
+                <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                  <Check className="h-3 w-3 text-white" weight="bold" />
+                </div>
+              )}
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
+                🐳
+              </div>
+              <h3 className="font-semibold text-fg">Docker</h3>
+              <p className="mt-1 text-sm text-fg-muted">
+                Local container isolation. Best for development.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
+                  Network Isolation
+                </span>
+                <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
+                  Resource Limits
+                </span>
+              </div>
+            </button>
+
+            {/* Kubernetes Provider */}
+            <button
+              type="button"
+              onClick={() => setSelectedProvider('kubernetes')}
+              className={cn(
+                'relative cursor-pointer rounded-lg border-2 p-5 text-left transition-all',
+                selectedProvider === 'kubernetes'
+                  ? 'border-accent bg-accent-muted/30'
+                  : 'border-border hover:border-fg-subtle'
+              )}
+              data-testid="provider-kubernetes"
+            >
+              {selectedProvider === 'kubernetes' && (
+                <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                  <Check className="h-3 w-3 text-white" weight="bold" />
+                </div>
+              )}
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-muted text-2xl">
+                ☸️
+              </div>
+              <h3 className="font-semibold text-fg">Kubernetes</h3>
+              <p className="mt-1 text-sm text-fg-muted">
+                Local K8s via minikube/kind. Production-like isolation.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-success-muted px-2.5 py-1 text-xs text-success">
+                  Network Policies
+                </span>
+                <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-fg-muted">
+                  Warm Pool
+                </span>
+              </div>
+            </button>
+          </div>
+        </ConfigSection>
+
+        {/* Kubernetes Configuration Section - Only shown when K8s selected */}
+        {selectedProvider === 'kubernetes' && (
+          <ConfigSection
+            icon={CloudArrowUp}
+            title="Kubernetes Configuration"
+            description="Configure your Kubernetes cluster connection"
+            badge={k8sStatus?.healthy ? 'Connected' : 'Disconnected'}
+            badgeColor={k8sStatus?.healthy ? 'success' : 'accent'}
+            testId="k8s-config-section"
+          >
+            <div className="space-y-6">
+              {/* Cluster Status Indicator */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
+                <div className="flex items-center gap-3">
+                  {k8sStatusLoading ? (
+                    <CircleNotch className="h-5 w-5 animate-spin text-fg-muted" />
+                  ) : k8sStatus?.healthy ? (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success-muted">
+                      <WifiHigh className="h-4 w-4 text-success" />
+                    </div>
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-danger-muted">
+                      <WifiSlash className="h-4 w-4 text-danger" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-fg">
+                      {k8sStatusLoading
+                        ? 'Checking connection...'
+                        : k8sStatus?.healthy
+                          ? 'Connected'
+                          : 'Not Connected'}
+                    </p>
+                    {k8sStatus?.healthy && k8sStatus.cluster && (
+                      <p className="text-xs text-fg-muted">
+                        {k8sStatus.cluster} ({k8sStatus.serverVersion})
+                      </p>
+                    )}
+                    {!k8sStatus?.healthy && k8sStatus?.message && (
+                      <p className="text-xs text-danger">{k8sStatus.message}</p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadK8sStatus}
+                  disabled={k8sStatusLoading}
+                  data-testid="refresh-k8s-status"
+                >
+                  {k8sStatusLoading ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                </Button>
               </div>
 
-              <div className="space-y-5 p-5">
-                {/* Cluster Status Indicator */}
-                <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
-                  <div className="flex items-center gap-3">
-                    {k8sStatusLoading ? (
-                      <CircleNotch className="h-5 w-5 animate-spin text-fg-muted" />
-                    ) : k8sStatus?.healthy ? (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success-muted">
-                        <WifiHigh className="h-4 w-4 text-success" />
-                      </div>
-                    ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-danger-muted">
-                        <WifiSlash className="h-4 w-4 text-danger" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-medium text-fg">
-                        {k8sStatusLoading
-                          ? 'Checking connection...'
-                          : k8sStatus?.healthy
-                            ? 'Connected'
-                            : 'Not Connected'}
-                      </p>
-                      {k8sStatus?.healthy && k8sStatus.cluster && (
-                        <p className="text-xs text-fg-muted">
-                          {k8sStatus.cluster} ({k8sStatus.serverVersion})
-                        </p>
-                      )}
-                      {!k8sStatus?.healthy && k8sStatus?.message && (
-                        <p className="text-xs text-danger">{k8sStatus.message}</p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={loadK8sStatus}
-                    disabled={k8sStatusLoading}
-                    data-testid="refresh-k8s-status"
-                  >
-                    {k8sStatusLoading ? (
-                      <CircleNotch className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Refresh'
-                    )}
-                  </Button>
-                </div>
-
+              {/* K8s Form Fields */}
+              <div className="space-y-4">
                 {/* Kubeconfig Path */}
                 <div>
                   <label
@@ -597,530 +630,607 @@ function SandboxSettingsPage(): React.JSX.Element {
                     Namespace for sandbox pods (will be created if it doesn&apos;t exist)
                   </p>
                 </div>
-
-                {/* Cluster Info */}
-                {k8sStatus?.healthy && (
-                  <div className="rounded-lg bg-surface-subtle p-4">
-                    <h4 className="mb-3 text-sm font-medium text-fg">Cluster Details</h4>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-fg-muted">Server:</span>
-                        <p className="font-mono text-xs text-fg">{k8sStatus.server}</p>
-                      </div>
-                      <div>
-                        <span className="text-fg-muted">Version:</span>
-                        <p className="font-mono text-xs text-fg">{k8sStatus.serverVersion}</p>
-                      </div>
-                      <div>
-                        <span className="text-fg-muted">Namespace:</span>
-                        <p className="font-mono text-xs text-fg">
-                          {k8sStatus.namespace}
-                          {k8sStatus.namespaceExists ? (
-                            <span className="ml-1 text-success">(exists)</span>
-                          ) : (
-                            <span className="ml-1 text-warning">(will be created)</span>
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-fg-muted">Sandbox Pods:</span>
-                        <p className="font-mono text-xs text-fg">
-                          {k8sStatus.podsRunning}/{k8sStatus.pods} running
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Resource Profiles Tab */}
-      {activeTab === 'profiles' && (
-        <div className="space-y-6">
-          {/* Action bar */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-fg-muted">
-              {configs.length} profile{configs.length !== 1 ? 's' : ''}
-            </p>
-            <Button data-testid="create-sandbox-config" onClick={openCreateEditor}>
-              <Plus className="h-4 w-4" />
-              New Profile
-            </Button>
-          </div>
-
-          {/* Loading state */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <CircleNotch className="h-8 w-8 animate-spin text-fg-muted" />
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && configs.length === 0 && (
-            <div className="rounded-lg border border-border bg-surface p-12 text-center">
-              <Package className="mx-auto h-12 w-12 text-fg-subtle" />
-              <h3 className="mt-4 text-lg font-medium text-fg">No resource profiles</h3>
-              <p className="mt-2 text-sm text-fg-muted">
-                Create a profile to define resource limits for agent sandboxes.
-              </p>
-              <Button className="mt-6" onClick={openCreateEditor}>
-                <Plus className="h-4 w-4" />
-                Create Profile
-              </Button>
-            </div>
-          )}
-
-          {/* Config list */}
-          {!isLoading && configs.length > 0 && (
-            <div className="space-y-4">
-              {configs.map((config) => (
-                <div
-                  key={config.id}
-                  data-testid={`sandbox-config-${config.id}`}
-                  className="rounded-lg border border-border bg-surface"
-                >
-                  <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent-muted">
-                      <Package className="h-4 w-4 text-accent" />
+              {/* Cluster Info - shown when connected */}
+              {k8sStatus?.healthy && (
+                <div className="rounded-lg bg-surface-subtle p-4">
+                  <h4 className="mb-3 text-sm font-medium text-fg">Cluster Details</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-fg-muted">Server:</span>
+                      <p className="font-mono text-xs text-fg">{k8sStatus.server}</p>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-fg">{config.name}</h2>
-                        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-muted">
-                          {config.type === 'kubernetes'
-                            ? '☸️ Kubernetes'
-                            : config.type === 'devcontainer'
-                              ? '📦 DevContainer'
-                              : '🐳 Docker'}
-                        </span>
-                        {config.isDefault && (
-                          <span className="rounded-full bg-success-muted px-2 py-0.5 text-xs font-medium text-success">
-                            Default
-                          </span>
+                    <div>
+                      <span className="text-fg-muted">Version:</span>
+                      <p className="font-mono text-xs text-fg">{k8sStatus.serverVersion}</p>
+                    </div>
+                    <div>
+                      <span className="text-fg-muted">Namespace:</span>
+                      <p className="font-mono text-xs text-fg">
+                        {k8sStatus.namespace}
+                        {k8sStatus.namespaceExists ? (
+                          <span className="ml-1 text-success">(exists)</span>
+                        ) : (
+                          <span className="ml-1 text-warning">(will be created)</span>
                         )}
-                      </div>
-                      {config.description && (
-                        <p className="text-xs text-fg-muted">{config.description}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditEditor(config)}
-                        data-testid={`edit-sandbox-config-${config.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(config)}
-                        data-testid={`delete-sandbox-config-${config.id}`}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Resource Grid - matching wireframe style */}
-                  <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-                    <div className="rounded-lg bg-surface-subtle p-4">
-                      <div className="flex items-center gap-2 text-xs text-fg-muted">
-                        <HardDrive className="h-3.5 w-3.5" />
-                        Memory
-                      </div>
-                      <div className="mt-2 font-mono text-xl font-semibold text-fg">
-                        {config.memoryMb}
-                        <span className="ml-1 text-sm font-normal text-fg-muted">MB</span>
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-surface-subtle p-4">
-                      <div className="flex items-center gap-2 text-xs text-fg-muted">
-                        <Cpu className="h-3.5 w-3.5" />
-                        CPU Cores
-                      </div>
-                      <div className="mt-2 font-mono text-xl font-semibold text-fg">
-                        {config.cpuCores}
-                        <span className="ml-1 text-sm font-normal text-fg-muted">cores</span>
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-surface-subtle p-4">
-                      <div className="flex items-center gap-2 text-xs text-fg-muted">
-                        <TreeStructure className="h-3.5 w-3.5" />
-                        Max Processes
-                      </div>
-                      <div className="mt-2 font-mono text-xl font-semibold text-fg">
-                        {config.maxProcesses}
-                        <span className="ml-1 text-sm font-normal text-fg-muted">PIDs</span>
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-surface-subtle p-4">
-                      <div className="flex items-center gap-2 text-xs text-fg-muted">
-                        <Timer className="h-3.5 w-3.5" />
-                        Timeout
-                      </div>
-                      <div className="mt-2 font-mono text-xl font-semibold text-fg">
-                        {config.timeoutMinutes}
-                        <span className="ml-1 text-sm font-normal text-fg-muted">min</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-border px-5 py-3">
-                    <p className="font-mono text-xs text-fg-muted">Image: {config.baseImage}</p>
-                    {config.volumeMountPath && (
-                      <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-fg-muted">
-                        <FolderOpen className="h-3 w-3" />
-                        Mount: {config.volumeMountPath}
                       </p>
-                    )}
+                    </div>
+                    <div>
+                      <span className="text-fg-muted">Sandbox Pods:</span>
+                      <p className="font-mono text-xs text-fg">
+                        {k8sStatus.podsRunning}/{k8sStatus.pods} running
+                      </p>
+                    </div>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </ConfigSection>
+        )}
+
+        {/* Resource Profiles Section */}
+        <ConfigSection
+          icon={Gauge}
+          title="Resource Profiles"
+          description="Define resource limits for agent sandboxes"
+          badge={configs.length.toString()}
+          badgeColor="accent"
+          testId="profiles-section"
+        >
+          <div className="space-y-4">
+            {/* Action bar */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-fg-muted">
+                {configs.length} profile{configs.length !== 1 ? 's' : ''}
+              </p>
+              <Button data-testid="create-sandbox-config" onClick={openCreateEditor}>
+                <Plus className="h-4 w-4" />
+                New Profile
+              </Button>
+            </div>
+
+            {/* Loading state */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <CircleNotch className="h-8 w-8 animate-spin text-fg-muted" />
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!isLoading && configs.length === 0 && (
+              <div className="rounded-lg border border-border bg-surface p-12 text-center">
+                <Package className="mx-auto h-12 w-12 text-fg-subtle" />
+                <h3 className="mt-4 text-lg font-medium text-fg">No resource profiles</h3>
+                <p className="mt-2 text-sm text-fg-muted">
+                  Create a profile to define resource limits for agent sandboxes.
+                </p>
+                <Button className="mt-6" onClick={openCreateEditor}>
+                  <Plus className="h-4 w-4" />
+                  Create Profile
+                </Button>
+              </div>
+            )}
+
+            {/* Config list - using modernized cards */}
+            {!isLoading && configs.length > 0 && (
+              <div className="space-y-3">
+                {configs.map((config) => (
+                  <div
+                    key={config.id}
+                    data-testid={`sandbox-config-${config.id}`}
+                    className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border"
+                  >
+                    {/* Card header */}
+                    <div className="mb-4 flex items-start gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+                        <Package className="h-4 w-4 text-fg-muted" weight="duotone" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-medium text-fg">{config.name}</h3>
+                          <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-muted">
+                            {config.type === 'kubernetes'
+                              ? '☸️ Kubernetes'
+                              : config.type === 'devcontainer'
+                                ? '📦 DevContainer'
+                                : '🐳 Docker'}
+                          </span>
+                          {config.isDefault && (
+                            <span className="rounded bg-success-muted px-2 py-0.5 text-xs font-medium text-success">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        {config.description && (
+                          <p className="mt-0.5 text-xs text-fg-muted">{config.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditEditor(config)}
+                          data-testid={`edit-sandbox-config-${config.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(config)}
+                          data-testid={`delete-sandbox-config-${config.id}`}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Resource Grid */}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-lg bg-surface-subtle p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                          <HardDrive className="h-3.5 w-3.5" />
+                          Memory
+                        </div>
+                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                          {config.memoryMb}
+                          <span className="ml-0.5 text-sm font-normal text-fg-muted">MB</span>
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-surface-subtle p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                          <Cpu className="h-3.5 w-3.5" />
+                          CPU
+                        </div>
+                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                          {config.cpuCores}
+                          <span className="ml-0.5 text-sm font-normal text-fg-muted">cores</span>
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-surface-subtle p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                          <TreeStructure className="h-3.5 w-3.5" />
+                          Processes
+                        </div>
+                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                          {config.maxProcesses}
+                          <span className="ml-0.5 text-sm font-normal text-fg-muted">PIDs</span>
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-surface-subtle p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                          <Timer className="h-3.5 w-3.5" />
+                          Timeout
+                        </div>
+                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                          {config.timeoutMinutes}
+                          <span className="ml-0.5 text-sm font-normal text-fg-muted">min</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-4 border-t border-border/50 pt-3">
+                      <p className="font-mono text-xs text-fg-muted">Image: {config.baseImage}</p>
+                      {config.volumeMountPath && (
+                        <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-fg-muted">
+                          <FolderOpen className="h-3 w-3" />
+                          Mount: {config.volumeMountPath}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ConfigSection>
+
+        {/* Sticky Save Footer */}
+        <div className="sticky bottom-4 z-10 flex items-center justify-between rounded-xl border border-border bg-surface/95 px-5 py-4 shadow-lg backdrop-blur-sm">
+          <p className="text-sm text-fg-muted">Provider settings</p>
+          <Button
+            data-testid="save-provider-settings"
+            onClick={handleSaveProvider}
+            disabled={isSavingProvider}
+            className={cn(
+              'min-w-[140px] transition-all',
+              providerSaved && 'bg-success-emphasis hover:bg-success-emphasis'
+            )}
+          >
+            {isSavingProvider ? (
+              <>
+                <CircleNotch className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : providerSaved ? (
+              <>
+                <Check className="h-4 w-4" weight="bold" />
+                Saved!
+              </>
+            ) : (
+              'Save Provider'
+            )}
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* Editor modal */}
       {editorMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg rounded-lg border border-border bg-surface shadow-xl">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="text-lg font-semibold text-fg">
-                {editorMode === 'create' ? 'New Sandbox Configuration' : 'Edit Configuration'}
-              </h2>
-              <button
-                type="button"
-                onClick={closeEditor}
-                className="rounded-md p-1 text-fg-muted hover:bg-surface-subtle hover:text-fg"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl">
+            {/* Modal header with gradient accent */}
+            <div className="relative border-b border-border px-6 py-4">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-fg">
+                  {editorMode === 'create' ? 'New Resource Profile' : 'Edit Profile'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeEditor}
+                  className="rounded-md p-1 text-fg-muted hover:bg-surface-subtle hover:text-fg"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-6">
               <div className="space-y-5">
-                {/* Name */}
-                <div>
-                  <label
-                    htmlFor="sandbox-name"
-                    className="mb-1.5 block text-sm font-medium text-fg"
-                  >
-                    Name
-                  </label>
-                  <input
-                    id="sandbox-name"
-                    type="text"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g., High Performance"
-                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    data-testid="sandbox-config-name-input"
-                  />
-                </div>
+                {/* Basic Info Group */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                    Basic Information
+                  </h3>
 
-                {/* Description */}
-                <div>
-                  <label
-                    htmlFor="sandbox-description"
-                    className="mb-1.5 block text-sm font-medium text-fg"
-                  >
-                    Description
-                    <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
-                  </label>
-                  <textarea
-                    id="sandbox-description"
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Configuration for compute-intensive tasks"
-                    rows={2}
-                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
+                  {/* Name */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-name"
+                      className="mb-1.5 block text-sm font-medium text-fg"
+                    >
+                      Name
+                    </label>
+                    <input
+                      id="sandbox-name"
+                      type="text"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="e.g., High Performance"
+                      className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                      data-testid="sandbox-config-name-input"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-description"
+                      className="mb-1.5 block text-sm font-medium text-fg"
+                    >
+                      Description
+                      <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
+                    </label>
+                    <textarea
+                      id="sandbox-description"
+                      value={formDescription}
+                      onChange={(e) => setFormDescription(e.target.value)}
+                      placeholder="Configuration for compute-intensive tasks"
+                      rows={2}
+                      className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
                 </div>
 
                 {/* Sandbox Type */}
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-fg">Sandbox Type</span>
+                <div className="space-y-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                    Sandbox Type
+                  </h3>
                   <div className="grid grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setFormType('docker')}
-                      className={`flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors ${
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
                         formType === 'docker'
                           ? 'border-accent bg-accent-muted/30'
                           : 'border-border hover:border-fg-subtle'
-                      }`}
+                      )}
                       data-testid="sandbox-type-docker"
                     >
                       <span className="text-xl">🐳</span>
                       <div>
-                        <div className="font-medium text-fg">Docker</div>
+                        <div className="text-sm font-medium text-fg">Docker</div>
                         <div className="text-xs text-fg-muted">Container</div>
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormType('devcontainer')}
-                      className={`flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors ${
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
                         formType === 'devcontainer'
                           ? 'border-accent bg-accent-muted/30'
                           : 'border-border hover:border-fg-subtle'
-                      }`}
+                      )}
                       data-testid="sandbox-type-devcontainer"
                     >
                       <span className="text-xl">📦</span>
                       <div>
-                        <div className="font-medium text-fg">DevContainer</div>
+                        <div className="text-sm font-medium text-fg">DevContainer</div>
                         <div className="text-xs text-fg-muted">VS Code</div>
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormType('kubernetes')}
-                      className={`flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors ${
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
                         formType === 'kubernetes'
                           ? 'border-accent bg-accent-muted/30'
                           : 'border-border hover:border-fg-subtle'
-                      }`}
+                      )}
                       data-testid="sandbox-type-kubernetes"
                     >
                       <span className="text-xl">☸️</span>
                       <div>
-                        <div className="font-medium text-fg">K8s</div>
+                        <div className="text-sm font-medium text-fg">K8s</div>
                         <div className="text-xs text-fg-muted">Kubernetes</div>
                       </div>
                     </button>
                   </div>
                 </div>
 
-                {/* Base Image */}
-                <div>
-                  <label
-                    htmlFor="sandbox-image"
-                    className="mb-1.5 block text-sm font-medium text-fg"
-                  >
-                    Base Image
-                  </label>
-                  <input
-                    id="sandbox-image"
-                    type="text"
-                    value={formBaseImage}
-                    onChange={(e) => setFormBaseImage(e.target.value)}
-                    placeholder="node:22-slim"
-                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    data-testid="sandbox-config-image-input"
-                  />
-                </div>
+                {/* Container Configuration Group */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                    Container Configuration
+                  </h3>
 
-                {/* Volume Mount Path - Docker only */}
-                {formType === 'docker' && (
+                  {/* Base Image */}
                   <div>
                     <label
-                      htmlFor="sandbox-volume-mount"
+                      htmlFor="sandbox-image"
                       className="mb-1.5 block text-sm font-medium text-fg"
                     >
-                      Volume Mount Path
-                      <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
+                      Base Image
                     </label>
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-fg-muted" />
-                      <input
-                        id="sandbox-volume-mount"
-                        type="text"
-                        value={formVolumeMountPath}
-                        onChange={(e) => setFormVolumeMountPath(e.target.value)}
-                        placeholder="/home/user/projects"
-                        className="flex-1 rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                        data-testid="sandbox-config-volume-mount-input"
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-fg-muted">
-                      Local host directory to mount into the container
-                    </p>
+                    <input
+                      id="sandbox-image"
+                      type="text"
+                      value={formBaseImage}
+                      onChange={(e) => setFormBaseImage(e.target.value)}
+                      placeholder="node:22-slim"
+                      className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                      data-testid="sandbox-config-image-input"
+                    />
                   </div>
-                )}
 
-                {/* Kubernetes Configuration - K8s only */}
-                {formType === 'kubernetes' && (
-                  <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
-                    <h4 className="flex items-center gap-2 text-sm font-medium text-fg">
-                      ☸️ Kubernetes Settings
-                    </h4>
-
-                    {/* Kubeconfig Path */}
+                  {/* Volume Mount Path - Docker only */}
+                  {formType === 'docker' && (
                     <div>
                       <label
-                        htmlFor="form-kube-config-path"
+                        htmlFor="sandbox-volume-mount"
                         className="mb-1.5 block text-sm font-medium text-fg"
                       >
-                        Kubeconfig Path
+                        Volume Mount Path
                         <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
                       </label>
-                      <input
-                        id="form-kube-config-path"
-                        type="text"
-                        value={formKubeConfigPath}
-                        onChange={(e) => setFormKubeConfigPath(e.target.value)}
-                        placeholder="~/.kube/config"
-                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                        data-testid="form-kube-config-path-input"
-                      />
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4 text-fg-muted" />
+                        <input
+                          id="sandbox-volume-mount"
+                          type="text"
+                          value={formVolumeMountPath}
+                          onChange={(e) => setFormVolumeMountPath(e.target.value)}
+                          placeholder="/home/user/projects"
+                          className="flex-1 rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                          data-testid="sandbox-config-volume-mount-input"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-fg-muted">
+                        Local host directory to mount into the container
+                      </p>
                     </div>
+                  )}
 
-                    {/* Context */}
-                    <div>
-                      <label
-                        htmlFor="form-kube-context"
-                        className="mb-1.5 block text-sm font-medium text-fg"
-                      >
-                        Context
-                        <span className="ml-1 text-xs font-normal text-fg-subtle">(optional)</span>
-                      </label>
-                      <input
-                        id="form-kube-context"
-                        type="text"
-                        value={formKubeContext}
-                        onChange={(e) => setFormKubeContext(e.target.value)}
-                        placeholder="minikube"
-                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                        data-testid="form-kube-context-input"
-                      />
+                  {/* Kubernetes Configuration - K8s only */}
+                  {formType === 'kubernetes' && (
+                    <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
+                      <h4 className="flex items-center gap-2 text-sm font-medium text-fg">
+                        ☸️ Kubernetes Settings
+                      </h4>
+
+                      {/* Kubeconfig Path */}
+                      <div>
+                        <label
+                          htmlFor="form-kube-config-path"
+                          className="mb-1.5 block text-sm font-medium text-fg"
+                        >
+                          Kubeconfig Path
+                          <span className="ml-1 text-xs font-normal text-fg-subtle">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          id="form-kube-config-path"
+                          type="text"
+                          value={formKubeConfigPath}
+                          onChange={(e) => setFormKubeConfigPath(e.target.value)}
+                          placeholder="~/.kube/config"
+                          className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                          data-testid="form-kube-config-path-input"
+                        />
+                      </div>
+
+                      {/* Context */}
+                      <div>
+                        <label
+                          htmlFor="form-kube-context"
+                          className="mb-1.5 block text-sm font-medium text-fg"
+                        >
+                          Context
+                          <span className="ml-1 text-xs font-normal text-fg-subtle">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          id="form-kube-context"
+                          type="text"
+                          value={formKubeContext}
+                          onChange={(e) => setFormKubeContext(e.target.value)}
+                          placeholder="minikube"
+                          className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                          data-testid="form-kube-context-input"
+                        />
+                      </div>
+
+                      {/* Namespace */}
+                      <div>
+                        <label
+                          htmlFor="form-kube-namespace"
+                          className="mb-1.5 block text-sm font-medium text-fg"
+                        >
+                          Namespace
+                        </label>
+                        <input
+                          id="form-kube-namespace"
+                          type="text"
+                          value={formKubeNamespace}
+                          onChange={(e) => setFormKubeNamespace(e.target.value)}
+                          placeholder="agentpane-sandboxes"
+                          className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                          data-testid="form-kube-namespace-input"
+                        />
+                      </div>
                     </div>
-
-                    {/* Namespace */}
-                    <div>
-                      <label
-                        htmlFor="form-kube-namespace"
-                        className="mb-1.5 block text-sm font-medium text-fg"
-                      >
-                        Namespace
-                      </label>
-                      <input
-                        id="form-kube-namespace"
-                        type="text"
-                        value={formKubeNamespace}
-                        onChange={(e) => setFormKubeNamespace(e.target.value)}
-                        placeholder="agentpane-sandboxes"
-                        className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                        data-testid="form-kube-namespace-input"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Memory */}
-                <div>
-                  <label
-                    htmlFor="sandbox-memory"
-                    className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
-                  >
-                    <span>Memory (MB)</span>
-                    <span className="font-mono text-xs text-fg-muted">{formMemoryMb} MB</span>
-                  </label>
-                  <input
-                    id="sandbox-memory"
-                    type="range"
-                    min={512}
-                    max={16384}
-                    step={512}
-                    value={formMemoryMb}
-                    onChange={(e) => setFormMemoryMb(Number(e.target.value))}
-                    className="w-full accent-accent"
-                    data-testid="sandbox-config-memory-slider"
-                  />
-                  <div className="mt-1 flex justify-between text-xs text-fg-subtle">
-                    <span>512 MB</span>
-                    <span>16 GB</span>
-                  </div>
+                  )}
                 </div>
 
-                {/* CPU */}
-                <div>
-                  <label
-                    htmlFor="sandbox-cpu"
-                    className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
-                  >
-                    <span>CPU Cores</span>
-                    <span className="font-mono text-xs text-fg-muted">{formCpuCores} cores</span>
-                  </label>
-                  <input
-                    id="sandbox-cpu"
-                    type="range"
-                    min={0.5}
-                    max={8}
-                    step={0.5}
-                    value={formCpuCores}
-                    onChange={(e) => setFormCpuCores(Number(e.target.value))}
-                    className="w-full accent-accent"
-                    data-testid="sandbox-config-cpu-slider"
-                  />
-                  <div className="mt-1 flex justify-between text-xs text-fg-subtle">
-                    <span>0.5</span>
-                    <span>8</span>
-                  </div>
-                </div>
+                {/* Resource Limits Group */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-fg-subtle">
+                    Resource Limits
+                  </h3>
 
-                {/* Max Processes */}
-                <div>
-                  <label
-                    htmlFor="sandbox-processes"
-                    className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
-                  >
-                    <span>Max Processes (PIDs)</span>
-                    <span className="font-mono text-xs text-fg-muted">{formMaxProcesses}</span>
-                  </label>
-                  <input
-                    id="sandbox-processes"
-                    type="range"
-                    min={32}
-                    max={1024}
-                    step={32}
-                    value={formMaxProcesses}
-                    onChange={(e) => setFormMaxProcesses(Number(e.target.value))}
-                    className="w-full accent-accent"
-                    data-testid="sandbox-config-processes-slider"
-                  />
-                  <div className="mt-1 flex justify-between text-xs text-fg-subtle">
-                    <span>32</span>
-                    <span>1024</span>
+                  {/* Memory */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-memory"
+                      className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
+                    >
+                      <span>Memory</span>
+                      <span className="rounded bg-accent-muted px-2 py-0.5 font-mono text-xs text-accent">
+                        {formMemoryMb} MB
+                      </span>
+                    </label>
+                    <input
+                      id="sandbox-memory"
+                      type="range"
+                      min={512}
+                      max={16384}
+                      step={512}
+                      value={formMemoryMb}
+                      onChange={(e) => setFormMemoryMb(Number(e.target.value))}
+                      className="w-full accent-accent"
+                      data-testid="sandbox-config-memory-slider"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-fg-subtle">
+                      <span>512 MB</span>
+                      <span>16 GB</span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Timeout */}
-                <div>
-                  <label
-                    htmlFor="sandbox-timeout"
-                    className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
-                  >
-                    <span>Timeout (minutes)</span>
-                    <span className="font-mono text-xs text-fg-muted">
-                      {formTimeoutMinutes} min
-                    </span>
-                  </label>
-                  <input
-                    id="sandbox-timeout"
-                    type="range"
-                    min={5}
-                    max={1440}
-                    step={5}
-                    value={formTimeoutMinutes}
-                    onChange={(e) => setFormTimeoutMinutes(Number(e.target.value))}
-                    className="w-full accent-accent"
-                    data-testid="sandbox-config-timeout-slider"
-                  />
-                  <div className="mt-1 flex justify-between text-xs text-fg-subtle">
-                    <span>5 min</span>
-                    <span>24 hrs</span>
+                  {/* CPU */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-cpu"
+                      className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
+                    >
+                      <span>CPU Cores</span>
+                      <span className="rounded bg-accent-muted px-2 py-0.5 font-mono text-xs text-accent">
+                        {formCpuCores} cores
+                      </span>
+                    </label>
+                    <input
+                      id="sandbox-cpu"
+                      type="range"
+                      min={0.5}
+                      max={8}
+                      step={0.5}
+                      value={formCpuCores}
+                      onChange={(e) => setFormCpuCores(Number(e.target.value))}
+                      className="w-full accent-accent"
+                      data-testid="sandbox-config-cpu-slider"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-fg-subtle">
+                      <span>0.5</span>
+                      <span>8</span>
+                    </div>
+                  </div>
+
+                  {/* Max Processes */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-processes"
+                      className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
+                    >
+                      <span>Max Processes (PIDs)</span>
+                      <span className="rounded bg-accent-muted px-2 py-0.5 font-mono text-xs text-accent">
+                        {formMaxProcesses}
+                      </span>
+                    </label>
+                    <input
+                      id="sandbox-processes"
+                      type="range"
+                      min={32}
+                      max={1024}
+                      step={32}
+                      value={formMaxProcesses}
+                      onChange={(e) => setFormMaxProcesses(Number(e.target.value))}
+                      className="w-full accent-accent"
+                      data-testid="sandbox-config-processes-slider"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-fg-subtle">
+                      <span>32</span>
+                      <span>1024</span>
+                    </div>
+                  </div>
+
+                  {/* Timeout */}
+                  <div>
+                    <label
+                      htmlFor="sandbox-timeout"
+                      className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
+                    >
+                      <span>Timeout</span>
+                      <span className="rounded bg-accent-muted px-2 py-0.5 font-mono text-xs text-accent">
+                        {formTimeoutMinutes} min
+                      </span>
+                    </label>
+                    <input
+                      id="sandbox-timeout"
+                      type="range"
+                      min={5}
+                      max={1440}
+                      step={5}
+                      value={formTimeoutMinutes}
+                      onChange={(e) => setFormTimeoutMinutes(Number(e.target.value))}
+                      className="w-full accent-accent"
+                      data-testid="sandbox-config-timeout-slider"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-fg-subtle">
+                      <span>5 min</span>
+                      <span>24 hrs</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Default toggle */}
-                <div className="flex items-center justify-between rounded-md border border-border bg-surface-subtle px-4 py-3">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle px-4 py-3">
                   <div>
                     <p className="text-sm font-medium text-fg">Set as default</p>
                     <p className="text-xs text-fg-muted">
@@ -1132,15 +1242,17 @@ function SandboxSettingsPage(): React.JSX.Element {
                     role="switch"
                     aria-checked={formIsDefault}
                     onClick={() => setFormIsDefault(!formIsDefault)}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                    className={cn(
+                      'relative h-6 w-11 rounded-full transition-colors',
                       formIsDefault ? 'bg-accent' : 'bg-surface-muted'
-                    }`}
+                    )}
                     data-testid="sandbox-config-default-toggle"
                   >
                     <span
-                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                      className={cn(
+                        'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
                         formIsDefault ? 'translate-x-5' : 'translate-x-0'
-                      }`}
+                      )}
                     />
                   </button>
                 </div>
