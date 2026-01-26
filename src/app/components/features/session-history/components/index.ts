@@ -9,3 +9,4 @@ export { StreamViewer } from './stream-viewer';
 export { ToolCallCard } from './tool-call-card';
 export { ToolCallSummaryBar } from './tool-call-summary-bar';
 export { ToolCallTimeline } from './tool-call-timeline';
+export { ToolCallsFullView } from './tool-calls-full-view';

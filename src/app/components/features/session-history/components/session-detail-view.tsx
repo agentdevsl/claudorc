@@ -5,9 +5,11 @@ import {
   CheckCircle,
   Clock,
   Folder,
+  Play,
   Trash,
   Wrench,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Skeleton, SkeletonText } from '@/app/components/ui/skeleton';
 import { cn } from '@/lib/utils/cn';
@@ -18,7 +20,10 @@ import { formatDuration, formatTimeOfDay } from '../utils/format-duration';
 import { ExportDropdown } from './export-dropdown';
 import { SessionSummary } from './session-summary';
 import { StreamViewer } from './stream-viewer';
-import { ToolCallTimeline } from './tool-call-timeline';
+import { ToolCallsFullView } from './tool-calls-full-view';
+
+/** Active view tab type */
+type ViewTab = 'replay' | 'tools';
 
 export function SessionDetailView({
   session,
@@ -27,6 +32,7 @@ export function SessionDetailView({
   onDelete,
   onRefresh,
 }: SessionDetailViewProps): React.JSX.Element {
+  const [activeView, setActiveView] = useState<ViewTab>('replay');
   const { entries, toolCalls, toolCallStats, isLoading: eventsLoading } = useSessionEvents(session);
 
   // Loading state
@@ -186,14 +192,85 @@ export function SessionDetailView({
             </div>
           ))}
         </div>
+
+        {/* Segmented Tab Switcher */}
+        <div className="mt-4">
+          <div
+            className="inline-flex gap-1 rounded-lg border border-border bg-surface-subtle p-1"
+            role="tablist"
+            aria-label="Session view tabs"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'replay'}
+              aria-controls="session-replay-panel"
+              className={cn(
+                'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all duration-fast',
+                activeView === 'replay'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-fg-muted hover:bg-surface-muted hover:text-fg'
+              )}
+              onClick={() => setActiveView('replay')}
+              data-testid="tab-session-replay"
+            >
+              <Play className="h-4 w-4" weight={activeView === 'replay' ? 'fill' : 'bold'} />
+              Session Replay
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'tools'}
+              aria-controls="tool-calls-panel"
+              className={cn(
+                'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all duration-fast',
+                activeView === 'tools'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-fg-muted hover:bg-surface-muted hover:text-fg'
+              )}
+              onClick={() => setActiveView('tools')}
+              data-testid="tab-tool-calls"
+            >
+              <Wrench className="h-4 w-4" weight={activeView === 'tools' ? 'fill' : 'bold'} />
+              Tool Calls
+              {toolCalls.length > 0 && (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-xs font-medium',
+                    activeView === 'tools' ? 'bg-white/20 text-white' : 'bg-surface text-fg-muted'
+                  )}
+                >
+                  {toolCalls.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
       </header>
 
-      {/* Stream viewer */}
-      <StreamViewer entries={entries} isLoading={eventsLoading} />
-
-      {/* Tool Calls Timeline - only show if there are tool calls */}
-      {toolCalls.length > 0 && (
-        <ToolCallTimeline toolCalls={toolCalls} stats={toolCallStats} isLoading={eventsLoading} />
+      {/* View content based on active tab */}
+      {activeView === 'replay' ? (
+        <div
+          id="session-replay-panel"
+          role="tabpanel"
+          aria-labelledby="tab-session-replay"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <StreamViewer entries={entries} isLoading={eventsLoading} />
+        </div>
+      ) : (
+        <div
+          id="tool-calls-panel"
+          role="tabpanel"
+          aria-labelledby="tab-tool-calls"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 md:p-4"
+        >
+          <ToolCallsFullView
+            toolCalls={toolCalls}
+            stats={toolCallStats}
+            isLoading={eventsLoading}
+          />
+        </div>
       )}
 
       {/* Session summary */}

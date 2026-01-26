@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sessions Redesign - Tab Switcher</title>
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ==========================================
+       PAGE HEADER - Gold Standard Style
+       ========================================== */
+
+    .page-header {
+      position: relative;
+      margin-bottom: 32px;
+    }
+
+    /* Decorative background blurs */
+    .header-blur-1 {
+      position: absolute;
+      left: -16px;
+      top: -16px;
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: rgba(163, 113, 247, 0.05);
+      filter: blur(32px);
+      pointer-events: none;
+    }
+
+    .header-blur-2 {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(88, 166, 255, 0.05);
+      filter: blur(24px);
+      pointer-events: none;
+    }
+
+    .header-content {
+      position: relative;
+    }
+
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .header-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(163, 113, 247, 0.15), rgba(163, 113, 247, 0.08));
+      box-shadow: 0 0 0 1px rgba(163, 113, 247, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .header-text h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--fg-default);
+    }
+
+    .header-text p {
+      font-size: 14px;
+      color: var(--fg-muted);
+      margin-top: 2px;
+    }
+
+    .session-id-badge {
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-fg);
+      background: var(--accent-muted);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 999px;
+    }
+
+    .status-badge.success {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .status-badge.error {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .status-badge.active {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      margin-top: 20px;
+      padding: 12px 20px;
+      background: rgba(28, 33, 40, 0.5);
+      border: 1px solid rgba(48, 54, 61, 0.5);
+      border-radius: 8px;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .stat-item svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-subtle);
+    }
+
+    .stat-item strong {
+      color: var(--fg-default);
+      font-weight: 600;
+    }
+
+    /* ==========================================
+       SEGMENTED TAB SWITCHER - Cinematic Mode Selector
+       ========================================== */
+
+    .tab-switcher-container {
+      margin-bottom: 24px;
+    }
+
+    .tab-switcher {
+      display: inline-flex;
+      padding: 4px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: 10px;
+      gap: 4px;
+    }
+
+    .tab-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-button:hover:not(.active) {
+      color: var(--fg-default);
+      background: rgba(48, 54, 61, 0.5);
+    }
+
+    .tab-button.active {
+      color: white;
+      background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+      box-shadow: 0 2px 8px rgba(88, 166, 255, 0.3);
+    }
+
+    .tab-button svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .tab-button .tab-count {
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .tab-button:not(.active) .tab-count {
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+    }
+
+    /* ==========================================
+       VIEW PANELS
+       ========================================== */
+
+    .view-panel {
+      display: none;
+    }
+
+    .view-panel.active {
+      display: block;
+    }
+
+    /* ==========================================
+       SESSION REPLAY VIEW
+       ========================================== */
+
+    .replay-view {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* Gradient accent line at top */
+    .replay-view::before {
+      content: '';
+      display: block;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(163, 113, 247, 0.2), transparent);
+    }
+
+    .stream-entries {
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .stream-entry {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      transition: background 0.15s ease;
+    }
+
+    .stream-entry:hover {
+      background: var(--bg-subtle);
+    }
+
+    .stream-entry.current {
+      background: var(--accent-muted);
+      border-left: 3px solid var(--accent-fg);
+    }
+
+    .stream-timestamp {
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-subtle);
+      min-width: 48px;
+      flex-shrink: 0;
+    }
+
+    .stream-content {
+      flex: 1;
+    }
+
+    .stream-type {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .stream-type.user { color: var(--accent-fg); }
+    .stream-type.assistant { color: var(--done-fg); }
+    .stream-type.tool { color: var(--attention-fg); }
+    .stream-type.system { color: var(--fg-muted); }
+
+    .stream-text {
+      font-size: 14px;
+      color: var(--fg-default);
+      line-height: 1.6;
+    }
+
+    /* Inline tool call preview */
+    .tool-preview {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      color: var(--attention-fg);
+    }
+
+    .tool-preview svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ==========================================
+       TOOL CALLS FULL VIEW
+       ========================================== */
+
+    .tools-view {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* Gradient accent line at top */
+    .tools-view::before {
+      content: '';
+      display: block;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(210, 153, 34, 0.2), transparent);
+    }
+
+    .tools-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .tools-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .tools-title h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .tools-title .count-badge {
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+      border-radius: 999px;
+    }
+
+    .tools-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tools-filter select {
+      padding: 8px 32px 8px 12px;
+      font-size: 13px;
+      color: var(--fg-default);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238b949e' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 14px;
+      cursor: pointer;
+    }
+
+    .tools-filter select:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    /* Tool call summary bar */
+    .tool-summary-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 12px 20px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .tool-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .tool-stat svg {
+      width: 14px;
+      height: 14px;
+      color: var(--fg-subtle);
+    }
+
+    .tool-stat strong {
+      color: var(--fg-default);
+    }
+
+    .tool-stat.error strong {
+      color: var(--danger-fg);
+    }
+
+    /* Tool call list */
+    .tool-call-list {
+      padding: 16px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .tool-call-card {
+      padding: 16px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s ease;
+    }
+
+    .tool-call-card:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .tool-call-card.running {
+      border-left: 3px solid var(--accent-fg);
+      background: var(--accent-muted);
+    }
+
+    .tool-call-card.success {
+      border-left: 3px solid var(--success-fg);
+    }
+
+    .tool-call-card.error {
+      border-left: 3px solid var(--danger-fg);
+    }
+
+    .tool-call-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .tool-call-expand {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-subtle);
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .tool-call-expand.expanded {
+      transform: rotate(90deg);
+    }
+
+    .tool-call-expand svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .tool-call-time {
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-subtle);
+      min-width: 48px;
+    }
+
+    .tool-call-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--fg-default);
+    }
+
+    .tool-call-name svg {
+      width: 16px;
+      height: 16px;
+      color: var(--attention-fg);
+    }
+
+    .tool-call-summary {
+      flex: 1;
+      font-size: 13px;
+      color: var(--fg-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tool-call-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .tool-call-duration {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg-muted);
+      color: var(--fg-muted);
+      border-radius: 4px;
+    }
+
+    .tool-call-duration svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .tool-call-status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 4px;
+    }
+
+    .tool-call-status.running {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .tool-call-status.complete {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .tool-call-status.error {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .tool-call-status svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* Tool call expanded details */
+    .tool-call-details {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-default);
+    }
+
+    .tool-call-details.expanded {
+      display: block;
+    }
+
+    .tool-detail-section {
+      margin-bottom: 12px;
+    }
+
+    .tool-detail-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .tool-detail-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-subtle);
+      margin-bottom: 6px;
+    }
+
+    .tool-detail-code {
+      padding: 12px;
+      background: var(--bg-muted);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-muted);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .tool-error-message {
+      padding: 10px 12px;
+      background: var(--danger-muted);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--danger-fg);
+    }
+
+    /* ==========================================
+       VISUAL TIMELINE (decorative)
+       ========================================== */
+
+    .visual-timeline {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-default);
+      background: var(--bg-subtle);
+    }
+
+    .timeline-label {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      margin-right: 8px;
+    }
+
+    .timeline-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--bg-muted);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .timeline-segment {
+      height: 100%;
+      min-width: 2px;
+    }
+
+    .timeline-segment.read { background: var(--accent-fg); }
+    .timeline-segment.write { background: var(--success-fg); }
+    .timeline-segment.bash { background: var(--attention-fg); }
+    .timeline-segment.edit { background: var(--done-fg); }
+
+    /* ==========================================
+       BUTTONS
+       ========================================== */
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg-muted);
+      padding: 8px;
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    /* ==========================================
+       SCROLLBAR
+       ========================================== */
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-subtle);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-subtle);
+    }
+
+    /* ==========================================
+       DEMO SECTIONS
+       ========================================== */
+
+    .demo-section {
+      margin-bottom: 48px;
+      padding-bottom: 48px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .demo-section:last-child {
+      border-bottom: none;
+    }
+
+    .demo-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg-default);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .demo-title span {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 8px;
+      background: var(--done-muted);
+      color: var(--done-fg);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Demo Section 1: Full Session Detail with Tab Switcher -->
+    <section class="demo-section">
+      <h2 class="demo-title">
+        Session Detail View with Tab Switcher
+        <span>Primary Component</span>
+      </h2>
+
+      <!-- Page Header -->
+      <header class="page-header">
+        <div class="header-blur-1"></div>
+        <div class="header-blur-2"></div>
+        <div class="header-content">
+          <div class="header-title-row">
+            <div class="header-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--done-fg);">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+            </div>
+            <div class="header-text">
+              <h1>Session Replay</h1>
+              <p>View conversation flow and tool execution details</p>
+            </div>
+            <span class="session-id-badge">#abc1234</span>
+            <span class="status-badge success">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20,6 9,17 4,12"/>
+              </svg>
+              Success
+            </span>
+          </div>
+
+          <!-- Stats Bar -->
+          <div class="stats-bar">
+            <div class="stat-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <span>Agent: <strong>Task Runner</strong></span>
+            </div>
+            <div class="stat-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              <span>Duration: <strong>4m 32s</strong></span>
+            </div>
+            <div class="stat-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Turns: <strong>24/50</strong></span>
+            </div>
+            <div class="stat-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <span>Tools: <strong>8</strong></span>
+            </div>
+            <div class="stat-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+              <span>Tokens: <strong>45,230</strong></span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Segmented Tab Switcher -->
+      <div class="tab-switcher-container">
+        <div class="tab-switcher">
+          <button class="tab-button active" onclick="switchTab('replay')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5,3 19,12 5,21"/>
+            </svg>
+            Session Replay
+          </button>
+          <button class="tab-button" onclick="switchTab('tools')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Tool Calls
+            <span class="tab-count">8</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Session Replay View -->
+      <div id="replay-view" class="view-panel active">
+        <div class="replay-view">
+          <div class="stream-entries">
+            <div class="stream-entry">
+              <span class="stream-timestamp">0:00</span>
+              <div class="stream-content">
+                <div class="stream-type system">System</div>
+                <div class="stream-text">Session started. Agent: Task Runner. Task: #TSK-148 "Add real-time collaboration"</div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">0:02</span>
+              <div class="stream-content">
+                <div class="stream-type user">User</div>
+                <div class="stream-text">Implement real-time collaboration features for the document editor. Include presence indicators and cursor tracking.</div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">0:15</span>
+              <div class="stream-content">
+                <div class="stream-type assistant">Assistant</div>
+                <div class="stream-text">I'll implement real-time collaboration for the document editor. Let me start by analyzing the current architecture and identifying the necessary components.</div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">0:28</span>
+              <div class="stream-content">
+                <div class="stream-type tool">Tool</div>
+                <div class="stream-text">Reading file to understand current architecture</div>
+                <div class="tool-preview">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                  </svg>
+                  Read /src/editor/DocumentEditor.tsx
+                </div>
+              </div>
+            </div>
+
+            <div class="stream-entry current">
+              <span class="stream-timestamp">1:35</span>
+              <div class="stream-content">
+                <div class="stream-type tool">Tool</div>
+                <div class="stream-text">Creating presence manager class</div>
+                <div class="tool-preview">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit /src/lib/collaboration/PresenceManager.ts
+                </div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">2:12</span>
+              <div class="stream-content">
+                <div class="stream-type assistant">Assistant</div>
+                <div class="stream-text">Created the PresenceManager class to track user cursors and selections. Now implementing the WebSocket handler for broadcasting presence updates.</div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">4:25</span>
+              <div class="stream-content">
+                <div class="stream-type assistant">Assistant</div>
+                <div class="stream-text">All tests passing. The real-time collaboration feature is now complete with presence indicators and cursor tracking.</div>
+              </div>
+            </div>
+
+            <div class="stream-entry">
+              <span class="stream-timestamp">4:32</span>
+              <div class="stream-content">
+                <div class="stream-type system">System</div>
+                <div class="stream-text">Session completed successfully. Task #TSK-148 marked as done.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tool Calls Full View -->
+      <div id="tools-view" class="view-panel">
+        <div class="tools-view">
+          <div class="tools-header">
+            <div class="tools-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--attention-fg);">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <h3>Tool Calls</h3>
+              <span class="count-badge">8 calls</span>
+            </div>
+            <div class="tools-filter">
+              <select>
+                <option>All Tools</option>
+                <option>Read (3)</option>
+                <option>Edit (2)</option>
+                <option>Write (1)</option>
+                <option>Bash (2)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tool-summary-bar">
+            <div class="tool-stat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <strong>8</strong> Calls
+            </div>
+            <div class="tool-stat error">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              <strong>0</strong> Errors
+            </div>
+            <div class="tool-stat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              Total: <strong>2m 15s</strong>
+            </div>
+            <div class="tool-stat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="20" x2="12" y2="10"/>
+                <line x1="18" y1="20" x2="18" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="16"/>
+              </svg>
+              Avg: <strong>16.8s</strong>
+            </div>
+          </div>
+
+          <div class="tool-call-list">
+            <!-- Tool Call Card 1 - Read -->
+            <div class="tool-call-card success">
+              <div class="tool-call-header">
+                <div class="tool-call-expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9,18 15,12 9,6"/>
+                  </svg>
+                </div>
+                <span class="tool-call-time">0:28</span>
+                <div class="tool-call-name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                  </svg>
+                  Read
+                </div>
+                <span class="tool-call-summary">/src/editor/DocumentEditor.tsx</span>
+                <div class="tool-call-meta">
+                  <span class="tool-call-duration">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    125ms
+                  </span>
+                  <span class="tool-call-status complete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Complete
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool Call Card 2 - Edit (Expanded) -->
+            <div class="tool-call-card success">
+              <div class="tool-call-header">
+                <div class="tool-call-expand expanded">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9,18 15,12 9,6"/>
+                  </svg>
+                </div>
+                <span class="tool-call-time">1:35</span>
+                <div class="tool-call-name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit
+                </div>
+                <span class="tool-call-summary">/src/lib/collaboration/PresenceManager.ts</span>
+                <div class="tool-call-meta">
+                  <span class="tool-call-duration">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    380ms
+                  </span>
+                  <span class="tool-call-status complete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Complete
+                  </span>
+                </div>
+              </div>
+              <div class="tool-call-details expanded">
+                <div class="tool-detail-section">
+                  <div class="tool-detail-label">Input</div>
+                  <div class="tool-detail-code">{
+  "file_path": "/src/lib/collaboration/PresenceManager.ts",
+  "old_string": "// TODO: implement presence",
+  "new_string": "export class PresenceManager {\n  private cursors: Map<string, Cursor> = new Map();\n  ..."
+}</div>
+                </div>
+                <div class="tool-detail-section">
+                  <div class="tool-detail-label">Output</div>
+                  <div class="tool-detail-code">{
+  "success": true,
+  "linesAdded": 42,
+  "linesRemoved": 1
+}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool Call Card 3 - Write -->
+            <div class="tool-call-card success">
+              <div class="tool-call-header">
+                <div class="tool-call-expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9,18 15,12 9,6"/>
+                  </svg>
+                </div>
+                <span class="tool-call-time">2:45</span>
+                <div class="tool-call-name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                  </svg>
+                  Write
+                </div>
+                <span class="tool-call-summary">/src/lib/collaboration/CursorOverlay.tsx</span>
+                <div class="tool-call-meta">
+                  <span class="tool-call-duration">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    245ms
+                  </span>
+                  <span class="tool-call-status complete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Complete
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool Call Card 4 - Bash -->
+            <div class="tool-call-card success">
+              <div class="tool-call-header">
+                <div class="tool-call-expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9,18 15,12 9,6"/>
+                  </svg>
+                </div>
+                <span class="tool-call-time">3:30</span>
+                <div class="tool-call-name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="4,17 10,11 4,5"/>
+                    <line x1="12" y1="19" x2="20" y2="19"/>
+                  </svg>
+                  Bash
+                </div>
+                <span class="tool-call-summary">npm test -- --coverage</span>
+                <div class="tool-call-meta">
+                  <span class="tool-call-duration">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    45.2s
+                  </span>
+                  <span class="tool-call-status complete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                    Complete
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Visual Timeline -->
+          <div class="visual-timeline">
+            <span class="timeline-label">Timeline</span>
+            <div class="timeline-bar">
+              <div class="timeline-segment read" style="width: 8%;"></div>
+              <div class="timeline-segment read" style="width: 5%;"></div>
+              <div class="timeline-segment edit" style="width: 15%;"></div>
+              <div class="timeline-segment read" style="width: 3%;"></div>
+              <div class="timeline-segment write" style="width: 10%;"></div>
+              <div class="timeline-segment edit" style="width: 12%;"></div>
+              <div class="timeline-segment bash" style="width: 35%;"></div>
+              <div class="timeline-segment bash" style="width: 12%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo Section 2: Standalone Tab Switcher Variants -->
+    <section class="demo-section">
+      <h2 class="demo-title">
+        Tab Switcher Variants
+        <span>Component States</span>
+      </h2>
+
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Active: Replay -->
+        <div>
+          <p style="font-size: 12px; color: var(--fg-muted); margin-bottom: 8px;">Active: Session Replay</p>
+          <div class="tab-switcher">
+            <button class="tab-button active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+              Session Replay
+            </button>
+            <button class="tab-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Tool Calls
+              <span class="tab-count">12</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Active: Tool Calls -->
+        <div>
+          <p style="font-size: 12px; color: var(--fg-muted); margin-bottom: 8px;">Active: Tool Calls</p>
+          <div class="tab-switcher">
+            <button class="tab-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+              Session Replay
+            </button>
+            <button class="tab-button active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Tool Calls
+              <span class="tab-count">12</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- No Tool Calls -->
+        <div>
+          <p style="font-size: 12px; color: var(--fg-muted); margin-bottom: 8px;">No Tool Calls (count hidden)</p>
+          <div class="tab-switcher">
+            <button class="tab-button active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+              Session Replay
+            </button>
+            <button class="tab-button" style="opacity: 0.5; cursor: not-allowed;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Tool Calls
+              <span class="tab-count">0</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      // Update button states
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.closest('.tab-button').classList.add('active');
+
+      // Update view visibility
+      document.getElementById('replay-view').classList.toggle('active', tab === 'replay');
+      document.getElementById('tools-view').classList.toggle('active', tab === 'tools');
+    }
+
+    // Toggle tool call expansion
+    document.querySelectorAll('.tool-call-expand').forEach(expand => {
+      expand.addEventListener('click', function() {
+        this.classList.toggle('expanded');
+        const details = this.closest('.tool-call-card').querySelector('.tool-call-details');
+        if (details) {
+          details.classList.toggle('expanded');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
