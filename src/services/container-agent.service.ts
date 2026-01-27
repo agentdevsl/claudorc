@@ -488,12 +488,13 @@ export class ContainerAgentService {
         });
       }
     } finally {
-      // Clean up running agent entry
-      debugLog('processAgentOutput', 'Cleaning up running agent entry', {
+      // Note: Cleanup is handled by handleAgentComplete/handleAgentError callbacks.
+      // We intentionally do NOT delete from runningAgents here to avoid race conditions
+      // where the callbacks run after this finally block.
+      debugLog('processAgentOutput', 'Stream processing finished', {
         taskId: agent.taskId,
-        remainingAgents: this.runningAgents.size - 1,
+        stillRunning: this.runningAgents.has(agent.taskId),
       });
-      this.runningAgents.delete(agent.taskId);
     }
   }
 
@@ -629,10 +630,16 @@ export class ContainerAgentService {
 
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
-      debugLog('handleAgentError', 'Agent not found in running agents map', {
-        taskId,
-        runningAgents: Array.from(this.runningAgents.keys()),
-      });
+      // Use infoLog (not debugLog) because missing agent during error handling
+      // indicates a potential race condition or cleanup issue worth investigating
+      infoLog(
+        'handleAgentError',
+        'Agent not found in running agents map - possible race condition',
+        {
+          taskId,
+          runningAgents: Array.from(this.runningAgents.keys()),
+        }
+      );
       return;
     }
 
