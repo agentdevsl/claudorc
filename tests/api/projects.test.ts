@@ -82,7 +82,7 @@ describe('DELETE /api/projects/:id - File Deletion Security', () => {
     expect(data.ok).toBe(true);
     expect(data.data.deleted).toBe(true);
     expect(data.data.filesDeleted).toBe(false);
-    expect(data.data.reason).toContain('shallow');
+    expect(data.data.reason).toContain('too shallow');
   });
 
   it('returns filesDeleted: false with reason when path matches system directory', async () => {
@@ -118,7 +118,8 @@ describe('DELETE /api/projects/:id - File Deletion Security', () => {
     expect(data.ok).toBe(true);
     expect(data.data.deleted).toBe(true);
     expect(data.data.filesDeleted).toBe(false);
-    expect(data.data.reason).toContain('depth insufficient');
+    // The reason from path-safety.ts is: "Path under system directory must have at least 4 components"
+    expect(data.data.reason).toContain('at least 4 components');
   });
 
   it('returns filesDeleted: true when path is safe and deletion succeeds', async () => {
@@ -144,7 +145,7 @@ describe('DELETE /api/projects/:id - File Deletion Security', () => {
     expect(fsMocks.rm).toHaveBeenCalledWith(project.path, { recursive: true, force: true });
   });
 
-  it('returns filesDeleted: false with no reason field when fs.rm fails', async () => {
+  it('returns filesDeleted: false with error when fs.rm fails', async () => {
     const project = createTestProject({ path: '/Users/testuser/projects/myproject' });
     mockDb.query.projects.findFirst.mockResolvedValue(project);
     mockDb.query.agents.findMany.mockResolvedValue([]);
@@ -163,11 +164,12 @@ describe('DELETE /api/projects/:id - File Deletion Security', () => {
     const data = await response.json();
     expect(data.ok).toBe(true);
     expect(data.data.deleted).toBe(true);
-    // When fs.rm fails, the error is logged but deletion still succeeds without filesDeleted info
-    expect(data.data.filesDeleted).toBe(true);
+    // When fs.rm fails, filesDeleted is false and fileDeletionError contains the error message
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.fileDeletionError).toBe('Permission denied');
   });
 
-  it('returns filesDeleted: true but does not delete when path is not a directory', async () => {
+  it('returns filesDeleted: false when path is not a directory', async () => {
     const project = createTestProject({ path: '/Users/testuser/projects/myproject' });
     mockDb.query.projects.findFirst.mockResolvedValue(project);
     mockDb.query.agents.findMany.mockResolvedValue([]);
@@ -184,7 +186,9 @@ describe('DELETE /api/projects/:id - File Deletion Security', () => {
     const data = await response.json();
     expect(data.ok).toBe(true);
     expect(data.data.deleted).toBe(true);
-    expect(data.data.filesDeleted).toBe(true);
+    // Path exists but is not a directory - files cannot be deleted
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.reason).toBe('Path is not a directory');
     // fs.rm should not be called since it's not a directory
     expect(fsMocks.rm).not.toHaveBeenCalled();
   });
