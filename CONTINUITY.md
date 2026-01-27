@@ -1,11 +1,11 @@
 # Continuity Ledger
 
-- Goal (incl. success criteria): Fix TaskCreationService AskUserQuestion flow issues, add tests, and land a clean commit.
+- Goal (incl. success criteria): Fix 400 INVALID_QUESTIONS_ID when answering AI task questions; add regression tests.
 - Constraints/Assumptions: Use bun; TS strict; async/await; TDD; Result types; update SPEC_UPDATES.md for spec errors.
-- Key decisions: Tests use allowed labels list for task suggestions.
-- State: Commit failed due to Biome auto-fix; need restage and retry commit.
-- Done: Added AskUserQuestion flow tests; updated `src/services/task-creation.service.ts` to avoid deadlocks, update counters, resolve skip, prevent premature completion, and replace polling with questions-ready Promise; ran `bun run typecheck` and `bun run test tests/services/task-creation.service.test.ts` (pass).
-- Now: Restage post-Biome changes and retry commit.
-- Next: None.
+- Key decisions: None yet.
+- State: Added more visible spinner styling for question submit.
+- Done: Updated submit answers button to show visible spinner styling while submitting.
+- Now: Confirm spinner visibility in UI.
+- Next: Add server-side idempotent handling/logging if 400 persists.
 - Open questions (UNCONFIRMED): None.
-- Working set (files/ids/commands): `src/services/task-creation.service.ts`, `tests/services/task-creation.service.test.ts`, `CONTINUITY.md`.
+- Working set (files/ids/commands): `src/app/components/features/new-task-dialog/questions-panel.tsx`.
