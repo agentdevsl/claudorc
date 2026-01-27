@@ -317,12 +317,12 @@ export class TaskCreationService {
       buffer.lastFlush = Date.now();
 
       try {
-        await this.streams.publishTaskCreationToken(sessionId, {
+        await this.streams.publish(sessionId, 'task-creation:token', {
           sessionId,
           delta: batchedDelta,
           accumulated: getAccumulated(),
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to publish token batch:', error);
       }
     }
@@ -396,7 +396,7 @@ export class TaskCreationService {
           : [],
         priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Failed to parse task suggestion JSON:', error);
       return null;
     }
@@ -474,7 +474,7 @@ export class TaskCreationService {
         totalAsked: session.totalQuestionsAsked + questions.length,
         maxQuestions: TaskCreationService.MAX_QUESTIONS,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Failed to parse clarifying questions JSON:', error);
       return null;
     }
@@ -664,11 +664,11 @@ export class TaskCreationService {
 
       // Publish questions event for UI
       try {
-        await this.streams.publishTaskCreationQuestions(session.id, {
+        await this.streams.publish(session.id, 'task-creation:questions', {
           sessionId: session.id,
           questions,
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to publish questions:', error);
       }
 
@@ -685,7 +685,7 @@ export class TaskCreationService {
               input: { questions: questions.questions },
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to persist tool:start:', error);
         }
       }
@@ -714,7 +714,7 @@ export class TaskCreationService {
             dbSessionResult.error
           );
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Error creating database session:', error);
       }
     }
@@ -768,7 +768,7 @@ export class TaskCreationService {
         .createStream(sessionId, { type: 'task-creation', projectId })
         .catch((error) => console.error('[TaskCreationService] Failed to create stream:', error)),
       this.streams
-        .publishTaskCreationStarted(sessionId, { sessionId, projectId })
+        .publish(sessionId, 'task-creation:started', { sessionId, projectId })
         .catch((error) =>
           console.error('[TaskCreationService] Failed to publish start event:', error)
         ),
@@ -823,13 +823,13 @@ export class TaskCreationService {
 
     // Publish user message event
     try {
-      await this.streams.publishTaskCreationMessage(sessionId, {
+      await this.streams.publish(sessionId, 'task-creation:message', {
         sessionId,
         messageId: userMessage.id,
         role: 'user',
         content,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Failed to publish user message:', error);
     }
 
@@ -842,7 +842,7 @@ export class TaskCreationService {
           timestamp: Date.now(),
           data: { role: 'user', content },
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to persist user message:', error);
       }
     }
@@ -1111,7 +1111,7 @@ export class TaskCreationService {
                     `[TaskCreationService] Failed to publish tool:start: ${publishResult.error.message}`
                   );
                 }
-              } catch (error) {
+              } catch (error: unknown) {
                 console.error('[TaskCreationService] Failed to publish tool:start:', error);
               }
             } else {
@@ -1186,7 +1186,7 @@ export class TaskCreationService {
                       isError: false,
                     },
                   });
-                } catch (error) {
+                } catch (error: unknown) {
                   console.error('[TaskCreationService] Failed to publish tool:result:', error);
                 }
               }
@@ -1273,7 +1273,7 @@ export class TaskCreationService {
                         isError: false,
                       },
                     });
-                  } catch (error) {
+                  } catch (error: unknown) {
                     console.error(
                       '[TaskCreationService] Failed to publish tool events from assistant:',
                       error
@@ -1326,7 +1326,7 @@ export class TaskCreationService {
                   input: {},
                 },
               });
-            } catch (error) {
+            } catch (error: unknown) {
               console.error(
                 '[TaskCreationService] Failed to publish tool:start from progress:',
                 error
@@ -1372,8 +1372,11 @@ export class TaskCreationService {
         session.status = 'waiting_user';
 
         try {
-          await this.streams.publishTaskCreationQuestions(sessionId, { sessionId, questions });
-        } catch (error) {
+          await this.streams.publish(sessionId, 'task-creation:questions', {
+            sessionId,
+            questions,
+          });
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to publish questions:', error);
         }
       };
@@ -1429,11 +1432,11 @@ export class TaskCreationService {
             }
 
             try {
-              await this.streams.publishTaskCreationSuggestion(sessionId, {
+              await this.streams.publish(sessionId, 'task-creation:suggestion', {
                 sessionId,
                 suggestion,
               });
-            } catch (error) {
+            } catch (error: unknown) {
               console.error('[TaskCreationService] Failed to publish suggestion:', error);
             }
           }
@@ -1450,7 +1453,7 @@ export class TaskCreationService {
       }
 
       return ok(session);
-    } catch (error) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[TaskCreationService] Error in sendMessage:', {
         error: message,
@@ -1490,7 +1493,7 @@ export class TaskCreationService {
 
       // Fire-and-forget error publishing to avoid delaying error response
       this.streams
-        .publishTaskCreationError(sessionId, {
+        .publish(sessionId, 'task-creation:error', {
           sessionId,
           error: message,
         })
@@ -1691,11 +1694,11 @@ export class TaskCreationService {
             }
 
             try {
-              await this.streams.publishTaskCreationSuggestion(session.id, {
+              await this.streams.publish(session.id, 'task-creation:suggestion', {
                 sessionId: session.id,
                 suggestion,
               });
-            } catch (error) {
+            } catch (error: unknown) {
               console.error('[TaskCreationService] [BG] Failed to publish suggestion:', error);
             }
           }
@@ -1707,7 +1710,7 @@ export class TaskCreationService {
       }
 
       console.log('[TaskCreationService] [BG] 🏁 Background stream processor completed');
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Background processing error';
       console.error('[TaskCreationService] [BG] Error in background stream processor:', {
         error: errorMessage,
@@ -1726,7 +1729,7 @@ export class TaskCreationService {
 
       // Fire-and-forget error publishing to avoid delaying error response
       this.streams
-        .publishTaskCreationError(session.id, {
+        .publish(session.id, 'task-creation:error', {
           sessionId: session.id,
           error: errorMessage,
         })
@@ -1769,13 +1772,13 @@ export class TaskCreationService {
 
     // Publish to real-time stream
     try {
-      await this.streams.publishTaskCreationMessage(session.id, {
+      await this.streams.publish(session.id, 'task-creation:message', {
         sessionId: session.id,
         messageId: message.id,
         role: 'assistant',
         content,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Failed to publish assistant message:', error);
     }
 
@@ -1801,7 +1804,7 @@ export class TaskCreationService {
                 : undefined,
           },
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to persist assistant message:', error);
       }
     }
@@ -1883,7 +1886,7 @@ export class TaskCreationService {
       if (session.streamProcessingPromise) {
         try {
           await session.streamProcessingPromise;
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Error waiting for stream processor:', error);
         }
       }
@@ -1892,7 +1895,7 @@ export class TaskCreationService {
       if (session.v2Session) {
         try {
           session.v2Session.close();
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to close V2 session:', error);
         }
         session.v2Session = null;
@@ -1903,7 +1906,7 @@ export class TaskCreationService {
         try {
           await this.sessionService.close(session.dbSessionId);
           console.log('[TaskCreationService] Closed database session:', session.dbSessionId);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to close database session:', error);
         }
       }
@@ -1915,12 +1918,12 @@ export class TaskCreationService {
 
       // Publish completion event
       try {
-        await this.streams.publishTaskCreationCompleted(sessionId, {
+        await this.streams.publish(sessionId, 'task-creation:completed', {
           sessionId,
           taskId,
           suggestion: finalSuggestion,
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to publish completion event:', error);
       }
 
@@ -1931,7 +1934,7 @@ export class TaskCreationService {
       }, 60000);
 
       return ok({ session, taskId });
-    } catch (error) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(TaskCreationErrors.DATABASE_ERROR('insert', message));
     }
@@ -2033,7 +2036,7 @@ export class TaskCreationService {
             },
           });
           console.log('[TaskCreationService] Published tool:result for AskUserQuestion');
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to publish tool:result:', error);
         }
       }
@@ -2167,11 +2170,11 @@ export class TaskCreationService {
         session.status = 'waiting_user';
 
         try {
-          await this.streams.publishTaskCreationQuestions(session.id, {
+          await this.streams.publish(session.id, 'task-creation:questions', {
             sessionId: session.id,
             questions,
           });
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[TaskCreationService] Failed to publish questions:', error);
         }
       };
@@ -2255,7 +2258,7 @@ export class TaskCreationService {
                     console.log(
                       '[TaskCreationService] Published tool:start for AskUserQuestion (round 2+)'
                     );
-                  } catch (error) {
+                  } catch (error: unknown) {
                     console.error('[TaskCreationService] Failed to publish tool:start:', error);
                   }
                 }
@@ -2315,18 +2318,18 @@ export class TaskCreationService {
           session.suggestion = suggestion;
 
           try {
-            await this.streams.publishTaskCreationSuggestion(session.id, {
+            await this.streams.publish(session.id, 'task-creation:suggestion', {
               sessionId: session.id,
               suggestion,
             });
-          } catch (error) {
+          } catch (error: unknown) {
             console.error('[TaskCreationService] Failed to publish suggestion:', error);
           }
         }
       }
 
       return ok(session);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Error sending tool result:', error);
       return err(TaskCreationErrors.API_ERROR('Failed to send tool result'));
     }
@@ -2389,7 +2392,7 @@ export class TaskCreationService {
     if (session.streamProcessingPromise) {
       try {
         await session.streamProcessingPromise;
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Error waiting for stream processor:', error);
       }
     }
@@ -2398,7 +2401,7 @@ export class TaskCreationService {
     if (session.v2Session) {
       try {
         session.v2Session.close();
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to close V2 session:', error);
       }
       session.v2Session = null;
@@ -2409,16 +2412,16 @@ export class TaskCreationService {
       try {
         await this.sessionService.close(session.dbSessionId);
         console.log('[TaskCreationService] Closed database session:', session.dbSessionId);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[TaskCreationService] Failed to close database session:', error);
       }
     }
 
     try {
-      await this.streams.publishTaskCreationCancelled(sessionId, {
+      await this.streams.publish(sessionId, 'task-creation:cancelled', {
         sessionId,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[TaskCreationService] Failed to publish cancel event:', error);
     }
 

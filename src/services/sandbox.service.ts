@@ -151,7 +151,7 @@ export class SandboxService {
     });
 
     // Publish creating event
-    await this.streams.publishSandboxCreating(sandboxId, {
+    await this.streams.publish(sandboxId, 'sandbox:creating', {
       sandboxId,
       projectId: config.projectId,
       image: config.image,
@@ -172,7 +172,7 @@ export class SandboxService {
       const credResult = await this.credentialsInjector.inject(sandbox);
       if (!credResult.ok) {
         // Emit warning event so user is aware credentials are missing
-        await this.streams.publishSandboxError(sandbox.id, {
+        await this.streams.publish(sandbox.id, 'sandbox:error', {
           sandboxId: sandbox.id,
           projectId: config.projectId,
           error: `Sandbox created but credentials injection failed: ${credResult.error.message}. Claude API/CLI access inside the sandbox may not work.`,
@@ -200,7 +200,7 @@ export class SandboxService {
       const info = this.sandboxToInfo(sandbox, config);
 
       // Publish ready event
-      await this.streams.publishSandboxReady(sandbox.id, {
+      await this.streams.publish(sandbox.id, 'sandbox:ready', {
         sandboxId: sandbox.id,
         projectId: config.projectId,
         containerId: sandbox.containerId,
@@ -211,7 +211,7 @@ export class SandboxService {
       const message = error instanceof Error ? error.message : String(error);
 
       // Publish error event
-      await this.streams.publishSandboxError(sandboxId, {
+      await this.streams.publish(sandboxId, 'sandbox:error', {
         sandboxId,
         projectId: config.projectId,
         error: message,
@@ -271,7 +271,7 @@ export class SandboxService {
     }
 
     // Publish stopping event
-    await this.streams.publishSandboxStopping(sandboxId, {
+    await this.streams.publish(sandboxId, 'sandbox:stopping', {
       sandboxId,
       projectId: dbSandbox.projectId,
       reason,
@@ -305,7 +305,7 @@ export class SandboxService {
         .where(eq(sandboxInstances.id, sandboxId));
 
       // Publish stopped event
-      await this.streams.publishSandboxStopped(sandboxId, {
+      await this.streams.publish(sandboxId, 'sandbox:stopped', {
         sandboxId,
         projectId: dbSandbox.projectId,
       });
@@ -325,7 +325,7 @@ export class SandboxService {
         .where(eq(sandboxInstances.id, sandboxId));
 
       // Publish error event
-      await this.streams.publishSandboxError(sandboxId, {
+      await this.streams.publish(sandboxId, 'sandbox:error', {
         sandboxId,
         projectId: dbSandbox.projectId,
         error: message,
@@ -374,7 +374,7 @@ export class SandboxService {
     await this.db.insert(sandboxTmuxSessions).values(dbSession);
 
     // Publish event
-    await this.streams.publishSandboxTmuxCreated(sandboxResult.value.id, {
+    await this.streams.publish(sandboxResult.value.id, 'sandbox:tmux:created', {
       sandboxId: sandboxResult.value.id,
       sessionName,
       taskId,
@@ -456,7 +456,7 @@ export class SandboxService {
 
       if (idleMs >= timeoutMs) {
         // Publish idle event
-        await this.streams.publishSandboxIdle(dbSandbox.id, {
+        await this.streams.publish(dbSandbox.id, 'sandbox:idle', {
           sandboxId: dbSandbox.id,
           projectId: dbSandbox.projectId,
           idleSince: lastActivity,
