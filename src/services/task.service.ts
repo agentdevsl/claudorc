@@ -300,19 +300,24 @@ export class TaskService {
       return;
     }
 
-    // Get sandbox config - use project config if set, otherwise use global defaults
-    let sandboxConfig = project.config?.sandbox as ProjectSandboxConfig | undefined;
+    // Get sandbox config - project can override global defaults
+    // If project sandbox is explicitly null, use global defaults
+    // If project sandbox exists but is disabled, still check global defaults
+    let sandboxConfig = project.config?.sandbox as ProjectSandboxConfig | null | undefined;
 
-    if (!sandboxConfig) {
-      // Load global defaults
+    // Use global defaults if:
+    // - Project has no sandbox config (undefined)
+    // - Project sandbox is explicitly null (use global)
+    // - Project sandbox exists but is not enabled
+    if (!sandboxConfig?.enabled) {
       const globalDefaults = await this.getGlobalSandboxDefaults();
-      if (globalDefaults) {
+      if (globalDefaults?.enabled) {
         console.log(`[TaskService] Using global sandbox defaults for project ${project.id}`);
         sandboxConfig = globalDefaults;
       }
     }
 
-    // Only trigger if sandbox is enabled
+    // Only trigger if sandbox is enabled (either project or global)
     if (!sandboxConfig?.enabled) {
       console.log(
         `[TaskService] Sandbox not enabled for project ${project.id}, skipping container agent`
