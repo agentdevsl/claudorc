@@ -424,21 +424,75 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
       // Optionally delete project files
       if (deleteFiles && existing.path) {
         const fs = await import('node:fs/promises');
-        const path = await import('node:path');
+        const pathModule = await import('node:path');
 
         // Safety check: ensure the path exists and is a directory
         try {
-          const stats = await fs.stat(existing.path);
+          // Resolve to absolute path and normalize to prevent traversal attacks
+          const resolvedPath = pathModule.resolve(existing.path);
+          const normalizedPath = pathModule.normalize(resolvedPath);
+
+          // Block system directories and their children
+          const dangerousPrefixes = [
+            '/',
+            '/bin',
+            '/sbin',
+            '/etc',
+            '/var',
+            '/usr',
+            '/lib',
+            '/opt',
+            '/root',
+            '/home',
+            '/Users',
+            '/System',
+            '/Applications',
+            '/Library',
+          ];
+
+          // Check if path is exactly a dangerous path or is too shallow (less than 3 components)
+          const pathComponents = normalizedPath.split(pathModule.sep).filter(Boolean);
+          const isDangerousExact = dangerousPrefixes.includes(normalizedPath);
+          const isTooShallow = pathComponents.length < 3; // e.g., /home/user is too shallow
+
+          // Check if path starts with a dangerous prefix AND is within first 2 levels
+          const startsWithDangerous = dangerousPrefixes.some(
+            (prefix) =>
+              normalizedPath === prefix || normalizedPath.startsWith(prefix + pathModule.sep)
+          );
+
+          if (isDangerousExact || isTooShallow) {
+            console.warn(`[Projects] Refusing to delete dangerous/shallow path: ${normalizedPath}`);
+            return json({
+              ok: true,
+              data: {
+                deleted: true,
+                filesDeleted: false,
+                reason: 'Path too shallow or matches system directory',
+              },
+            });
+          }
+
+          // Additional check: path must be at least 3 levels deep to delete
+          // e.g., /Users/name/projects/myproject is OK, /Users/name is not
+          if (startsWithDangerous && pathComponents.length < 4) {
+            console.warn(
+              `[Projects] Refusing to delete path with insufficient depth: ${normalizedPath}`
+            );
+            return json({
+              ok: true,
+              data: {
+                deleted: true,
+                filesDeleted: false,
+                reason: 'Path depth insufficient for safe deletion',
+              },
+            });
+          }
+
+          const stats = await fs.stat(normalizedPath);
           if (stats.isDirectory()) {
-            // Additional safety: don't delete system directories
-            const normalizedPath = path.normalize(existing.path);
-            const dangerousPaths = ['/', '/home', '/Users', '/root', '/var', '/etc', '/usr'];
-            if (dangerousPaths.includes(normalizedPath)) {
-              console.warn(`[Projects] Refusing to delete dangerous path: ${normalizedPath}`);
-            } else {
-              await fs.rm(existing.path, { recursive: true, force: true });
-              console.log(`[Projects] Deleted project files at: ${existing.path}`);
-            }
+            await fs.rm(normalizedPath, { recursive: true, force: true });
+            console.log(`[Projects] Deleted project files at: ${normalizedPath}`);
           }
         } catch (fsError) {
           // Log but don't fail if file deletion fails

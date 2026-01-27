@@ -170,8 +170,14 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
                 offset: 0, // TODO: Track real offsets
               });
               controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
-            } catch {
-              // Connection likely closed
+            } catch (err) {
+              // Connection closed - log and clean up
+              console.debug(`[SSE] Connection closed for session ${sessionId}:`, err);
+              if (unsubscribe) {
+                unsubscribe();
+                unsubscribe = null;
+              }
+              sseConnections.delete(sessionId);
             }
           });
         }
@@ -180,8 +186,9 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         pingInterval = setInterval(() => {
           try {
             controller.enqueue(new TextEncoder().encode(`: ping\n\n`));
-          } catch {
-            // Connection likely closed - clean up
+          } catch (err) {
+            // Connection closed during ping - log and clean up
+            console.debug(`[SSE] Ping failed for session ${sessionId}, cleaning up:`, err);
             if (pingInterval) {
               clearInterval(pingInterval);
               pingInterval = null;

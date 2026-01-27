@@ -22,14 +22,9 @@ export type AgentExecutionContext = {
   env: Record<string, string>;
 };
 
-export type AgentRunResult = {
-  runId: string;
-  status: 'completed' | 'error' | 'turn_limit' | 'paused';
-  turnCount: number;
-  result?: string;
-  error?: string;
-  diff?: string;
-};
+// Import from stream-handler to avoid duplicate definition
+// Re-exported for convenience
+export type { AgentRunResult, ExitPlanModeOptions } from '../../lib/agents/stream-handler.js';
 
 export type QueuePosition = {
   taskId: string;

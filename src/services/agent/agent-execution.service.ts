@@ -287,12 +287,14 @@ export class AgentExecutionService {
 
       // Update agent run with result
       // Map statuses to valid enum values
-      const dbStatus =
-        result.status === 'turn_limit'
-          ? 'paused'
-          : result.status === 'planning'
-            ? 'running'
-            : result.status;
+      let dbStatus: 'completed' | 'error' | 'paused' | 'running';
+      if (result.status === 'turn_limit') {
+        dbStatus = 'paused';
+      } else if (result.status === 'planning') {
+        dbStatus = 'running';
+      } else {
+        dbStatus = result.status;
+      }
       await this.db
         .update(agentRuns)
         .set({
