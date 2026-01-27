@@ -150,17 +150,39 @@ const workflowToNodesEdges = (workflow: Workflow): { nodes: Node[]; edges: Edge[
     workflow.edges?.map((e) => {
       // Map DSL sourceNodeId/targetNodeId to ReactFlow source/target
       const { id, type, sourceNodeId, targetNodeId, ...rest } = e;
+      // Map edge type to registered types (handle legacy 'straight' -> 'sequential')
+      const mappedType = mapEdgeTypeToRegistered(type);
       return {
         id,
         source: sourceNodeId,
         target: targetNodeId,
-        type: type ?? 'sequential',
+        type: mappedType,
         data: rest, // Put remaining fields (label, metadata, etc.) into data
       };
     }) ?? [];
 
   return { nodes, edges };
 };
+
+/**
+ * Maps edge types to registered ReactFlow edge types.
+ * Handles legacy types like 'straight' that were incorrectly used.
+ */
+function mapEdgeTypeToRegistered(type: string | undefined): string {
+  // Registered types: sequential, handoff, dataflow, conditional
+  switch (type) {
+    case 'sequential':
+    case 'handoff':
+    case 'dataflow':
+    case 'conditional':
+      return type;
+    case 'straight':
+      // Legacy type - map to sequential
+      return 'sequential';
+    default:
+      return 'sequential';
+  }
+}
 
 /**
  * WorkflowDesigner is the main container component for the visual workflow editor.
