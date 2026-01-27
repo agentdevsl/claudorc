@@ -449,11 +449,19 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async get(projectId: string): Promise<Sandbox | null> {
+    // First check for project-specific sandbox
     const sandboxId = this.projectToSandbox.get(projectId);
-    if (!sandboxId) {
-      return null;
+    if (sandboxId) {
+      return this.sandboxes.get(sandboxId) ?? null;
     }
-    return this.sandboxes.get(sandboxId) ?? null;
+
+    // Fall back to global default sandbox (projectId = 'default')
+    const defaultSandboxId = this.projectToSandbox.get('default');
+    if (defaultSandboxId) {
+      return this.sandboxes.get(defaultSandboxId) ?? null;
+    }
+
+    return null;
   }
 
   async getById(sandboxId: string): Promise<Sandbox | null> {
