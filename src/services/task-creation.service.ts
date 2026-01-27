@@ -1305,7 +1305,11 @@ export class TaskCreationService {
               labelsCount: suggestion.labels.length,
             });
             session.suggestion = suggestion;
-            session.pendingQuestions = null;
+            // Only clear pendingQuestions if we're NOT waiting for user input
+            // This prevents clearing questions while user is still answering them
+            if (session.status !== 'waiting_user') {
+              session.pendingQuestions = null;
+            }
 
             try {
               await this.streams.publishTaskCreationSuggestion(sessionId, {
@@ -1554,6 +1558,8 @@ export class TaskCreationService {
               priority: suggestion.priority,
             });
             session.suggestion = suggestion;
+            // Safe to clear pendingQuestions since we're in the outer block
+            // that already checks session.status !== 'waiting_user'
             session.pendingQuestions = null;
 
             // Call the SSE callback if registered (sends event to client)
