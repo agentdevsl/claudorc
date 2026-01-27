@@ -143,7 +143,7 @@ Your role is to:
 2. Use the AskUserQuestion tool ONCE to gather 3-5 clarifying questions
 3. Generate a high-quality task suggestion based on the user's answers
 
-## Phase 1: Clarifying Questions (ONE ROUND ONLY)
+## Phase 1: Clarifying Questions (EXACTLY ONE ROUND - NO EXCEPTIONS)
 
 When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
 Ask questions that will help you create a better, more specific task. Focus on:
@@ -158,13 +158,18 @@ Guidelines for questions:
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
 - Set multiSelect: true if the user should be able to select multiple options
-- Ask 3-5 questions in ONE call - this is your only chance to ask questions
+- Ask 3-5 questions in ONE call - this is your ONLY chance to ask questions
+- Make each question count - you will NOT get another opportunity to ask
 
-## Phase 2: Task Suggestion (IMMEDIATELY AFTER RECEIVING ANSWERS)
+IMPORTANT: After the user answers, you will receive a tool_result. At that point you MUST generate the task - NO MORE QUESTIONS.
 
-CRITICAL: After the user answers your questions, you MUST immediately generate the task suggestion.
-DO NOT call AskUserQuestion again. DO NOT ask follow-up questions.
-The user's answers are sufficient - proceed directly to generating the task.
+## Phase 2: Task Suggestion (MANDATORY - NO MORE QUESTIONS ALLOWED)
+
+CRITICAL: When you receive the tool_result with user answers, you MUST immediately generate the task suggestion.
+- NEVER call AskUserQuestion again after Phase 1
+- NEVER ask follow-up questions in any form
+- The user's answers are ALWAYS sufficient - work with what you have
+- Proceed DIRECTLY to generating the task_suggestion JSON block
 
 Generate the task suggestion as a JSON block:
 
@@ -1362,7 +1367,7 @@ export class TaskCreationService {
           })
         ),
         instruction:
-          'The user has answered these questions. Do NOT ask the same or similar questions again. If you need more information, ask about DIFFERENT topics. Otherwise, proceed to generate the task suggestion.',
+          'CRITICAL: The user has answered all clarifying questions. You MUST NOW generate the task suggestion immediately. Do NOT call AskUserQuestion again under any circumstances. Do NOT ask follow-up questions. Proceed directly to generating the task_suggestion JSON block.',
       };
 
       // Publish tool:result event for AskUserQuestion
@@ -1577,9 +1582,71 @@ export class TaskCreationService {
       console.log('[TaskCreationService] 📊 Tool result stream completed:', {
         accumulatedTextLength: accumulated.length,
         hasAskUserQuestionToolInput: !!askUserQuestionInput,
+        currentQuestionRound: session.questionRound,
       });
 
-      // Process AskUserQuestion if detected
+      // ENFORCE ONE ROUND ONLY: If Claude tries to ask more questions after round 1,
+      // automatically respond with a tool result rejecting the questions and forcing task generation
+      if (askUserQuestionInput && session.questionRound >= 1) {
+        console.log(
+          '[TaskCreationService] ⛔ REJECTING additional AskUserQuestion - enforcing one round only policy'
+        );
+
+        // Publish tool:result event indicating rejection (not marked as error since this is controlled behavior)
+        if (session.dbSessionId && this.sessionService) {
+          try {
+            await this.sessionService.publish(session.dbSessionId, {
+              id: createId(),
+              type: 'tool:result',
+              timestamp: Date.now(),
+              data: {
+                id: askUserQuestionInput.toolUseId,
+                tool: 'AskUserQuestion',
+                input: { questions: askUserQuestionInput.questions },
+                output: {
+                  status: 'SKIPPED',
+                  reason:
+                    'Question limit reached. Only one round of clarifying questions is allowed per task creation.',
+                },
+                duration: 0,
+                isError: false, // Not an error - this is controlled behavior
+              },
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] Failed to publish rejection tool:result:', error);
+          }
+        }
+
+        // Send automatic rejection response to Claude
+        const rejectMessage = {
+          type: 'user' as const,
+          message: {
+            role: 'user' as const,
+            content: [
+              {
+                type: 'tool_result' as const,
+                tool_use_id: askUserQuestionInput.toolUseId,
+                content: JSON.stringify({
+                  error: 'QUESTIONS_LIMIT_REACHED',
+                  message:
+                    'You have already asked clarifying questions. Additional questions are NOT allowed. Generate the task_suggestion JSON block NOW based on the information you already have.',
+                }),
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+          tool_use_result: {
+            error: 'QUESTIONS_LIMIT_REACHED',
+            message: 'Generate task suggestion now.',
+          },
+          session_id: session.sdkSessionId ?? '',
+        };
+
+        // Recursively call to process Claude's next response (which should be the task suggestion)
+        return this.sendToolResultAndStream(session, rejectMessage);
+      }
+
+      // Process AskUserQuestion if detected (only for round 0 -> round 1 transition)
       if (askUserQuestionInput) {
         const questions = this.parseAskUserQuestionToolInput(askUserQuestionInput, session);
         if (questions) {
