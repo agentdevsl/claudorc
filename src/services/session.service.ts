@@ -84,6 +84,10 @@ export class SessionService {
     return this.crudService.close(id);
   }
 
+  async delete(id: string): Promise<Result<{ deleted: boolean }, SessionError>> {
+    return this.crudService.delete(id);
+  }
+
   async listSessionsWithFilters(
     projectId: string,
     options?: ListSessionsWithFiltersOptions

@@ -44,6 +44,7 @@ export function SessionHistoryPage({
     data: sessionsData,
     isLoading: sessionsLoading,
     error: _sessionsError,
+    refetch: refetchSessions,
   } = useSessions(projectId, effectiveFilters, sort);
 
   // Fetch selected session detail
@@ -97,13 +98,21 @@ export function SessionHistoryPage({
   );
 
   // Handle delete
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!selectedSessionId) return;
 
-    // Delete logic would be implemented here
-    console.log(`Deleting session ${selectedSessionId}`);
-    setSelectedSessionId(null);
-  }, [selectedSessionId]);
+    try {
+      const result = await apiClient.sessions.delete(selectedSessionId);
+      if (result.ok) {
+        setSelectedSessionId(null);
+        await refetchSessions();
+      } else {
+        console.error('Delete failed:', result.error?.message);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  }, [selectedSessionId, refetchSessions]);
 
   // Handle status filter change
   const handleStatusChange = useCallback(

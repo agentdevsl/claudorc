@@ -235,12 +235,21 @@ export function SessionHistory({
   );
 
   // Handle delete
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!selectedSessionId) return;
-    // Delete functionality would be implemented here
-    console.log(`Delete session ${selectedSessionId}`);
-    setSelectedSessionId(null);
-    setSessionDetail(null);
+
+    try {
+      const result = await apiClient.sessions.delete(selectedSessionId);
+      if (result.ok) {
+        setSelectedSessionId(null);
+        setSessionDetail(null);
+        // Note: Parent component should refetch sessions list
+      } else {
+        console.error('Delete failed:', result.error?.message);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
   }, [selectedSessionId]);
 
   return (

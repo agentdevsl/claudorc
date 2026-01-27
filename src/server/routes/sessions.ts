@@ -142,5 +142,32 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
     }
   });
 
+  // DELETE /api/sessions/:id
+  app.delete('/:id', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
+    try {
+      const result = await sessionService.delete(id);
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status ?? 404);
+      }
+
+      return json({ ok: true, data: result.value });
+    } catch (error) {
+      console.error('[Sessions] Delete error:', error);
+      return json(
+        { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to delete session' } },
+        500
+      );
+    }
+  });
+
   return app;
 }

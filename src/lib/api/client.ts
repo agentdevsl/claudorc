@@ -429,6 +429,11 @@ export const apiClient = {
         method: 'POST',
         body: { format },
       }),
+
+    delete: (id: string) =>
+      apiServerFetch<{ deleted: boolean }>(`/api/sessions/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
   },
 
   worktrees: {

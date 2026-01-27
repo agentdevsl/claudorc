@@ -212,4 +212,22 @@ export class SessionCrudService {
       return err(ValidationErrors.INVALID_URL(url));
     }
   }
+
+  async delete(id: string): Promise<Result<{ deleted: boolean }, SessionError>> {
+    const session = await this.db.query.sessions.findFirst({
+      where: eq(sessions.id, id),
+    });
+
+    if (!session) {
+      return err(SessionErrors.NOT_FOUND);
+    }
+
+    // Delete the session (cascade will handle session_events and session_summaries)
+    await this.db.delete(sessions).where(eq(sessions.id, id));
+
+    // Clean up presence store
+    this.presenceStore.delete(id);
+
+    return ok({ deleted: true });
+  }
 }
