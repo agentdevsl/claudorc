@@ -286,14 +286,32 @@ export class AgentExecutionService {
       });
 
       // Update agent run with result
-      // Map statuses to valid enum values
+      // Map SDK statuses to database enum values:
+      // - 'turn_limit' (SDK) -> 'paused' (DB) - agent hit iteration limit
+      // - 'planning' (SDK) -> 'running' (DB) - agent is in planning phase awaiting approval
+      // Note: DB schema uses 'running' for planning since 'planning' isn't a DB enum value
       let dbStatus: 'completed' | 'error' | 'paused' | 'running';
-      if (result.status === 'turn_limit') {
-        dbStatus = 'paused';
-      } else if (result.status === 'planning') {
-        dbStatus = 'running';
-      } else {
-        dbStatus = result.status;
+      switch (result.status) {
+        case 'turn_limit':
+          dbStatus = 'paused';
+          break;
+        case 'planning':
+          dbStatus = 'running';
+          break;
+        case 'completed':
+        case 'error':
+        case 'paused':
+          dbStatus = result.status;
+          break;
+        default: {
+          // Exhaustive check - TypeScript will error if a new status is added
+          const _exhaustiveCheck: never = result.status;
+          void _exhaustiveCheck;
+          console.error(
+            `[AgentExecutionService] Unknown agent status: ${result.status}, defaulting to error`
+          );
+          dbStatus = 'error';
+        }
       }
       await this.db
         .update(agentRuns)

@@ -145,6 +145,25 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
     let pingInterval: ReturnType<typeof setInterval> | null = null;
     let unsubscribe: (() => void) | null = null;
 
+    // Helper function for consistent SSE cleanup
+    const cleanupSSEConnection = (
+      id: string,
+      refs: {
+        pingInterval: ReturnType<typeof setInterval> | null;
+        unsubscribe: (() => void) | null;
+      }
+    ) => {
+      if (refs.pingInterval) {
+        clearInterval(refs.pingInterval);
+        pingInterval = null;
+      }
+      if (refs.unsubscribe) {
+        refs.unsubscribe();
+        unsubscribe = null;
+      }
+      sseConnections.delete(id);
+    };
+
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         // Store controller for this session
@@ -173,11 +192,7 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
             } catch (err) {
               // Connection closed - log and clean up
               console.debug(`[SSE] Connection closed for session ${sessionId}:`, err);
-              if (unsubscribe) {
-                unsubscribe();
-                unsubscribe = null;
-              }
-              sseConnections.delete(sessionId);
+              cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
             }
           });
         }
@@ -189,28 +204,12 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
           } catch (err) {
             // Connection closed during ping - log and clean up
             console.debug(`[SSE] Ping failed for session ${sessionId}, cleaning up:`, err);
-            if (pingInterval) {
-              clearInterval(pingInterval);
-              pingInterval = null;
-            }
-            if (unsubscribe) {
-              unsubscribe();
-              unsubscribe = null;
-            }
-            sseConnections.delete(sessionId);
+            cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
           }
         }, 15000);
       },
       cancel() {
-        if (pingInterval) {
-          clearInterval(pingInterval);
-          pingInterval = null;
-        }
-        if (unsubscribe) {
-          unsubscribe();
-          unsubscribe = null;
-        }
-        sseConnections.delete(sessionId);
+        cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
       },
     });
 
