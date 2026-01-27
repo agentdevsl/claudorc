@@ -1,8 +1,8 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types.js';
-import { templates } from './templates.js';
+import type { WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
+import { templates } from './templates';
 
 // Re-export DSL types for convenience
 export type { WorkflowNode, WorkflowEdge };

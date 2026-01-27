@@ -179,8 +179,11 @@ export function ProjectSettings({
   }, []);
 
   // Sandbox configuration - uses existing project config or falls back to global defaults
-  const existingSandbox = project.config?.sandbox as ProjectSandboxConfig | undefined;
-  const hasCustomConfig = existingSandbox !== undefined;
+  const existingSandbox = project.config?.sandbox as ProjectSandboxConfig | undefined | null;
+  // Track if project has explicit custom sandbox config (not null)
+  const [hasCustomConfig, setHasCustomConfig] = useState(
+    existingSandbox !== undefined && existingSandbox !== null
+  );
   const [sandboxConfig, setSandboxConfig] = useState<ProjectSandboxConfig>({
     enabled: existingSandbox?.enabled ?? globalDefaults?.enabled ?? false,
     provider: existingSandbox?.provider ?? globalDefaults?.provider ?? 'docker',
@@ -192,6 +195,33 @@ export function ProjectSettings({
     namespace: existingSandbox?.namespace ?? globalDefaults?.namespace ?? 'default',
     serviceAccount: existingSandbox?.serviceAccount ?? '',
   });
+  // Track if user has made any changes to sandbox settings
+  const [sandboxModified, setSandboxModified] = useState(false);
+
+  // Wrapper to track sandbox modifications
+  const updateSandboxConfig = (updater: (prev: ProjectSandboxConfig) => ProjectSandboxConfig) => {
+    setSandboxConfig(updater);
+    setSandboxModified(true);
+    setHasCustomConfig(true);
+  };
+
+  // Reset to global defaults
+  const resetToGlobalDefaults = () => {
+    if (globalDefaults) {
+      setSandboxConfig({
+        enabled: globalDefaults.enabled ?? false,
+        provider: globalDefaults.provider ?? 'docker',
+        idleTimeoutMinutes: globalDefaults.idleTimeoutMinutes ?? 30,
+        memoryMb: globalDefaults.memoryMb ?? 2048,
+        cpuCores: globalDefaults.cpuCores ?? 2,
+        image: globalDefaults.image ?? '',
+        namespace: globalDefaults.namespace ?? 'default',
+        serviceAccount: '',
+      });
+    }
+    setHasCustomConfig(false);
+    setSandboxModified(true);
+  };
 
   // Update sandbox config when global defaults load (only if no custom config)
   useEffect(() => {
@@ -225,13 +255,23 @@ export function ProjectSettings({
       {} as Record<string, string>
     );
 
+    // Only include sandbox in config if:
+    // 1. User has made changes (sandboxModified)
+    // 2. AND hasCustomConfig is true (user wants explicit config)
+    // If hasCustomConfig is false but sandboxModified is true, we need to set sandbox: null
+    const sandboxToSave = sandboxModified
+      ? hasCustomConfig
+        ? sandboxConfig
+        : null // Explicitly remove custom config to use global defaults
+      : undefined; // Don't touch sandbox config
+
     onSave({
       name: name !== project.name ? name : undefined,
       description: description !== (project.description ?? '') ? description : undefined,
       maxConcurrentAgents: maxConcurrent,
       config: {
         ...config,
-        sandbox: sandboxConfig,
+        ...(sandboxToSave !== undefined && { sandbox: sandboxToSave }),
         envVars: Object.keys(envVarsObject).length > 0 ? envVarsObject : undefined,
       },
     });
@@ -267,6 +307,24 @@ export function ProjectSettings({
           </div>
         )}
 
+        {/* Custom config indicator with reset option */}
+        {!isLoadingDefaults && globalDefaults && hasCustomConfig && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-fg-muted">Using</span>
+              <span className="font-medium text-warning">custom project settings</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetToGlobalDefaults}
+              className="text-xs text-accent hover:text-accent hover:bg-accent/10"
+            >
+              Reset to global defaults
+            </Button>
+          </div>
+        )}
+
         {/* Enable toggle */}
         <div className="flex items-center justify-between p-4 rounded-lg bg-surface-subtle border border-border mb-6">
           <div className="flex items-center gap-3">
@@ -292,7 +350,7 @@ export function ProjectSettings({
           <Switch
             checked={sandboxConfig.enabled}
             onCheckedChange={(checked: boolean) =>
-              setSandboxConfig((prev) => ({ ...prev, enabled: checked }))
+              updateSandboxConfig((prev) => ({ ...prev, enabled: checked }))
             }
             data-testid="sandbox-enabled-toggle"
           />
@@ -310,7 +368,7 @@ export function ProjectSettings({
             {/* Docker */}
             <button
               type="button"
-              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'docker' }))}
+              onClick={() => updateSandboxConfig((prev) => ({ ...prev, provider: 'docker' }))}
               className={cn(
                 'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
                 'hover:border-accent/50 hover:bg-accent/5',
@@ -344,7 +402,7 @@ export function ProjectSettings({
             {/* DevContainer */}
             <button
               type="button"
-              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'devcontainer' }))}
+              onClick={() => updateSandboxConfig((prev) => ({ ...prev, provider: 'devcontainer' }))}
               className={cn(
                 'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
                 'hover:border-accent/50 hover:bg-accent/5',
@@ -378,7 +436,7 @@ export function ProjectSettings({
             {/* Kubernetes */}
             <button
               type="button"
-              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'kubernetes' }))}
+              onClick={() => updateSandboxConfig((prev) => ({ ...prev, provider: 'kubernetes' }))}
               className={cn(
                 'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
                 'hover:border-accent/50 hover:bg-accent/5',
@@ -426,7 +484,7 @@ export function ProjectSettings({
             <Select
               value={String(sandboxConfig.memoryMb)}
               onValueChange={(value) =>
-                setSandboxConfig((prev) => ({ ...prev, memoryMb: Number(value) }))
+                updateSandboxConfig((prev) => ({ ...prev, memoryMb: Number(value) }))
               }
               disabled={!sandboxConfig.enabled}
             >
@@ -450,7 +508,7 @@ export function ProjectSettings({
             <Select
               value={String(sandboxConfig.cpuCores)}
               onValueChange={(value) =>
-                setSandboxConfig((prev) => ({ ...prev, cpuCores: Number(value) }))
+                updateSandboxConfig((prev) => ({ ...prev, cpuCores: Number(value) }))
               }
               disabled={!sandboxConfig.enabled}
             >
@@ -473,7 +531,7 @@ export function ProjectSettings({
             <Select
               value={String(sandboxConfig.idleTimeoutMinutes)}
               onValueChange={(value) =>
-                setSandboxConfig((prev) => ({ ...prev, idleTimeoutMinutes: Number(value) }))
+                updateSandboxConfig((prev) => ({ ...prev, idleTimeoutMinutes: Number(value) }))
               }
               disabled={!sandboxConfig.enabled}
             >
@@ -497,7 +555,7 @@ export function ProjectSettings({
             <TextInput
               id="sandbox-image"
               value={sandboxConfig.image ?? ''}
-              onChange={(e) => setSandboxConfig((prev) => ({ ...prev, image: e.target.value }))}
+              onChange={(e) => updateSandboxConfig((prev) => ({ ...prev, image: e.target.value }))}
               placeholder="ghcr.io/your-org/custom-sandbox"
               disabled={!sandboxConfig.enabled}
               data-testid="sandbox-image-input"
@@ -524,7 +582,7 @@ export function ProjectSettings({
                   id="k8s-namespace"
                   value={sandboxConfig.namespace ?? 'default'}
                   onChange={(e) =>
-                    setSandboxConfig((prev) => ({ ...prev, namespace: e.target.value }))
+                    updateSandboxConfig((prev) => ({ ...prev, namespace: e.target.value }))
                   }
                   placeholder="default"
                   disabled={!sandboxConfig.enabled}
@@ -539,7 +597,7 @@ export function ProjectSettings({
                   id="k8s-service-account"
                   value={sandboxConfig.serviceAccount ?? ''}
                   onChange={(e) =>
-                    setSandboxConfig((prev) => ({ ...prev, serviceAccount: e.target.value }))
+                    updateSandboxConfig((prev) => ({ ...prev, serviceAccount: e.target.value }))
                   }
                   placeholder="agent-runner"
                   disabled={!sandboxConfig.enabled}

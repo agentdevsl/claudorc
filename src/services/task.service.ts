@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
 import { projects } from '../db/schema/projects.js';
+import { settings } from '../db/schema/settings.js';
 import type { Task, TaskColumn } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
@@ -259,6 +260,23 @@ export class TaskService {
   }
 
   /**
+   * Load global sandbox defaults from settings.
+   */
+  private async getGlobalSandboxDefaults(): Promise<ProjectSandboxConfig | null> {
+    try {
+      const setting = await this.db.query.settings.findFirst({
+        where: eq(settings.key, 'sandbox.defaults'),
+      });
+      if (setting?.value) {
+        return JSON.parse(setting.value) as ProjectSandboxConfig;
+      }
+    } catch (error) {
+      console.warn('[TaskService] Failed to load global sandbox defaults:', error);
+    }
+    return null;
+  }
+
+  /**
    * Trigger container agent execution for a task if sandbox is enabled.
    */
   private async triggerContainerAgent(task: Task): Promise<void> {
@@ -282,7 +300,17 @@ export class TaskService {
       return;
     }
 
-    const sandboxConfig = project.config?.sandbox as ProjectSandboxConfig | undefined;
+    // Get sandbox config - use project config if set, otherwise use global defaults
+    let sandboxConfig = project.config?.sandbox as ProjectSandboxConfig | undefined;
+
+    if (!sandboxConfig) {
+      // Load global defaults
+      const globalDefaults = await this.getGlobalSandboxDefaults();
+      if (globalDefaults) {
+        console.log(`[TaskService] Using global sandbox defaults for project ${project.id}`);
+        sandboxConfig = globalDefaults;
+      }
+    }
 
     // Only trigger if sandbox is enabled
     if (!sandboxConfig?.enabled) {

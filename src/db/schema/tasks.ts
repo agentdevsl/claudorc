@@ -2,8 +2,8 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { ExitPlanModeOptions } from '../../lib/agents/stream-handler.js';
-import type { DiffSummary } from '../../lib/types/diff.js';
+import type { ExitPlanModeOptions } from '../../lib/agents/stream-handler';
+import type { DiffSummary } from '../../lib/types/diff';
 import { agents } from './agents';
 import type { TaskColumn, TaskPriority } from './enums';
 
