@@ -127,6 +127,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   // Track answer submission to prevent double-clicks
   const [isAnswering, setIsAnswering] = useState(false);
   const isAnsweringRef = useRef(false);
+  // Track which questions ID we submitted answers for (to know when to clear loading state)
+  const submittedQuestionsIdRef = useRef<string | null>(null);
 
   // Get session and messages from TanStack DB (reactive)
   const session = useTaskCreationSession(sessionId);
@@ -140,6 +142,24 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   const pendingQuestions = session?.pendingQuestions ?? null;
   const createdTaskId = session?.createdTaskId ?? null;
   const error = session?.error ?? null;
+
+  // Clear isAnswering when questions change or streaming starts
+  // This handles the gap between API response and SSE stream starting
+  useEffect(() => {
+    if (!submittedQuestionsIdRef.current) return;
+
+    // Clear loading state when:
+    // 1. Questions ID changed (new questions or questions cleared)
+    // 2. Streaming has started (AI is responding)
+    const questionsChanged = pendingQuestions?.id !== submittedQuestionsIdRef.current;
+    const streamStarted = isStreaming;
+
+    if (questionsChanged || streamStarted) {
+      submittedQuestionsIdRef.current = null;
+      isAnsweringRef.current = false;
+      setIsAnswering(false);
+    }
+  }, [pendingQuestions?.id, isStreaming]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -258,6 +278,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
       setLocalError(null);
       isAnsweringRef.current = true;
       setIsAnswering(true);
+      // Track which questions we're answering (effect will clear loading when this changes)
+      submittedQuestionsIdRef.current = pendingQuestions.id;
 
       try {
         console.log('[useTaskCreation] Answering questions:', {
@@ -285,13 +307,24 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
             resetTaskCreationSession(sessionId);
             setSessionId(null);
             setLocalError('Session expired. Please start a new conversation.');
+            // Clear loading state on error so user can retry
+            isAnsweringRef.current = false;
+            setIsAnswering(false);
             return;
           }
 
           // Set local error - SSE may also send an error event but this ensures immediate feedback
           setLocalError(result.error.message || 'Failed to submit answers');
+          // Clear loading state on error so user can retry
+          isAnsweringRef.current = false;
+          setIsAnswering(false);
         }
-      } finally {
+        // On success, don't clear isAnswering here - let the useEffect handle it
+        // when pendingQuestions changes or isStreaming becomes true
+      } catch (error) {
+        // Handle unexpected errors
+        console.error('[useTaskCreation] Unexpected error answering questions:', error);
+        setLocalError('An unexpected error occurred');
         isAnsweringRef.current = false;
         setIsAnswering(false);
       }
