@@ -158,8 +158,8 @@ Guidelines for questions:
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
 - Set multiSelect: true if the user should be able to select multiple options
-- Ask 3-5 questions in ONE call - this is your ONLY chance to ask questions
-- Make each question count - you will NOT get another opportunity to ask
+- Ask up to 10 questions in ONE call - this is your ONLY opportunity to gather information
+- Make each question count - you will NOT get another chance to ask
 
 IMPORTANT: After the user answers, you will receive a tool_result. At that point you MUST generate the task - NO MORE QUESTIONS.
 
@@ -1586,64 +1586,13 @@ export class TaskCreationService {
       });
 
       // ENFORCE ONE ROUND ONLY: If Claude tries to ask more questions after round 1,
-      // automatically respond with a tool result rejecting the questions and forcing task generation
+      // silently ignore the tool call - the stream will continue to the task suggestion
       if (askUserQuestionInput && session.questionRound >= 1) {
         console.log(
-          '[TaskCreationService] ⛔ REJECTING additional AskUserQuestion - enforcing one round only policy'
+          '[TaskCreationService] ⏭️ Ignoring additional AskUserQuestion after round 1 - proceeding to task generation'
         );
-
-        // Publish tool:result event indicating rejection (not marked as error since this is controlled behavior)
-        if (session.dbSessionId && this.sessionService) {
-          try {
-            await this.sessionService.publish(session.dbSessionId, {
-              id: createId(),
-              type: 'tool:result',
-              timestamp: Date.now(),
-              data: {
-                id: askUserQuestionInput.toolUseId,
-                tool: 'AskUserQuestion',
-                input: { questions: askUserQuestionInput.questions },
-                output: {
-                  status: 'SKIPPED',
-                  reason:
-                    'Question limit reached. Only one round of clarifying questions is allowed per task creation.',
-                },
-                duration: 0,
-                isError: false, // Not an error - this is controlled behavior
-              },
-            });
-          } catch (error) {
-            console.error('[TaskCreationService] Failed to publish rejection tool:result:', error);
-          }
-        }
-
-        // Send automatic rejection response to Claude
-        const rejectMessage = {
-          type: 'user' as const,
-          message: {
-            role: 'user' as const,
-            content: [
-              {
-                type: 'tool_result' as const,
-                tool_use_id: askUserQuestionInput.toolUseId,
-                content: JSON.stringify({
-                  error: 'QUESTIONS_LIMIT_REACHED',
-                  message:
-                    'You have already asked clarifying questions. Additional questions are NOT allowed. Generate the task_suggestion JSON block NOW based on the information you already have.',
-                }),
-              },
-            ],
-          },
-          parent_tool_use_id: null,
-          tool_use_result: {
-            error: 'QUESTIONS_LIMIT_REACHED',
-            message: 'Generate task suggestion now.',
-          },
-          session_id: session.sdkSessionId ?? '',
-        };
-
-        // Recursively call to process Claude's next response (which should be the task suggestion)
-        return this.sendToolResultAndStream(session, rejectMessage);
+        // Clear the input so it's not processed below
+        askUserQuestionInput = null;
       }
 
       // Process AskUserQuestion if detected (only for round 0 -> round 1 transition)
