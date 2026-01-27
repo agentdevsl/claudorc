@@ -114,11 +114,11 @@ export interface SandboxHealthCheck {
  * Default values
  */
 export const SANDBOX_DEFAULTS = {
-  image: 'docker/sandbox-templates:claude-code',
+  image: 'agent-sandbox:latest',
   memoryMb: 4096,
   cpuCores: 2,
   idleTimeoutMinutes: 30,
-  userHome: '/home/automaker',
+  userHome: '/home/node',
 } as const;
 
 // Zod schemas for validation

@@ -15,6 +15,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 import { Database as BunSQLite } from 'bun:sqlite';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
@@ -187,12 +189,14 @@ try {
     const globalDefaults = await db.query.settings.findFirst({
       where: eq(settings.key, 'sandbox.defaults'),
     });
-    const defaults = globalDefaults?.value as {
-      image?: string;
-      memoryMb?: number;
-      cpuCores?: number;
-      idleTimeoutMinutes?: number;
-    } | null;
+    const defaults = globalDefaults?.value
+      ? (JSON.parse(globalDefaults.value) as {
+          image?: string;
+          memoryMb?: number;
+          cpuCores?: number;
+          idleTimeoutMinutes?: number;
+        })
+      : null;
 
     const defaultImage = defaults?.image || 'agentpane-sandbox:latest';
     console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
@@ -202,9 +206,18 @@ try {
     console.log(`[API Server] Image available: ${imageAvailable}`);
     if (imageAvailable) {
       try {
+        // Use project data directory for default sandbox workspace (must be Docker-shareable)
+        const defaultWorkspacePath = path.join(
+          process.cwd(),
+          'data',
+          'sandbox-workspaces',
+          'default'
+        );
+        await fs.mkdir(defaultWorkspacePath, { recursive: true });
+
         await dockerProvider.create({
           projectId: 'default',
-          projectPath: '/workspace',
+          projectPath: defaultWorkspacePath,
           image: defaultImage,
           memoryMb: defaults?.memoryMb ?? 2048,
           cpuCores: defaults?.cpuCores ?? 2,

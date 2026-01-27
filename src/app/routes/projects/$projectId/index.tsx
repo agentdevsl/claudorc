@@ -8,6 +8,7 @@ import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewTaskDialog } from '@/app/components/features/new-task-dialog';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/index';
 import { AIActionButton } from '@/app/components/ui/ai-action-button';
+import { useToast } from '@/app/hooks/use-toast';
 import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { DiffSummary } from '@/lib/types/diff';
@@ -35,6 +36,7 @@ export const Route = createFileRoute('/projects/$projectId/')({
 
 function ProjectKanban(): React.JSX.Element {
   const { projectId } = Route.useParams();
+  const { error: showError, warning: showWarning } = useToast();
   const [project, setProject] = useState<ProjectListItem | null>(null);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,8 +92,17 @@ function ProjectKanban(): React.JSX.Element {
     const result = await apiClient.tasks.move(taskId, column, position);
     if (!result.ok) {
       console.error('[ProjectKanban] Failed to move task:', result.error);
+      showError('Failed to move task', result.error?.message || 'Unknown error');
       // Revert optimistic update on error
       fetchData();
+      return;
+    }
+
+    // Check for agent startup errors (task moved but agent failed to start)
+    const data = result.data as { task: Task; agentError?: string };
+    if (data.agentError) {
+      console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
+      showWarning('Agent failed to start', data.agentError);
     }
   };
 
@@ -105,8 +116,17 @@ function ProjectKanban(): React.JSX.Element {
     const result = await apiClient.tasks.move(taskId, 'in_progress', 0);
     if (!result.ok) {
       console.error('[ProjectKanban] Failed to run task:', result.error);
+      showError('Failed to start task', result.error?.message || 'Unknown error');
       // Revert optimistic update on error
       fetchData();
+      return;
+    }
+
+    // Check for agent startup errors (task moved but agent failed to start)
+    const data = result.data as { task: Task; agentError?: string };
+    if (data.agentError) {
+      console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
+      showWarning('Agent failed to start', data.agentError);
     }
   };
 

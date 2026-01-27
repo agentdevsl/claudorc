@@ -258,6 +258,8 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
+      const { task: updatedTask, agentError } = result.value;
+
       // If moving to in_progress, check if we need to start host-side agent as fallback
       // (container agent is auto-triggered by taskService.moveColumn if sandbox is enabled)
       const shouldStartHostAgent = body.column === 'in_progress' && body.startAgent !== false;
@@ -274,7 +276,16 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
         );
       }
 
-      return json({ ok: true, data: result.value });
+      // Return success for the move, but include agent error info if present
+      if (agentError) {
+        console.error(`[Tasks] Failed to start agent for task ${id}:`, agentError);
+        return json({
+          ok: true,
+          data: { task: updatedTask, agentError },
+        });
+      }
+
+      return json({ ok: true, data: { task: updatedTask } });
     } catch (error) {
       console.error('[Tasks] Move error:', error);
       return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to move task' } }, 500);

@@ -60,6 +60,16 @@ export type DiffResult = {
 };
 
 /**
+ * Result of moving a task to a new column.
+ * Includes the updated task and any agent startup error (if applicable).
+ */
+export type MoveTaskResult = {
+  task: Task;
+  /** Error message if agent failed to start (task move still succeeded) */
+  agentError?: string;
+};
+
+/**
  * Optional container agent service for triggering agent execution on task move.
  */
 export interface ContainerAgentTrigger {
@@ -213,7 +223,7 @@ export class TaskService {
     id: string,
     column: TaskColumn,
     position?: number
-  ): Promise<Result<Task, TaskError>> {
+  ): Promise<Result<MoveTaskResult, TaskError>> {
     const task = await this.db.query.tasks.findFirst({
       where: eq(tasks.id, id),
     });
@@ -252,11 +262,13 @@ export class TaskService {
     }
 
     // Trigger container agent when moving to in_progress (if sandbox is enabled)
+    // We await the agent startup to capture any errors
+    let agentError: string | undefined;
     if (column === 'in_progress' && this.containerAgentService) {
-      await this.triggerContainerAgent(updated);
+      agentError = await this.triggerContainerAgent(updated);
     }
 
-    return ok(updated);
+    return ok({ task: updated, agentError });
   }
 
   /**
@@ -278,16 +290,17 @@ export class TaskService {
 
   /**
    * Trigger container agent execution for a task if sandbox is enabled.
+   * Returns an error message string if the agent fails to start, or undefined on success.
    */
-  private async triggerContainerAgent(task: Task): Promise<void> {
+  private async triggerContainerAgent(task: Task): Promise<string | undefined> {
     if (!this.containerAgentService) {
-      return;
+      return undefined;
     }
 
     // Check if agent is already running for this task
     if (this.containerAgentService.isAgentRunning(task.id)) {
       console.log(`[TaskService] Agent already running for task ${task.id}, skipping trigger`);
-      return;
+      return undefined;
     }
 
     // Get project to check sandbox config
@@ -296,8 +309,9 @@ export class TaskService {
     });
 
     if (!project) {
-      console.warn(`[TaskService] Project not found for task ${task.id}, cannot trigger agent`);
-      return;
+      const errorMsg = `Project not found for task ${task.id}`;
+      console.warn(`[TaskService] ${errorMsg}, cannot trigger agent`);
+      return errorMsg;
     }
 
     // Get sandbox config - project can override global defaults
@@ -322,7 +336,7 @@ export class TaskService {
       console.log(
         `[TaskService] Sandbox not enabled for project ${project.id}, skipping container agent`
       );
-      return;
+      return undefined;
     }
 
     // Build task prompt
@@ -331,36 +345,51 @@ export class TaskService {
     // Generate session ID for this agent run
     const sessionId = task.sessionId ?? createId();
 
-    // Trigger agent execution (fire-and-forget)
-    void this.containerAgentService
-      .startAgent({
+    // Update task with session ID if it was generated (do this before starting agent)
+    if (!task.sessionId) {
+      await this.db
+        .update(tasks)
+        .set({ sessionId, updatedAt: new Date().toISOString() })
+        .where(eq(tasks.id, task.id));
+    }
+
+    // Trigger agent execution and await the result
+    try {
+      const result = await this.containerAgentService.startAgent({
         projectId: task.projectId,
         taskId: task.id,
         sessionId,
         prompt,
         model: project.config?.model,
         maxTurns: project.config?.maxTurns,
-      })
-      .then((result) => {
-        if (!result.ok) {
-          console.error(
-            `[TaskService] Failed to start container agent for task ${task.id}:`,
-            result.error
-          );
-        } else {
-          console.log(`[TaskService] Container agent started for task ${task.id}`);
-        }
-      })
-      .catch((error) => {
-        console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
       });
 
-    // Update task with session ID if it was generated
-    if (!task.sessionId) {
-      await this.db
-        .update(tasks)
-        .set({ sessionId, updatedAt: new Date().toISOString() })
-        .where(eq(tasks.id, task.id));
+      if (!result.ok) {
+        // Extract error from the error result - cast to access error property
+        const errorResult = result as { ok: false; error: unknown };
+        const errorObj = errorResult.error;
+        let errorMsg: string;
+        if (typeof errorObj === 'object' && errorObj !== null && 'message' in errorObj) {
+          // SandboxError or Error object with message property
+          errorMsg = (errorObj as { message: string }).message;
+        } else if (typeof errorObj === 'string') {
+          errorMsg = errorObj;
+        } else {
+          errorMsg = 'Failed to start agent';
+        }
+        console.error(
+          `[TaskService] Failed to start container agent for task ${task.id}:`,
+          errorMsg
+        );
+        return errorMsg;
+      }
+
+      console.log(`[TaskService] Container agent started for task ${task.id}`);
+      return undefined;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to start agent';
+      console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
+      return errorMsg;
     }
   }
 
