@@ -278,17 +278,20 @@ export function QuestionsPanel({
           type="button"
           onClick={onSubmitAnswers}
           disabled={!allAnswered || isSubmitting}
+          aria-busy={isSubmitting}
           className={cn(
             'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all',
-            allAnswered && !isSubmitting
-              ? 'bg-claude text-white hover:bg-claude/90 shadow-sm'
-              : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
+            isSubmitting
+              ? 'bg-claude text-white shadow-sm cursor-wait opacity-90'
+              : allAnswered
+                ? 'bg-claude text-white hover:bg-claude/90 shadow-sm'
+                : 'bg-surface-muted text-fg-subtle cursor-not-allowed'
           )}
         >
           {isSubmitting ? (
             <>
               <Spinner className="h-4 w-4 animate-spin" />
-              Processing...
+              Submitting...
             </>
           ) : (
             <>

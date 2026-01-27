@@ -1,4 +1,5 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { PlanSessionView } from '@/app/components/features/plan-session-view';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
@@ -237,6 +238,7 @@ export function TaskDetailDialog({
           )}
         />
         <DialogPrimitive.Content
+          aria-describedby={undefined}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-full max-w-2xl max-h-[90vh]',
             '-translate-x-1/2 -translate-y-1/2',
@@ -248,6 +250,9 @@ export function TaskDetailDialog({
             'duration-200 ease-out'
           )}
         >
+          <VisuallyHidden>
+            <DialogPrimitive.Title>{displayTask.title || 'Task details'}</DialogPrimitive.Title>
+          </VisuallyHidden>
           {/* Header */}
           <TaskHeader
             task={displayTask}
