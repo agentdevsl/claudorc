@@ -1,5 +1,5 @@
 import { ArrowLeft } from '@phosphor-icons/react';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { ProjectSettings } from '@/app/components/features/project-settings';
@@ -13,9 +13,19 @@ export const Route = createFileRoute('/projects/$projectId/settings')({
 function ProjectSettingsPage(): React.JSX.Element {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
+  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const handleBack = () => {
+    // Try to go back in history, fall back to project page
+    if (window.history.length > 1) {
+      router.history.back();
+    } else {
+      navigate({ to: '/projects/$projectId', params: { projectId } });
+    }
+  };
 
   // Fetch project from API on mount
   useEffect(() => {
@@ -59,8 +69,8 @@ function ProjectSettingsPage(): React.JSX.Element {
     }
   };
 
-  const handleDelete = async (): Promise<void> => {
-    const result = await apiClient.projects.delete(projectId);
+  const handleDelete = async (options: { deleteFiles: boolean }): Promise<void> => {
+    const result = await apiClient.projects.delete(projectId, options);
     if (result.ok) {
       navigate({ to: '/projects' });
     } else {
@@ -103,30 +113,32 @@ function ProjectSettingsPage(): React.JSX.Element {
         { label: 'Settings' },
       ]}
     >
-      <div className="p-6 max-w-4xl" data-testid="project-settings-page">
-        <Link
-          to="/projects/$projectId"
-          params={{ projectId: project.id }}
-          className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to project
-        </Link>
+      <div className="h-full overflow-y-auto">
+        <div className="p-6 max-w-4xl mx-auto pb-12" data-testid="project-settings-page">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg mb-4 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Project Settings</h1>
-          <p className="text-sm text-fg-muted mt-1">
-            Configure project behavior and agent defaults for {project.name}
-          </p>
-          {saveStatus === 'saved' && (
-            <p className="text-sm text-success mt-2">Settings saved successfully</p>
-          )}
-          {saveStatus === 'error' && (
-            <p className="text-sm text-danger mt-2">Failed to save settings</p>
-          )}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-fg">Project Settings</h1>
+            <p className="text-sm text-fg-muted mt-1">
+              Configure project behavior and agent defaults for {project.name}
+            </p>
+            {saveStatus === 'saved' && (
+              <p className="text-sm text-success mt-2">Settings saved successfully</p>
+            )}
+            {saveStatus === 'error' && (
+              <p className="text-sm text-danger mt-2">Failed to save settings</p>
+            )}
+          </div>
+
+          <ProjectSettings project={project} onSave={handleSave} onDelete={handleDelete} />
         </div>
-
-        <ProjectSettings project={project} onSave={handleSave} onDelete={handleDelete} />
       </div>
     </LayoutShell>
   );

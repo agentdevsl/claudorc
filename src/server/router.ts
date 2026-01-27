@@ -103,7 +103,6 @@ export function createRouter(deps: RouterDependencies) {
     '/api/tasks',
     createTasksRoutes({
       taskService: deps.taskService,
-      agentService: deps.agentService,
     })
   );
 

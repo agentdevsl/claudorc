@@ -378,6 +378,7 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
   // DELETE /api/projects/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+    const deleteFiles = c.req.query('deleteFiles') === 'true';
 
     if (!isValidId(id)) {
       return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
@@ -417,10 +418,35 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
       // Delete associated agents
       await db.delete(agents).where(eq(agents.projectId, id));
 
-      // Delete the project
+      // Delete the project from database
       await db.delete(projects).where(eq(projects.id, id));
 
-      return json({ ok: true, data: { deleted: true } });
+      // Optionally delete project files
+      if (deleteFiles && existing.path) {
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+
+        // Safety check: ensure the path exists and is a directory
+        try {
+          const stats = await fs.stat(existing.path);
+          if (stats.isDirectory()) {
+            // Additional safety: don't delete system directories
+            const normalizedPath = path.normalize(existing.path);
+            const dangerousPaths = ['/', '/home', '/Users', '/root', '/var', '/etc', '/usr'];
+            if (dangerousPaths.includes(normalizedPath)) {
+              console.warn(`[Projects] Refusing to delete dangerous path: ${normalizedPath}`);
+            } else {
+              await fs.rm(existing.path, { recursive: true, force: true });
+              console.log(`[Projects] Deleted project files at: ${existing.path}`);
+            }
+          }
+        } catch (fsError) {
+          // Log but don't fail if file deletion fails
+          console.error(`[Projects] Failed to delete project files: ${fsError}`);
+        }
+      }
+
+      return json({ ok: true, data: { deleted: true, filesDeleted: deleteFiles } });
     } catch (error) {
       console.error('[Projects] Delete error:', error);
       return json(

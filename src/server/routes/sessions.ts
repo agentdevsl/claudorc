@@ -3,14 +3,19 @@
  */
 
 import { Hono } from 'hono';
+import type { DurableStreamsService } from '../../services/durable-streams.service.js';
 import type { SessionService } from '../../services/session.service.js';
 import { isValidId, json } from '../shared.js';
 
 interface SessionsDeps {
   sessionService: SessionService;
+  durableStreamsService?: DurableStreamsService;
 }
 
-export function createSessionsRoutes({ sessionService }: SessionsDeps) {
+// Track SSE connections for cleanup
+const sseConnections = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+
+export function createSessionsRoutes({ sessionService, durableStreamsService }: SessionsDeps) {
   const app = new Hono();
 
   // GET /api/sessions
@@ -113,6 +118,104 @@ export function createSessionsRoutes({ sessionService }: SessionsDeps) {
         500
       );
     }
+  });
+
+  // GET /api/sessions/:id/stream - Server-Sent Events for real-time session updates
+  app.get('/:id/stream', async (c) => {
+    const sessionId = c.req.param('id');
+
+    if (!isValidId(sessionId)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
+    // Verify session exists
+    const sessionResult = await sessionService.getById(sessionId);
+    if (!sessionResult.ok) {
+      return json({ ok: false, error: sessionResult.error }, sessionResult.error.status ?? 404);
+    }
+
+    // Parse optional offset for resumption
+    const offsetParam = c.req.query('offset');
+    const fromOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+    // Create SSE stream with keep-alive
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+    let unsubscribe: (() => void) | null = null;
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        // Store controller for this session
+        sseConnections.set(sessionId, controller);
+
+        // Send initial connected event
+        const connectedData = JSON.stringify({
+          type: 'connected',
+          sessionId,
+          offset: fromOffset,
+          timestamp: Date.now(),
+        });
+        controller.enqueue(new TextEncoder().encode(`data: ${connectedData}\n\n`));
+
+        // Subscribe to durable streams if available
+        if (durableStreamsService) {
+          unsubscribe = durableStreamsService.addSubscriber(sessionId, (event) => {
+            try {
+              const eventData = JSON.stringify({
+                type: event.type,
+                data: event.data,
+                timestamp: event.timestamp,
+                offset: 0, // TODO: Track real offsets
+              });
+              controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
+            } catch {
+              // Connection likely closed
+            }
+          });
+        }
+
+        // Send keep-alive ping every 15 seconds
+        pingInterval = setInterval(() => {
+          try {
+            controller.enqueue(new TextEncoder().encode(`: ping\n\n`));
+          } catch {
+            // Connection likely closed - clean up
+            if (pingInterval) {
+              clearInterval(pingInterval);
+              pingInterval = null;
+            }
+            if (unsubscribe) {
+              unsubscribe();
+              unsubscribe = null;
+            }
+            sseConnections.delete(sessionId);
+          }
+        }, 15000);
+      },
+      cancel() {
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        if (unsubscribe) {
+          unsubscribe();
+          unsubscribe = null;
+        }
+        sseConnections.delete(sessionId);
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
   });
 
   // GET /api/sessions/:id

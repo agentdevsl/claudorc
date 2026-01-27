@@ -8,7 +8,7 @@ import { tasks } from '../../db/schema/tasks.js';
 import { worktrees } from '../../db/schema/worktrees.js';
 import { createAgentHooks } from '../../lib/agents/hooks/index.js';
 import { handleAgentError } from '../../lib/agents/recovery.js';
-import { runAgentWithStreaming } from '../../lib/agents/stream-handler.js';
+import { runAgentPlanning } from '../../lib/agents/stream-handler.js';
 import type { AgentError } from '../../lib/errors/agent-errors.js';
 import { AgentErrors } from '../../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../../lib/errors/concurrency-errors.js';
@@ -173,7 +173,8 @@ export class AgentExecutionService {
     const controller = new AbortController();
     runningAgents.set(agentId, controller);
 
-    await this.db.update(agents).set({ status: 'running' }).where(eq(agents.id, agentId));
+    // Start in planning status - agent will explore and create a plan first
+    await this.db.update(agents).set({ status: 'planning' }).where(eq(agents.id, agentId));
 
     // Get project for model configuration
     const project = await this.db.query.projects.findFirst({
@@ -272,7 +273,7 @@ export class AgentExecutionService {
     taskId: string
   ): Promise<void> {
     try {
-      const result = await runAgentWithStreaming({
+      const result = await runAgentPlanning({
         agentId,
         sessionId,
         prompt,
@@ -285,20 +286,53 @@ export class AgentExecutionService {
       });
 
       // Update agent run with result
-      // Map 'turn_limit' to 'paused' since enum doesn't have turn_limit
-      const dbStatus = result.status === 'turn_limit' ? 'paused' : result.status;
+      // Map statuses to valid enum values
+      const dbStatus =
+        result.status === 'turn_limit'
+          ? 'paused'
+          : result.status === 'planning'
+            ? 'running'
+            : result.status;
       await this.db
         .update(agentRuns)
         .set({
           status: dbStatus,
-          completedAt: new Date().toISOString(),
+          completedAt: result.status === 'planning' ? null : new Date().toISOString(),
           turnsUsed: result.turnCount,
           errorMessage: result.error,
         })
         .where(eq(agentRuns.id, runId));
 
       // Update agent status based on result
-      if (result.status === 'completed') {
+      if (result.status === 'planning') {
+        // Planning phase completed - agent stays in 'planning' status
+        // Task stays in 'in_progress' - user needs to approve the plan
+        await this.db
+          .update(agents)
+          .set({
+            status: 'planning',
+            currentTurn: result.turnCount,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agents.id, agentId));
+
+        // Store the plan and options on the task
+        await this.db
+          .update(tasks)
+          .set({
+            plan: result.plan,
+            planOptions: result.planOptions,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, taskId));
+
+        const swarmInfo = result.planOptions?.launchSwarm
+          ? ` (swarm: ${result.planOptions.teammateCount ?? 'default'} agents)`
+          : '';
+        console.log(
+          `[AgentExecutionService] Agent ${agentId} planning complete${swarmInfo}, awaiting approval`
+        );
+      } else if (result.status === 'completed') {
         await this.db
           .update(agents)
           .set({

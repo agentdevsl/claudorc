@@ -8,6 +8,24 @@
  * - Tracks running agents per task
  */
 import { eq } from 'drizzle-orm';
+
+// Debug logging helper
+const DEBUG = process.env.DEBUG_CONTAINER_AGENT === 'true' || process.env.DEBUG === 'true';
+
+function debugLog(context: string, message: string, data?: Record<string, unknown>): void {
+  if (DEBUG) {
+    const timestamp = new Date().toISOString();
+    const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+    console.log(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
+  }
+}
+
+function infoLog(context: string, message: string, data?: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  console.log(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
+}
+
 import { projects } from '../db/schema/projects.js';
 import { tasks } from '../db/schema/tasks.js';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
@@ -76,44 +94,71 @@ export class ContainerAgentService {
   async startAgent(input: StartAgentInput): Promise<Result<void, SandboxError>> {
     const { projectId, taskId, sessionId, prompt, model, maxTurns } = input;
 
+    infoLog('startAgent', 'Starting agent', { taskId, projectId, sessionId, model, maxTurns });
+    debugLog('startAgent', 'Prompt preview', {
+      promptLength: prompt.length,
+      promptStart: prompt.slice(0, 100),
+    });
+
     // Check if agent is already running for this task
     if (this.runningAgents.has(taskId)) {
+      infoLog('startAgent', 'Agent already running for task', { taskId });
       return err(SandboxErrors.AGENT_ALREADY_RUNNING(taskId));
     }
 
     // Get project to find sandbox and config
+    debugLog('startAgent', 'Fetching project', { projectId });
     const project = await this.db.query.projects.findFirst({
       where: eq(projects.id, projectId),
     });
 
     if (!project) {
+      infoLog('startAgent', 'Project not found', { projectId });
       return err(SandboxErrors.PROJECT_NOT_FOUND);
     }
+    debugLog('startAgent', 'Project found', {
+      projectName: project.name,
+      projectConfig: project.config,
+    });
 
     // Get the sandbox for this project
+    debugLog('startAgent', 'Getting sandbox for project', { projectId });
     const sandbox = await this.provider.get(projectId);
     if (!sandbox) {
+      infoLog('startAgent', 'Sandbox not found for project', { projectId });
       return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
+    debugLog('startAgent', 'Sandbox found', { sandboxId: sandbox.id, status: sandbox.status });
 
     if (sandbox.status !== 'running') {
+      infoLog('startAgent', 'Sandbox not running', {
+        sandboxId: sandbox.id,
+        status: sandbox.status,
+      });
       return err(SandboxErrors.CONTAINER_NOT_RUNNING);
     }
 
     // Check if sandbox supports streaming exec
     if (!sandbox.execStream) {
+      infoLog('startAgent', 'Sandbox does not support streaming exec', { sandboxId: sandbox.id });
       return err(SandboxErrors.STREAMING_EXEC_NOT_SUPPORTED);
     }
 
     // Create stream for this session if it doesn't exist
+    debugLog('startAgent', 'Creating durable stream', { sessionId });
     try {
       await this.streams.createStream(sessionId, {
         type: 'container-agent',
         projectId,
         taskId,
       });
-    } catch {
+      debugLog('startAgent', 'Stream created successfully', { sessionId });
+    } catch (streamErr) {
       // Stream might already exist, which is fine
+      debugLog('startAgent', 'Stream creation skipped (may already exist)', {
+        sessionId,
+        error: String(streamErr),
+      });
     }
 
     // Resolve agent configuration
@@ -121,13 +166,17 @@ export class ContainerAgentService {
       model: model ?? project.config?.model ?? 'claude-sonnet-4-20250514',
       maxTurns: maxTurns ?? project.config?.maxTurns ?? 50,
     };
+    infoLog('startAgent', 'Resolved agent config', {
+      model: agentConfig.model,
+      maxTurns: agentConfig.maxTurns,
+    });
 
     // Create sentinel file path for cancellation
     const stopFilePath = `/tmp/.agent-stop-${taskId}`;
 
     // Build environment variables for agent-runner
     const env: Record<string, string> = {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? '[REDACTED]' : '',
       AGENT_TASK_ID: taskId,
       AGENT_SESSION_ID: sessionId,
       AGENT_PROMPT: prompt,
@@ -136,29 +185,51 @@ export class ContainerAgentService {
       AGENT_CWD: '/workspace',
       AGENT_STOP_FILE: stopFilePath,
     };
+    debugLog('startAgent', 'Environment variables prepared', {
+      ...env,
+      AGENT_PROMPT: `[${prompt.length} chars]`,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? '[SET]' : '[NOT SET]',
+    });
 
     // Create the container bridge to process stdout events
+    debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId });
     const bridge = createContainerBridge({
       taskId,
       sessionId,
       projectId,
       streams: this.streams,
       onComplete: (status, turnCount) => {
+        infoLog('bridge:onComplete', 'Agent completed via bridge callback', {
+          taskId,
+          status,
+          turnCount,
+        });
         this.handleAgentComplete(taskId, status, turnCount);
       },
       onError: (error, turnCount) => {
+        infoLog('bridge:onError', 'Agent error via bridge callback', { taskId, error, turnCount });
         this.handleAgentError(taskId, error, turnCount);
       },
     });
 
     try {
       // Start the agent-runner process inside the container
+      infoLog('startAgent', 'Executing agent-runner in container', {
+        sandboxId: sandbox.id,
+        cmd: 'node /opt/agent-runner/dist/index.js',
+      });
+
       const execResult = await sandbox.execStream({
         cmd: 'node',
         args: ['/opt/agent-runner/dist/index.js'],
-        env,
+        env: {
+          ...env,
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '', // Use actual key
+          AGENT_PROMPT: prompt, // Use actual prompt
+        },
         cwd: '/workspace',
       });
+      debugLog('startAgent', 'Agent-runner process started', { sandboxId: sandbox.id });
 
       // Track the running agent
       const runningAgent: RunningAgent = {
@@ -173,8 +244,13 @@ export class ContainerAgentService {
       };
 
       this.runningAgents.set(taskId, runningAgent);
+      infoLog('startAgent', 'Agent registered as running', {
+        taskId,
+        totalRunning: this.runningAgents.size,
+      });
 
       // Start processing the stdout stream (async, don't await)
+      debugLog('startAgent', 'Starting stdout stream processing', { taskId });
       this.processAgentOutput(runningAgent);
 
       // Publish started event
@@ -184,10 +260,16 @@ export class ContainerAgentService {
         model: agentConfig.model,
         maxTurns: agentConfig.maxTurns,
       });
+      infoLog('startAgent', 'Agent started successfully', {
+        taskId,
+        sessionId,
+        model: agentConfig.model,
+      });
 
       return ok(undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      infoLog('startAgent', 'Failed to start agent', { taskId, error: message });
       return err(SandboxErrors.AGENT_START_FAILED(message));
     }
   }
@@ -196,27 +278,55 @@ export class ContainerAgentService {
    * Stop a running agent by writing a sentinel file.
    */
   async stopAgent(taskId: string): Promise<Result<void, SandboxError>> {
+    infoLog('stopAgent', 'Stopping agent', { taskId });
+
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
+      infoLog('stopAgent', 'Agent not found in running agents', {
+        taskId,
+        runningAgents: Array.from(this.runningAgents.keys()),
+      });
       return err(SandboxErrors.AGENT_NOT_RUNNING(taskId));
     }
 
+    debugLog('stopAgent', 'Found running agent', {
+      taskId,
+      sessionId: agent.sessionId,
+      sandboxId: agent.sandboxId,
+      runningFor: `${Date.now() - agent.startedAt.getTime()}ms`,
+    });
+
     try {
       // Get the sandbox to write the sentinel file
+      debugLog('stopAgent', 'Getting sandbox to write sentinel file', {
+        sandboxId: agent.sandboxId,
+      });
       const sandbox = await this.provider.getById(agent.sandboxId);
       if (sandbox && sandbox.status === 'running') {
         // Write sentinel file to signal agent to stop
+        debugLog('stopAgent', 'Writing sentinel file', { stopFilePath: agent.stopFilePath });
         await sandbox.exec('touch', [agent.stopFilePath]);
+      } else {
+        debugLog('stopAgent', 'Sandbox not available for sentinel file', {
+          sandboxExists: !!sandbox,
+          status: sandbox?.status,
+        });
       }
 
       // Kill the exec process
+      debugLog('stopAgent', 'Killing exec process', { taskId });
       agent.execResult.kill();
 
       // Stop the bridge
+      debugLog('stopAgent', 'Stopping bridge', { taskId });
       agent.bridge.stop();
 
       // Clean up
       this.runningAgents.delete(taskId);
+      infoLog('stopAgent', 'Agent stopped and cleaned up', {
+        taskId,
+        remainingAgents: this.runningAgents.size,
+      });
 
       // Publish cancelled event
       await this.streams.publish(agent.sessionId, 'container-agent:cancelled', {
@@ -228,6 +338,7 @@ export class ContainerAgentService {
       return ok(undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      infoLog('stopAgent', 'Failed to stop agent', { taskId, error: message });
       return err(SandboxErrors.AGENT_STOP_FAILED(message));
     }
   }
@@ -278,15 +389,31 @@ export class ContainerAgentService {
    * Process stdout from the agent-runner process.
    */
   private async processAgentOutput(agent: RunningAgent): Promise<void> {
+    debugLog('processAgentOutput', 'Starting to process agent output', {
+      taskId: agent.taskId,
+      sessionId: agent.sessionId,
+      sandboxId: agent.sandboxId,
+    });
+
     try {
       // Process the stdout stream through the bridge
+      debugLog('processAgentOutput', 'Processing stdout stream through bridge', {
+        taskId: agent.taskId,
+      });
       await agent.bridge.processStream(agent.execResult.stdout);
+      debugLog('processAgentOutput', 'Bridge finished processing stream', { taskId: agent.taskId });
 
       // Wait for process to exit
+      debugLog('processAgentOutput', 'Waiting for process to exit', { taskId: agent.taskId });
       const { exitCode } = await agent.execResult.wait();
+      infoLog('processAgentOutput', 'Process exited', { taskId: agent.taskId, exitCode });
 
       if (exitCode !== 0 && this.runningAgents.has(agent.taskId)) {
         // Non-zero exit without completion event - emit error
+        infoLog('processAgentOutput', 'Non-zero exit code, publishing error event', {
+          taskId: agent.taskId,
+          exitCode,
+        });
         await this.streams.publish(agent.sessionId, 'container-agent:error', {
           taskId: agent.taskId,
           sessionId: agent.sessionId,
@@ -296,10 +423,11 @@ export class ContainerAgentService {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[ContainerAgentService] Error processing agent output for task ${agent.taskId}:`,
-        message
-      );
+      infoLog('processAgentOutput', 'Error processing agent output', {
+        taskId: agent.taskId,
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
 
       if (this.runningAgents.has(agent.taskId)) {
         await this.streams.publish(agent.sessionId, 'container-agent:error', {
@@ -311,6 +439,10 @@ export class ContainerAgentService {
       }
     } finally {
       // Clean up running agent entry
+      debugLog('processAgentOutput', 'Cleaning up running agent entry', {
+        taskId: agent.taskId,
+        remainingAgents: this.runningAgents.size - 1,
+      });
       this.runningAgents.delete(agent.taskId);
     }
   }
@@ -323,19 +455,35 @@ export class ContainerAgentService {
     status: 'completed' | 'turn_limit' | 'cancelled',
     turnCount: number
   ): Promise<void> {
+    infoLog('handleAgentComplete', 'Agent completion callback triggered', {
+      taskId,
+      status,
+      turnCount,
+    });
+
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
+      debugLog('handleAgentComplete', 'Agent not found in running agents map', {
+        taskId,
+        runningAgents: Array.from(this.runningAgents.keys()),
+      });
       return;
     }
 
-    console.log(
-      `[ContainerAgentService] Agent completed for task ${taskId}: ${status} after ${turnCount} turns`
-    );
+    debugLog('handleAgentComplete', 'Found running agent', {
+      taskId,
+      sessionId: agent.sessionId,
+      sandboxId: agent.sandboxId,
+      runDuration: `${Date.now() - agent.startedAt.getTime()}ms`,
+    });
 
     // Update task status based on completion
     try {
       if (status === 'completed') {
         // Move task to waiting_approval
+        debugLog('handleAgentComplete', 'Updating task to waiting_approval (completed)', {
+          taskId,
+        });
         await this.db
           .update(tasks)
           .set({
@@ -344,8 +492,12 @@ export class ContainerAgentService {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
+        infoLog('handleAgentComplete', 'Task moved to waiting_approval', { taskId, status });
       } else if (status === 'turn_limit') {
         // Move task to waiting_approval for review
+        debugLog('handleAgentComplete', 'Updating task to waiting_approval (turn_limit)', {
+          taskId,
+        });
         await this.db
           .update(tasks)
           .set({
@@ -353,39 +505,82 @@ export class ContainerAgentService {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
+        infoLog('handleAgentComplete', 'Task moved to waiting_approval (turn limit)', {
+          taskId,
+          status,
+        });
+      } else {
+        // cancelled - leave task in current state
+        debugLog('handleAgentComplete', 'Task cancelled, leaving in current state', { taskId });
       }
-      // cancelled - leave task in current state
     } catch (error) {
-      console.error(`[ContainerAgentService] Failed to update task ${taskId}:`, error);
+      infoLog('handleAgentComplete', 'Failed to update task', {
+        taskId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // Clean up sentinel file
     try {
+      debugLog('handleAgentComplete', 'Cleaning up sentinel file', {
+        taskId,
+        stopFilePath: agent.stopFilePath,
+      });
       const sandbox = await this.provider.getById(agent.sandboxId);
       if (sandbox && sandbox.status === 'running') {
         await sandbox.exec('rm', ['-f', agent.stopFilePath]);
+        debugLog('handleAgentComplete', 'Sentinel file removed', { taskId });
+      } else {
+        debugLog('handleAgentComplete', 'Sandbox not available for cleanup', {
+          taskId,
+          sandboxExists: !!sandbox,
+          status: sandbox?.status,
+        });
       }
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupError) {
+      debugLog('handleAgentComplete', 'Failed to cleanup sentinel file (ignoring)', {
+        taskId,
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      });
     }
 
     // Remove from running agents
     this.runningAgents.delete(taskId);
+    infoLog('handleAgentComplete', 'Agent completion handling finished', {
+      taskId,
+      remainingAgents: this.runningAgents.size,
+    });
   }
 
   /**
    * Handle agent error.
    */
-  private async handleAgentError(taskId: string, error: string, _turnCount: number): Promise<void> {
+  private async handleAgentError(taskId: string, error: string, turnCount: number): Promise<void> {
+    infoLog('handleAgentError', 'Agent error callback triggered', {
+      taskId,
+      error,
+      turnCount,
+    });
+
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
+      debugLog('handleAgentError', 'Agent not found in running agents map', {
+        taskId,
+        runningAgents: Array.from(this.runningAgents.keys()),
+      });
       return;
     }
 
-    console.error(`[ContainerAgentService] Agent error for task ${taskId}: ${error}`);
+    debugLog('handleAgentError', 'Found running agent', {
+      taskId,
+      sessionId: agent.sessionId,
+      sandboxId: agent.sandboxId,
+      runDuration: `${Date.now() - agent.startedAt.getTime()}ms`,
+    });
 
     // Update task with error
     try {
+      debugLog('handleAgentError', 'Updating task timestamp (keeping in in_progress)', { taskId });
       await this.db
         .update(tasks)
         .set({
@@ -393,12 +588,20 @@ export class ContainerAgentService {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(tasks.id, taskId));
+      debugLog('handleAgentError', 'Task timestamp updated', { taskId });
     } catch (err) {
-      console.error(`[ContainerAgentService] Failed to update task ${taskId}:`, err);
+      infoLog('handleAgentError', 'Failed to update task', {
+        taskId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // Remove from running agents
     this.runningAgents.delete(taskId);
+    infoLog('handleAgentError', 'Agent error handling finished', {
+      taskId,
+      remainingAgents: this.runningAgents.size,
+    });
   }
 }
 

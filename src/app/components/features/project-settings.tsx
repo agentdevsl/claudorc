@@ -1,5 +1,22 @@
-import { Gear, GitBranch, Key, Plus, Trash } from '@phosphor-icons/react';
-import { useState } from 'react';
+import {
+  ArrowSquareOut,
+  Brain,
+  Cloud,
+  Cpu,
+  Cube,
+  Database,
+  Gear,
+  GitBranch,
+  HardDrives,
+  Key,
+  Lightning,
+  Package,
+  Plus,
+  Timer,
+  Trash,
+} from '@phosphor-icons/react';
+import { Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import {
   Select,
@@ -8,9 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
+import { Switch } from '@/app/components/ui/switch';
 import { TextInput } from '@/app/components/ui/text-input';
 import { Textarea } from '@/app/components/ui/textarea';
 import type { Project, ProjectConfig } from '@/db/schema/projects';
+import { apiClient } from '@/lib/api/client';
+import type { ProjectSandboxConfig } from '@/lib/sandbox/types';
+import { cn } from '@/lib/utils/cn';
 import { DeleteProjectDialog } from './delete-project-dialog';
 
 interface ProjectSettingsProps {
@@ -21,7 +42,102 @@ interface ProjectSettingsProps {
     maxConcurrentAgents?: number;
     config?: Partial<ProjectConfig>;
   }) => Promise<void>;
-  onDelete: () => Promise<void>;
+  onDelete: (options: { deleteFiles: boolean }) => Promise<void>;
+}
+
+// Section header component for consistent styling
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+  badge,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-4 mb-6">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/20">
+        <Icon className="h-6 w-6 text-accent" weight="duotone" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-fg tracking-tight">{title}</h2>
+          {badge}
+        </div>
+        <p className="text-sm text-fg-muted mt-0.5">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+// Status badge component
+function StatusBadge({ enabled }: { enabled: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium',
+        enabled
+          ? 'bg-success/15 text-success border border-success/20'
+          : 'bg-fg-muted/10 text-fg-muted border border-border'
+      )}
+    >
+      <span
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          enabled ? 'bg-success animate-pulse' : 'bg-fg-muted'
+        )}
+      />
+      {enabled ? 'Enabled' : 'Disabled'}
+    </span>
+  );
+}
+
+// Field label component
+function FieldLabel({
+  htmlFor,
+  children,
+  hint,
+}: {
+  htmlFor: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 mb-2">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-fg">
+        {children}
+      </label>
+      {hint && <span className="text-xs text-fg-muted">{hint}</span>}
+    </div>
+  );
+}
+
+// Card wrapper for sections
+function SettingsCard({
+  children,
+  className,
+  highlight,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl border bg-surface p-6 transition-all duration-normal',
+        highlight
+          ? 'border-accent/30 bg-gradient-to-br from-accent/5 to-transparent shadow-lg shadow-accent/5'
+          : 'border-border',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function ProjectSettings({
@@ -40,6 +156,57 @@ export function ProjectSettings({
       maxTurns: 50,
     }
   );
+
+  // Global sandbox defaults (loaded from settings)
+  const [globalDefaults, setGlobalDefaults] = useState<ProjectSandboxConfig | null>(null);
+  const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
+
+  // Load global defaults on mount
+  useEffect(() => {
+    const loadDefaults = async () => {
+      try {
+        const result = await apiClient.settings.get(['sandbox.defaults']);
+        if (result.ok && result.data.settings['sandbox.defaults']) {
+          setGlobalDefaults(result.data.settings['sandbox.defaults'] as ProjectSandboxConfig);
+        }
+      } catch {
+        // Ignore errors, use local defaults
+      } finally {
+        setIsLoadingDefaults(false);
+      }
+    };
+    loadDefaults();
+  }, []);
+
+  // Sandbox configuration - uses existing project config or falls back to global defaults
+  const existingSandbox = project.config?.sandbox as ProjectSandboxConfig | undefined;
+  const hasCustomConfig = existingSandbox !== undefined;
+  const [sandboxConfig, setSandboxConfig] = useState<ProjectSandboxConfig>({
+    enabled: existingSandbox?.enabled ?? globalDefaults?.enabled ?? false,
+    provider: existingSandbox?.provider ?? globalDefaults?.provider ?? 'docker',
+    idleTimeoutMinutes:
+      existingSandbox?.idleTimeoutMinutes ?? globalDefaults?.idleTimeoutMinutes ?? 30,
+    memoryMb: existingSandbox?.memoryMb ?? globalDefaults?.memoryMb ?? 2048,
+    cpuCores: existingSandbox?.cpuCores ?? globalDefaults?.cpuCores ?? 2,
+    image: existingSandbox?.image ?? globalDefaults?.image ?? '',
+    namespace: existingSandbox?.namespace ?? globalDefaults?.namespace ?? 'default',
+    serviceAccount: existingSandbox?.serviceAccount ?? '',
+  });
+
+  // Update sandbox config when global defaults load (only if no custom config)
+  useEffect(() => {
+    if (!hasCustomConfig && globalDefaults && !isLoadingDefaults) {
+      setSandboxConfig((prev) => ({
+        ...prev,
+        enabled: globalDefaults.enabled ?? prev.enabled,
+        provider: globalDefaults.provider ?? prev.provider,
+        idleTimeoutMinutes: globalDefaults.idleTimeoutMinutes ?? prev.idleTimeoutMinutes,
+        memoryMb: globalDefaults.memoryMb ?? prev.memoryMb,
+        cpuCores: globalDefaults.cpuCores ?? prev.cpuCores,
+      }));
+    }
+  }, [globalDefaults, hasCustomConfig, isLoadingDefaults]);
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>(
     Object.entries(project.config?.envVars ?? {}).map(([key, value]) => ({ key, value }))
@@ -47,110 +214,439 @@ export function ProjectSettings({
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
 
+  const handleSave = () => {
+    const envVarsObject = envVars.reduce(
+      (acc, { key, value }) => {
+        if (key.trim()) {
+          acc[key.trim()] = value;
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    );
+
+    onSave({
+      name: name !== project.name ? name : undefined,
+      description: description !== (project.description ?? '') ? description : undefined,
+      maxConcurrentAgents: maxConcurrent,
+      config: {
+        ...config,
+        sandbox: sandboxConfig,
+        envVars: Object.keys(envVarsObject).length > 0 ? envVarsObject : undefined,
+      },
+    });
+  };
+
   return (
-    <section
-      className="rounded-lg border border-border bg-surface p-6"
-      data-testid="project-settings"
-    >
+    <div className="space-y-6" data-testid="project-settings">
       <div data-testid="github-settings" className="hidden" />
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-muted">
-            <Gear className="h-5 w-5 text-fg-muted" />
+      {/* Sandbox Configuration - Featured prominently */}
+      <SettingsCard highlight={sandboxConfig.enabled}>
+        <SectionHeader
+          icon={Cube}
+          title="Sandbox Execution"
+          description="Run agents in isolated containers for enhanced security and reproducibility."
+          badge={<StatusBadge enabled={sandboxConfig.enabled} />}
+        />
+
+        {/* Global defaults indicator */}
+        {!isLoadingDefaults && globalDefaults && !hasCustomConfig && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-accent/30 bg-accent/5 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-fg-muted">Using</span>
+              <Link
+                to="/settings/sandbox"
+                className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+              >
+                global defaults
+                <ArrowSquareOut className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+            <span className="text-xs text-fg-muted">Changes here override global settings</span>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-fg">Project settings</h2>
-            <p className="text-sm text-fg-muted">Control concurrency and default agent behavior.</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" data-testid="agent-config-button">
-          Agent config
-        </Button>
-      </div>
+        )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="project-name"
-          >
-            Project name
-          </label>
-          <TextInput
-            id="project-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            data-testid="project-name-input"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="project-path"
-          >
-            Project path
-          </label>
-          <TextInput
-            id="project-path"
-            value={project.path}
-            readOnly
-            className="bg-surface-muted text-fg-muted"
-            data-testid="project-path-display"
-          />
-        </div>
-
-        <div className="space-y-2 lg:col-span-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="project-description"
-          >
-            Description
-          </label>
-          <Textarea
-            id="project-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Brief description of the project..."
-            rows={2}
-            data-testid="project-description-input"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="max-concurrent"
-          >
-            Max concurrent agents
-          </label>
+        {/* Enable toggle */}
+        <div className="flex items-center justify-between p-4 rounded-lg bg-surface-subtle border border-border mb-6">
           <div className="flex items-center gap-3">
-            <input
-              id="max-concurrent"
-              type="range"
-              min={1}
-              max={10}
-              value={maxConcurrent}
-              onChange={(event) => setMaxConcurrent(Number(event.target.value))}
-              className="flex-1"
-              data-testid="max-agents-slider"
-            />
-            <span className="w-8 text-right text-sm font-medium text-fg tabular-nums">
-              {maxConcurrent}
-            </span>
+            <div
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                sandboxConfig.enabled
+                  ? 'bg-success/20 text-success'
+                  : 'bg-surface-muted text-fg-muted'
+              )}
+            >
+              <Lightning className="h-5 w-5" weight={sandboxConfig.enabled ? 'fill' : 'regular'} />
+            </div>
+            <div>
+              <p className="font-medium text-fg">Enable Container Sandbox</p>
+              <p className="text-sm text-fg-muted">
+                {sandboxConfig.enabled
+                  ? `Agents execute in ${sandboxConfig.provider === 'kubernetes' ? 'Kubernetes pods' : sandboxConfig.provider === 'devcontainer' ? 'DevContainers' : 'Docker containers'}`
+                  : 'Enable to run agents in isolated environments'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={sandboxConfig.enabled}
+            onCheckedChange={(checked: boolean) =>
+              setSandboxConfig((prev) => ({ ...prev, enabled: checked }))
+            }
+            data-testid="sandbox-enabled-toggle"
+          />
+        </div>
+
+        {/* Provider selection - shown when enabled */}
+        <div
+          className={cn(
+            'mb-6 transition-all duration-normal',
+            sandboxConfig.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+          )}
+        >
+          <p className="text-sm font-medium text-fg mb-3">Sandbox Provider</p>
+          <div className="grid grid-cols-3 gap-3">
+            {/* Docker */}
+            <button
+              type="button"
+              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'docker' }))}
+              className={cn(
+                'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
+                'hover:border-accent/50 hover:bg-accent/5',
+                sandboxConfig.provider === 'docker'
+                  ? 'border-accent bg-accent/10 shadow-sm'
+                  : 'border-border bg-surface-subtle'
+              )}
+              data-testid="provider-docker"
+            >
+              <Cube
+                className={cn(
+                  'h-8 w-8 transition-colors',
+                  sandboxConfig.provider === 'docker' ? 'text-accent' : 'text-fg-muted'
+                )}
+                weight={sandboxConfig.provider === 'docker' ? 'duotone' : 'regular'}
+              />
+              <span
+                className={cn(
+                  'text-sm font-medium',
+                  sandboxConfig.provider === 'docker' ? 'text-accent' : 'text-fg'
+                )}
+              >
+                Docker
+              </span>
+              <span className="text-xs text-fg-muted text-center">Local containers</span>
+              {sandboxConfig.provider === 'docker' && (
+                <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent" />
+              )}
+            </button>
+
+            {/* DevContainer */}
+            <button
+              type="button"
+              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'devcontainer' }))}
+              className={cn(
+                'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
+                'hover:border-accent/50 hover:bg-accent/5',
+                sandboxConfig.provider === 'devcontainer'
+                  ? 'border-accent bg-accent/10 shadow-sm'
+                  : 'border-border bg-surface-subtle'
+              )}
+              data-testid="provider-devcontainer"
+            >
+              <Package
+                className={cn(
+                  'h-8 w-8 transition-colors',
+                  sandboxConfig.provider === 'devcontainer' ? 'text-accent' : 'text-fg-muted'
+                )}
+                weight={sandboxConfig.provider === 'devcontainer' ? 'duotone' : 'regular'}
+              />
+              <span
+                className={cn(
+                  'text-sm font-medium',
+                  sandboxConfig.provider === 'devcontainer' ? 'text-accent' : 'text-fg'
+                )}
+              >
+                DevContainer
+              </span>
+              <span className="text-xs text-fg-muted text-center">VS Code compatible</span>
+              {sandboxConfig.provider === 'devcontainer' && (
+                <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent" />
+              )}
+            </button>
+
+            {/* Kubernetes */}
+            <button
+              type="button"
+              onClick={() => setSandboxConfig((prev) => ({ ...prev, provider: 'kubernetes' }))}
+              className={cn(
+                'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-fast',
+                'hover:border-accent/50 hover:bg-accent/5',
+                sandboxConfig.provider === 'kubernetes'
+                  ? 'border-accent bg-accent/10 shadow-sm'
+                  : 'border-border bg-surface-subtle'
+              )}
+              data-testid="provider-kubernetes"
+            >
+              <Cloud
+                className={cn(
+                  'h-8 w-8 transition-colors',
+                  sandboxConfig.provider === 'kubernetes' ? 'text-accent' : 'text-fg-muted'
+                )}
+                weight={sandboxConfig.provider === 'kubernetes' ? 'duotone' : 'regular'}
+              />
+              <span
+                className={cn(
+                  'text-sm font-medium',
+                  sandboxConfig.provider === 'kubernetes' ? 'text-accent' : 'text-fg'
+                )}
+              >
+                Kubernetes
+              </span>
+              <span className="text-xs text-fg-muted text-center">Cluster pods</span>
+              {sandboxConfig.provider === 'kubernetes' && (
+                <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent" />
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="default-branch"
+        {/* Sandbox options - shown when enabled */}
+        <div
+          className={cn(
+            'grid gap-5 lg:grid-cols-2 transition-all duration-normal',
+            sandboxConfig.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+          )}
+        >
+          <div>
+            <FieldLabel htmlFor="sandbox-memory" hint="MB">
+              <HardDrives className="inline h-4 w-4 mr-1.5 text-fg-muted" weight="duotone" />
+              Memory Limit
+            </FieldLabel>
+            <Select
+              value={String(sandboxConfig.memoryMb)}
+              onValueChange={(value) =>
+                setSandboxConfig((prev) => ({ ...prev, memoryMb: Number(value) }))
+              }
+              disabled={!sandboxConfig.enabled}
+            >
+              <SelectTrigger id="sandbox-memory" data-testid="sandbox-memory-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1024">1 GB</SelectItem>
+                <SelectItem value="2048">2 GB</SelectItem>
+                <SelectItem value="4096">4 GB</SelectItem>
+                <SelectItem value="8192">8 GB</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="sandbox-cpu" hint="cores">
+              <Cpu className="inline h-4 w-4 mr-1.5 text-fg-muted" weight="duotone" />
+              CPU Cores
+            </FieldLabel>
+            <Select
+              value={String(sandboxConfig.cpuCores)}
+              onValueChange={(value) =>
+                setSandboxConfig((prev) => ({ ...prev, cpuCores: Number(value) }))
+              }
+              disabled={!sandboxConfig.enabled}
+            >
+              <SelectTrigger id="sandbox-cpu" data-testid="sandbox-cpu-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 core</SelectItem>
+                <SelectItem value="2">2 cores</SelectItem>
+                <SelectItem value="4">4 cores</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="sandbox-timeout" hint="minutes">
+              <Timer className="inline h-4 w-4 mr-1.5 text-fg-muted" weight="duotone" />
+              Idle Timeout
+            </FieldLabel>
+            <Select
+              value={String(sandboxConfig.idleTimeoutMinutes)}
+              onValueChange={(value) =>
+                setSandboxConfig((prev) => ({ ...prev, idleTimeoutMinutes: Number(value) }))
+              }
+              disabled={!sandboxConfig.enabled}
+            >
+              <SelectTrigger id="sandbox-timeout" data-testid="sandbox-timeout-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 minutes</SelectItem>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="60">1 hour</SelectItem>
+                <SelectItem value="120">2 hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="sandbox-image" hint="optional">
+              <Database className="inline h-4 w-4 mr-1.5 text-fg-muted" weight="duotone" />
+              Custom Image
+            </FieldLabel>
+            <TextInput
+              id="sandbox-image"
+              value={sandboxConfig.image ?? ''}
+              onChange={(e) => setSandboxConfig((prev) => ({ ...prev, image: e.target.value }))}
+              placeholder="ghcr.io/your-org/custom-sandbox"
+              disabled={!sandboxConfig.enabled}
+              data-testid="sandbox-image-input"
+            />
+          </div>
+        </div>
+
+        {/* Kubernetes-specific settings */}
+        {sandboxConfig.provider === 'kubernetes' && (
+          <div
+            className={cn(
+              'mt-6 p-4 rounded-lg border border-border bg-surface-subtle transition-all duration-normal',
+              sandboxConfig.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+            )}
           >
-            Default branch
-          </label>
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-fg-subtle" />
+            <div className="flex items-center gap-2 mb-4">
+              <Cloud className="h-5 w-5 text-fg-muted" weight="duotone" />
+              <span className="text-sm font-medium text-fg">Kubernetes Settings</span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <FieldLabel htmlFor="k8s-namespace">Namespace</FieldLabel>
+                <TextInput
+                  id="k8s-namespace"
+                  value={sandboxConfig.namespace ?? 'default'}
+                  onChange={(e) =>
+                    setSandboxConfig((prev) => ({ ...prev, namespace: e.target.value }))
+                  }
+                  placeholder="default"
+                  disabled={!sandboxConfig.enabled}
+                  data-testid="k8s-namespace-input"
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="k8s-service-account" hint="optional">
+                  Service Account
+                </FieldLabel>
+                <TextInput
+                  id="k8s-service-account"
+                  value={sandboxConfig.serviceAccount ?? ''}
+                  onChange={(e) =>
+                    setSandboxConfig((prev) => ({ ...prev, serviceAccount: e.target.value }))
+                  }
+                  placeholder="agent-runner"
+                  disabled={!sandboxConfig.enabled}
+                  data-testid="k8s-service-account-input"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </SettingsCard>
+
+      {/* General Settings */}
+      <SettingsCard>
+        <SectionHeader
+          icon={Gear}
+          title="General Settings"
+          description="Configure basic project information and behavior."
+        />
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <FieldLabel htmlFor="project-name">Project Name</FieldLabel>
+            <TextInput
+              id="project-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              data-testid="project-name-input"
+            />
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="project-path" hint="read-only">
+              Project Path
+            </FieldLabel>
+            <TextInput
+              id="project-path"
+              value={project.path}
+              readOnly
+              className="bg-surface-muted text-fg-muted cursor-not-allowed"
+              data-testid="project-path-display"
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <FieldLabel htmlFor="project-description">Description</FieldLabel>
+            <Textarea
+              id="project-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of the project..."
+              rows={2}
+              data-testid="project-description-input"
+            />
+          </div>
+        </div>
+      </SettingsCard>
+
+      {/* Agent Configuration */}
+      <SettingsCard>
+        <SectionHeader
+          icon={Brain}
+          title="Agent Configuration"
+          description="Set defaults for AI agents working on this project."
+        />
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <FieldLabel htmlFor="max-concurrent">Max Concurrent Agents</FieldLabel>
+            <div className="flex items-center gap-4">
+              <input
+                id="max-concurrent"
+                type="range"
+                min={1}
+                max={10}
+                value={maxConcurrent}
+                onChange={(event) => setMaxConcurrent(Number(event.target.value))}
+                className="flex-1 h-2 bg-surface-muted rounded-full appearance-none cursor-pointer accent-accent"
+                data-testid="max-agents-slider"
+              />
+              <span className="w-10 text-center text-lg font-semibold text-fg tabular-nums bg-surface-subtle rounded-lg py-1">
+                {maxConcurrent}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="model">Default Model</FieldLabel>
+            <Select
+              value={config.model ?? 'claude-sonnet-4'}
+              onValueChange={(value) => setConfig((prev) => ({ ...prev, model: value }))}
+            >
+              <SelectTrigger id="model">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="claude-sonnet-4">Claude Sonnet 4</SelectItem>
+                <SelectItem value="claude-opus-4">Claude Opus 4</SelectItem>
+                <SelectItem value="claude-haiku-3-5">Claude Haiku 3.5</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="default-branch">
+              <GitBranch className="inline h-4 w-4 mr-1.5 text-fg-muted" />
+              Default Branch
+            </FieldLabel>
             <TextInput
               id="default-branch"
               value={config.defaultBranch}
@@ -162,228 +658,150 @@ export function ProjectSettings({
               }
             />
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="worktree-root"
-          >
-            Worktree root
-          </label>
-          <TextInput
-            id="worktree-root"
-            value={config.worktreeRoot}
-            onChange={(event) =>
-              setConfig((prev) => ({
-                ...prev,
-                worktreeRoot: event.target.value,
-              }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="model"
-          >
-            Default model
-          </label>
-          <Select
-            value={config.model ?? 'claude-sonnet-4'}
-            onValueChange={(value) => setConfig((prev) => ({ ...prev, model: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select model" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="claude-sonnet-4">Claude Sonnet 4</SelectItem>
-              <SelectItem value="claude-opus-4">Claude Opus 4</SelectItem>
-              <SelectItem value="claude-haiku-3-5">Claude Haiku 3.5</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2 lg:col-span-2">
-          <label
-            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
-            htmlFor="system-prompt"
-          >
-            System prompt
-          </label>
-          <Textarea
-            id="system-prompt"
-            value={config.systemPrompt ?? ''}
-            onChange={(event) =>
-              setConfig((prev) => ({
-                ...prev,
-                systemPrompt: event.target.value,
-              }))
-            }
-            rows={4}
-          />
-        </div>
-      </div>
-
-      {/* Environment Variables Section */}
-      <div className="mt-6 rounded-lg border border-border bg-surface-subtle p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Key className="h-4 w-4 text-fg-muted" />
-          <h3 className="text-sm font-medium text-fg">Environment Variables</h3>
-          <span className="text-xs text-fg-muted">(passed to sandbox containers)</span>
-        </div>
-
-        {/* Existing env vars */}
-        {envVars.length > 0 && (
-          <div className="space-y-2 mb-4">
-            {envVars.map((env, index) => (
-              <div key={`${env.key}-${index}`} className="flex items-center gap-2">
-                <TextInput
-                  value={env.key}
-                  onChange={(e) => {
-                    setEnvVars((prev) =>
-                      prev.map((item, i) =>
-                        i === index ? { key: e.target.value, value: item.value } : item
-                      )
-                    );
-                  }}
-                  placeholder="KEY"
-                  className="flex-1 font-mono text-sm"
-                  data-testid={`env-var-key-${index}`}
-                />
-                <span className="text-fg-muted">=</span>
-                <TextInput
-                  type="password"
-                  value={env.value}
-                  onChange={(e) => {
-                    setEnvVars((prev) =>
-                      prev.map((item, i) =>
-                        i === index ? { key: item.key, value: e.target.value } : item
-                      )
-                    );
-                  }}
-                  placeholder="value"
-                  className="flex-[2] font-mono text-sm"
-                  data-testid={`env-var-value-${index}`}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setEnvVars(envVars.filter((_, i) => i !== index));
-                  }}
-                  data-testid={`env-var-delete-${index}`}
-                >
-                  <Trash className="h-4 w-4 text-danger" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add new env var */}
-        <div className="flex items-center gap-2">
-          <TextInput
-            value={newEnvKey}
-            onChange={(e) => setNewEnvKey(e.target.value.toUpperCase())}
-            placeholder="NEW_KEY"
-            className="flex-1 font-mono text-sm"
-            data-testid="env-var-new-key"
-          />
-          <span className="text-fg-muted">=</span>
-          <TextInput
-            type="password"
-            value={newEnvValue}
-            onChange={(e) => setNewEnvValue(e.target.value)}
-            placeholder="value"
-            className="flex-[2] font-mono text-sm"
-            data-testid="env-var-new-value"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (newEnvKey.trim()) {
-                setEnvVars([...envVars, { key: newEnvKey.trim(), value: newEnvValue }]);
-                setNewEnvKey('');
-                setNewEnvValue('');
+          <div>
+            <FieldLabel htmlFor="worktree-root">Worktree Root</FieldLabel>
+            <TextInput
+              id="worktree-root"
+              value={config.worktreeRoot}
+              onChange={(event) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  worktreeRoot: event.target.value,
+                }))
               }
-            }}
-            disabled={!newEnvKey.trim()}
-            data-testid="env-var-add"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-fg-muted">
-          These environment variables will be securely passed to sandbox containers when running
-          agents.
-        </p>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-success" data-testid="save-success">
-            Settings ready
+            />
           </div>
-          <Button
-            onClick={() => {
-              // Convert envVars array to object for storage
-              const envVarsObject = envVars.reduce(
-                (acc, { key, value }) => {
-                  if (key.trim()) {
-                    acc[key.trim()] = value;
-                  }
-                  return acc;
-                },
-                {} as Record<string, string>
-              );
 
-              onSave({
-                name: name !== project.name ? name : undefined,
-                description: description !== (project.description ?? '') ? description : undefined,
-                maxConcurrentAgents: maxConcurrent,
-                config: {
-                  ...config,
-                  worktreeRoot: config.worktreeRoot,
-                  defaultBranch: config.defaultBranch,
-                  envVars: Object.keys(envVarsObject).length > 0 ? envVarsObject : undefined,
-                },
-              });
-            }}
-            data-testid="save-settings-button"
-          >
-            Save settings
-          </Button>
+          <div className="lg:col-span-2">
+            <FieldLabel htmlFor="system-prompt" hint="optional">
+              System Prompt
+            </FieldLabel>
+            <Textarea
+              id="system-prompt"
+              value={config.systemPrompt ?? ''}
+              onChange={(event) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  systemPrompt: event.target.value,
+                }))
+              }
+              placeholder="Custom instructions for agents working on this project..."
+              rows={4}
+            />
+          </div>
         </div>
+      </SettingsCard>
 
-        <div
-          className="rounded-md border border-danger/40 bg-danger/10 p-4"
-          data-testid="danger-zone"
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-fg">Delete project</p>
-              <p className="text-xs text-fg-muted">Remove this project and all related data.</p>
+      {/* Environment Variables */}
+      <SettingsCard>
+        <SectionHeader
+          icon={Key}
+          title="Environment Variables"
+          description="Securely pass credentials and configuration to sandbox containers."
+        />
+
+        <div className="space-y-3">
+          {envVars.map((env, index) => (
+            <div key={`${env.key}-${index}`} className="flex items-center gap-3">
+              <TextInput
+                value={env.key}
+                onChange={(e) => {
+                  setEnvVars((prev) =>
+                    prev.map((item, i) =>
+                      i === index ? { key: e.target.value, value: item.value } : item
+                    )
+                  );
+                }}
+                placeholder="KEY"
+                className="flex-1 font-mono text-sm"
+                data-testid={`env-var-key-${index}`}
+              />
+              <span className="text-fg-muted font-mono">=</span>
+              <TextInput
+                type="password"
+                value={env.value}
+                onChange={(e) => {
+                  setEnvVars((prev) =>
+                    prev.map((item, i) =>
+                      i === index ? { key: item.key, value: e.target.value } : item
+                    )
+                  );
+                }}
+                placeholder="value"
+                className="flex-[2] font-mono text-sm"
+                data-testid={`env-var-value-${index}`}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEnvVars(envVars.filter((_, i) => i !== index))}
+                className="text-danger hover:bg-danger/10"
+                data-testid={`env-var-delete-${index}`}
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
             </div>
+          ))}
+
+          <div className="flex items-center gap-3 pt-2">
+            <TextInput
+              value={newEnvKey}
+              onChange={(e) => setNewEnvKey(e.target.value.toUpperCase())}
+              placeholder="NEW_KEY"
+              className="flex-1 font-mono text-sm"
+              data-testid="env-var-new-key"
+            />
+            <span className="text-fg-muted font-mono">=</span>
+            <TextInput
+              type="password"
+              value={newEnvValue}
+              onChange={(e) => setNewEnvValue(e.target.value)}
+              placeholder="value"
+              className="flex-[2] font-mono text-sm"
+              data-testid="env-var-new-value"
+            />
             <Button
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              data-testid="delete-project-button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (newEnvKey.trim()) {
+                  setEnvVars([...envVars, { key: newEnvKey.trim(), value: newEnvValue }]);
+                  setNewEnvKey('');
+                  setNewEnvValue('');
+                }
+              }}
+              disabled={!newEnvKey.trim()}
+              data-testid="env-var-add"
             >
-              Delete project
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
         </div>
+      </SettingsCard>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between gap-4 pt-2">
+        <Button
+          variant="destructive"
+          onClick={() => setShowDeleteDialog(true)}
+          data-testid="delete-project-button"
+        >
+          <Trash className="h-4 w-4 mr-2" />
+          Delete Project
+        </Button>
+        <Button onClick={handleSave} data-testid="save-settings-button">
+          Save Settings
+        </Button>
       </div>
 
       <DeleteProjectDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         projectName={project.name}
+        projectPath={project.path}
         onConfirm={onDelete}
       />
-    </section>
+    </div>
   );
 }

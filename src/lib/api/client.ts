@@ -312,10 +312,13 @@ export const apiClient = {
         body: data,
       }),
 
-    delete: (id: string) =>
-      apiServerFetch<{ deleted: boolean }>(`/api/projects/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }),
+    delete: (id: string, options?: { deleteFiles?: boolean }) =>
+      apiServerFetch<{ deleted: boolean }>(
+        `/api/projects/${encodeURIComponent(id)}${options?.deleteFiles ? '?deleteFiles=true' : ''}`,
+        {
+          method: 'DELETE',
+        }
+      ),
   },
 
   agents: {
@@ -380,6 +383,28 @@ export const apiClient = {
         method: 'PATCH',
         body: { column, position },
       }),
+
+    /**
+     * Get diff for a task (file changes made by the agent)
+     */
+    getDiff: (id: string) =>
+      apiServerFetch<{
+        summary: { filesChanged: number; additions: number; deletions: number };
+        files: Array<{
+          path: string;
+          status: 'added' | 'modified' | 'deleted' | 'renamed';
+          additions: number;
+          deletions: number;
+          hunks?: Array<{
+            header: string;
+            lines: Array<{
+              type: 'context' | 'add' | 'delete';
+              content: string;
+              lineNumber?: number;
+            }>;
+          }>;
+        }>;
+      }>(`/api/tasks/${id}/diff`),
   },
 
   sessions: {

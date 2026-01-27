@@ -22,9 +22,11 @@ import {
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
+import { createDockerProvider } from '../lib/sandbox/index.js';
 import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
-import type { DurableStreamsService } from '../services/durable-streams.service.js';
+import { createContainerAgentService } from '../services/container-agent.service.js';
+import { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from '../services/github-token.service.js';
 import { MarketplaceService } from '../services/marketplace.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
@@ -159,6 +161,38 @@ const bunCommandRunner: CommandRunner = {
 
 // WorktreeService for git worktree operations
 const worktreeService = new WorktreeService(db, bunCommandRunner);
+
+// Update TaskService with real worktreeService for getDiff support
+taskService.setWorktreeService({
+  getDiff: (worktreeId: string) => worktreeService.getDiff(worktreeId),
+  merge: (worktreeId: string, targetBranch?: string) =>
+    worktreeService.merge(worktreeId, targetBranch),
+  remove: (worktreeId: string) => worktreeService.remove(worktreeId),
+});
+
+// Docker provider for sandbox containers (optional - only if Docker is available)
+let dockerProvider: ReturnType<typeof createDockerProvider> | null = null;
+let containerAgentService: ReturnType<typeof createContainerAgentService> | null = null;
+
+try {
+  dockerProvider = createDockerProvider();
+  console.log('[API Server] Docker provider initialized');
+
+  // Create DurableStreamsService for container agent events
+  const durableStreamsService = new DurableStreamsService(mockStreamsServer);
+
+  // Create ContainerAgentService for Docker-based agent execution
+  containerAgentService = createContainerAgentService(db, dockerProvider, durableStreamsService);
+
+  // Wire up container agent service to task service
+  taskService.setContainerAgentService(containerAgentService);
+  console.log('[API Server] ContainerAgentService wired up to TaskService');
+} catch (error) {
+  console.warn(
+    '[API Server] Docker not available, container agent service disabled:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
 
 // MarketplaceService for plugin marketplace operations
 const marketplaceService = new MarketplaceService(db);

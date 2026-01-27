@@ -1,3 +1,4 @@
+import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { SessionEvent } from '../../services/session.service.js';
 import { getToolHandler } from './tools/index.js';
@@ -17,11 +18,23 @@ export interface StreamHandlerOptions {
   };
 }
 
+export interface ExitPlanModeOptions {
+  allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  pushToRemote?: boolean;
+  remoteSessionId?: string;
+  remoteSessionUrl?: string;
+  remoteSessionTitle?: string;
+  launchSwarm?: boolean;
+  teammateCount?: number;
+}
+
 export interface AgentRunResult {
   runId: string;
-  status: 'completed' | 'error' | 'turn_limit' | 'paused';
+  status: 'completed' | 'error' | 'turn_limit' | 'paused' | 'planning';
   turnCount: number;
   result?: string;
+  plan?: string;
+  planOptions?: ExitPlanModeOptions;
   error?: string;
 }
 
@@ -60,67 +73,369 @@ async function runPostToolHooks(
   }
 }
 
-export async function runAgentWithStreaming(
-  options: StreamHandlerOptions
-): Promise<AgentRunResult> {
-  const { agentId, sessionId, maxTurns, sessionService } = options;
+/**
+ * Run the agent in planning mode first.
+ * The agent will explore the codebase and use ExitPlanMode when the plan is ready.
+ * Returns after the plan is ready for user approval.
+ */
+export async function runAgentPlanning(options: StreamHandlerOptions): Promise<AgentRunResult> {
+  const { agentId, sessionId, prompt, model, cwd, sessionService } = options;
+
+  const runId = createId();
+  let accumulated = '';
+  let turn = 0;
+  let planContent = '';
+  let exitPlanModeOptions: ExitPlanModeOptions | undefined;
+
+  // Publish planning started event
+  await sessionService.publish(sessionId, {
+    id: createId(),
+    type: 'agent:planning',
+    timestamp: Date.now(),
+    data: { agentId, runId, model },
+  });
+
+  // Create Claude Agent SDK session in PLAN mode
+  // In plan mode, the agent can read/explore but not execute changes
+  // The agent will use ExitPlanMode tool when the plan is ready
+  const session = unstable_v2_createSession({
+    model,
+    env: { ...process.env },
+    permissionMode: 'plan', // Planning mode - agent will use ExitPlanMode when done
+    executableArgs: ['--add-dir', cwd],
+  });
+
+  try {
+    // Send the task prompt - the agent will automatically enter plan mode
+    await session.send(prompt);
+
+    // Stream the planning response
+    for await (const msg of session.stream()) {
+      // Handle stream events (token-by-token streaming)
+      if (msg.type === 'stream_event') {
+        const event = msg.event as {
+          type: string;
+          delta?: { type: string; text?: string };
+        };
+
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta' &&
+          event.delta.text
+        ) {
+          accumulated += event.delta.text;
+
+          await sessionService.publish(sessionId, {
+            id: createId(),
+            type: 'chunk',
+            timestamp: Date.now(),
+            data: { agentId, delta: event.delta.text, accumulated, phase: 'planning' },
+          });
+        }
+      }
+
+      // Handle complete assistant message
+      if (msg.type === 'assistant') {
+        turn++;
+        const message = msg.message as {
+          content?: Array<{ type: string; text?: string }>;
+        };
+
+        const textContent = message?.content
+          ?.filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+          .map((b) => b.text)
+          .join('');
+
+        if (textContent) {
+          accumulated = textContent;
+        }
+
+        // Publish turn event for planning phase
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'agent:turn',
+          timestamp: Date.now(),
+          data: { agentId, turn, phase: 'planning' },
+        });
+      }
+
+      // Handle tool_use_summary - detect ExitPlanMode
+      if (msg.type === 'tool_use_summary') {
+        const toolSummary = msg as {
+          tool_name?: string;
+          tool_input?: Record<string, unknown>;
+          tool_result?: string;
+        };
+
+        // Publish tool event
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'tool:start',
+          timestamp: Date.now(),
+          data: {
+            agentId,
+            tool: toolSummary.tool_name,
+            input: toolSummary.tool_input,
+            phase: 'planning',
+          },
+        });
+
+        // Check if this is ExitPlanMode - this means the plan is ready
+        if (toolSummary.tool_name === 'ExitPlanMode') {
+          // Capture the ExitPlanMode options including swarm settings
+          const input = toolSummary.tool_input as ExitPlanModeOptions | undefined;
+          exitPlanModeOptions = input;
+
+          console.log(
+            `[StreamHandler] Agent ${agentId} called ExitPlanMode - plan is ready`,
+            input?.launchSwarm
+              ? `(swarm: ${input.teammateCount ?? 'default'} agents)`
+              : '(single agent)'
+          );
+
+          // The plan content is in the accumulated text
+          planContent = accumulated;
+        }
+      }
+
+      // Handle result (planning session finished)
+      if (msg.type === 'result') {
+        session.close();
+
+        // Publish plan ready event with swarm options
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'agent:plan_ready',
+          timestamp: Date.now(),
+          data: {
+            agentId,
+            runId,
+            plan: planContent || accumulated,
+            launchSwarm: exitPlanModeOptions?.launchSwarm,
+            teammateCount: exitPlanModeOptions?.teammateCount,
+            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+          },
+        });
+
+        return {
+          runId,
+          status: 'planning',
+          turnCount: turn,
+          plan: planContent || accumulated,
+          planOptions: exitPlanModeOptions,
+        };
+      }
+    }
+
+    // If we exit the loop, planning completed
+    session.close();
+
+    await sessionService.publish(sessionId, {
+      id: createId(),
+      type: 'agent:plan_ready',
+      timestamp: Date.now(),
+      data: {
+        agentId,
+        runId,
+        plan: planContent || accumulated,
+        launchSwarm: exitPlanModeOptions?.launchSwarm,
+        teammateCount: exitPlanModeOptions?.teammateCount,
+        allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+      },
+    });
+
+    return {
+      runId,
+      status: 'planning',
+      turnCount: turn,
+      plan: planContent || accumulated || 'No plan generated',
+      planOptions: exitPlanModeOptions,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[StreamHandler] Agent ${agentId} planning error:`, error);
+
+    await sessionService.publish(sessionId, {
+      id: createId(),
+      type: 'agent:error',
+      timestamp: Date.now(),
+      data: { agentId, runId, error: errorMessage, phase: 'planning' },
+    });
+
+    session.close();
+    return {
+      runId,
+      status: 'error',
+      turnCount: 0,
+      error: errorMessage,
+    };
+  }
+}
+
+/**
+ * Run the agent in execution mode after plan approval.
+ */
+export async function runAgentExecution(options: StreamHandlerOptions): Promise<AgentRunResult> {
+  const { agentId, sessionId, prompt, allowedTools, maxTurns, model, cwd, sessionService } =
+    options;
 
   const runId = createId();
   let turn = 0;
+  let accumulated = '';
 
   // Publish agent started event
   await sessionService.publish(sessionId, {
     id: createId(),
     type: 'agent:started',
     timestamp: Date.now(),
-    data: { agentId, runId, maxTurns },
+    data: { agentId, runId, maxTurns, model, phase: 'execution' },
+  });
+
+  // Create Claude Agent SDK session for execution
+  const session = unstable_v2_createSession({
+    model,
+    env: { ...process.env },
+    allowedTools,
+    permissionMode: 'acceptEdits', // Auto-accept edits for execution
+    executableArgs: ['--add-dir', cwd],
   });
 
   try {
-    // Since the SDK uses query() as an async generator, we simulate the pattern
-    // In a real implementation, this would iterate over SDK's query() output
-    // For now, we provide a placeholder that can be replaced with actual SDK calls
+    // Send the execution prompt
+    await session.send(prompt);
 
-    // Placeholder: In real implementation, this would be:
-    // for await (const message of query({ prompt, options })) { ... }
+    // Stream responses from the SDK
+    for await (const msg of session.stream()) {
+      // Handle stream events (token-by-token streaming)
+      if (msg.type === 'stream_event') {
+        const event = msg.event as {
+          type: string;
+          delta?: { type: string; text?: string };
+          message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+          usage?: { input_tokens?: number; output_tokens?: number };
+        };
 
-    // For demonstration, we'll simulate a basic tool execution loop
-    // The actual SDK integration would replace this with real SDK calls
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta' &&
+          event.delta.text
+        ) {
+          accumulated += event.delta.text;
 
-    while (turn < maxTurns) {
-      turn++;
+          await sessionService.publish(sessionId, {
+            id: createId(),
+            type: 'chunk',
+            timestamp: Date.now(),
+            data: { agentId, delta: event.delta.text, accumulated, phase: 'execution' },
+          });
+        }
+      }
 
-      // Update agent turn count in session
-      await sessionService.publish(sessionId, {
-        id: createId(),
-        type: 'agent:turn',
-        timestamp: Date.now(),
-        data: { agentId, turn, maxTurns, remaining: maxTurns - turn },
-      });
+      // Handle complete assistant messages (turn completed)
+      if (msg.type === 'assistant') {
+        turn++;
 
-      // In real SDK implementation, this is where we'd process messages
-      // For now, we break after first turn to signal placeholder behavior
-      break;
+        const message = msg.message as {
+          content?: Array<{ type: string; text?: string }>;
+          model?: string;
+          usage?: { input_tokens?: number; output_tokens?: number };
+        };
+
+        const textContent = message?.content
+          ?.filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+          .map((b) => b.text)
+          .join('');
+
+        if (textContent) {
+          accumulated = textContent;
+        }
+
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'agent:turn',
+          timestamp: Date.now(),
+          data: {
+            agentId,
+            turn,
+            maxTurns,
+            remaining: maxTurns - turn,
+            usage: message?.usage,
+          },
+        });
+
+        if (turn >= maxTurns) {
+          await sessionService.publish(sessionId, {
+            id: createId(),
+            type: 'agent:turn_limit',
+            timestamp: Date.now(),
+            data: { agentId, turn, maxTurns },
+          });
+
+          session.close();
+          return {
+            runId,
+            status: 'turn_limit',
+            turnCount: turn,
+            result: `Turn limit reached (${maxTurns}). Task moved to waiting approval.`,
+          };
+        }
+      }
+
+      // Handle tool_use_summary events
+      if (msg.type === 'tool_use_summary') {
+        const toolSummary = msg as {
+          tool_name?: string;
+          tool_input?: Record<string, unknown>;
+          tool_result?: string;
+          is_error?: boolean;
+        };
+
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'tool:start',
+          timestamp: Date.now(),
+          data: { agentId, tool: toolSummary.tool_name, input: toolSummary.tool_input },
+        });
+
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'tool:result',
+          timestamp: Date.now(),
+          data: {
+            agentId,
+            tool: toolSummary.tool_name,
+            output: toolSummary.tool_result?.slice(0, 1000),
+            isError: toolSummary.is_error,
+          },
+        });
+      }
+
+      // Handle result (agent finished)
+      if (msg.type === 'result') {
+        const result = msg as {
+          status?: string;
+          usage?: { input_tokens?: number; output_tokens?: number };
+        };
+
+        await sessionService.publish(sessionId, {
+          id: createId(),
+          type: 'agent:completed',
+          timestamp: Date.now(),
+          data: { agentId, runId, turnCount: turn, usage: result.usage },
+        });
+
+        session.close();
+        return {
+          runId,
+          status: 'completed',
+          turnCount: turn,
+          result: accumulated || 'Task completed successfully',
+        };
+      }
     }
 
-    // Check if turn limit was reached
-    if (turn >= maxTurns) {
-      await sessionService.publish(sessionId, {
-        id: createId(),
-        type: 'agent:turn_limit',
-        timestamp: Date.now(),
-        data: { agentId, turn, maxTurns },
-      });
+    session.close();
 
-      return {
-        runId,
-        status: 'turn_limit',
-        turnCount: turn,
-        result: `Turn limit reached (${maxTurns}). Task moved to waiting approval.`,
-      };
-    }
-
-    // Publish completion
     await sessionService.publish(sessionId, {
       id: createId(),
       type: 'agent:completed',
@@ -132,10 +447,11 @@ export async function runAgentWithStreaming(
       runId,
       status: 'completed',
       turnCount: turn,
-      result: 'Task completed successfully',
+      result: accumulated || 'Task completed successfully',
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[StreamHandler] Agent ${agentId} execution error:`, error);
 
     await sessionService.publish(sessionId, {
       id: createId(),
@@ -144,6 +460,7 @@ export async function runAgentWithStreaming(
       data: { agentId, runId, error: errorMessage },
     });
 
+    session.close();
     return {
       runId,
       status: 'error',
@@ -151,6 +468,17 @@ export async function runAgentWithStreaming(
       error: errorMessage,
     };
   }
+}
+
+/**
+ * Legacy function - runs planning first, then waits for approval.
+ * @deprecated Use runAgentPlanning and runAgentExecution separately
+ */
+export async function runAgentWithStreaming(
+  options: StreamHandlerOptions
+): Promise<AgentRunResult> {
+  // Start with planning phase
+  return runAgentPlanning(options);
 }
 
 // Helper to execute a single tool call with hooks

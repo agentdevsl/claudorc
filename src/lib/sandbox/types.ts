@@ -81,15 +81,24 @@ export interface TmuxSession {
 export type { OAuthCredentials } from '../../types/credentials.js';
 
 /**
+ * Sandbox provider type
+ */
+export type SandboxProvider = 'docker' | 'devcontainer' | 'kubernetes';
+
+/**
  * Project sandbox configuration (stored in project config)
  */
 export interface ProjectSandboxConfig {
   enabled: boolean;
+  provider: SandboxProvider;
   idleTimeoutMinutes: number;
   image?: string;
   additionalVolumes?: VolumeMountConfig[];
   memoryMb?: number;
   cpuCores?: number;
+  // Kubernetes-specific settings
+  namespace?: string;
+  serviceAccount?: string;
 }
 
 /**
@@ -131,13 +140,19 @@ export const sandboxConfigSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 
+export const sandboxProviderSchema = z.enum(['docker', 'devcontainer', 'kubernetes']);
+
 export const projectSandboxConfigSchema = z.object({
   enabled: z.boolean().default(false),
+  provider: sandboxProviderSchema.default('docker'),
   idleTimeoutMinutes: z.number().positive().default(SANDBOX_DEFAULTS.idleTimeoutMinutes),
   image: z.string().optional(),
   additionalVolumes: z.array(volumeMountConfigSchema).optional(),
   memoryMb: z.number().positive().optional(),
   cpuCores: z.number().positive().optional(),
+  // Kubernetes-specific settings
+  namespace: z.string().optional(),
+  serviceAccount: z.string().optional(),
 });
 
 export type SandboxConfigSchema = z.infer<typeof sandboxConfigSchema>;

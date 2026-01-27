@@ -86,6 +86,18 @@ export class TaskService {
     this.containerAgentService = service;
   }
 
+  /**
+   * Update the worktree service after construction.
+   * Useful when TaskService is created before WorktreeService is fully initialized.
+   */
+  setWorktreeService(service: {
+    getDiff: (worktreeId: string) => Promise<Result<GitDiff, TaskError>>;
+    merge: (worktreeId: string, targetBranch?: string) => Promise<Result<void, TaskError>>;
+    remove: (worktreeId: string) => Promise<Result<void, TaskError>>;
+  }): void {
+    this.worktreeService = service;
+  }
+
   async create(input: CreateTaskInput): Promise<Result<Task, TaskError>> {
     const { projectId, title, description, labels = [], priority = 'medium' } = input;
 

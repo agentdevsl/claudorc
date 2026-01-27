@@ -16,6 +16,8 @@ export type SessionEventType =
   | 'approval:rejected'
   | 'state:update'
   | 'agent:started'
+  | 'agent:planning'
+  | 'agent:plan_ready'
   | 'agent:turn'
   | 'agent:turn_limit'
   | 'agent:completed'

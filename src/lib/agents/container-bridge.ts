@@ -12,6 +12,23 @@ import type {
   TypedEventType,
 } from '../../services/durable-streams.service.js';
 
+// Debug logging helper
+const DEBUG = process.env.DEBUG_CONTAINER_BRIDGE === 'true' || process.env.DEBUG === 'true';
+
+function debugLog(context: string, message: string, data?: Record<string, unknown>): void {
+  if (DEBUG) {
+    const timestamp = new Date().toISOString();
+    const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+    console.log(`[${timestamp}] [ContainerBridge:${context}] ${message}${dataStr}`);
+  }
+}
+
+function infoLog(context: string, message: string, data?: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  console.log(`[${timestamp}] [ContainerBridge:${context}] ${message}${dataStr}`);
+}
+
 /**
  * Event types emitted by the container agent-runner.
  */
@@ -86,6 +103,10 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
   const { taskId, sessionId, projectId, streams, onComplete, onError } = options;
   let readline: Interface | null = null;
   let stopped = false;
+  let lineCount = 0;
+  let eventCount = 0;
+
+  debugLog('createContainerBridge', 'Creating container bridge', { taskId, sessionId, projectId });
 
   /**
    * Parse a JSON line from stdout.
@@ -101,14 +122,26 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
 
       // Validate event structure
       if (!event.type || !event.timestamp || !event.taskId || !event.sessionId) {
-        console.warn('[ContainerBridge] Invalid event structure:', trimmed);
+        infoLog('parseLine', 'Invalid event structure', {
+          line: trimmed.slice(0, 200),
+          hasType: !!event.type,
+          hasTimestamp: !!event.timestamp,
+          hasTaskId: !!event.taskId,
+          hasSessionId: !!event.sessionId,
+        });
         return null;
       }
+
+      debugLog('parseLine', 'Parsed event', {
+        type: event.type,
+        taskId: event.taskId,
+        dataKeys: Object.keys(event.data || {}),
+      });
 
       return event;
     } catch {
       // Not JSON - might be regular stdout from commands
-      console.debug('[ContainerBridge] Non-JSON output:', trimmed);
+      debugLog('parseLine', 'Non-JSON output', { line: trimmed.slice(0, 100) });
       return null;
     }
   }
@@ -119,7 +152,7 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
   async function publishEvent(event: ContainerAgentEvent): Promise<void> {
     const streamType = EVENT_TYPE_MAP[event.type];
     if (!streamType) {
-      console.warn('[ContainerBridge] Unknown event type:', event.type);
+      infoLog('publishEvent', 'Unknown event type', { type: event.type });
       return;
     }
 
@@ -131,10 +164,20 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       ...event.data,
     };
 
+    debugLog('publishEvent', 'Publishing event to DurableStreams', {
+      type: streamType,
+      sessionId,
+      dataKeys: Object.keys(eventData),
+    });
+
     try {
       await streams.publish(sessionId, streamType, eventData as StreamEventMap[typeof streamType]);
+      debugLog('publishEvent', 'Event published successfully', { type: streamType });
     } catch (error) {
-      console.error('[ContainerBridge] Failed to publish event:', { type: streamType, error });
+      infoLog('publishEvent', 'Failed to publish event', {
+        type: streamType,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -146,6 +189,14 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       status: 'completed' | 'turn_limit' | 'cancelled';
       turnCount: number;
     };
+
+    infoLog('handleComplete', 'Agent completed', {
+      taskId,
+      status: data.status,
+      turnCount: data.turnCount,
+      totalLines: lineCount,
+      totalEvents: eventCount,
+    });
 
     if (onComplete) {
       onComplete(data.status, data.turnCount);
@@ -161,6 +212,14 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       turnCount: number;
     };
 
+    infoLog('handleError', 'Agent error received', {
+      taskId,
+      error: data.error,
+      turnCount: data.turnCount,
+      totalLines: lineCount,
+      totalEvents: eventCount,
+    });
+
     if (onError) {
       onError(data.error, data.turnCount);
     }
@@ -172,6 +231,13 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
   function handleCancelled(event: ContainerAgentEvent): void {
     const data = event.data as { turnCount: number };
 
+    infoLog('handleCancelled', 'Agent cancelled', {
+      taskId,
+      turnCount: data.turnCount,
+      totalLines: lineCount,
+      totalEvents: eventCount,
+    });
+
     if (onComplete) {
       onComplete('cancelled', data.turnCount);
     }
@@ -180,8 +246,11 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
   return {
     async processStream(stream: Readable): Promise<void> {
       if (stopped) {
+        debugLog('processStream', 'Bridge already stopped, skipping', { taskId });
         return;
       }
+
+      infoLog('processStream', 'Starting to process stdout stream', { taskId, sessionId });
 
       readline = createInterface({
         input: stream,
@@ -190,7 +259,10 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
 
       // Process each line
       for await (const line of readline) {
+        lineCount++;
+
         if (stopped) {
+          debugLog('processStream', 'Bridge stopped during processing', { taskId, lineCount });
           break;
         }
 
@@ -199,9 +271,11 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
           continue;
         }
 
+        eventCount++;
+
         // Verify event belongs to this task/session
         if (event.taskId !== taskId || event.sessionId !== sessionId) {
-          console.warn('[ContainerBridge] Event task/session mismatch:', {
+          infoLog('processStream', 'Event task/session mismatch', {
             expected: { taskId, sessionId },
             received: { taskId: event.taskId, sessionId: event.sessionId },
           });
@@ -220,9 +294,16 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
           handleCancelled(event);
         }
       }
+
+      infoLog('processStream', 'Stream processing complete', {
+        taskId,
+        totalLines: lineCount,
+        totalEvents: eventCount,
+      });
     },
 
     stop(): void {
+      infoLog('stop', 'Stopping container bridge', { taskId, lineCount, eventCount });
       stopped = true;
       if (readline) {
         readline.close();

@@ -1,6 +1,7 @@
 import {
   Check,
   CircleNotch,
+  Cloud,
   CloudArrowUp,
   Cpu,
   Cube,
@@ -10,6 +11,7 @@ import {
   Package,
   Pencil,
   Plus,
+  Sliders,
   Timer,
   Trash,
   TreeStructure,
@@ -30,7 +32,18 @@ import {
 } from '@/lib/api/client';
 import { cn } from '@/lib/utils/cn';
 
-type SandboxProvider = 'docker' | 'kubernetes';
+type SandboxProvider = 'docker' | 'devcontainer' | 'kubernetes';
+
+// Default project sandbox settings that projects inherit
+interface DefaultSandboxSettings {
+  enabled: boolean;
+  provider: SandboxProvider;
+  memoryMb: number;
+  cpuCores: number;
+  idleTimeoutMinutes: number;
+  image?: string;
+  namespace?: string;
+}
 
 interface K8sStatus {
   healthy: boolean;
@@ -62,6 +75,20 @@ function SandboxSettingsPage(): React.JSX.Element {
   const [configs, setConfigs] = useState<SandboxConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Default project sandbox settings
+  const [defaultSettings, setDefaultSettings] = useState<DefaultSandboxSettings>({
+    enabled: false,
+    provider: 'docker',
+    memoryMb: 2048,
+    cpuCores: 2,
+    idleTimeoutMinutes: 30,
+    image: '',
+    namespace: 'default',
+  });
+  const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+  const [defaultsSaved, setDefaultsSaved] = useState(false);
 
   // Provider selection state
   const [selectedProvider, setSelectedProvider] = useState<SandboxProvider>('docker');
@@ -116,9 +143,48 @@ function SandboxSettingsPage(): React.JSX.Element {
     }
   }, []);
 
+  // Load default sandbox settings from settings API
+  const loadDefaultSettings = useCallback(async () => {
+    setIsLoadingDefaults(true);
+    try {
+      const result = await apiClient.settings.get(['sandbox.defaults']);
+      if (result.ok && result.data.settings['sandbox.defaults']) {
+        const saved = result.data.settings['sandbox.defaults'] as DefaultSandboxSettings;
+        setDefaultSettings(saved);
+        // Sync provider selection with defaults
+        if (saved.provider) {
+          setSelectedProvider(saved.provider);
+        }
+      }
+    } catch (_err) {
+      // Use defaults if not set
+    } finally {
+      setIsLoadingDefaults(false);
+    }
+  }, []);
+
+  // Save default sandbox settings
+  const saveDefaultSettings = async () => {
+    setIsSavingDefaults(true);
+    try {
+      const result = await apiClient.settings.update({
+        'sandbox.defaults': defaultSettings,
+      });
+      if (result.ok) {
+        setDefaultsSaved(true);
+        setTimeout(() => setDefaultsSaved(false), 2000);
+      }
+    } catch (_err) {
+      setError('Failed to save default settings');
+    } finally {
+      setIsSavingDefaults(false);
+    }
+  };
+
   useEffect(() => {
     loadConfigs();
-  }, [loadConfigs]);
+    loadDefaultSettings();
+  }, [loadConfigs, loadDefaultSettings]);
 
   // Load K8s status when provider is selected
   const loadK8sStatus = useCallback(async () => {
@@ -406,6 +472,292 @@ function SandboxSettingsPage(): React.JSX.Element {
       )}
 
       <div className="space-y-5">
+        {/* Default Project Sandbox Settings - The main configuration */}
+        <ConfigSection
+          icon={Sliders}
+          title="Default Project Settings"
+          description="These settings are inherited by all new projects. Individual projects can override them."
+          badge={defaultSettings.enabled ? 'Enabled' : 'Disabled'}
+          badgeColor={defaultSettings.enabled ? 'success' : 'accent'}
+          testId="default-settings-section"
+        >
+          {isLoadingDefaults ? (
+            <div className="flex items-center justify-center py-8">
+              <CircleNotch className="h-6 w-6 animate-spin text-fg-muted" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                      defaultSettings.enabled
+                        ? 'bg-success/20 text-success'
+                        : 'bg-surface-muted text-fg-muted'
+                    )}
+                  >
+                    <Cube
+                      className="h-5 w-5"
+                      weight={defaultSettings.enabled ? 'fill' : 'regular'}
+                    />
+                  </div>
+                  <div>
+                    <p className="font-medium text-fg">Enable Sandbox by Default</p>
+                    <p className="text-sm text-fg-muted">
+                      {defaultSettings.enabled
+                        ? 'New projects will use sandbox execution'
+                        : 'Projects use host execution by default'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={defaultSettings.enabled}
+                  onClick={() =>
+                    setDefaultSettings((prev) => ({ ...prev, enabled: !prev.enabled }))
+                  }
+                  className={cn(
+                    'relative h-6 w-11 rounded-full transition-colors',
+                    defaultSettings.enabled ? 'bg-success' : 'bg-surface-muted'
+                  )}
+                  data-testid="default-sandbox-enabled-toggle"
+                >
+                  <span
+                    className={cn(
+                      'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                      defaultSettings.enabled ? 'translate-x-5' : 'translate-x-0'
+                    )}
+                  />
+                </button>
+              </div>
+
+              {/* Provider selection */}
+              <div
+                className={cn(
+                  'transition-opacity',
+                  defaultSettings.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+                )}
+              >
+                <p className="mb-3 text-sm font-medium text-fg">Default Provider</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Docker */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefaultSettings((prev) => ({ ...prev, provider: 'docker' }));
+                      setSelectedProvider('docker');
+                    }}
+                    className={cn(
+                      'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
+                      defaultSettings.provider === 'docker'
+                        ? 'border-accent bg-accent/10'
+                        : 'border-border hover:border-fg-subtle'
+                    )}
+                    data-testid="default-provider-docker"
+                  >
+                    <span className="text-2xl">🐳</span>
+                    <span
+                      className={cn(
+                        'text-sm font-medium',
+                        defaultSettings.provider === 'docker' ? 'text-accent' : 'text-fg'
+                      )}
+                    >
+                      Docker
+                    </span>
+                    <span className="text-xs text-fg-muted">Local containers</span>
+                    {defaultSettings.provider === 'docker' && (
+                      <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                    )}
+                  </button>
+
+                  {/* DevContainer */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefaultSettings((prev) => ({ ...prev, provider: 'devcontainer' }));
+                      setSelectedProvider('devcontainer');
+                    }}
+                    className={cn(
+                      'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
+                      defaultSettings.provider === 'devcontainer'
+                        ? 'border-accent bg-accent/10'
+                        : 'border-border hover:border-fg-subtle'
+                    )}
+                    data-testid="default-provider-devcontainer"
+                  >
+                    <span className="text-2xl">📦</span>
+                    <span
+                      className={cn(
+                        'text-sm font-medium',
+                        defaultSettings.provider === 'devcontainer' ? 'text-accent' : 'text-fg'
+                      )}
+                    >
+                      DevContainer
+                    </span>
+                    <span className="text-xs text-fg-muted">VS Code compatible</span>
+                    {defaultSettings.provider === 'devcontainer' && (
+                      <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                    )}
+                  </button>
+
+                  {/* Kubernetes */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefaultSettings((prev) => ({ ...prev, provider: 'kubernetes' }));
+                      setSelectedProvider('kubernetes');
+                    }}
+                    className={cn(
+                      'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
+                      defaultSettings.provider === 'kubernetes'
+                        ? 'border-accent bg-accent/10'
+                        : 'border-border hover:border-fg-subtle'
+                    )}
+                    data-testid="default-provider-kubernetes"
+                  >
+                    <span className="text-2xl">☸️</span>
+                    <span
+                      className={cn(
+                        'text-sm font-medium',
+                        defaultSettings.provider === 'kubernetes' ? 'text-accent' : 'text-fg'
+                      )}
+                    >
+                      Kubernetes
+                    </span>
+                    <span className="text-xs text-fg-muted">Cluster pods</span>
+                    {defaultSettings.provider === 'kubernetes' && (
+                      <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Resource settings */}
+              <div
+                className={cn(
+                  'grid gap-4 sm:grid-cols-2 lg:grid-cols-4 transition-opacity',
+                  defaultSettings.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+                )}
+              >
+                {/* Memory */}
+                <div className="rounded-lg border border-border bg-surface-subtle p-4">
+                  <div className="flex items-center gap-2 text-sm text-fg-muted">
+                    <HardDrive className="h-4 w-4" />
+                    Memory
+                  </div>
+                  <select
+                    value={defaultSettings.memoryMb}
+                    onChange={(e) =>
+                      setDefaultSettings((prev) => ({ ...prev, memoryMb: Number(e.target.value) }))
+                    }
+                    className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg"
+                    data-testid="default-memory-select"
+                  >
+                    <option value="1024">1 GB</option>
+                    <option value="2048">2 GB</option>
+                    <option value="4096">4 GB</option>
+                    <option value="8192">8 GB</option>
+                  </select>
+                </div>
+
+                {/* CPU */}
+                <div className="rounded-lg border border-border bg-surface-subtle p-4">
+                  <div className="flex items-center gap-2 text-sm text-fg-muted">
+                    <Cpu className="h-4 w-4" />
+                    CPU Cores
+                  </div>
+                  <select
+                    value={defaultSettings.cpuCores}
+                    onChange={(e) =>
+                      setDefaultSettings((prev) => ({ ...prev, cpuCores: Number(e.target.value) }))
+                    }
+                    className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg"
+                    data-testid="default-cpu-select"
+                  >
+                    <option value="1">1 core</option>
+                    <option value="2">2 cores</option>
+                    <option value="4">4 cores</option>
+                  </select>
+                </div>
+
+                {/* Timeout */}
+                <div className="rounded-lg border border-border bg-surface-subtle p-4">
+                  <div className="flex items-center gap-2 text-sm text-fg-muted">
+                    <Timer className="h-4 w-4" />
+                    Idle Timeout
+                  </div>
+                  <select
+                    value={defaultSettings.idleTimeoutMinutes}
+                    onChange={(e) =>
+                      setDefaultSettings((prev) => ({
+                        ...prev,
+                        idleTimeoutMinutes: Number(e.target.value),
+                      }))
+                    }
+                    className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg"
+                    data-testid="default-timeout-select"
+                  >
+                    <option value="10">10 min</option>
+                    <option value="30">30 min</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+
+                {/* K8s Namespace - only shown for kubernetes */}
+                {defaultSettings.provider === 'kubernetes' && (
+                  <div className="rounded-lg border border-border bg-surface-subtle p-4">
+                    <div className="flex items-center gap-2 text-sm text-fg-muted">
+                      <Cloud className="h-4 w-4" />
+                      Namespace
+                    </div>
+                    <input
+                      type="text"
+                      value={defaultSettings.namespace || ''}
+                      onChange={(e) =>
+                        setDefaultSettings((prev) => ({ ...prev, namespace: e.target.value }))
+                      }
+                      placeholder="default"
+                      className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg"
+                      data-testid="default-namespace-input"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Save button */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={saveDefaultSettings}
+                  disabled={isSavingDefaults}
+                  className={cn(
+                    'min-w-[140px] transition-all',
+                    defaultsSaved && 'bg-success hover:bg-success'
+                  )}
+                  data-testid="save-default-settings"
+                >
+                  {isSavingDefaults ? (
+                    <>
+                      <CircleNotch className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : defaultsSaved ? (
+                    <>
+                      <Check className="h-4 w-4" weight="bold" />
+                      Saved!
+                    </>
+                  ) : (
+                    'Save Defaults'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </ConfigSection>
+
         {/* Provider Selection Section */}
         <ConfigSection
           icon={Cube}

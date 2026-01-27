@@ -2,6 +2,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { ExitPlanModeOptions } from '../../lib/agents/stream-handler.js';
 import type { DiffSummary } from '../../lib/types/diff.js';
 import { agents } from './agents';
 import type { TaskColumn, TaskPriority } from './enums';
@@ -40,6 +41,10 @@ export const tasks = sqliteTable('tasks', {
   rejectionReason: text('rejection_reason'),
   /** Model override for this task (short ID like 'claude-opus-4') */
   modelOverride: text('model_override'),
+  /** Plan options from ExitPlanMode (includes swarm settings) */
+  planOptions: text('plan_options', { mode: 'json' }).$type<ExitPlanModeOptions>(),
+  /** The generated plan content */
+  plan: text('plan'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
   startedAt: text('started_at'),

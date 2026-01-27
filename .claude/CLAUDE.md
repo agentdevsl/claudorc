@@ -149,6 +149,97 @@ The startup script includes health checks to ensure both servers are ready befor
 - **API offline**: If API requests fail, check that port 3001 is running. Restart with `npm run dev`.
 - **Frontend not loading**: Ensure port 3000 is available and Vite started successfully.
 
+## Agent Execution Architecture
+
+### Task → Agent Flow
+
+When a task is moved to `in_progress` (via drag-drop on the Kanban board):
+
+1. **Task Move API** (`PATCH /api/tasks/:id/move`)
+   - Updates task column in database
+   - If moving to `in_progress`, triggers agent auto-start
+
+2. **Agent Auto-Start** (`src/server/routes/tasks.ts`)
+   - Finds an idle agent or creates a new one for the project
+   - Calls `agentService.start(agentId, taskId)`
+
+3. **Agent Execution Service** (`src/services/agent/agent-execution.service.ts`)
+   - Creates a git worktree for isolated work
+   - Creates a session to track events
+   - Updates task with `agentId`, `sessionId`, `worktreeId`
+   - Sets agent status to `planning` (not running)
+   - Starts planning via `runAgentPlanning()`
+
+4. **Planning Phase** (`src/lib/agents/stream-handler.ts:runAgentPlanning`)
+   - Creates Claude Agent SDK session with `permissionMode: 'plan'`
+   - Agent explores codebase and creates implementation plan
+   - Agent calls `ExitPlanMode` tool when plan is ready
+   - Captures plan content and options (including swarm settings)
+   - Publishes `agent:plan_ready` event
+   - Task stays in `in_progress`, agent status is `planning`
+
+5. **Plan Approval** (user action)
+   - User reviews the plan in the UI
+   - On approval: execution phase begins
+   - On rejection: agent can be asked to revise
+
+6. **Execution Phase** (`src/lib/agents/stream-handler.ts:runAgentExecution`)
+   - Creates session with `permissionMode: 'acceptEdits'`
+   - If `launchSwarm: true` in planOptions, spawns multiple agents
+   - Executes the approved plan
+   - On completion: task moves to `waiting_approval`
+
+### Swarm Mode
+
+When the agent calls `ExitPlanMode`, it can request swarm execution:
+
+```typescript
+interface ExitPlanModeOptions {
+  allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  launchSwarm?: boolean;      // Enable swarm mode
+  teammateCount?: number;     // Number of parallel agents
+  pushToRemote?: boolean;     // Remote session support
+}
+```
+
+If `launchSwarm: true`, the execution phase will spawn multiple agents to work on different parts of the plan in parallel.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/server/routes/tasks.ts` | Task move API with agent auto-start |
+| `src/services/agent/agent-execution.service.ts` | Agent lifecycle management |
+| `src/lib/agents/stream-handler.ts` | Claude SDK integration |
+| `src/lib/agents/agent-sdk-utils.ts` | SDK helper utilities |
+| `src/services/worktree.service.ts` | Git worktree management |
+
+### Environment Requirements
+
+- **ANTHROPIC_API_KEY**: Required for Claude SDK. Set globally or in the admin settings UI.
+- The API key is automatically passed to the SDK via `process.env`.
+
+### Session Events
+
+The stream handler publishes these events during execution:
+
+| Event Type | When |
+|------------|------|
+| `agent:started` | Agent begins execution |
+| `agent:turn` | Each turn completed |
+| `chunk` | Streaming text output |
+| `tool:start` | Tool invocation begins |
+| `tool:result` | Tool returns result |
+| `agent:turn_limit` | Max turns reached |
+| `agent:completed` | Agent finished successfully |
+| `agent:error` | Agent encountered error |
+
+### Real-Time Streaming
+
+- **Backend**: SSE endpoint at `GET /api/sessions/:id/stream`
+- **Frontend**: `DurableStreamsClient` connects via EventSource
+- Events are published through `sessionService.publish()`
+
 ## Important: Use Subagents Liberally
 
 When performing any research, concurrent subagents can be used for performance and isolation. Use parallel tool calls and tasks where possible.
