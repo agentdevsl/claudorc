@@ -15,8 +15,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 import { Database as BunSQLite } from 'bun:sqlite';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema/index.js';
+import { settings } from '../db/schema/settings.js';
 import {
   MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
@@ -177,6 +179,50 @@ let containerAgentService: ReturnType<typeof createContainerAgentService> | null
 try {
   dockerProvider = createDockerProvider();
   console.log('[API Server] Docker provider initialized');
+
+  // Create default global sandbox if it doesn't exist
+  const existingDefault = await dockerProvider.get('default');
+  if (!existingDefault) {
+    // Get global sandbox defaults from settings
+    const globalDefaults = await db.query.settings.findFirst({
+      where: eq(settings.key, 'sandbox.defaults'),
+    });
+    const defaults = globalDefaults?.value as {
+      image?: string;
+      memoryMb?: number;
+      cpuCores?: number;
+      idleTimeoutMinutes?: number;
+    } | null;
+
+    const defaultImage = defaults?.image || 'agentpane-sandbox:latest';
+    console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
+
+    // Check if the image exists
+    const imageAvailable = await dockerProvider.isImageAvailable(defaultImage);
+    console.log(`[API Server] Image available: ${imageAvailable}`);
+    if (imageAvailable) {
+      try {
+        await dockerProvider.create({
+          projectId: 'default',
+          projectPath: '/workspace',
+          image: defaultImage,
+          memoryMb: defaults?.memoryMb ?? 2048,
+          cpuCores: defaults?.cpuCores ?? 2,
+          idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
+          volumeMounts: [],
+        });
+        console.log('[API Server] Default global sandbox created');
+      } catch (createErr) {
+        console.warn('[API Server] Failed to create default sandbox:', createErr);
+      }
+    } else {
+      console.log(
+        `[API Server] Default sandbox image '${defaultImage}' not available, skipping default sandbox creation`
+      );
+    }
+  } else {
+    console.log('[API Server] Default global sandbox already exists');
+  }
 
   // Create DurableStreamsService for container agent events
   const durableStreamsService = new DurableStreamsService(mockStreamsServer);
