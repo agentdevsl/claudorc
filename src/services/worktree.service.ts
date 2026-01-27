@@ -165,18 +165,18 @@ export class WorktreeService {
       return err(WorktreeErrors.CREATION_FAILED('unknown', 'Agent not found'));
     }
 
-    // Create readable identifiers from agent name and task title
-    const agentSlug = slugify(agent.name);
+    // Create short, meaningful identifier from task title + short ID for uniqueness
     const taskSlug = slugify(taskTitle);
+    const shortId = taskId.slice(0, 6);
 
-    // Branch: agent/{agentName}/{taskSlug}
-    // Example: agent/claude-1/fix-login-validation
-    const branch = `agent/${agentSlug}/${taskSlug}`;
+    // Branch: {taskSlug}-{shortId}
+    // Example: fix-login-validation-abc123
+    const branch = `${taskSlug}-${shortId}`;
 
-    // Path: .worktrees/{agentName}-{taskSlug}
-    // Example: .worktrees/claude-1-fix-login-validation
+    // Path: .worktrees/{taskSlug}-{shortId}
+    // Example: .worktrees/fix-login-validation-abc123
     const root = project.config?.worktreeRoot ?? '.worktrees';
-    const worktreePath = path.join(project.path, root, `${agentSlug}-${taskSlug}`);
+    const worktreePath = path.join(project.path, root, branch);
 
     const escapedBranchForCheck = escapeShellString(branch);
     const branchCheck = await this.runner.exec(
