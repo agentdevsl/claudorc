@@ -167,19 +167,32 @@ export function QuestionsPanel({
   onSkip,
   isSubmitting,
 }: QuestionsPanelProps): React.JSX.Element {
-  // Check if all questions are answered
-  // For single-select: answer must be defined (string)
-  // For multi-select: answer must be defined and have at least one selection (array with length > 0)
+  // Validate that answers match the current questions' options
+  // This prevents stale answers from previous rounds from being used
+  const validateAnswer = (
+    question: ClarifyingQuestion,
+    answer: string | string[] | undefined
+  ): boolean => {
+    if (answer === undefined) return false;
+
+    const validLabels = question.options.map((o) => o.label);
+
+    if (question.multiSelect) {
+      // Multi-select: all selected values must be valid options
+      if (!Array.isArray(answer) || answer.length === 0) return false;
+      return answer.every((a) => validLabels.includes(a));
+    }
+    // Single-select: value must be a valid option
+    return typeof answer === 'string' && validLabels.includes(answer);
+  };
+
+  // Check if all questions are answered with VALID options for the current questions
+  // This guards against race conditions where old answers from previous rounds
+  // might still be in state when new questions arrive
   const allAnswered = pendingQuestions.questions.every(
     (question: ClarifyingQuestion, index: number) => {
       const answer = selectedAnswers[String(index)];
-      if (answer === undefined) return false;
-      if (question.multiSelect) {
-        // Multi-select requires at least one selection
-        return Array.isArray(answer) && answer.length > 0;
-      }
-      // Single-select just needs a value
-      return typeof answer === 'string' && answer.length > 0;
+      return validateAnswer(question, answer);
     }
   );
 

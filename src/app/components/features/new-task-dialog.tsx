@@ -866,12 +866,15 @@ export function NewTaskDialog({
   }, [suggestion]);
 
   // Reset selected answers when new questions arrive
+  // Track which question ID the selected answers belong to (prevents race conditions)
   const pendingQuestionsId = pendingQuestions?.id;
   const prevQuestionsIdRef = useRef<string | undefined>(undefined);
+  const answersQuestionsIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     console.log('[NewTaskDialog] Questions effect:', {
       pendingQuestionsId,
       prevId: prevQuestionsIdRef.current,
+      answersForId: answersQuestionsIdRef.current,
       isNew: pendingQuestionsId !== prevQuestionsIdRef.current,
       round: pendingQuestions?.round,
       headers: pendingQuestions?.questions.map((q) => q.header),
@@ -881,6 +884,9 @@ export function NewTaskDialog({
       console.log('[NewTaskDialog] New questions detected! Resetting answers.');
       // Always reset answers for new questions (they have different indices)
       setSelectedAnswers({});
+      // IMPORTANT: Clear the ref to indicate no answers selected for this round yet
+      // This prevents stale answers from being submitted before user makes selections
+      answersQuestionsIdRef.current = undefined;
     }
     prevQuestionsIdRef.current = pendingQuestionsId;
   }, [pendingQuestionsId, pendingQuestions]);
@@ -1030,8 +1036,46 @@ export function NewTaskDialog({
 
   // Handle submitting answers to questions
   // isStreaming state from durable streams automatically tracks processing
+  // Includes validation to prevent submitting stale answers from previous rounds
   const handleSubmitAnswers = useCallback(async () => {
     if (!pendingQuestions) return;
+
+    // CRITICAL: Check that answers belong to the current question round
+    // This prevents race conditions where old answers are submitted for new questions
+    // Also blocks if no answers have been selected yet (ref is undefined)
+    if (answersQuestionsIdRef.current !== pendingQuestions.id) {
+      console.warn(
+        '[NewTaskDialog] Answers are for a different question round or none selected - not submitting',
+        { answersForId: answersQuestionsIdRef.current, currentId: pendingQuestions.id }
+      );
+      // Clear stale answers - leave ref undefined until user selects new answers
+      setSelectedAnswers({});
+      answersQuestionsIdRef.current = undefined;
+      return;
+    }
+
+    // Validate that all answers match valid options for the current questions
+    // This guards against edge cases where answers might not match
+    const isValid = pendingQuestions.questions.every((question, index) => {
+      const answer = selectedAnswers[String(index)];
+      if (answer === undefined) return false;
+
+      const validLabels = question.options.map((o) => o.label);
+
+      if (question.multiSelect) {
+        if (!Array.isArray(answer) || answer.length === 0) return false;
+        return answer.every((a) => validLabels.includes(a));
+      }
+      return typeof answer === 'string' && validLabels.includes(answer);
+    });
+
+    if (!isValid) {
+      console.warn('[NewTaskDialog] Detected invalid answers - not submitting');
+      // Clear stale answers if validation fails
+      setSelectedAnswers({});
+      return;
+    }
+
     try {
       await answerQuestions(selectedAnswers);
     } catch (error) {
@@ -1049,12 +1093,21 @@ export function NewTaskDialog({
   }, [skipQuestions]);
 
   // Handle selecting an answer for a question (supports both single and multi-select)
-  const handleSelectAnswer = useCallback((questionIndex: number, answer: string | string[]) => {
-    setSelectedAnswers((prev) => ({
-      ...prev,
-      [String(questionIndex)]: answer,
-    }));
-  }, []);
+  // Also tracks which question ID these answers belong to
+  const handleSelectAnswer = useCallback(
+    (questionIndex: number, answer: string | string[]) => {
+      // Update the ref to track which questions these answers are for
+      // This is critical for preventing stale answer submission
+      if (pendingQuestionsId) {
+        answersQuestionsIdRef.current = pendingQuestionsId;
+      }
+      setSelectedAnswers((prev) => ({
+        ...prev,
+        [String(questionIndex)]: answer,
+      }));
+    },
+    [pendingQuestionsId]
+  );
 
   const handleClose = async () => {
     console.log('[NewTaskDialog] handleClose called', { sessionId, status });
