@@ -1,3 +1,4 @@
+import { PassThrough, type Readable } from 'node:stream';
 import { createId } from '@paralleldrive/cuid2';
 import Docker from 'dockerode';
 import { SandboxErrors } from '../../errors/sandbox-errors.js';
@@ -13,6 +14,8 @@ import type {
 import { SANDBOX_DEFAULTS } from '../types.js';
 import type {
   EventEmittingSandboxProvider,
+  ExecStreamOptions,
+  ExecStreamResult,
   Sandbox,
   SandboxProviderEvent,
   SandboxProviderEventListener,
@@ -249,6 +252,104 @@ class DockerSandbox implements Sandbox {
 
   getLastActivity(): Date {
     return this._lastActivity;
+  }
+
+  /**
+   * Execute a command with streaming output.
+   * Returns readable streams for stdout/stderr, useful for long-running processes
+   * like the agent-runner that emit events over time.
+   */
+  async execStream(options: ExecStreamOptions): Promise<ExecStreamResult> {
+    this.touch();
+
+    const { cmd, args = [], env = {}, cwd, asRoot = false } = options;
+
+    // Build command with working directory if specified
+    const fullCmd = cwd ? ['sh', '-c', `cd ${cwd} && ${cmd} ${args.join(' ')}`] : [cmd, ...args];
+
+    // Build environment variables array
+    const envArray = Object.entries(env).map(([k, v]) => `${k}=${v}`);
+
+    const exec = await this.container.exec({
+      Cmd: fullCmd,
+      AttachStdout: true,
+      AttachStderr: true,
+      Env: envArray,
+      User: asRoot ? 'root' : SANDBOX_DEFAULTS.userHome.split('/').pop(),
+    });
+
+    const dockerStream = await exec.start({ hijack: true, stdin: false });
+
+    // Create pass-through streams for stdout and stderr
+    const stdoutStream = new PassThrough();
+    const stderrStream = new PassThrough();
+
+    let buffer = Buffer.alloc(0);
+    let killed = false;
+
+    // Process the multiplexed Docker stream
+    dockerStream.on('data', (chunk: Buffer) => {
+      if (killed) return;
+
+      buffer = Buffer.concat([buffer, chunk]);
+
+      // Parse Docker multiplexed stream (8-byte headers)
+      while (buffer.length >= 8) {
+        const streamType = buffer[0];
+        const payloadSize = buffer.readUInt32BE(4);
+
+        if (buffer.length < 8 + payloadSize) {
+          break; // Wait for more data
+        }
+
+        const payload = buffer.subarray(8, 8 + payloadSize);
+        buffer = buffer.subarray(8 + payloadSize);
+
+        if (streamType === 1) {
+          stdoutStream.write(payload);
+        } else if (streamType === 2) {
+          stderrStream.write(payload);
+        }
+      }
+    });
+
+    dockerStream.on('end', () => {
+      stdoutStream.end();
+      stderrStream.end();
+    });
+
+    dockerStream.on('error', (err) => {
+      stdoutStream.destroy(err);
+      stderrStream.destroy(err);
+    });
+
+    return {
+      stdout: stdoutStream as Readable,
+      stderr: stderrStream as Readable,
+
+      async wait(): Promise<{ exitCode: number }> {
+        return new Promise((resolve, reject) => {
+          dockerStream.on('end', async () => {
+            try {
+              const inspection = await exec.inspect();
+              resolve({ exitCode: inspection.ExitCode ?? 0 });
+            } catch (err) {
+              reject(err);
+            }
+          });
+
+          dockerStream.on('error', reject);
+        });
+      },
+
+      kill(): void {
+        killed = true;
+        stdoutStream.end();
+        stderrStream.end();
+        // Note: Docker exec doesn't have a direct kill method.
+        // The process will be killed when the container stops or via a separate exec call.
+      },
+    };
   }
 }
 

@@ -1,3 +1,4 @@
+import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
 import { projects } from '../db/schema/projects.js';
 import type { Task, TaskColumn } from '../db/schema/tasks.js';
@@ -6,9 +7,11 @@ import { ProjectErrors } from '../lib/errors/project-errors.js';
 import type { TaskError } from '../lib/errors/task-errors.js';
 import { TaskErrors } from '../lib/errors/task-errors.js';
 import { ValidationErrors } from '../lib/errors/validation-errors.js';
+import type { ProjectSandboxConfig } from '../lib/sandbox/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+import type { StartAgentInput } from './container-agent.service.js';
 import { canTransition } from './task-transitions.js';
 import type { GitDiff } from './worktree.service.js';
 
@@ -55,7 +58,17 @@ export type DiffResult = {
   summary: GitDiff['stats'];
 };
 
+/**
+ * Optional container agent service for triggering agent execution on task move.
+ */
+export interface ContainerAgentTrigger {
+  startAgent: (input: StartAgentInput) => Promise<Result<void, unknown>>;
+  isAgentRunning: (taskId: string) => boolean;
+}
+
 export class TaskService {
+  private containerAgentService?: ContainerAgentTrigger;
+
   constructor(
     private db: Database,
     private worktreeService: {
@@ -64,6 +77,14 @@ export class TaskService {
       remove: (worktreeId: string) => Promise<Result<void, TaskError>>;
     }
   ) {}
+
+  /**
+   * Set the container agent service for automatic agent triggering.
+   * This is optional - if not set, tasks won't auto-trigger container agents.
+   */
+  setContainerAgentService(service: ContainerAgentTrigger): void {
+    this.containerAgentService = service;
+  }
 
   async create(input: CreateTaskInput): Promise<Result<Task, TaskError>> {
     const { projectId, title, description, labels = [], priority = 'medium' } = input;
@@ -217,7 +238,114 @@ export class TaskService {
       return err(TaskErrors.NOT_FOUND);
     }
 
+    // Trigger container agent when moving to in_progress (if sandbox is enabled)
+    if (column === 'in_progress' && this.containerAgentService) {
+      await this.triggerContainerAgent(updated);
+    }
+
     return ok(updated);
+  }
+
+  /**
+   * Trigger container agent execution for a task if sandbox is enabled.
+   */
+  private async triggerContainerAgent(task: Task): Promise<void> {
+    if (!this.containerAgentService) {
+      return;
+    }
+
+    // Check if agent is already running for this task
+    if (this.containerAgentService.isAgentRunning(task.id)) {
+      console.log(`[TaskService] Agent already running for task ${task.id}, skipping trigger`);
+      return;
+    }
+
+    // Get project to check sandbox config
+    const project = await this.db.query.projects.findFirst({
+      where: eq(projects.id, task.projectId),
+    });
+
+    if (!project) {
+      console.warn(`[TaskService] Project not found for task ${task.id}, cannot trigger agent`);
+      return;
+    }
+
+    const sandboxConfig = project.config?.sandbox as ProjectSandboxConfig | undefined;
+
+    // Only trigger if sandbox is enabled
+    if (!sandboxConfig?.enabled) {
+      console.log(
+        `[TaskService] Sandbox not enabled for project ${project.id}, skipping container agent`
+      );
+      return;
+    }
+
+    // Build task prompt
+    const prompt = this.buildTaskPrompt(task);
+
+    // Generate session ID for this agent run
+    const sessionId = task.sessionId ?? createId();
+
+    // Trigger agent execution (fire-and-forget)
+    void this.containerAgentService
+      .startAgent({
+        projectId: task.projectId,
+        taskId: task.id,
+        sessionId,
+        prompt,
+        model: project.config?.model,
+        maxTurns: project.config?.maxTurns,
+      })
+      .then((result) => {
+        if (!result.ok) {
+          console.error(
+            `[TaskService] Failed to start container agent for task ${task.id}:`,
+            result.error
+          );
+        } else {
+          console.log(`[TaskService] Container agent started for task ${task.id}`);
+        }
+      })
+      .catch((error) => {
+        console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
+      });
+
+    // Update task with session ID if it was generated
+    if (!task.sessionId) {
+      await this.db
+        .update(tasks)
+        .set({ sessionId, updatedAt: new Date().toISOString() })
+        .where(eq(tasks.id, task.id));
+    }
+  }
+
+  /**
+   * Build the prompt for container agent execution.
+   */
+  private buildTaskPrompt(task: Task): string {
+    const parts = [
+      'Work on the following task:',
+      '',
+      `Title: ${task.title}`,
+      '',
+      `Description: ${task.description ?? 'No description provided.'}`,
+    ];
+
+    if (task.labels && task.labels.length > 0) {
+      parts.push('', `Labels: ${task.labels.join(', ')}`);
+    }
+
+    if (task.priority) {
+      parts.push('', `Priority: ${task.priority}`);
+    }
+
+    parts.push(
+      '',
+      'The project is mounted at /workspace. Make the necessary changes to complete this task.',
+      'When you are done, the task will be moved to review.'
+    );
+
+    return parts.join('\n');
   }
 
   async reorder(id: string, position: number): Promise<Result<Task, TaskError>> {

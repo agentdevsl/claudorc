@@ -112,6 +112,78 @@ export interface SandboxTmuxDestroyedEvent {
 }
 
 /**
+ * Container agent events - emitted from agent-runner inside Docker containers
+ */
+export interface ContainerAgentStartedEvent {
+  taskId: string;
+  sessionId: string;
+  model: string;
+  maxTurns: number;
+}
+
+export interface ContainerAgentTokenEvent {
+  taskId: string;
+  sessionId: string;
+  delta: string;
+  accumulated: string;
+}
+
+export interface ContainerAgentTurnEvent {
+  taskId: string;
+  sessionId: string;
+  turn: number;
+  maxTurns: number;
+  remaining: number;
+}
+
+export interface ContainerAgentToolStartEvent {
+  taskId: string;
+  sessionId: string;
+  toolName: string;
+  toolId: string;
+  input: Record<string, unknown>;
+}
+
+export interface ContainerAgentToolResultEvent {
+  taskId: string;
+  sessionId: string;
+  toolName: string;
+  toolId: string;
+  result: string;
+  isError: boolean;
+  durationMs: number;
+}
+
+export interface ContainerAgentMessageEvent {
+  taskId: string;
+  sessionId: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ContainerAgentCompleteEvent {
+  taskId: string;
+  sessionId: string;
+  status: 'completed' | 'turn_limit' | 'cancelled';
+  turnCount: number;
+  result?: string;
+}
+
+export interface ContainerAgentErrorEvent {
+  taskId: string;
+  sessionId: string;
+  error: string;
+  code?: string;
+  turnCount: number;
+}
+
+export interface ContainerAgentCancelledEvent {
+  taskId: string;
+  sessionId: string;
+  turnCount: number;
+}
+
+/**
  * Task creation events
  */
 export interface TaskCreationStartedEvent {
@@ -216,6 +288,17 @@ export interface StreamEventMap {
   'task-creation:completed': TaskCreationCompletedEvent;
   'task-creation:cancelled': TaskCreationCancelledEvent;
   'task-creation:error': TaskCreationErrorEvent;
+
+  // Container agent events
+  'container-agent:started': ContainerAgentStartedEvent;
+  'container-agent:token': ContainerAgentTokenEvent;
+  'container-agent:turn': ContainerAgentTurnEvent;
+  'container-agent:tool:start': ContainerAgentToolStartEvent;
+  'container-agent:tool:result': ContainerAgentToolResultEvent;
+  'container-agent:message': ContainerAgentMessageEvent;
+  'container-agent:complete': ContainerAgentCompleteEvent;
+  'container-agent:error': ContainerAgentErrorEvent;
+  'container-agent:cancelled': ContainerAgentCancelledEvent;
 }
 
 /**

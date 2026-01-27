@@ -1,0 +1,47 @@
+# Agent Sandbox Dockerfile
+# Extends the base sandbox image with the Claude Agent Runner
+#
+# Usage:
+#   docker build -f docker/Dockerfile.agent-sandbox -t agentpane/agent-sandbox:latest .
+#
+# The image includes:
+# - Base sandbox environment (Node.js, Git, common dev tools)
+# - Claude Agent Runner for SDK execution
+# - ripgrep, fd-find, tree for file operations
+
+ARG BASE_IMAGE=docker/sandbox-templates:claude-code
+
+FROM ${BASE_IMAGE}
+
+# Install additional tools needed by the agent runner
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ripgrep \
+    fd-find \
+    tree \
+    jq \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create directory for agent runner
+RUN mkdir -p /opt/agent-runner
+
+# Copy agent runner package
+COPY agent-runner/package.json /opt/agent-runner/
+COPY agent-runner/dist /opt/agent-runner/dist/
+
+# Install agent runner dependencies (production only)
+WORKDIR /opt/agent-runner
+RUN npm install --production --ignore-scripts
+
+# Set working directory back to workspace
+WORKDIR /workspace
+
+# Default entrypoint for the sandbox (not the agent runner)
+# The agent runner is invoked via docker exec
+ENTRYPOINT ["/bin/bash"]
+
+# Labels
+LABEL org.opencontainers.image.title="AgentPane Agent Sandbox"
+LABEL org.opencontainers.image.description="Docker sandbox with Claude Agent Runner for AgentPane"
+LABEL org.opencontainers.image.vendor="AgentPane"
+LABEL org.opencontainers.image.source="https://github.com/agentpane/agentpane"

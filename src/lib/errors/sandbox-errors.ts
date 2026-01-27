@@ -148,4 +148,32 @@ export const SandboxErrors = {
 
   // Generic errors
   INTERNAL_ERROR: (message: string) => createError('SANDBOX_INTERNAL_ERROR', message, 500),
+
+  // Container agent errors
+  AGENT_ALREADY_RUNNING: (taskId: string) =>
+    createError(
+      'SANDBOX_AGENT_ALREADY_RUNNING',
+      `Agent is already running for task: ${taskId}`,
+      409,
+      {
+        taskId,
+      }
+    ),
+
+  AGENT_NOT_RUNNING: (taskId: string) =>
+    createError('SANDBOX_AGENT_NOT_RUNNING', `No agent running for task: ${taskId}`, 404, {
+      taskId,
+    }),
+
+  AGENT_START_FAILED: (message: string) =>
+    createError('SANDBOX_AGENT_START_FAILED', `Failed to start agent: ${message}`, 500),
+
+  AGENT_STOP_FAILED: (message: string) =>
+    createError('SANDBOX_AGENT_STOP_FAILED', `Failed to stop agent: ${message}`, 500),
+
+  STREAMING_EXEC_NOT_SUPPORTED: createError(
+    'SANDBOX_STREAMING_EXEC_NOT_SUPPORTED',
+    'Sandbox provider does not support streaming exec',
+    501
+  ),
 };
