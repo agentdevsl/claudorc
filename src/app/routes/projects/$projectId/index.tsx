@@ -74,14 +74,17 @@ function ProjectKanban(): React.JSX.Element {
     fetchData();
   }, [fetchData]);
 
-  const handleTaskMove = async (
-    taskId: string,
-    column: ClientTask['column'],
-    _position: number
-  ) => {
+  const handleTaskMove = async (taskId: string, column: ClientTask['column'], position: number) => {
     // Optimistic update
     setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, column } : task)));
-    // TODO: Add API endpoint for moving tasks
+
+    // Persist to backend
+    const result = await apiClient.tasks.move(taskId, column, position);
+    if (!result.ok) {
+      console.error('[ProjectKanban] Failed to move task:', result.error);
+      // Revert optimistic update on error
+      fetchData();
+    }
   };
 
   const handleTaskClick = (task: ClientTask) => {

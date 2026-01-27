@@ -1,0 +1,191 @@
+import { CheckCircle, Terminal, Warning, XCircle } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { EmptyState } from '@/app/components/features/empty-state';
+import type { ContainerAgentStatus } from './container-agent-header';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+interface ContainerAgentStreamProps {
+  streamedText: string;
+  messages: Message[];
+  isStreaming: boolean;
+  result?: string;
+  error?: string;
+  status: ContainerAgentStatus;
+}
+
+/**
+ * Blinking cursor component for streaming
+ */
+function StreamCursor(): React.JSX.Element {
+  return (
+    <span className="inline-block h-4 w-2 animate-pulse bg-accent" data-testid="stream-cursor" />
+  );
+}
+
+export function ContainerAgentStream({
+  streamedText,
+  messages,
+  isStreaming,
+  result,
+  error,
+  status,
+}: ContainerAgentStreamProps): React.JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [userScrolled, setUserScrolled] = useState(false);
+
+  // Auto-scroll to bottom when content changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally trigger on content changes
+  useEffect(() => {
+    if (autoScroll && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [streamedText, messages, autoScroll]);
+
+  // Detect user scroll
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+    if (!isAtBottom && !userScrolled) {
+      setUserScrolled(true);
+      setAutoScroll(false);
+    }
+
+    if (isAtBottom && userScrolled) {
+      setUserScrolled(false);
+      setAutoScroll(true);
+    }
+  }, [userScrolled]);
+
+  const scrollToBottom = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      setAutoScroll(true);
+      setUserScrolled(false);
+    }
+  }, []);
+
+  const hasContent = messages.length > 0 || streamedText.length > 0;
+
+  return (
+    <div className="relative flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-fg-muted">
+          <Terminal className="h-4 w-4" weight="bold" />
+          <span className="font-medium">Agent Output</span>
+          {isStreaming && (
+            <span className="flex items-center gap-1.5 text-xs text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Stream content */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto bg-canvas p-4 font-mono text-sm"
+        data-testid="container-agent-output"
+      >
+        {!hasContent && status === 'idle' ? (
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              preset="empty-session"
+              size="sm"
+              title="Waiting for output"
+              subtitle="Agent messages will appear in real time."
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Previous messages */}
+            {messages.map((msg, index) => (
+              <div
+                key={`${msg.timestamp}-${index}`}
+                className={`rounded-lg p-3 ${
+                  msg.role === 'assistant'
+                    ? 'bg-surface border border-border'
+                    : 'bg-accent/10 border border-accent/20'
+                }`}
+              >
+                <div className="mb-1 flex items-center gap-2 text-xs text-fg-muted">
+                  <span className="font-medium capitalize">{msg.role}</span>
+                  <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div className="whitespace-pre-wrap text-fg">{msg.content}</div>
+              </div>
+            ))}
+
+            {/* Currently streaming text */}
+            {streamedText && (
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <div className="mb-1 flex items-center gap-2 text-xs text-fg-muted">
+                  <span className="font-medium">Assistant</span>
+                  {isStreaming && <span className="text-success">Streaming...</span>}
+                </div>
+                <div className="whitespace-pre-wrap text-fg">
+                  {streamedText}
+                  {isStreaming && <StreamCursor />}
+                </div>
+              </div>
+            )}
+
+            {/* Final result */}
+            {status === 'completed' && result && (
+              <div className="rounded-lg border border-success/30 bg-success/10 p-3">
+                <div className="mb-2 flex items-center gap-2 text-success">
+                  <CheckCircle className="h-4 w-4" weight="fill" />
+                  <span className="text-sm font-medium">Completed</span>
+                </div>
+                <div className="whitespace-pre-wrap text-sm text-fg">{result}</div>
+              </div>
+            )}
+
+            {/* Cancelled state */}
+            {status === 'cancelled' && (
+              <div className="rounded-lg border border-warning/30 bg-warning/10 p-3">
+                <div className="flex items-center gap-2 text-warning">
+                  <Warning className="h-4 w-4" weight="fill" />
+                  <span className="text-sm font-medium">Cancelled</span>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {status === 'error' && error && (
+              <div className="rounded-lg border border-danger/30 bg-danger/10 p-3">
+                <div className="mb-2 flex items-center gap-2 text-danger">
+                  <XCircle className="h-4 w-4" weight="fill" />
+                  <span className="text-sm font-medium">Error</span>
+                </div>
+                <div className="whitespace-pre-wrap text-sm text-fg">{error}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Scroll to bottom button */}
+      {!autoScroll && hasContent && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-opacity hover:bg-accent-hover"
+        >
+          Scroll to bottom
+        </button>
+      )}
+    </div>
+  );
+}

@@ -367,6 +367,19 @@ export const apiClient = {
      */
     delete: (id: string) =>
       apiServerFetch<{ ok: boolean }>(`/api/tasks/${id}`, { method: 'DELETE' }),
+
+    /**
+     * Move a task to a different column
+     */
+    move: (
+      id: string,
+      column: 'backlog' | 'queued' | 'in_progress' | 'waiting_approval' | 'verified',
+      position?: number
+    ) =>
+      apiServerFetch<unknown>(`/api/tasks/${id}/move`, {
+        method: 'PATCH',
+        body: { column, position },
+      }),
   },
 
   sessions: {

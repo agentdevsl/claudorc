@@ -1,6 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { ContainerAgentPanel } from '@/app/components/features/container-agent-panel';
 import { PlanSessionView } from '@/app/components/features/plan-session-view';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import type { Worktree } from '@/db/schema/worktrees';
@@ -48,6 +49,7 @@ export interface TaskDetailDialogProps {
   onMoveColumn?: (taskId: string, column: TaskColumn) => Promise<void>;
   onViewSession?: (sessionId: string) => void;
   onOpenApproval?: (taskId: string) => void;
+  onStopAgent?: (taskId: string) => Promise<void>;
   viewers?: TaskViewer[];
 }
 
@@ -107,6 +109,7 @@ export function TaskDetailDialog({
   onMoveColumn,
   onViewSession,
   onOpenApproval,
+  onStopAgent,
   viewers = [],
 }: TaskDetailDialogProps): React.JSX.Element {
   const [state, dispatch] = useReducer(dialogReducer, initialState);
@@ -169,6 +172,9 @@ export function TaskDetailDialog({
 
   // Determine if we should show plan session view (currently disabled - no mode field)
   const showPlanSessionView = false;
+
+  // Show container agent panel when task is in progress and has a session
+  const showContainerAgentPanel = task?.column === 'in_progress' && task?.sessionId;
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -269,6 +275,13 @@ export function TaskDetailDialog({
                 onSessionEnd={() => onOpenChange(false)}
               />
             </div>
+          ) : showContainerAgentPanel ? (
+            <div className="flex-1 overflow-hidden p-4">
+              <ContainerAgentPanel
+                sessionId={task.sessionId}
+                onStop={onStopAgent ? () => onStopAgent(task.id) : undefined}
+              />
+            </div>
           ) : (
             <div className="flex-1 overflow-y-auto">
               <div className="space-y-5 p-5">
@@ -308,8 +321,8 @@ export function TaskDetailDialog({
             </div>
           )}
 
-          {/* Footer with actions - hide when showing plan session view */}
-          {!showPlanSessionView && (
+          {/* Footer with actions - hide when showing plan session view or container agent panel */}
+          {!showPlanSessionView && !showContainerAgentPanel && (
             <div className="flex items-center justify-between border-t border-border bg-surface-muted px-5 py-4">
               {/* Unsaved changes indicator */}
               {hasUnsavedChanges ? (

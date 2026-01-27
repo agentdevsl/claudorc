@@ -196,5 +196,47 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
   });
 
+  // PATCH /api/tasks/:id/move - Move task to different column
+  app.patch('/:id/move', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const body = (await c.req.json()) as {
+        column: 'backlog' | 'queued' | 'in_progress' | 'waiting_approval' | 'verified';
+        position?: number;
+      };
+
+      if (!body.column) {
+        return json(
+          { ok: false, error: { code: 'MISSING_PARAMS', message: 'column is required' } },
+          400
+        );
+      }
+
+      const validColumns = ['backlog', 'queued', 'in_progress', 'waiting_approval', 'verified'];
+      if (!validColumns.includes(body.column)) {
+        return json(
+          { ok: false, error: { code: 'INVALID_PARAMS', message: 'Invalid column value' } },
+          400
+        );
+      }
+
+      const result = await taskService.moveColumn(id, body.column, body.position);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: result.value });
+    } catch (error) {
+      console.error('[Tasks] Move error:', error);
+      return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to move task' } }, 500);
+    }
+  });
+
   return app;
 }

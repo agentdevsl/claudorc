@@ -94,7 +94,7 @@ export class EventEmitter {
 
     // Write as a single JSON line to stdout
     // The host process reads line-by-line and parses JSON
-    process.stdout.write(JSON.stringify(event) + '\n');
+    process.stdout.write(`${JSON.stringify(event)}\n`);
   }
 
   started(data: AgentStartedData): void {

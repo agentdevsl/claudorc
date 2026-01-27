@@ -64,6 +64,78 @@ const rawAgentStateDataSchema = z.object({
 });
 
 /**
+ * Container agent event schemas
+ */
+const rawContainerAgentStartedSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  model: z.string(),
+  maxTurns: z.number(),
+});
+
+const rawContainerAgentTokenSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  delta: z.string(),
+  accumulated: z.string(),
+});
+
+const rawContainerAgentTurnSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  turn: z.number(),
+  maxTurns: z.number(),
+  remaining: z.number(),
+});
+
+const rawContainerAgentToolStartSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  toolName: z.string(),
+  toolId: z.string(),
+  input: z.record(z.string(), z.unknown()),
+});
+
+const rawContainerAgentToolResultSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  toolName: z.string(),
+  toolId: z.string(),
+  result: z.string(),
+  isError: z.boolean(),
+  durationMs: z.number(),
+});
+
+const rawContainerAgentMessageSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+});
+
+const rawContainerAgentCompleteSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  status: z.enum(['completed', 'turn_limit', 'cancelled']),
+  turnCount: z.number(),
+  result: z.string().optional(),
+});
+
+const rawContainerAgentErrorSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  error: z.string(),
+  code: z.string().optional(),
+  turnCount: z.number(),
+});
+
+const rawContainerAgentCancelledSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  turnCount: z.number(),
+});
+
+/**
  * Reconnection configuration
  */
 export interface ReconnectConfig {
@@ -99,7 +171,17 @@ export type SessionEventType =
   | 'presence:cursor'
   | 'terminal:input'
   | 'terminal:output'
-  | 'state:update';
+  | 'state:update'
+  // Container agent events
+  | 'container-agent:started'
+  | 'container-agent:token'
+  | 'container-agent:turn'
+  | 'container-agent:tool:start'
+  | 'container-agent:tool:result'
+  | 'container-agent:message'
+  | 'container-agent:complete'
+  | 'container-agent:error'
+  | 'container-agent:cancelled';
 
 /**
  * Raw event from the server
@@ -112,6 +194,87 @@ export interface RawSessionEvent {
 }
 
 /**
+ * Container agent event types
+ */
+export interface ContainerAgentStarted {
+  taskId: string;
+  sessionId: string;
+  model: string;
+  maxTurns: number;
+  timestamp: number;
+}
+
+export interface ContainerAgentToken {
+  taskId: string;
+  sessionId: string;
+  delta: string;
+  accumulated: string;
+  timestamp: number;
+}
+
+export interface ContainerAgentTurn {
+  taskId: string;
+  sessionId: string;
+  turn: number;
+  maxTurns: number;
+  remaining: number;
+  timestamp: number;
+}
+
+export interface ContainerAgentToolStart {
+  taskId: string;
+  sessionId: string;
+  toolName: string;
+  toolId: string;
+  input: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface ContainerAgentToolResult {
+  taskId: string;
+  sessionId: string;
+  toolName: string;
+  toolId: string;
+  result: string;
+  isError: boolean;
+  durationMs: number;
+  timestamp: number;
+}
+
+export interface ContainerAgentMessage {
+  taskId: string;
+  sessionId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface ContainerAgentComplete {
+  taskId: string;
+  sessionId: string;
+  status: 'completed' | 'turn_limit' | 'cancelled';
+  turnCount: number;
+  result?: string;
+  timestamp: number;
+}
+
+export interface ContainerAgentError {
+  taskId: string;
+  sessionId: string;
+  error: string;
+  code?: string;
+  turnCount: number;
+  timestamp: number;
+}
+
+export interface ContainerAgentCancelled {
+  taskId: string;
+  sessionId: string;
+  turnCount: number;
+  timestamp: number;
+}
+
+/**
  * Typed session event for callback routing
  */
 export type TypedSessionEvent =
@@ -119,7 +282,16 @@ export type TypedSessionEvent =
   | { channel: 'toolCalls'; data: SessionToolCall; offset?: number }
   | { channel: 'presence'; data: SessionPresence; offset?: number }
   | { channel: 'terminal'; data: SessionTerminal; offset?: number }
-  | { channel: 'agentState'; data: SessionAgentState; offset?: number };
+  | { channel: 'agentState'; data: SessionAgentState; offset?: number }
+  | { channel: 'containerAgent:started'; data: ContainerAgentStarted; offset?: number }
+  | { channel: 'containerAgent:token'; data: ContainerAgentToken; offset?: number }
+  | { channel: 'containerAgent:turn'; data: ContainerAgentTurn; offset?: number }
+  | { channel: 'containerAgent:toolStart'; data: ContainerAgentToolStart; offset?: number }
+  | { channel: 'containerAgent:toolResult'; data: ContainerAgentToolResult; offset?: number }
+  | { channel: 'containerAgent:message'; data: ContainerAgentMessage; offset?: number }
+  | { channel: 'containerAgent:complete'; data: ContainerAgentComplete; offset?: number }
+  | { channel: 'containerAgent:error'; data: ContainerAgentError; offset?: number }
+  | { channel: 'containerAgent:cancelled'; data: ContainerAgentCancelled; offset?: number };
 
 /**
  * Callbacks for session subscription
@@ -132,6 +304,52 @@ export interface SessionCallbacks {
   onAgentState?: (event: {
     channel: 'agentState';
     data: SessionAgentState;
+    offset?: number;
+  }) => void;
+  // Container agent callbacks
+  onContainerAgentStarted?: (event: {
+    channel: 'containerAgent:started';
+    data: ContainerAgentStarted;
+    offset?: number;
+  }) => void;
+  onContainerAgentToken?: (event: {
+    channel: 'containerAgent:token';
+    data: ContainerAgentToken;
+    offset?: number;
+  }) => void;
+  onContainerAgentTurn?: (event: {
+    channel: 'containerAgent:turn';
+    data: ContainerAgentTurn;
+    offset?: number;
+  }) => void;
+  onContainerAgentToolStart?: (event: {
+    channel: 'containerAgent:toolStart';
+    data: ContainerAgentToolStart;
+    offset?: number;
+  }) => void;
+  onContainerAgentToolResult?: (event: {
+    channel: 'containerAgent:toolResult';
+    data: ContainerAgentToolResult;
+    offset?: number;
+  }) => void;
+  onContainerAgentMessage?: (event: {
+    channel: 'containerAgent:message';
+    data: ContainerAgentMessage;
+    offset?: number;
+  }) => void;
+  onContainerAgentComplete?: (event: {
+    channel: 'containerAgent:complete';
+    data: ContainerAgentComplete;
+    offset?: number;
+  }) => void;
+  onContainerAgentError?: (event: {
+    channel: 'containerAgent:error';
+    data: ContainerAgentError;
+    offset?: number;
+  }) => void;
+  onContainerAgentCancelled?: (event: {
+    channel: 'containerAgent:cancelled';
+    data: ContainerAgentCancelled;
     offset?: number;
   }) => void;
   onError?: (error: Error) => void;
@@ -452,6 +670,142 @@ function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
       };
     }
 
+    // Container agent events
+    case 'container-agent:started': {
+      const parsed = rawContainerAgentStartedSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:started:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:started',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:token': {
+      const parsed = rawContainerAgentTokenSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn('[DurableStreamsClient] Invalid container-agent:token:', parsed.error.message);
+        return null;
+      }
+      return {
+        channel: 'containerAgent:token',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:turn': {
+      const parsed = rawContainerAgentTurnSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn('[DurableStreamsClient] Invalid container-agent:turn:', parsed.error.message);
+        return null;
+      }
+      return {
+        channel: 'containerAgent:turn',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:tool:start': {
+      const parsed = rawContainerAgentToolStartSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:tool:start:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:toolStart',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:tool:result': {
+      const parsed = rawContainerAgentToolResultSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:tool:result:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:toolResult',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:message': {
+      const parsed = rawContainerAgentMessageSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:message:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:message',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:complete': {
+      const parsed = rawContainerAgentCompleteSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:complete:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:complete',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:error': {
+      const parsed = rawContainerAgentErrorSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn('[DurableStreamsClient] Invalid container-agent:error:', parsed.error.message);
+        return null;
+      }
+      return {
+        channel: 'containerAgent:error',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
+    case 'container-agent:cancelled': {
+      const parsed = rawContainerAgentCancelledSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:cancelled:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:cancelled',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
     default:
       console.warn(
         '[DurableStreamsClient] Unknown event type received:',
@@ -482,6 +836,34 @@ function routeEventToCallback(event: TypedSessionEvent, callbacks: SessionCallba
       break;
     case 'agentState':
       callbacks.onAgentState?.(event);
+      break;
+    // Container agent events
+    case 'containerAgent:started':
+      callbacks.onContainerAgentStarted?.(event);
+      break;
+    case 'containerAgent:token':
+      callbacks.onContainerAgentToken?.(event);
+      break;
+    case 'containerAgent:turn':
+      callbacks.onContainerAgentTurn?.(event);
+      break;
+    case 'containerAgent:toolStart':
+      callbacks.onContainerAgentToolStart?.(event);
+      break;
+    case 'containerAgent:toolResult':
+      callbacks.onContainerAgentToolResult?.(event);
+      break;
+    case 'containerAgent:message':
+      callbacks.onContainerAgentMessage?.(event);
+      break;
+    case 'containerAgent:complete':
+      callbacks.onContainerAgentComplete?.(event);
+      break;
+    case 'containerAgent:error':
+      callbacks.onContainerAgentError?.(event);
+      break;
+    case 'containerAgent:cancelled':
+      callbacks.onContainerAgentCancelled?.(event);
       break;
   }
 }

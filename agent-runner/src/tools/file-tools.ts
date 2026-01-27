@@ -63,7 +63,7 @@ export async function readFileTool(
     const formatted = selectedLines
       .map((line, idx) => {
         const lineNum = offset + idx + 1;
-        const truncated = line.length > 2000 ? line.slice(0, 2000) + '...' : line;
+        const truncated = line.length > 2000 ? `${line.slice(0, 2000)}...` : line;
         return `${String(lineNum).padStart(6)}\t${truncated}`;
       })
       .join('\n');

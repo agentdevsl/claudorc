@@ -67,7 +67,7 @@ export async function bashTool(args: BashArgs, context: ToolContext): Promise<To
     if (stderr && !stdout) {
       output = stderr;
     } else if (stderr) {
-      output = stdout + '\n\nStderr:\n' + stderr;
+      output = `${stdout}\n\nStderr:\n${stderr}`;
     }
 
     if (!output.trim()) {
@@ -76,7 +76,7 @@ export async function bashTool(args: BashArgs, context: ToolContext): Promise<To
 
     // Truncate very long output
     if (output.length > 100000) {
-      output = output.slice(0, 100000) + '\n\n[Output truncated - exceeded 100KB limit]';
+      output = `${output.slice(0, 100000)}\n\n[Output truncated - exceeded 100KB limit]`;
     }
 
     return {

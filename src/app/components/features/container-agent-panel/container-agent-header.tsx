@@ -1,0 +1,180 @@
+import {
+  ArrowsClockwise,
+  CircleNotch,
+  Robot,
+  Timer,
+  WifiHigh,
+  WifiSlash,
+} from '@phosphor-icons/react';
+import { cva } from 'class-variance-authority';
+import { useEffect, useState } from 'react';
+import type { ConnectionState } from '@/lib/streams/client';
+
+export type ContainerAgentStatus =
+  | 'idle'
+  | 'starting'
+  | 'running'
+  | 'completed'
+  | 'error'
+  | 'cancelled';
+
+interface ContainerAgentHeaderProps {
+  status: ContainerAgentStatus;
+  model?: string;
+  currentTurn: number;
+  maxTurns?: number;
+  startedAt?: number;
+  connectionState: ConnectionState;
+  isStreaming: boolean;
+}
+
+const statusBadgeVariants = cva(
+  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+  {
+    variants: {
+      status: {
+        idle: 'bg-surface-subtle text-fg-muted',
+        starting: 'bg-accent/15 text-accent',
+        running: 'bg-success/15 text-success',
+        completed: 'bg-accent/15 text-accent',
+        error: 'bg-danger/15 text-danger',
+        cancelled: 'bg-warning/15 text-warning',
+      },
+    },
+    defaultVariants: {
+      status: 'idle',
+    },
+  }
+);
+
+const statusDotVariants = cva('h-1.5 w-1.5 rounded-full', {
+  variants: {
+    status: {
+      idle: 'bg-fg-muted',
+      starting: 'bg-accent animate-pulse',
+      running: 'bg-success animate-pulse',
+      completed: 'bg-accent',
+      error: 'bg-danger',
+      cancelled: 'bg-warning',
+    },
+  },
+  defaultVariants: {
+    status: 'idle',
+  },
+});
+
+const statusLabels: Record<ContainerAgentStatus, string> = {
+  idle: 'Idle',
+  starting: 'Starting',
+  running: 'Running',
+  completed: 'Completed',
+  error: 'Error',
+  cancelled: 'Cancelled',
+};
+
+function formatElapsedTime(startTime: number): string {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+export function ContainerAgentHeader({
+  status,
+  model,
+  currentTurn,
+  maxTurns,
+  startedAt,
+  connectionState,
+  isStreaming,
+}: ContainerAgentHeaderProps): React.JSX.Element {
+  const [elapsedTime, setElapsedTime] = useState<string>('0:00');
+
+  // Update elapsed time every second when running
+  useEffect(() => {
+    if (!startedAt || (status !== 'running' && status !== 'starting')) {
+      return;
+    }
+
+    setElapsedTime(formatElapsedTime(startedAt));
+
+    const interval = window.setInterval(() => {
+      setElapsedTime(formatElapsedTime(startedAt));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [startedAt, status]);
+
+  const isActive = status === 'running' || status === 'starting';
+
+  return (
+    <div className="flex items-center gap-4">
+      {/* Agent icon and title */}
+      <div className="flex items-center gap-2">
+        <Robot className="h-5 w-5 text-fg-muted" weight="duotone" />
+        <div>
+          <p className="text-sm font-medium text-fg">Container Agent</p>
+          {model && <p className="text-xs text-fg-muted">{model}</p>}
+        </div>
+      </div>
+
+      {/* Status badge */}
+      <div
+        className={statusBadgeVariants({ status })}
+        data-testid="container-agent-status"
+        data-status={status}
+      >
+        <span className={statusDotVariants({ status })} />
+        {statusLabels[status]}
+      </div>
+
+      {/* Turn counter */}
+      {maxTurns && (
+        <div className="flex items-center gap-1.5 text-sm text-fg-muted" data-testid="turn-counter">
+          <ArrowsClockwise className="h-4 w-4" />
+          <span className="font-mono tabular-nums">
+            {currentTurn}/{maxTurns}
+          </span>
+        </div>
+      )}
+
+      {/* Elapsed time */}
+      {startedAt && isActive && (
+        <div className="flex items-center gap-1.5 text-sm text-fg-muted" data-testid="elapsed-time">
+          <Timer className="h-4 w-4" />
+          <span className="font-mono tabular-nums">{elapsedTime}</span>
+        </div>
+      )}
+
+      {/* Streaming indicator */}
+      {isStreaming && (
+        <div
+          className="flex items-center gap-1.5 text-xs text-success"
+          data-testid="streaming-indicator"
+        >
+          <CircleNotch className="h-3 w-3 animate-spin" />
+          <span>Streaming</span>
+        </div>
+      )}
+
+      {/* Connection state */}
+      <div className="flex items-center gap-1" title={`Connection: ${connectionState}`}>
+        {connectionState === 'connected' && (
+          <WifiHigh className="h-4 w-4 text-success" weight="fill" />
+        )}
+        {connectionState === 'connecting' && (
+          <WifiHigh className="h-4 w-4 text-fg-muted animate-pulse" />
+        )}
+        {connectionState === 'reconnecting' && (
+          <WifiHigh className="h-4 w-4 text-warning animate-pulse" />
+        )}
+        {connectionState === 'disconnected' && <WifiSlash className="h-4 w-4 text-danger" />}
+      </div>
+    </div>
+  );
+}
