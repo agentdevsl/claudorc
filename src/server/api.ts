@@ -110,14 +110,7 @@ const taskService = new TaskService(db, {
 // Mock DurableStreamsService for task creation (SSE handled separately)
 const mockStreamsService: DurableStreamsService = {
   createStream: async () => undefined,
-  publishTaskCreationStarted: async () => undefined,
-  publishTaskCreationMessage: async () => undefined,
-  publishTaskCreationToken: async () => undefined,
-  publishTaskCreationQuestions: async () => undefined,
-  publishTaskCreationSuggestion: async () => undefined,
-  publishTaskCreationError: async () => undefined,
-  publishTaskCreationCompleted: async () => undefined,
-  publishTaskCreationCancelled: async () => undefined,
+  publish: async () => 1,
 } as unknown as DurableStreamsService;
 
 // Mock DurableStreamsServer for SessionService

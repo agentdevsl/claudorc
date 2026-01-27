@@ -1,6 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
+import { invalidateSettingsCache, SETTING_KEYS } from '@/lib/hooks/use-settings';
 import { useTaskCreation } from '@/lib/task-creation/hooks';
+import { resetTaskCreationSession } from '@/lib/task-creation/sync';
 
 // Mock the API client
 vi.mock('@/lib/api/client', () => ({
@@ -9,10 +12,16 @@ vi.mock('@/lib/api/client', () => ({
       start: vi.fn(),
       sendMessage: vi.fn(),
       accept: vi.fn(),
+      answerQuestions: vi.fn(),
+      skipQuestions: vi.fn(),
       cancel: vi.fn(),
       getStreamUrl: vi.fn(
         (sessionId: string) => `/api/tasks/create-with-ai/stream?sessionId=${sessionId}`
       ),
+    },
+    settings: {
+      get: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -60,12 +69,52 @@ class MockEventSource {
 // Replace global EventSource
 const originalEventSource = global.EventSource;
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+const createDeferred = <T,>(): Deferred<T> => {
+  let resolve: (value: T) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((resolver, rejecter) => {
+    resolve = resolver;
+    reject = rejecter;
+  });
+  return { promise, resolve, reject };
+};
+
 describe('useTaskCreation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateSettingsCache();
+    resetTaskCreationSession('session-1');
     MockEventSource.instances = [];
     // @ts-expect-error - Mocking EventSource
     global.EventSource = MockEventSource;
+    const storage = new Map<string, string>();
+    // @ts-expect-error - Mocking localStorage for TanStack DB
+    global.localStorage = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+      clear: () => {
+        storage.clear();
+      },
+    };
+    vi.mocked(apiClient.settings.get).mockResolvedValue({
+      ok: true,
+      data: {
+        settings: {
+          [SETTING_KEYS.TASK_CREATION_TOOLS]: DEFAULT_TASK_CREATION_TOOLS,
+        },
+      },
+    });
   });
 
   afterEach(() => {
@@ -100,9 +149,23 @@ describe('useTaskCreation', () => {
         await result.current.startConversation();
       });
 
+      await waitFor(() => {
+        expect(MockEventSource.instances.length).toBe(1);
+      });
+
+      await act(async () => {
+        MockEventSource.instances[0]?.simulateMessage({
+          type: 'connected',
+          sessionId: 'session-1',
+        });
+      });
+
       expect(result.current.status).toBe('active');
       expect(result.current.sessionId).toBe('session-1');
-      expect(apiClient.taskCreation.start).toHaveBeenCalledWith('project-1');
+      expect(apiClient.taskCreation.start).toHaveBeenCalledWith(
+        'project-1',
+        DEFAULT_TASK_CREATION_TOOLS
+      );
     });
 
     it('sets error status on failure', async () => {
@@ -117,8 +180,8 @@ describe('useTaskCreation', () => {
         await result.current.startConversation();
       });
 
-      expect(result.current.status).toBe('error');
-      expect(result.current.error).toBe('Failed to start');
+      expect(result.current.status).toBe('idle');
+      expect(result.current.localError).toBe('Failed to start');
     });
   });
 
@@ -157,7 +220,7 @@ describe('useTaskCreation', () => {
         await result.current.sendMessage('hello');
       });
 
-      expect(result.current.error).toBe('No active session. Please start a conversation first.');
+      expect(result.current.localError).toBe('No active session');
     });
   });
 
@@ -390,6 +453,14 @@ describe('useTaskCreation', () => {
       });
 
       expect(apiClient.taskCreation.accept).toHaveBeenCalledWith('session-1', undefined);
+
+      await act(async () => {
+        MockEventSource.instances[0]?.simulateMessage({
+          type: 'task-creation:completed',
+          data: { taskId: 'task-123' },
+        });
+      });
+
       expect(result.current.createdTaskId).toBe('task-123');
       expect(result.current.status).toBe('completed');
     });
@@ -451,10 +522,79 @@ describe('useTaskCreation', () => {
       });
 
       await act(async () => {
-        await result.current.acceptSuggestion();
+        const response = await result.current.acceptSuggestion();
+        expect(response.ok).toBe(false);
+        expect(response.error).toBe('No suggestion available');
+      });
+    });
+  });
+
+  describe('answerQuestions', () => {
+    it('prevents duplicate submissions while a request is in flight', async () => {
+      vi.mocked(apiClient.taskCreation.start).mockResolvedValue({
+        ok: true,
+        data: { sessionId: 'session-1' },
       });
 
-      expect(result.current.error).toBe('No suggestion available to accept.');
+      const deferred = createDeferred<{
+        ok: true;
+        data: { sessionId: string; status: string };
+      }>();
+
+      vi.mocked(apiClient.taskCreation.answerQuestions).mockReturnValue(deferred.promise);
+
+      const { result } = renderHook(() => useTaskCreation('project-1'));
+
+      await act(async () => {
+        await result.current.startConversation();
+      });
+
+      await waitFor(() => {
+        expect(MockEventSource.instances.length).toBe(1);
+      });
+
+      await act(async () => {
+        MockEventSource.instances[0]?.simulateMessage({
+          type: 'task-creation:questions',
+          data: {
+            questions: {
+              id: 'q-1',
+              round: 1,
+              totalAsked: 1,
+              maxQuestions: 10,
+              questions: [
+                {
+                  header: 'Scope',
+                  question: 'What scope?',
+                  multiSelect: false,
+                  options: [{ label: 'Full' }],
+                },
+              ],
+            },
+          },
+        });
+      });
+
+      const answers = { '0': 'Full' };
+      let firstPromise: Promise<void> | null = null;
+      let secondPromise: Promise<void> | null = null;
+
+      await act(async () => {
+        firstPromise = result.current.answerQuestions(answers);
+        secondPromise = result.current.answerQuestions(answers);
+      });
+
+      expect(apiClient.taskCreation.answerQuestions).toHaveBeenCalledTimes(1);
+
+      deferred.resolve({ ok: true, data: { sessionId: 'session-1', status: 'active' } });
+
+      if (!firstPromise || !secondPromise) {
+        throw new Error('Answer promises were not created');
+      }
+
+      await act(async () => {
+        await Promise.all([firstPromise, secondPromise]);
+      });
     });
   });
 
@@ -479,6 +619,13 @@ describe('useTaskCreation', () => {
         await result.current.cancel();
       });
 
+      await act(async () => {
+        MockEventSource.instances[0]?.simulateMessage({
+          type: 'task-creation:cancelled',
+          data: { sessionId: 'session-1' },
+        });
+      });
+
       expect(apiClient.taskCreation.cancel).toHaveBeenCalledWith('session-1');
       expect(result.current.status).toBe('cancelled');
     });
@@ -495,6 +642,17 @@ describe('useTaskCreation', () => {
 
       await act(async () => {
         await result.current.startConversation();
+      });
+
+      await waitFor(() => {
+        expect(MockEventSource.instances.length).toBe(1);
+      });
+
+      await act(async () => {
+        MockEventSource.instances[0]?.simulateMessage({
+          type: 'connected',
+          sessionId: 'session-1',
+        });
       });
 
       expect(result.current.sessionId).toBe('session-1');

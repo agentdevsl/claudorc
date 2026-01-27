@@ -1,6 +1,6 @@
 import { eq } from '@tanstack/db';
 import { useLiveQuery } from '@tanstack/react-db';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { getTaskCreationToolsAsync } from '@/lib/constants/tools';
 import { taskCreationMessagesCollection, taskCreationSessionsCollection } from './collections';
@@ -126,6 +126,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   const [localError, setLocalError] = useState<string | null>(null);
   // Track answer submission to prevent double-clicks
   const [isAnswering, setIsAnswering] = useState(false);
+  const isAnsweringRef = useRef(false);
 
   // Get session and messages from TanStack DB (reactive)
   const session = useTaskCreationSession(sessionId);
@@ -177,6 +178,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
     // Update local state
     setSessionId(newSessionId);
+    console.log('[useTaskCreation] Started session:', { sessionId: newSessionId, projectId });
   }, [projectId]);
 
   // Send a message
@@ -247,16 +249,22 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
       }
 
       // Prevent double-submission
-      if (isAnswering) {
+      if (isAnsweringRef.current || isAnswering) {
         console.log('[useTaskCreation] Answer already in progress, ignoring');
         return;
       }
 
       // Clear any previous local error and mark as submitting
       setLocalError(null);
+      isAnsweringRef.current = true;
       setIsAnswering(true);
 
       try {
+        console.log('[useTaskCreation] Answering questions:', {
+          sessionId,
+          questionsId: pendingQuestions.id,
+          answers,
+        });
         const result = await apiClient.taskCreation.answerQuestions(
           sessionId,
           pendingQuestions.id,
@@ -284,6 +292,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
           setLocalError(result.error.message || 'Failed to submit answers');
         }
       } finally {
+        isAnsweringRef.current = false;
         setIsAnswering(false);
       }
     },
@@ -337,6 +346,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     setSessionId(null);
     setLocalError(null);
     setIsAnswering(false);
+    isAnsweringRef.current = false;
   }, [sessionId]);
 
   // Clear local error
