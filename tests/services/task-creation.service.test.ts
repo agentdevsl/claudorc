@@ -192,7 +192,7 @@ describe('TaskCreationService', () => {
       const suggestionResponse = createSuggestionResponse({
         title: 'Implement Login Feature',
         description: 'Add user authentication with email and password.',
-        labels: ['feature', 'auth'],
+        labels: ['feature', 'enhancement'],
         priority: 'high',
       });
 
@@ -214,7 +214,7 @@ describe('TaskCreationService', () => {
         expect(result.value.suggestion).not.toBeNull();
         expect(result.value.suggestion?.title).toBe('Implement Login Feature');
         expect(result.value.suggestion?.priority).toBe('high');
-        expect(result.value.suggestion?.labels).toContain('auth');
+        expect(result.value.suggestion?.labels).toContain('enhancement');
       }
     });
 
@@ -581,7 +581,7 @@ describe('TaskCreationService', () => {
                   text: createSuggestionResponse({
                     title: 'Parsed Task',
                     description: 'This should be parsed correctly',
-                    labels: ['bug', 'urgent'],
+                    labels: ['bug', 'refactor'],
                     priority: 'high',
                   }),
                 },
@@ -596,7 +596,7 @@ describe('TaskCreationService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.suggestion?.title).toBe('Parsed Task');
-        expect(result.value.suggestion?.labels).toEqual(['bug', 'urgent']);
+        expect(result.value.suggestion?.labels).toEqual(['bug', 'refactor']);
       }
     });
 
