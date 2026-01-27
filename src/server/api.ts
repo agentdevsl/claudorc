@@ -178,79 +178,109 @@ taskService.setWorktreeService({
 let dockerProvider: ReturnType<typeof createDockerProvider> | null = null;
 let containerAgentService: ReturnType<typeof createContainerAgentService> | null = null;
 
+// Step 1: Initialize Docker provider
 try {
   dockerProvider = createDockerProvider();
   console.log('[API Server] Docker provider initialized');
-
-  // Create default global sandbox if it doesn't exist
-  const existingDefault = await dockerProvider.get('default');
-  if (!existingDefault) {
-    // Get global sandbox defaults from settings
-    const globalDefaults = await db.query.settings.findFirst({
-      where: eq(settings.key, 'sandbox.defaults'),
-    });
-    const defaults = globalDefaults?.value
-      ? (JSON.parse(globalDefaults.value) as {
-          image?: string;
-          memoryMb?: number;
-          cpuCores?: number;
-          idleTimeoutMinutes?: number;
-        })
-      : null;
-
-    const defaultImage = defaults?.image || 'agentpane-sandbox:latest';
-    console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
-
-    // Check if the image exists
-    const imageAvailable = await dockerProvider.isImageAvailable(defaultImage);
-    console.log(`[API Server] Image available: ${imageAvailable}`);
-    if (imageAvailable) {
-      try {
-        // Use project data directory for default sandbox workspace (must be Docker-shareable)
-        const defaultWorkspacePath = path.join(
-          process.cwd(),
-          'data',
-          'sandbox-workspaces',
-          'default'
-        );
-        await fs.mkdir(defaultWorkspacePath, { recursive: true });
-
-        await dockerProvider.create({
-          projectId: 'default',
-          projectPath: defaultWorkspacePath,
-          image: defaultImage,
-          memoryMb: defaults?.memoryMb ?? 2048,
-          cpuCores: defaults?.cpuCores ?? 2,
-          idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
-          volumeMounts: [],
-        });
-        console.log('[API Server] Default global sandbox created');
-      } catch (createErr) {
-        console.warn('[API Server] Failed to create default sandbox:', createErr);
-      }
-    } else {
-      console.log(
-        `[API Server] Default sandbox image '${defaultImage}' not available, skipping default sandbox creation`
-      );
-    }
-  } else {
-    console.log('[API Server] Default global sandbox already exists');
-  }
-
-  // Create DurableStreamsService for container agent events
-  const durableStreamsService = new DurableStreamsService(mockStreamsServer);
-
-  // Create ContainerAgentService for Docker-based agent execution
-  containerAgentService = createContainerAgentService(db, dockerProvider, durableStreamsService);
-
-  // Wire up container agent service to task service
-  taskService.setContainerAgentService(containerAgentService);
-  console.log('[API Server] ContainerAgentService wired up to TaskService');
 } catch (error) {
+  // Docker initialization failed - this is expected if Docker isn't installed/running
   console.warn(
     '[API Server] Docker not available, container agent service disabled:',
     error instanceof Error ? error.message : String(error)
   );
+}
+
+// Step 2: Create default sandbox (only if Docker is available)
+if (dockerProvider) {
+  try {
+    const existingDefault = await dockerProvider.get('default');
+    if (!existingDefault) {
+      // Get global sandbox defaults from settings
+      interface SandboxDefaults {
+        image?: string;
+        memoryMb?: number;
+        cpuCores?: number;
+        idleTimeoutMinutes?: number;
+      }
+      let defaults: SandboxDefaults | null = null;
+
+      try {
+        const globalDefaults = await db.query.settings.findFirst({
+          where: eq(settings.key, 'sandbox.defaults'),
+        });
+        if (globalDefaults?.value) {
+          defaults = JSON.parse(globalDefaults.value) as SandboxDefaults;
+        }
+      } catch (settingsErr) {
+        console.warn(
+          '[API Server] Failed to load sandbox settings (using defaults):',
+          settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
+        );
+      }
+
+      const defaultImage = defaults?.image || 'agentpane-sandbox:latest';
+      console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
+
+      // Check if the image exists
+      const imageAvailable = await dockerProvider.isImageAvailable(defaultImage);
+      console.log(`[API Server] Image available: ${imageAvailable}`);
+      if (imageAvailable) {
+        try {
+          // Use project data directory for default sandbox workspace (must be Docker-shareable)
+          const defaultWorkspacePath = path.join(
+            process.cwd(),
+            'data',
+            'sandbox-workspaces',
+            'default'
+          );
+          await fs.mkdir(defaultWorkspacePath, { recursive: true });
+
+          await dockerProvider.create({
+            projectId: 'default',
+            projectPath: defaultWorkspacePath,
+            image: defaultImage,
+            memoryMb: defaults?.memoryMb ?? 2048,
+            cpuCores: defaults?.cpuCores ?? 2,
+            idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
+            volumeMounts: [],
+          });
+          console.log('[API Server] Default global sandbox created');
+        } catch (createErr) {
+          console.warn('[API Server] Failed to create default sandbox:', createErr);
+        }
+      } else {
+        console.log(
+          `[API Server] Default sandbox image '${defaultImage}' not available, skipping default sandbox creation`
+        );
+      }
+    } else {
+      console.log('[API Server] Default global sandbox already exists');
+    }
+  } catch (sandboxErr) {
+    // Sandbox setup failed but Docker is still available - container agent can still work
+    console.warn(
+      '[API Server] Failed to setup default sandbox (container agent still available):',
+      sandboxErr instanceof Error ? sandboxErr.message : String(sandboxErr)
+    );
+  }
+
+  // Step 3: Create ContainerAgentService (only if Docker is available)
+  try {
+    // Create DurableStreamsService for container agent events
+    const durableStreamsService = new DurableStreamsService(mockStreamsServer);
+
+    // Create ContainerAgentService for Docker-based agent execution
+    containerAgentService = createContainerAgentService(db, dockerProvider, durableStreamsService);
+
+    // Wire up container agent service to task service
+    taskService.setContainerAgentService(containerAgentService);
+    console.log('[API Server] ContainerAgentService wired up to TaskService');
+  } catch (serviceErr) {
+    console.error(
+      '[API Server] Failed to create ContainerAgentService:',
+      serviceErr instanceof Error ? serviceErr.message : String(serviceErr)
+    );
+  }
 }
 
 // MarketplaceService for plugin marketplace operations

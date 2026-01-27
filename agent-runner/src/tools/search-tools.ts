@@ -8,6 +8,27 @@ import type { ToolContext, ToolResponse } from './types.js';
 
 const execAsync = promisify(exec);
 
+/**
+ * Escape a string for safe use in single-quoted shell arguments.
+ * Handles the edge case of single quotes within the string.
+ */
+function shellEscape(str: string): string {
+  // Replace single quotes with: end quote, escaped quote, start quote
+  // 'foo'bar' becomes 'foo'\''bar'
+  return str.replace(/'/g, "'\\''");
+}
+
+/**
+ * Validate and sanitize numeric parameters for shell commands.
+ * Returns undefined if invalid, otherwise the clamped value.
+ */
+function validateNumericParam(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min) {
+    return undefined;
+  }
+  return Math.min(value, max);
+}
+
 export interface GlobArgs {
   pattern: string;
   path?: string;
@@ -33,9 +54,13 @@ export async function globTool(args: GlobArgs, context: ToolContext): Promise<To
     : context.cwd;
 
   try {
+    // Escape shell arguments to prevent command injection
+    const escapedPattern = shellEscape(args.pattern);
+    const escapedPath = shellEscape(searchPath);
+
     // Try fd first (fast, respects .gitignore)
     const { stdout } = await execAsync(
-      `fd --glob '${args.pattern}' --type f '${searchPath}' 2>/dev/null || find '${searchPath}' -type f -name '${args.pattern}' 2>/dev/null`,
+      `fd --glob '${escapedPattern}' --type f '${escapedPath}' 2>/dev/null || find '${escapedPath}' -type f -name '${escapedPattern}' 2>/dev/null`,
       {
         cwd: context.cwd,
         timeout: 30000,
@@ -96,23 +121,28 @@ export async function grepTool(args: GrepArgs, context: ToolContext): Promise<To
     } else {
       // content mode - show matching lines with line numbers
       rgFlags += ' -n';
-      if (args.context_before) {
-        rgFlags += ` -B ${args.context_before}`;
+      // Validate context parameters as positive integers, clamp to reasonable max
+      const contextBefore = validateNumericParam(args.context_before, 1, 100);
+      const contextAfter = validateNumericParam(args.context_after, 1, 100);
+      if (contextBefore !== undefined) {
+        rgFlags += ` -B ${contextBefore}`;
       }
-      if (args.context_after) {
-        rgFlags += ` -A ${args.context_after}`;
+      if (contextAfter !== undefined) {
+        rgFlags += ` -A ${contextAfter}`;
       }
     }
 
+    // Escape all shell arguments to prevent command injection
     if (args.glob) {
-      rgFlags += ` --glob '${args.glob}'`;
+      const escapedGlob = shellEscape(args.glob);
+      rgFlags += ` --glob '${escapedGlob}'`;
     }
 
-    // Escape single quotes in pattern
-    const escapedPattern = args.pattern.replace(/'/g, "'\\''");
+    const escapedPattern = shellEscape(args.pattern);
+    const escapedPath = shellEscape(searchPath);
 
     // Try ripgrep first, fall back to grep
-    const command = `rg ${rgFlags} '${escapedPattern}' '${searchPath}' 2>/dev/null || grep -r ${outputMode === 'files_with_matches' ? '-l' : '-n'} '${escapedPattern}' '${searchPath}' 2>/dev/null`;
+    const command = `rg ${rgFlags} '${escapedPattern}' '${escapedPath}' 2>/dev/null || grep -r ${outputMode === 'files_with_matches' ? '-l' : '-n'} '${escapedPattern}' '${escapedPath}' 2>/dev/null`;
 
     const { stdout } = await execAsync(command, {
       cwd: context.cwd,

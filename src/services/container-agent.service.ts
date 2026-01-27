@@ -150,6 +150,12 @@ export class ContainerAgentService {
       where: eq(tasks.id, taskId),
     });
 
+    // Validate task exists before proceeding
+    if (!task) {
+      infoLog('startAgent', 'Task not found', { taskId });
+      return err(SandboxErrors.TASK_NOT_FOUND(taskId));
+    }
+
     // Create database session record for this container agent run
     debugLog('startAgent', 'Creating session record', { sessionId, taskId });
     try {
@@ -158,18 +164,28 @@ export class ContainerAgentService {
         projectId,
         taskId,
         agentId: null, // Container agents don't have a separate agent record
-        title: task?.title ?? `Container Agent - ${taskId}`,
+        title: task.title ?? `Container Agent - ${taskId}`,
         url: `/projects/${projectId}/sessions/${sessionId}`,
         status: 'active',
         createdAt: new Date().toISOString(),
       });
       debugLog('startAgent', 'Session record created', { sessionId });
     } catch (dbErr) {
-      // Session might already exist (e.g., retry scenario), which is fine
-      debugLog('startAgent', 'Session creation skipped (may already exist)', {
-        sessionId,
-        error: String(dbErr),
-      });
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      // Only ignore UNIQUE constraint violations (session already exists from retry)
+      if (
+        !errorMessage.includes('UNIQUE constraint failed') &&
+        !errorMessage.includes('already exists')
+      ) {
+        infoLog('startAgent', 'Failed to create session record - agent tracking may be affected', {
+          sessionId,
+          taskId,
+          error: errorMessage,
+        });
+        // Continue anyway - the agent can still run, just without proper session tracking
+      } else {
+        debugLog('startAgent', 'Session already exists, continuing', { sessionId });
+      }
     }
 
     // Create durable stream for real-time events
@@ -182,11 +198,17 @@ export class ContainerAgentService {
       });
       debugLog('startAgent', 'Stream created successfully', { sessionId });
     } catch (streamErr) {
-      // Stream might already exist, which is fine
-      debugLog('startAgent', 'Stream creation skipped (may already exist)', {
-        sessionId,
-        error: String(streamErr),
-      });
+      const errorMessage = streamErr instanceof Error ? streamErr.message : String(streamErr);
+      // Only ignore "already exists" errors
+      if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate')) {
+        infoLog('startAgent', 'Failed to create durable stream - real-time events may not work', {
+          sessionId,
+          error: errorMessage,
+        });
+        // Continue anyway - agent can still run, but UI won't get real-time updates
+      } else {
+        debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
+      }
     }
 
     // Resolve agent configuration

@@ -1,9 +1,12 @@
 /**
  * File operation tools for the agent-runner.
  */
-import { readFile as fsReadFile, writeFile as fsWriteFile, stat } from 'node:fs/promises';
+import { readFile as fsReadFile, writeFile as fsWriteFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import type { ToolContext, ToolResponse } from './types.js';
+
+/** The sandbox workspace root - all file operations must stay within this directory */
+const WORKSPACE_ROOT = '/workspace';
 
 export interface ReadFileArgs {
   path: string;
@@ -24,13 +27,40 @@ export interface EditFileArgs {
 }
 
 /**
- * Resolve a path relative to the working directory.
+ * Resolve a path relative to the working directory and validate it stays within the workspace.
+ * Throws an error if the path would escape the sandbox.
  */
 function resolvePath(path: string, cwd: string): string {
-  if (isAbsolute(path)) {
-    return path;
+  const resolved = isAbsolute(path) ? path : resolve(cwd, path);
+  // Normalize the path to resolve .. and . components
+  const normalized = resolve(resolved);
+
+  // Validate the path stays within the workspace
+  if (!normalized.startsWith(`${WORKSPACE_ROOT}/`) && normalized !== WORKSPACE_ROOT) {
+    throw new Error(`Access denied: path '${path}' resolves outside workspace`);
   }
-  return resolve(cwd, path);
+
+  return normalized;
+}
+
+/**
+ * Validate that a resolved path (after following symlinks) stays within the workspace.
+ * This catches symlink-based escapes that resolvePath alone cannot detect.
+ */
+async function validateRealPath(filePath: string): Promise<void> {
+  try {
+    const real = await realpath(filePath);
+    if (!real.startsWith(`${WORKSPACE_ROOT}/`) && real !== WORKSPACE_ROOT) {
+      throw new Error(`Access denied: path resolves outside workspace via symlink`);
+    }
+  } catch (error) {
+    // If realpath fails because file doesn't exist yet, that's OK for write operations
+    // The resolvePath check already validated the logical path
+    if (error instanceof Error && error.message.includes('Access denied')) {
+      throw error;
+    }
+    // For ENOENT or other errors, the file doesn't exist which is fine
+  }
 }
 
 /**
@@ -42,6 +72,9 @@ export async function readFileTool(
 ): Promise<ToolResponse> {
   try {
     const filePath = resolvePath(args.path, context.cwd);
+
+    // Validate the real path (following symlinks) stays in workspace
+    await validateRealPath(filePath);
 
     // Check file exists and get stats
     const stats = await stat(filePath);
@@ -89,6 +122,10 @@ export async function writeFileTool(
 ): Promise<ToolResponse> {
   try {
     const filePath = resolvePath(args.path, context.cwd);
+
+    // Validate real path for existing files (symlink escape protection)
+    await validateRealPath(filePath);
+
     await fsWriteFile(filePath, args.content, 'utf-8');
 
     return {
@@ -114,6 +151,10 @@ export async function editFileTool(
 ): Promise<ToolResponse> {
   try {
     const filePath = resolvePath(args.path, context.cwd);
+
+    // Validate real path (symlink escape protection)
+    await validateRealPath(filePath);
+
     const content = await fsReadFile(filePath, 'utf-8');
 
     if (args.old_string === args.new_string) {

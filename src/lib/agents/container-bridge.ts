@@ -139,9 +139,22 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       });
 
       return event;
-    } catch {
-      // Not JSON - might be regular stdout from commands
-      debugLog('parseLine', 'Non-JSON output', { line: trimmed.slice(0, 100) });
+    } catch (parseError) {
+      // Check if this looks like it was supposed to be JSON (starts with { or [)
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        // This was probably malformed JSON from agent-runner - this is a problem worth noting
+        infoLog(
+          'parseLine',
+          'Malformed JSON event - possible agent-runner bug or stream corruption',
+          {
+            linePreview: trimmed.slice(0, 200),
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          }
+        );
+      } else {
+        // Regular non-JSON stdout from commands - expected behavior
+        debugLog('parseLine', 'Non-JSON output', { line: trimmed.slice(0, 100) });
+      }
       return null;
     }
   }

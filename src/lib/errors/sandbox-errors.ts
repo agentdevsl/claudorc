@@ -149,6 +149,10 @@ export const SandboxErrors = {
   // Generic errors
   INTERNAL_ERROR: (message: string) => createError('SANDBOX_INTERNAL_ERROR', message, 500),
 
+  // Task errors
+  TASK_NOT_FOUND: (taskId: string) =>
+    createError('SANDBOX_TASK_NOT_FOUND', `Task not found: ${taskId}`, 404, { taskId }),
+
   // Container agent errors
   AGENT_ALREADY_RUNNING: (taskId: string) =>
     createError(

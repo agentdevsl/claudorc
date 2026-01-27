@@ -255,6 +255,15 @@ class DockerSandbox implements Sandbox {
   }
 
   /**
+   * Escape a string for safe use in shell commands.
+   * Uses single quotes and handles embedded single quotes.
+   */
+  private shellEscape(str: string): string {
+    // Replace single quotes with: end quote, escaped quote, start quote
+    return `'${str.replace(/'/g, "'\\''")}'`;
+  }
+
+  /**
    * Execute a command with streaming output.
    * Returns readable streams for stdout/stderr, useful for long-running processes
    * like the agent-runner that emit events over time.
@@ -265,7 +274,18 @@ class DockerSandbox implements Sandbox {
     const { cmd, args = [], env = {}, cwd, asRoot = false } = options;
 
     // Build command with working directory if specified
-    const fullCmd = cwd ? ['sh', '-c', `cd ${cwd} && ${cmd} ${args.join(' ')}`] : [cmd, ...args];
+    // When using cwd, we need shell to handle cd, so escape all parts properly
+    let fullCmd: string[];
+    if (cwd) {
+      // Escape cwd and build a safe shell command
+      const escapedCwd = this.shellEscape(cwd);
+      const escapedCmd = this.shellEscape(cmd);
+      const escapedArgs = args.map((arg) => this.shellEscape(arg)).join(' ');
+      fullCmd = ['sh', '-c', `cd ${escapedCwd} && ${escapedCmd} ${escapedArgs}`];
+    } else {
+      // Without cwd, pass command directly without shell (safer)
+      fullCmd = [cmd, ...args];
+    }
 
     // Build environment variables array
     const envArray = Object.entries(env).map(([k, v]) => `${k}=${v}`);
