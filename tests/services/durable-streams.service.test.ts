@@ -82,6 +82,16 @@ describe('DurableStreamsService', () => {
       unsubscribe();
     });
 
+    it('preserves existing subscribers when creating the same stream again', async () => {
+      const callback = vi.fn();
+      service.addSubscriber('stream-dup', callback);
+
+      await service.createStream('stream-dup', {});
+      await service.publish('stream-dup', 'chunk', { content: 'test' });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
     it('handles multiple streams independently', async () => {
       await service.createStream('stream-a', { id: 'a' });
       await service.createStream('stream-b', { id: 'b' });
@@ -95,6 +105,17 @@ describe('DurableStreamsService', () => {
       const server = service.getServer();
 
       expect(server).toBe(mockServer);
+    });
+
+    it('removes subscribers when removing a stream', async () => {
+      await service.createStream('remove-stream', {});
+      const callback = vi.fn();
+      service.addSubscriber('remove-stream', callback);
+
+      service.removeStream('remove-stream');
+
+      await service.publish('remove-stream', 'chunk', { content: 'test' });
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 
@@ -124,6 +145,18 @@ describe('DurableStreamsService', () => {
       expect(event.data).toEqual({ toolId: 't1' });
       expect(event.id).toBeDefined();
       expect(event.timestamp).toBeDefined();
+    });
+
+    it('includes stream offset in published events', async () => {
+      await service.createStream('offset-stream', {});
+      const callback = vi.fn();
+      service.addSubscriber('offset-stream', callback);
+
+      mockServer.publish.mockResolvedValueOnce(42);
+      await service.publish('offset-stream', 'chunk', { content: 'hello' });
+
+      const event = callback.mock.calls[0][0] as StreamEvent;
+      expect(event.offset).toBe(42);
     });
 
     it('handles publishing to stream with no subscribers', async () => {
@@ -278,6 +311,27 @@ describe('DurableStreamsService', () => {
       consoleSpy.mockRestore();
     });
 
+    it('catches and logs async subscriber errors', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await service.createStream('async-error-stream', {});
+
+      const asyncCallback = vi.fn(async () => {
+        throw new Error('Async subscriber error');
+      });
+
+      service.addSubscriber('async-error-stream', asyncCallback);
+
+      await service.publish('async-error-stream', 'chunk', { content: 'test' });
+
+      expect(asyncCallback).toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[DurableStreamsService] Subscriber error for async-error-stream:'),
+        expect.any(Error)
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it('handles server publish failure gracefully', async () => {
       const failingServer = {
         ...createMockServer(),
@@ -306,6 +360,36 @@ describe('DurableStreamsService', () => {
   // =============================================================================
   // Plan Mode Event Helpers (6 tests)
   // =============================================================================
+
+  // =============================================================================
+  // Session Event Helpers (1 test)
+  // =============================================================================
+
+  describe('Session Event Helpers', () => {
+    it('publishes session events and notifies local subscribers', async () => {
+      await service.createStream('session-stream', {});
+      const callback = vi.fn();
+      service.addSubscriber('session-stream', callback);
+
+      mockServer.publish.mockResolvedValueOnce(7);
+      const event: SessionEvent = {
+        id: 'evt-1',
+        type: 'chunk',
+        timestamp: 1234,
+        data: { content: 'hello' },
+      };
+
+      await service.publishSessionEvent('session-stream', event);
+
+      expect(mockServer.publish).toHaveBeenCalledWith('session-stream', 'chunk', {
+        content: 'hello',
+      });
+      const notified = callback.mock.calls[0][0] as StreamEvent;
+      expect(notified.id).toBe('evt-1');
+      expect(notified.timestamp).toBe(1234);
+      expect(notified.offset).toBe(7);
+    });
+  });
 
   describe('Plan Mode Event Helpers', () => {
     const streamId = 'plan-stream';

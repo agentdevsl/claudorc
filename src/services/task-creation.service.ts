@@ -116,6 +116,8 @@ export interface TaskCreationSession {
   questionsReadyPromise: Promise<void> | null;
   /** Resolver for questionsReadyPromise */
   questionsReadyResolver: (() => void) | null;
+  /** Last activity timestamp for idle session cleanup */
+  lastActivityAt: number;
 }
 
 export interface TaskCreationError {
@@ -216,13 +218,130 @@ export type SuggestionCallback = (suggestion: TaskSuggestion) => void;
 
 export class TaskCreationService {
   private sessions = new Map<string, TaskCreationSession>();
+  /** Token buffers for batching token publishes */
+  private tokenBuffers = new Map<string, { chunks: string[]; lastFlush: number }>();
+  /** Interval for cleaning up idle sessions */
+  private cleanupInterval: NodeJS.Timeout | null = null;
+  /** Maximum idle time before session cleanup (30 minutes) */
+  private static readonly SESSION_IDLE_TIMEOUT = 30 * 60 * 1000;
+  /** Cleanup check interval (5 minutes) */
+  private static readonly CLEANUP_INTERVAL = 5 * 60 * 1000;
+  /** Token batch flush interval (50ms) */
+  private static readonly TOKEN_FLUSH_INTERVAL = 50;
+  /** Token batch size threshold */
+  private static readonly TOKEN_BATCH_SIZE = 10;
 
   constructor(
     private db: Database,
     private streams: DurableStreamsService,
     private sessionService?: SessionService,
     private settingsService?: SettingsService
-  ) {}
+  ) {
+    // Start periodic cleanup of abandoned sessions
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupIdleSessions();
+    }, TaskCreationService.CLEANUP_INTERVAL);
+  }
+
+  /**
+   * Clean up sessions that have been idle for too long
+   */
+  private cleanupIdleSessions(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [sessionId, session] of this.sessions) {
+      const idleTime = now - session.lastActivityAt;
+      if (idleTime > TaskCreationService.SESSION_IDLE_TIMEOUT) {
+        // Clean up abandoned session
+        if (session.v2Session) {
+          try {
+            session.v2Session.close();
+          } catch {
+            // Ignore close errors for abandoned sessions
+          }
+        }
+        this.sessions.delete(sessionId);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`[TaskCreationService] Cleaned up ${cleanedCount} idle sessions`);
+    }
+  }
+
+  /**
+   * Stop the cleanup interval (for graceful shutdown)
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /** Update session activity timestamp */
+  private touchSession(session: TaskCreationSession): void {
+    session.lastActivityAt = Date.now();
+  }
+
+  /**
+   * Add a token to the buffer and publish if threshold reached
+   */
+  private async bufferToken(
+    sessionId: string,
+    delta: string,
+    getAccumulated: () => string,
+    forceFlush = false
+  ): Promise<void> {
+    let buffer = this.tokenBuffers.get(sessionId);
+    if (!buffer) {
+      buffer = { chunks: [], lastFlush: Date.now() };
+      this.tokenBuffers.set(sessionId, buffer);
+    }
+
+    if (delta) {
+      buffer.chunks.push(delta);
+    }
+
+    const shouldFlush =
+      forceFlush ||
+      buffer.chunks.length >= TaskCreationService.TOKEN_BATCH_SIZE ||
+      (buffer.chunks.length > 0 &&
+        Date.now() - buffer.lastFlush >= TaskCreationService.TOKEN_FLUSH_INTERVAL);
+
+    if (shouldFlush && buffer.chunks.length > 0) {
+      const batchedDelta = buffer.chunks.join('');
+      buffer.chunks = [];
+      buffer.lastFlush = Date.now();
+
+      try {
+        await this.streams.publishTaskCreationToken(sessionId, {
+          sessionId,
+          delta: batchedDelta,
+          accumulated: getAccumulated(),
+        });
+      } catch (error) {
+        console.error('[TaskCreationService] Failed to publish token batch:', error);
+      }
+    }
+  }
+
+  /**
+   * Flush any remaining tokens in the buffer
+   */
+  private async flushTokenBuffer(sessionId: string, getAccumulated: () => string): Promise<void> {
+    await this.bufferToken(sessionId, '', getAccumulated, true);
+    this.tokenBuffers.delete(sessionId);
+  }
+
+  /**
+   * Clean up token buffer without publishing (for error cases)
+   */
+  private clearTokenBuffer(sessionId: string): void {
+    this.tokenBuffers.delete(sessionId);
+  }
 
   /** Maximum total questions to ask across all rounds (SDK AskUserQuestion tool limits to 4 per call) */
   private static readonly MAX_QUESTIONS = 4;
@@ -626,6 +745,7 @@ export class TaskCreationService {
       onSuggestionCallback: null,
       questionsReadyPromise: null,
       questionsReadyResolver: null,
+      lastActivityAt: Date.now(),
     };
 
     // Store session BEFORE creating v2Session so canUseTool callback can access it
@@ -642,25 +762,17 @@ export class TaskCreationService {
     // Update session with v2Session reference
     session.v2Session = v2Session as V2Session;
 
-    // Create stream for real-time events
-    try {
-      await this.streams.createStream(sessionId, {
-        type: 'task-creation',
-        projectId,
-      });
-    } catch (error) {
-      console.error('[TaskCreationService] Failed to create stream:', error);
-    }
-
-    // Publish session started event
-    try {
-      await this.streams.publishTaskCreationStarted(sessionId, {
-        sessionId,
-        projectId,
-      });
-    } catch (error) {
-      console.error('[TaskCreationService] Failed to publish start event:', error);
-    }
+    // Create stream and publish start event in parallel
+    await Promise.all([
+      this.streams
+        .createStream(sessionId, { type: 'task-creation', projectId })
+        .catch((error) => console.error('[TaskCreationService] Failed to create stream:', error)),
+      this.streams
+        .publishTaskCreationStarted(sessionId, { sessionId, projectId })
+        .catch((error) =>
+          console.error('[TaskCreationService] Failed to publish start event:', error)
+        ),
+    ]);
 
     return ok(session);
   }
@@ -678,6 +790,9 @@ export class TaskCreationService {
     if (!session) {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
     }
+
+    // Update activity timestamp
+    this.touchSession(session);
 
     if (session.status === 'completed' || session.status === 'cancelled') {
       return err(TaskCreationErrors.SESSION_COMPLETED(sessionId));
@@ -743,7 +858,8 @@ export class TaskCreationService {
       // Send message using V2 API
       await session.v2Session.send(messageToSend);
 
-      let accumulated = '';
+      const accumulatedChunks: string[] = [];
+      const getAccumulated = () => accumulatedChunks.join('');
       let inputTokens = 0;
       let outputTokens = 0;
       let modelUsed = '';
@@ -848,10 +964,10 @@ export class TaskCreationService {
           if (assistantMsg.message?.content) {
             for (const block of assistantMsg.message.content) {
               if (block.type === 'text' && block.text) {
-                accumulated += block.text;
+                accumulatedChunks.push(block.text);
                 // Stream token to UI
                 if (onToken) {
-                  onToken(block.text, accumulated);
+                  onToken(block.text, getAccumulated());
                 }
               }
 
@@ -878,9 +994,10 @@ export class TaskCreationService {
                 });
 
                 // Store accumulated text before returning
-                if (accumulated) {
-                  await this.addAssistantMessage(session, accumulated, undefined);
-                  accumulated = ''; // Reset accumulator for background processing
+                const accumulatedText = getAccumulated();
+                if (accumulatedText) {
+                  await this.addAssistantMessage(session, accumulatedText, undefined);
+                  accumulatedChunks.length = 0; // Reset accumulator for background processing
                 }
 
                 // Set status to waiting_user in case canUseTool hasn't run yet
@@ -1084,22 +1201,14 @@ export class TaskCreationService {
             event.delta.text
           ) {
             const delta = event.delta.text;
-            accumulated += delta;
+            accumulatedChunks.push(delta);
 
             if (onToken) {
-              onToken(delta, accumulated);
+              onToken(delta, getAccumulated());
             }
 
-            // Publish token event
-            try {
-              await this.streams.publishTaskCreationToken(sessionId, {
-                sessionId,
-                delta,
-                accumulated,
-              });
-            } catch (error) {
-              console.error('[TaskCreationService] Failed to publish token:', error);
-            }
+            // Publish token event (batched)
+            await this.bufferToken(sessionId, delta, getAccumulated);
           }
         }
 
@@ -1107,7 +1216,9 @@ export class TaskCreationService {
         if (msg.type === 'assistant') {
           const text = this.getAssistantText(msg);
           if (text) {
-            accumulated = text;
+            // Reset accumulated chunks and set to the complete text
+            accumulatedChunks.length = 0;
+            accumulatedChunks.push(text);
           }
 
           // Extract model and usage from assistant message
@@ -1233,6 +1344,12 @@ export class TaskCreationService {
         );
       }
 
+      // Flush any remaining tokens before processing
+      await this.flushTokenBuffer(sessionId, getAccumulated);
+
+      // Get final accumulated text
+      const accumulated = getAccumulated();
+
       // Log what we have after streaming
       console.log('[TaskCreationService] 📊 Stream completed:', {
         accumulatedTextLength: accumulated.length,
@@ -1341,21 +1458,22 @@ export class TaskCreationService {
         sessionStatus: session?.status,
       });
 
+      // Clean up token buffer without publishing
+      this.clearTokenBuffer(sessionId);
+
       // Update session status on error
       if (session) {
         session.status = 'cancelled';
         session.completedAt = new Date().toISOString();
 
-        // Clean up stream iterator on error path
+        // Fire-and-forget iterator cleanup
         if (session.activeStreamIterator) {
-          try {
-            await session.activeStreamIterator.return?.(undefined);
-          } catch (iteratorError) {
+          session.activeStreamIterator.return?.(undefined).catch((iteratorError) => {
             console.error(
               '[TaskCreationService] Failed to clean up stream iterator:',
               iteratorError
             );
-          }
+          });
           session.activeStreamIterator = null;
         }
 
@@ -1370,14 +1488,15 @@ export class TaskCreationService {
         }
       }
 
-      try {
-        await this.streams.publishTaskCreationError(sessionId, {
+      // Fire-and-forget error publishing to avoid delaying error response
+      this.streams
+        .publishTaskCreationError(sessionId, {
           sessionId,
           error: message,
+        })
+        .catch((streamError) => {
+          console.error('[TaskCreationService] Failed to publish error:', streamError);
         });
-      } catch (streamError) {
-        console.error('[TaskCreationService] Failed to publish error:', streamError);
-      }
 
       return err(TaskCreationErrors.API_ERROR(message));
     }
@@ -1403,7 +1522,8 @@ export class TaskCreationService {
     // but not currently used in background processing since we focus on post-permission messages
     console.log('[TaskCreationService] 🔄 Background stream processor started');
 
-    let accumulated = '';
+    const accumulatedChunks: string[] = [];
+    const getAccumulated = () => accumulatedChunks.join('');
     let inputTokens = 0;
     let outputTokens = 0;
     let modelUsed = '';
@@ -1450,9 +1570,9 @@ export class TaskCreationService {
           if (assistantMsg.message?.content) {
             for (const block of assistantMsg.message.content) {
               if (block.type === 'text' && block.text) {
-                accumulated += block.text;
+                accumulatedChunks.push(block.text);
                 if (onToken) {
-                  onToken(block.text, accumulated);
+                  onToken(block.text, getAccumulated());
                 }
               }
 
@@ -1467,9 +1587,10 @@ export class TaskCreationService {
                   '[TaskCreationService] [BG] 📝 Another AskUserQuestion detected - waiting for answers'
                 );
 
-                if (accumulated) {
-                  await this.addAssistantMessage(session, accumulated, undefined);
-                  accumulated = '';
+                const accumulatedText = getAccumulated();
+                if (accumulatedText) {
+                  await this.addAssistantMessage(session, accumulatedText, undefined);
+                  accumulatedChunks.length = 0;
                 }
 
                 session.status = 'waiting_user';
@@ -1506,21 +1627,14 @@ export class TaskCreationService {
             event.delta.text
           ) {
             const delta = event.delta.text;
-            accumulated += delta;
+            accumulatedChunks.push(delta);
 
             if (onToken) {
-              onToken(delta, accumulated);
+              onToken(delta, getAccumulated());
             }
 
-            try {
-              await this.streams.publishTaskCreationToken(session.id, {
-                sessionId: session.id,
-                delta,
-                accumulated,
-              });
-            } catch (error) {
-              console.error('[TaskCreationService] [BG] Failed to publish token:', error);
-            }
+            // Publish token event (batched)
+            await this.bufferToken(session.id, delta, getAccumulated);
           }
         }
 
@@ -1537,6 +1651,12 @@ export class TaskCreationService {
           break;
         }
       }
+
+      // Flush any remaining tokens
+      await this.flushTokenBuffer(session.id, getAccumulated);
+
+      // Get final accumulated text
+      const accumulated = getAccumulated();
 
       // Process accumulated content
       if (accumulated) {
@@ -1595,20 +1715,24 @@ export class TaskCreationService {
         sessionStatus: session.status,
       });
 
+      // Clean up token buffer without publishing
+      this.clearTokenBuffer(session.id);
+
       // Update session status to indicate failure
       if (session.status !== 'completed' && session.status !== 'cancelled') {
         session.status = 'cancelled';
         session.completedAt = new Date().toISOString();
       }
 
-      try {
-        await this.streams.publishTaskCreationError(session.id, {
+      // Fire-and-forget error publishing to avoid delaying error response
+      this.streams
+        .publishTaskCreationError(session.id, {
           sessionId: session.id,
           error: errorMessage,
+        })
+        .catch((streamError) => {
+          console.error('[TaskCreationService] [BG] Failed to publish error:', streamError);
         });
-      } catch (streamError) {
-        console.error('[TaskCreationService] [BG] Failed to publish error:', streamError);
-      }
     } finally {
       // Clean up
       session.activeStreamIterator = null;
@@ -1697,6 +1821,9 @@ export class TaskCreationService {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
     }
 
+    // Update activity timestamp
+    this.touchSession(session);
+
     // Check if we have a complete suggestion from either session or overrides
     const hasCompleteOverrides = overrides?.title && overrides?.description;
     if (!session.suggestion && !hasCompleteOverrides) {
@@ -1748,6 +1875,9 @@ export class TaskCreationService {
       };
 
       await this.db.insert(tasks).values(newTask);
+
+      // Clean up token buffer
+      this.clearTokenBuffer(sessionId);
 
       // Wait for background processor to complete before closing session
       if (session.streamProcessingPromise) {
@@ -1820,6 +1950,9 @@ export class TaskCreationService {
     if (!session) {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
     }
+
+    // Update activity timestamp
+    this.touchSession(session);
 
     if (!session.pendingQuestions || session.pendingQuestions.id !== questionsId) {
       console.error('[TaskCreationService] Questions ID mismatch:', {
@@ -2248,6 +2381,9 @@ export class TaskCreationService {
     // Mark as cancelled first to signal background processor to stop
     session.status = 'cancelled';
     session.completedAt = new Date().toISOString();
+
+    // Clean up token buffer
+    this.clearTokenBuffer(sessionId);
 
     // Wait for background processor to complete before closing session
     if (session.streamProcessingPromise) {
