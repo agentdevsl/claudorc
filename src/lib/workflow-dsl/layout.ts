@@ -544,10 +544,19 @@ function extractEdgeSpecificData(edge: WorkflowEdge): Record<string, unknown> {
 }
 
 /**
- * Maps workflow edge types to ReactFlow edge types.
- * Uses 'straight' for compact vertical layouts.
+ * Maps workflow edge types to registered ReactFlow edge types.
+ * Returns the actual edge type to use the custom edge components.
  */
-function mapEdgeType(_edgeType: WorkflowEdge['type']): string {
-  // Use straight edges for compact layout - curves add visual bulk
-  return 'straight';
+function mapEdgeType(edgeType: WorkflowEdge['type']): string {
+  // Map to registered edge types: sequential, handoff, dataflow, conditional
+  switch (edgeType) {
+    case 'sequential':
+    case 'handoff':
+    case 'dataflow':
+    case 'conditional':
+      return edgeType;
+    default:
+      // Default to sequential for unknown types
+      return 'sequential';
+  }
 }

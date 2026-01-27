@@ -43,10 +43,29 @@ A workflow consists of:
 
 ### Edge Types
 
-- **sequential**: Simple flow from one node to the next
+- **sequential**: Simple flow from one node to the next (DEFAULT - use for most connections)
 - **handoff**: Agent-to-agent transfer with context preservation
 - **dataflow**: Passes data from one node's output to another's input
 - **conditional**: Flow based on a condition evaluation
+
+**IMPORTANT: Use "sequential" as the default edge type for connecting nodes in order.**
+
+Edge Examples:
+\`\`\`json
+// Sequential flow (most common)
+{ "id": "e1", "type": "sequential", "sourceNodeId": "start", "targetNodeId": "step1" }
+{ "id": "e2", "type": "sequential", "sourceNodeId": "step1", "targetNodeId": "step2" }
+
+// Conditional branching
+{ "id": "e3", "type": "conditional", "sourceNodeId": "check", "targetNodeId": "success", "condition": "result === 'pass'" }
+{ "id": "e4", "type": "conditional", "sourceNodeId": "check", "targetNodeId": "failure", "condition": "result === 'fail'" }
+
+// Data passing between nodes
+{ "id": "e5", "type": "dataflow", "sourceNodeId": "generate", "targetNodeId": "consume", "sourceOutput": "data", "targetInput": "input" }
+
+// Agent handoff
+{ "id": "e6", "type": "handoff", "sourceNodeId": "agent1", "targetNodeId": "agent2", "context": "Previous agent findings" }
+\`\`\`
 
 ## Output Format
 
