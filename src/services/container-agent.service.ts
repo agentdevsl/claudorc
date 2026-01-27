@@ -27,6 +27,7 @@ function infoLog(context: string, message: string, data?: Record<string, unknown
 }
 
 import { projects } from '../db/schema/projects.js';
+import { sessions } from '../db/schema/sessions.js';
 import { tasks } from '../db/schema/tasks.js';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
 import type { SandboxError } from '../lib/errors/sandbox-errors.js';
@@ -144,7 +145,34 @@ export class ContainerAgentService {
       return err(SandboxErrors.STREAMING_EXEC_NOT_SUPPORTED);
     }
 
-    // Create stream for this session if it doesn't exist
+    // Fetch task to get title for session
+    const task = await this.db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    });
+
+    // Create database session record for this container agent run
+    debugLog('startAgent', 'Creating session record', { sessionId, taskId });
+    try {
+      await this.db.insert(sessions).values({
+        id: sessionId,
+        projectId,
+        taskId,
+        agentId: null, // Container agents don't have a separate agent record
+        title: task?.title ?? `Container Agent - ${taskId}`,
+        url: `/projects/${projectId}/sessions/${sessionId}`,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      });
+      debugLog('startAgent', 'Session record created', { sessionId });
+    } catch (dbErr) {
+      // Session might already exist (e.g., retry scenario), which is fine
+      debugLog('startAgent', 'Session creation skipped (may already exist)', {
+        sessionId,
+        error: String(dbErr),
+      });
+    }
+
+    // Create durable stream for real-time events
     debugLog('startAgent', 'Creating durable stream', { sessionId });
     try {
       await this.streams.createStream(sessionId, {
@@ -477,7 +505,7 @@ export class ContainerAgentService {
       runDuration: `${Date.now() - agent.startedAt.getTime()}ms`,
     });
 
-    // Update task status based on completion
+    // Update task status based on completion - always clear agentId/sessionId and set lastAgentStatus
     try {
       if (status === 'completed') {
         // Move task to waiting_approval
@@ -488,6 +516,9 @@ export class ContainerAgentService {
           .update(tasks)
           .set({
             column: 'waiting_approval',
+            agentId: null,
+            sessionId: null,
+            lastAgentStatus: 'completed',
             completedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           })
@@ -502,6 +533,9 @@ export class ContainerAgentService {
           .update(tasks)
           .set({
             column: 'waiting_approval',
+            agentId: null,
+            sessionId: null,
+            lastAgentStatus: 'turn_limit',
             updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
@@ -510,8 +544,17 @@ export class ContainerAgentService {
           status,
         });
       } else {
-        // cancelled - leave task in current state
-        debugLog('handleAgentComplete', 'Task cancelled, leaving in current state', { taskId });
+        // cancelled - clear agent refs but leave task in current column
+        debugLog('handleAgentComplete', 'Task cancelled, clearing agent refs', { taskId });
+        await this.db
+          .update(tasks)
+          .set({
+            agentId: null,
+            sessionId: null,
+            lastAgentStatus: 'cancelled',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, taskId));
       }
     } catch (error) {
       infoLog('handleAgentComplete', 'Failed to update task', {
@@ -578,17 +621,19 @@ export class ContainerAgentService {
       runDuration: `${Date.now() - agent.startedAt.getTime()}ms`,
     });
 
-    // Update task with error
+    // Update task - clear agent refs on error and set lastAgentStatus
     try {
-      debugLog('handleAgentError', 'Updating task timestamp (keeping in in_progress)', { taskId });
+      debugLog('handleAgentError', 'Clearing agent refs and setting error status', { taskId });
       await this.db
         .update(tasks)
         .set({
-          // Keep in in_progress but could add error state
+          agentId: null,
+          sessionId: null,
+          lastAgentStatus: 'error',
           updatedAt: new Date().toISOString(),
         })
         .where(eq(tasks.id, taskId));
-      debugLog('handleAgentError', 'Task timestamp updated', { taskId });
+      debugLog('handleAgentError', 'Task agent refs cleared, status set to error', { taskId });
     } catch (err) {
       infoLog('handleAgentError', 'Failed to update task', {
         taskId,

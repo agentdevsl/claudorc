@@ -49,6 +49,10 @@ export const tasks = sqliteTable('tasks', {
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
   startedAt: text('started_at'),
   completedAt: text('completed_at'),
+  /** Status of the last agent run: completed, cancelled, error, turn_limit */
+  lastAgentStatus: text('last_agent_status').$type<
+    'completed' | 'cancelled' | 'error' | 'turn_limit'
+  >(),
 });
 
 export type Task = typeof tasks.$inferSelect;
