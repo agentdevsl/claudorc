@@ -253,6 +253,21 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
 
       if (!result.ok) {
         console.error('[useTaskCreation] Failed to answer questions:', result.error);
+
+        // If session is stale or missing, reset and let user start fresh
+        if (
+          result.error.code === 'INVALID_QUESTIONS_ID' ||
+          result.error.code === 'SESSION_NOT_FOUND' ||
+          result.error.message?.includes('Questions ID does not match') ||
+          result.error.message?.includes('Session not found')
+        ) {
+          console.log('[useTaskCreation] Session state mismatch - resetting');
+          resetTaskCreationSession(sessionId);
+          setSessionId(null);
+          setLocalError('Session expired. Please start a new conversation.');
+          return;
+        }
+
         // Set local error - SSE may also send an error event but this ensures immediate feedback
         setLocalError(result.error.message || 'Failed to submit answers');
       }

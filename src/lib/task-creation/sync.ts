@@ -104,11 +104,13 @@ export function syncTaskCreationToCollections(sessionId: string, streamUrl: stri
     console.error('[TaskCreation Sync] Stream error:', error);
 
     // Update session status to error if the connection is closed
+    // Also clear pendingQuestions since server session is likely lost
     if (eventSource.readyState === EventSource.CLOSED) {
       updateSession(sessionId, {
         status: 'error',
-        error: 'Connection lost',
+        error: 'Connection lost. Please start a new conversation.',
         isStreaming: false,
+        pendingQuestions: null,
       });
     }
   };
