@@ -43,6 +43,7 @@ interface ProjectSettingsProps {
     config?: Partial<ProjectConfig>;
   }) => Promise<void>;
   onDelete: (options: { deleteFiles: boolean }) => Promise<void>;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 // Section header component for consistent styling
@@ -144,6 +145,7 @@ export function ProjectSettings({
   project,
   onSave,
   onDelete,
+  saveStatus = 'idle',
 }: ProjectSettingsProps): React.JSX.Element {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
@@ -848,9 +850,21 @@ export function ProjectSettings({
           <Trash className="h-4 w-4 mr-2" />
           Delete Project
         </Button>
-        <Button onClick={handleSave} data-testid="save-settings-button">
-          Save Settings
-        </Button>
+        <div className="flex items-center gap-3">
+          {saveStatus === 'saved' && (
+            <span className="text-sm text-success animate-in fade-in">Settings saved</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-sm text-danger animate-in fade-in">Failed to save</span>
+          )}
+          <Button
+            onClick={handleSave}
+            disabled={saveStatus === 'saving'}
+            data-testid="save-settings-button"
+          >
+            {saveStatus === 'saving' ? 'Saving...' : 'Save Settings'}
+          </Button>
+        </div>
       </div>
 
       <DeleteProjectDialog

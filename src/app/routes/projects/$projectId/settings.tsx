@@ -129,15 +129,14 @@ function ProjectSettingsPage(): React.JSX.Element {
             <p className="text-sm text-fg-muted mt-1">
               Configure project behavior and agent defaults for {project.name}
             </p>
-            {saveStatus === 'saved' && (
-              <p className="text-sm text-success mt-2">Settings saved successfully</p>
-            )}
-            {saveStatus === 'error' && (
-              <p className="text-sm text-danger mt-2">Failed to save settings</p>
-            )}
           </div>
 
-          <ProjectSettings project={project} onSave={handleSave} onDelete={handleDelete} />
+          <ProjectSettings
+            project={project}
+            onSave={handleSave}
+            onDelete={handleDelete}
+            saveStatus={saveStatus}
+          />
         </div>
       </div>
     </LayoutShell>
