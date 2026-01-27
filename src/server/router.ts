@@ -7,6 +7,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
 import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
@@ -47,6 +48,7 @@ export interface RouterDependencies {
   taskCreationService: TaskCreationService;
   worktreeService: WorktreeService;
   marketplaceService: MarketplaceService;
+  agentService: AgentService;
   commandRunner: CommandRunner;
 }
 
@@ -101,6 +103,7 @@ export function createRouter(deps: RouterDependencies) {
     '/api/tasks',
     createTasksRoutes({
       taskService: deps.taskService,
+      agentService: deps.agentService,
     })
   );
 

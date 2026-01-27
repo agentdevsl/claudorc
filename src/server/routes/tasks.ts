@@ -3,14 +3,16 @@
  */
 
 import { Hono } from 'hono';
+import type { AgentService } from '../../services/agent.service.js';
 import type { TaskService } from '../../services/task.service.js';
 import { isValidId, json } from '../shared.js';
 
 interface TasksDeps {
   taskService: TaskService;
+  agentService: AgentService;
 }
 
-export function createTasksRoutes({ taskService }: TasksDeps) {
+export function createTasksRoutes({ taskService, agentService }: TasksDeps) {
   const app = new Hono();
 
   // GET /api/tasks
@@ -197,6 +199,7 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
   });
 
   // PATCH /api/tasks/:id/move - Move task to different column
+  // When moving to in_progress, optionally auto-start an agent
   app.patch('/:id/move', async (c) => {
     const id = c.req.param('id');
 
@@ -208,6 +211,7 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
       const body = (await c.req.json()) as {
         column: 'backlog' | 'queued' | 'in_progress' | 'waiting_approval' | 'verified';
         position?: number;
+        startAgent?: boolean; // Auto-start agent when moving to in_progress (default: true)
       };
 
       if (!body.column) {
@@ -225,6 +229,67 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
         );
       }
 
+      // Get the task first to know its projectId
+      const taskResult = await taskService.getById(id);
+      if (!taskResult.ok) {
+        return json({ ok: false, error: taskResult.error }, taskResult.error.status);
+      }
+      const task = taskResult.value;
+
+      // If moving to in_progress, auto-start an agent
+      const shouldStartAgent = body.column === 'in_progress' && body.startAgent !== false;
+
+      if (shouldStartAgent) {
+        // Find or create an idle agent for this project
+        const agentsResult = await agentService.list(task.projectId);
+        let agentId: string | null = null;
+
+        if (agentsResult.ok) {
+          // Find an idle agent
+          const idleAgent = agentsResult.value.find((a) => a.status === 'idle');
+          if (idleAgent) {
+            agentId = idleAgent.id;
+          }
+        }
+
+        // If no idle agent, create one
+        if (!agentId) {
+          const createResult = await agentService.create({
+            projectId: task.projectId,
+            name: `Agent for ${task.title.slice(0, 30)}`,
+          });
+          if (createResult.ok) {
+            agentId = createResult.value.id;
+            console.log(`[Tasks] Created new agent ${agentId} for task ${id}`);
+          } else {
+            console.error('[Tasks] Failed to create agent:', createResult.error);
+            // Continue without starting agent - task will still move
+          }
+        }
+
+        // Start the agent with this task
+        if (agentId) {
+          const startResult = await agentService.start(agentId, id);
+          if (startResult.ok) {
+            console.log(`[Tasks] Started agent ${agentId} for task ${id}`);
+            // Return the full agent start result
+            return json({
+              ok: true,
+              data: {
+                task: startResult.value.task,
+                agent: startResult.value.agent,
+                session: startResult.value.session,
+                worktree: startResult.value.worktree,
+              },
+            });
+          } else {
+            console.error('[Tasks] Failed to start agent:', startResult.error);
+            // Fall through to just move the task without agent
+          }
+        }
+      }
+
+      // Regular move without agent start
       const result = await taskService.moveColumn(id, body.column, body.position);
 
       if (!result.ok) {

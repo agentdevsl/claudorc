@@ -22,6 +22,7 @@ import {
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
+import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from '../services/github-token.service.js';
@@ -162,6 +163,9 @@ const worktreeService = new WorktreeService(db, bunCommandRunner);
 // MarketplaceService for plugin marketplace operations
 const marketplaceService = new MarketplaceService(db);
 
+// AgentService for agent lifecycle management
+const agentService = new AgentService(db, worktreeService, taskService, sessionService);
+
 // Create the Hono router with all dependencies
 const app = createRouter({
   db,
@@ -174,6 +178,7 @@ const app = createRouter({
   taskCreationService,
   worktreeService,
   marketplaceService,
+  agentService,
   commandRunner: bunCommandRunner,
 });
 
