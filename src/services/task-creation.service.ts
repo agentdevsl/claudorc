@@ -112,6 +112,10 @@ export interface TaskCreationSession {
   streamProcessingPromise: Promise<void> | null;
   /** Callback for when background processor finds a suggestion - used to send SSE events */
   onSuggestionCallback: SuggestionCallback | null;
+  /** Promise that resolves when questions are ready */
+  questionsReadyPromise: Promise<void> | null;
+  /** Resolver for questionsReadyPromise */
+  questionsReadyResolver: (() => void) | null;
 }
 
 export interface TaskCreationError {
@@ -135,6 +139,10 @@ export const TaskCreationErrors = {
   NO_SUGGESTION: {
     code: 'NO_SUGGESTION',
     message: 'No task suggestion available to accept.',
+  },
+  MESSAGE_TOO_LONG: {
+    code: 'MESSAGE_TOO_LONG',
+    message: 'Message content exceeds maximum allowed length.',
   },
   SESSION_COMPLETED: (sessionId: string) => ({
     code: 'SESSION_COMPLETED',
@@ -219,12 +227,35 @@ export class TaskCreationService {
   /** Maximum total questions to ask across all rounds (SDK AskUserQuestion tool limits to 4 per call) */
   private static readonly MAX_QUESTIONS = 4;
 
+  /** Maximum allowed message content length (50KB) */
+  private static readonly MAX_MESSAGE_LENGTH = 50 * 1024;
+
+  /** Maximum allowed task title length */
+  private static readonly MAX_TITLE_LENGTH = 200;
+
+  /** Maximum allowed task description length */
+  private static readonly MAX_DESCRIPTION_LENGTH = 10000;
+
+  /** Valid task labels */
+  private static readonly VALID_LABELS = [
+    'bug',
+    'feature',
+    'enhancement',
+    'docs',
+    'refactor',
+    'test',
+    'research',
+  ];
+
+  /** Pre-compiled regex for JSON block parsing */
+  private static readonly JSON_BLOCK_REGEX = /```json\s*([\s\S]*?)\s*```/;
+
   /**
    * Parse a task suggestion from assistant response text
    */
   private parseSuggestion(text: string): TaskSuggestion | null {
-    // Look for JSON block in the response
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    // Look for JSON block in the response using pre-compiled regex
+    const jsonMatch = text.match(TaskCreationService.JSON_BLOCK_REGEX);
     if (!jsonMatch || !jsonMatch[1]) return null;
 
     try {
@@ -237,7 +268,13 @@ export class TaskCreationService {
       return {
         title: parsed.title,
         description: parsed.description,
-        labels: Array.isArray(parsed.labels) ? parsed.labels : [],
+        // Validate labels: filter to known valid labels only
+        labels: Array.isArray(parsed.labels)
+          ? parsed.labels.filter(
+              (label: unknown): label is string =>
+                typeof label === 'string' && TaskCreationService.VALID_LABELS.includes(label)
+            )
+          : [],
         priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
       };
     } catch (error) {
@@ -253,12 +290,12 @@ export class TaskCreationService {
     text: string,
     session: TaskCreationSession
   ): PendingQuestions | null {
-    // Look for JSON block in the response
+    // Look for JSON block in the response using pre-compiled regex
     console.log(
       '[TaskCreationService] Attempting to parse clarifying questions from text length:',
       text.length
     );
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    const jsonMatch = text.match(TaskCreationService.JSON_BLOCK_REGEX);
     if (!jsonMatch || !jsonMatch[1]) {
       console.log('[TaskCreationService] No JSON block found in response');
       return null;
@@ -473,40 +510,64 @@ export class TaskCreationService {
         }>,
       };
       const questions = this.parseAskUserQuestionToolInput(inputWithToolId, session);
-      if (questions) {
-        console.log('[TaskCreationService] Parsed questions for UI:', {
-          questionsId: questions.id,
-          questionCount: questions.questions.length,
-        });
-        session.pendingQuestions = questions;
-        session.status = 'waiting_user';
+      if (!questions) {
+        console.warn(
+          '[TaskCreationService] No valid AskUserQuestion payload, allowing tool to proceed'
+        );
+        session.pendingQuestions = null;
+        session.pendingToolUseId = null;
+        session.pendingQuestionsInput = null;
+        session.pendingPermissionResolver = null;
+        if (session.questionsReadyResolver) {
+          session.questionsReadyResolver();
+        }
+        session.questionsReadyPromise = null;
+        session.questionsReadyResolver = null;
+        session.status = 'active';
+        return { behavior: 'allow' as const, toolUseID: options.toolUseID };
+      }
 
-        // Publish questions event for UI
+      console.log('[TaskCreationService] Parsed questions for UI:', {
+        questionsId: questions.id,
+        questionCount: questions.questions.length,
+      });
+      session.pendingQuestions = questions;
+      session.questionRound = questions.round;
+      session.totalQuestionsAsked = questions.totalAsked;
+      session.status = 'waiting_user';
+
+      // Signal that questions are ready (for Promise-based waiting)
+      if (session.questionsReadyResolver) {
+        session.questionsReadyResolver();
+        session.questionsReadyPromise = null;
+        session.questionsReadyResolver = null;
+      }
+
+      // Publish questions event for UI
+      try {
+        await this.streams.publishTaskCreationQuestions(session.id, {
+          sessionId: session.id,
+          questions,
+        });
+      } catch (error) {
+        console.error('[TaskCreationService] Failed to publish questions:', error);
+      }
+
+      // Persist to database if available
+      if (session.dbSessionId && this.sessionService) {
         try {
-          await this.streams.publishTaskCreationQuestions(session.id, {
-            sessionId: session.id,
-            questions,
+          await this.sessionService.publish(session.dbSessionId, {
+            id: createId(),
+            type: 'tool:start',
+            timestamp: Date.now(),
+            data: {
+              id: options.toolUseID,
+              tool: 'AskUserQuestion',
+              input: { questions: questions.questions },
+            },
           });
         } catch (error) {
-          console.error('[TaskCreationService] Failed to publish questions:', error);
-        }
-
-        // Persist to database if available
-        if (session.dbSessionId && this.sessionService) {
-          try {
-            await this.sessionService.publish(session.dbSessionId, {
-              id: createId(),
-              type: 'tool:start',
-              timestamp: Date.now(),
-              data: {
-                id: options.toolUseID,
-                tool: 'AskUserQuestion',
-                input: { questions: questions.questions },
-              },
-            });
-          } catch (error) {
-            console.error('[TaskCreationService] Failed to persist tool:start:', error);
-          }
+          console.error('[TaskCreationService] Failed to persist tool:start:', error);
         }
       }
 
@@ -563,6 +624,8 @@ export class TaskCreationService {
       activeStreamIterator: null,
       streamProcessingPromise: null,
       onSuggestionCallback: null,
+      questionsReadyPromise: null,
+      questionsReadyResolver: null,
     };
 
     // Store session BEFORE creating v2Session so canUseTool callback can access it
@@ -618,6 +681,11 @@ export class TaskCreationService {
 
     if (session.status === 'completed' || session.status === 'cancelled') {
       return err(TaskCreationErrors.SESSION_COMPLETED(sessionId));
+    }
+
+    // Validate message length to prevent resource exhaustion
+    if (content.length > TaskCreationService.MAX_MESSAGE_LENGTH) {
+      return err(TaskCreationErrors.MESSAGE_TOO_LONG);
     }
 
     if (!session.v2Session) {
@@ -804,6 +872,11 @@ export class TaskCreationService {
                   '[TaskCreationService] 📝 AskUserQuestion tool_use detected - spawning background processor'
                 );
 
+                // Create promise for questions readiness signaling
+                session.questionsReadyPromise = new Promise<void>((resolve) => {
+                  session.questionsReadyResolver = resolve;
+                });
+
                 // Store accumulated text before returning
                 if (accumulated) {
                   await this.addAssistantMessage(session, accumulated, undefined);
@@ -825,26 +898,19 @@ export class TaskCreationService {
                   onToken
                 );
 
-                // Wait for canUseTool to set pendingQuestions before returning
-                // This ensures the SSE update includes the questions
-                // canUseTool is called by the SDK when processing the tool_use, which happens
-                // shortly after we detect the tool_use block in the stream
-                const maxWait = 5000; // 5 seconds max wait
-                const pollInterval = 50; // 50ms poll interval
-                let waited = 0;
-                while (!session.pendingQuestions && waited < maxWait) {
-                  await new Promise((resolve) => setTimeout(resolve, pollInterval));
-                  waited += pollInterval;
-                }
-
-                if (session.pendingQuestions) {
-                  console.log(
-                    '[TaskCreationService] ✅ Questions ready, setting flag to exit loop'
-                  );
-                } else {
-                  console.log(
-                    '[TaskCreationService] ⚠️ Questions not ready after timeout, exiting loop anyway'
-                  );
+                // Wait for questions to be ready using Promise signaling instead of polling
+                if (session.questionsReadyPromise) {
+                  try {
+                    await Promise.race([
+                      session.questionsReadyPromise,
+                      new Promise<void>((_, reject) =>
+                        setTimeout(() => reject(new Error('Questions timeout')), 5000)
+                      ),
+                    ]);
+                    console.log('[TaskCreationService] ✅ Questions ready via Promise signaling');
+                  } catch {
+                    console.log('[TaskCreationService] ⚠️ Questions not ready after timeout');
+                  }
                 }
 
                 // Set flag and break to exit both loops without calling iterator.return()
@@ -1265,6 +1331,40 @@ export class TaskCreationService {
       return ok(session);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.error('[TaskCreationService] Error in sendMessage:', {
+        error: message,
+        sessionId,
+        sessionStatus: session?.status,
+      });
+
+      // Update session status on error
+      if (session) {
+        session.status = 'cancelled';
+        session.completedAt = new Date().toISOString();
+
+        // Clean up stream iterator on error path
+        if (session.activeStreamIterator) {
+          try {
+            await session.activeStreamIterator.return?.(undefined);
+          } catch (iteratorError) {
+            console.error(
+              '[TaskCreationService] Failed to clean up stream iterator:',
+              iteratorError
+            );
+          }
+          session.activeStreamIterator = null;
+        }
+
+        // Close V2Session on error to prevent resource leaks
+        if (session.v2Session) {
+          try {
+            session.v2Session.close();
+          } catch (closeError) {
+            console.error('[TaskCreationService] Failed to close V2 session on error:', closeError);
+          }
+          session.v2Session = null;
+        }
+      }
 
       try {
         await this.streams.publishTaskCreationError(sessionId, {
@@ -1482,12 +1582,23 @@ export class TaskCreationService {
 
       console.log('[TaskCreationService] [BG] 🏁 Background stream processor completed');
     } catch (error) {
-      console.error('[TaskCreationService] [BG] Error in background stream processor:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Background processing error';
+      console.error('[TaskCreationService] [BG] Error in background stream processor:', {
+        error: errorMessage,
+        sessionId: session.id,
+        sessionStatus: session.status,
+      });
+
+      // Update session status to indicate failure
+      if (session.status !== 'completed' && session.status !== 'cancelled') {
+        session.status = 'cancelled';
+        session.completedAt = new Date().toISOString();
+      }
 
       try {
         await this.streams.publishTaskCreationError(session.id, {
           sessionId: session.id,
-          error: error instanceof Error ? error.message : 'Background processing error',
+          error: errorMessage,
         });
       } catch (streamError) {
         console.error('[TaskCreationService] [BG] Failed to publish error:', streamError);
@@ -1602,6 +1713,20 @@ export class TaskCreationService {
     };
     const finalSuggestion = { ...baseSuggestion, ...overrides };
 
+    // Enforce title/description length limits
+    if (finalSuggestion.title.length > TaskCreationService.MAX_TITLE_LENGTH) {
+      finalSuggestion.title = finalSuggestion.title.substring(
+        0,
+        TaskCreationService.MAX_TITLE_LENGTH
+      );
+    }
+    if (finalSuggestion.description.length > TaskCreationService.MAX_DESCRIPTION_LENGTH) {
+      finalSuggestion.description = finalSuggestion.description.substring(
+        0,
+        TaskCreationService.MAX_DESCRIPTION_LENGTH
+      );
+    }
+
     // Create the task
     try {
       const taskId = createId();
@@ -1617,6 +1742,15 @@ export class TaskCreationService {
       };
 
       await this.db.insert(tasks).values(newTask);
+
+      // Wait for background processor to complete before closing session
+      if (session.streamProcessingPromise) {
+        try {
+          await session.streamProcessingPromise;
+        } catch (error) {
+          console.error('[TaskCreationService] Error waiting for stream processor:', error);
+        }
+      }
 
       // Close V2 session
       if (session.v2Session) {
@@ -1653,6 +1787,12 @@ export class TaskCreationService {
       } catch (error) {
         console.error('[TaskCreationService] Failed to publish completion event:', error);
       }
+
+      // Schedule delayed session cleanup to allow late API calls
+      setTimeout(() => {
+        this.sessions.delete(sessionId);
+        console.log('[TaskCreationService] Cleaned up completed session:', sessionId);
+      }, 60000);
 
       return ok({ session, taskId });
     } catch (error) {
@@ -1716,6 +1856,8 @@ export class TaskCreationService {
     session.pendingToolUseId = null;
     session.pendingPermissionResolver = null;
     session.pendingQuestionsInput = null;
+    session.questionsReadyPromise = null;
+    session.questionsReadyResolver = null;
     session.status = 'active';
 
     // If we have a permission resolver, resolve it with the answers
@@ -2032,7 +2174,6 @@ export class TaskCreationService {
         if (suggestion) {
           console.log('[TaskCreationService] Parsed task suggestion from tool result response');
           session.suggestion = suggestion;
-          session.status = 'completed';
 
           try {
             await this.streams.publishTaskCreationSuggestion(session.id, {
@@ -2061,9 +2202,26 @@ export class TaskCreationService {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
     }
 
+    const resolver = session.pendingPermissionResolver;
+    const originalInput = session.pendingQuestionsInput;
+    const pendingToolUseId = session.pendingToolUseId;
+
     // Clear pending questions and resume active status
     session.pendingQuestions = null;
+    session.pendingToolUseId = null;
+    session.pendingQuestionsInput = null;
+    session.pendingPermissionResolver = null;
+    session.questionsReadyPromise = null;
+    session.questionsReadyResolver = null;
     session.status = 'active';
+
+    if (resolver && originalInput) {
+      resolver({
+        behavior: 'allow',
+        updatedInput: { ...originalInput, answers: {} },
+        toolUseID: pendingToolUseId ?? undefined,
+      });
+    }
 
     // Send a message telling the AI to proceed without further questions
     const skipMessage =
@@ -2079,6 +2237,19 @@ export class TaskCreationService {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return err(TaskCreationErrors.SESSION_NOT_FOUND);
+    }
+
+    // Mark as cancelled first to signal background processor to stop
+    session.status = 'cancelled';
+    session.completedAt = new Date().toISOString();
+
+    // Wait for background processor to complete before closing session
+    if (session.streamProcessingPromise) {
+      try {
+        await session.streamProcessingPromise;
+      } catch (error) {
+        console.error('[TaskCreationService] Error waiting for stream processor:', error);
+      }
     }
 
     // Close V2 session
@@ -2101,9 +2272,6 @@ export class TaskCreationService {
       }
     }
 
-    session.status = 'cancelled';
-    session.completedAt = new Date().toISOString();
-
     try {
       await this.streams.publishTaskCreationCancelled(sessionId, {
         sessionId,
@@ -2111,6 +2279,12 @@ export class TaskCreationService {
     } catch (error) {
       console.error('[TaskCreationService] Failed to publish cancel event:', error);
     }
+
+    // Schedule delayed session cleanup to allow late API calls
+    setTimeout(() => {
+      this.sessions.delete(sessionId);
+      console.log('[TaskCreationService] Cleaned up cancelled session:', sessionId);
+    }, 60000);
 
     return ok(session);
   }
