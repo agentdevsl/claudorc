@@ -53,7 +53,13 @@ export type PostToolUseHook = (input: {
 }) => Promise<void>;
 
 export type WorktreeService = {
-  create: (input: { projectId: string; taskId: string }) => Promise<Result<Worktree, AgentError>>;
+  create: (input: {
+    projectId: string;
+    agentId: string;
+    taskId: string;
+    taskTitle: string;
+    baseBranch?: string;
+  }) => Promise<Result<Worktree, AgentError>>;
 };
 
 export type TaskService = {

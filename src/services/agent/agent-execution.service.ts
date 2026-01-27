@@ -111,7 +111,9 @@ export class AgentExecutionService {
 
     const worktree = await this.worktreeService.create({
       projectId: agent.projectId,
+      agentId: agent.id,
       taskId: task.id,
+      taskTitle: task.title,
     });
     if (!worktree.ok) {
       return worktree;
@@ -135,7 +137,7 @@ export class AgentExecutionService {
         agentId,
         sessionId: session.value.id,
         worktreeId: worktree.value.id,
-        branch: `agent/${agentId}/${task.id}`,
+        branch: worktree.value.branch,
         startedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
