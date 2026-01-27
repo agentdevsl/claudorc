@@ -1,4 +1,9 @@
-import { type SDKMessage, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import {
+  type CanUseTool,
+  type PermissionResult,
+  type SDKMessage,
+  unstable_v2_createSession,
+} from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import { projects } from '@/db/schema/projects';
@@ -73,6 +78,9 @@ interface SDKUserMessage {
   session_id: string;
 }
 
+/** Resolver function for pending AskUserQuestion permission */
+type PermissionResolver = (result: PermissionResult) => void;
+
 export interface TaskCreationSession {
   id: string;
   projectId: string;
@@ -94,6 +102,14 @@ export interface TaskCreationSession {
   systemPromptSent: boolean;
   /** Database session ID for history tracking */
   dbSessionId: string | null;
+  /** Resolver for pending AskUserQuestion permission - call with answers to continue */
+  pendingPermissionResolver: PermissionResolver | null;
+  /** Store questions input while waiting for user answers */
+  pendingQuestionsInput: Record<string, unknown> | null;
+  /** Active stream iterator - persists across permission pauses to maintain SDK state */
+  activeStreamIterator: AsyncGenerator<SDKMessage> | null;
+  /** Promise that resolves when the current stream processing completes */
+  streamProcessingPromise: Promise<void> | null;
 }
 
 export interface TaskCreationError {
@@ -140,7 +156,7 @@ const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structu
 
 Your role is to:
 1. Understand what the user wants (from their initial message)
-2. Use the AskUserQuestion tool ONCE to gather 3-10 clarifying questions
+2. Use the AskUserQuestion tool ONCE to gather 2-4 clarifying questions
 3. Generate a high-quality task suggestion based on the user's answers
 
 ## Phase 1: Clarifying Questions (EXACTLY ONE ROUND - NO EXCEPTIONS)
@@ -158,7 +174,7 @@ Guidelines for questions:
 - Each question should have 2-4 options
 - Options should be mutually exclusive and cover common choices
 - Set multiSelect: true if the user should be able to select multiple options
-- Ask up to 10 questions in ONE call - this is your ONLY opportunity to gather information
+- Ask 2-4 questions in ONE call (max 4 allowed) - this is your ONLY opportunity to gather information
 - Make each question count - you will NOT get another chance to ask
 
 IMPORTANT: After the user answers, you will receive a tool_result. At that point you MUST generate the task - NO MORE QUESTIONS.
@@ -197,8 +213,8 @@ export class TaskCreationService {
     private settingsService?: SettingsService
   ) {}
 
-  /** Maximum total questions to ask across all rounds */
-  private static readonly MAX_QUESTIONS = 10;
+  /** Maximum total questions to ask across all rounds (SDK AskUserQuestion tool limits to 4 per call) */
+  private static readonly MAX_QUESTIONS = 4;
 
   /**
    * Parse a task suggestion from assistant response text
@@ -402,22 +418,103 @@ export class TaskCreationService {
       ? baseTools
       : [...baseTools, 'AskUserQuestion'];
 
+    // Create our session ID first so canUseTool callback can reference it
+    const sessionId = createId();
+
     console.log('[TaskCreationService] Creating V2 session:', {
+      sessionId,
       model: taskCreationModel,
       allowedTools,
       hasAskUserQuestion: allowedTools.includes('AskUserQuestion'),
     });
 
-    const v2Session = unstable_v2_createSession({
-      model: taskCreationModel,
-      env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true' },
-      allowedTools,
-    });
+    // Create canUseTool callback to handle AskUserQuestion
+    // This callback pauses execution when AskUserQuestion is called,
+    // allowing us to wait for user answers via our API
+    const canUseTool: CanUseTool = async (toolName, input, options) => {
+      console.log('[TaskCreationService] canUseTool called:', { toolName, sessionId });
 
-    // Create our session wrapper
-    const sessionId = createId();
+      // For non-AskUserQuestion tools, allow automatically
+      if (toolName !== 'AskUserQuestion') {
+        return { behavior: 'allow' as const, toolUseID: options.toolUseID };
+      }
 
-    // Create database session for history tracking (if session service is available)
+      // Handle AskUserQuestion - pause and wait for user answers
+      console.log(
+        '[TaskCreationService] 🛑 AskUserQuestion permission requested, pausing for user input'
+      );
+
+      const session = this.sessions.get(sessionId);
+      if (!session) {
+        console.error('[TaskCreationService] Session not found in canUseTool callback');
+        return {
+          behavior: 'deny' as const,
+          message: 'Session not found',
+          toolUseID: options.toolUseID,
+        };
+      }
+
+      // Store the questions input and tool use ID
+      session.pendingToolUseId = options.toolUseID;
+      session.pendingQuestionsInput = input;
+
+      // Parse and store questions for the UI
+      // The SDK input has 'questions' array, we add the toolUseId from options
+      const inputWithToolId = {
+        toolUseId: options.toolUseID,
+        questions: (input as { questions: unknown }).questions as Array<{
+          question: string;
+          header: string;
+          multiSelect: boolean;
+          options: Array<{ label: string; description?: string }>;
+        }>,
+      };
+      const questions = this.parseAskUserQuestionToolInput(inputWithToolId, session);
+      if (questions) {
+        console.log('[TaskCreationService] Parsed questions for UI:', {
+          questionsId: questions.id,
+          questionCount: questions.questions.length,
+        });
+        session.pendingQuestions = questions;
+        session.status = 'waiting_user';
+
+        // Publish questions event for UI
+        try {
+          await this.streams.publishTaskCreationQuestions(session.id, {
+            sessionId: session.id,
+            questions,
+          });
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to publish questions:', error);
+        }
+
+        // Persist to database if available
+        if (session.dbSessionId && this.sessionService) {
+          try {
+            await this.sessionService.publish(session.dbSessionId, {
+              id: createId(),
+              type: 'tool:start',
+              timestamp: Date.now(),
+              data: {
+                id: options.toolUseID,
+                tool: 'AskUserQuestion',
+                input: { questions: questions.questions },
+              },
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] Failed to persist tool:start:', error);
+          }
+        }
+      }
+
+      // Create a Promise that will be resolved when user provides answers
+      return new Promise<PermissionResult>((resolve) => {
+        console.log('[TaskCreationService] 🔒 Storing permission resolver, waiting for answers...');
+        session.pendingPermissionResolver = resolve;
+      });
+    };
+
+    // Create database session for history tracking FIRST (before v2Session)
     let dbSessionId: string | null = null;
     if (this.sessionService) {
       try {
@@ -439,6 +536,8 @@ export class TaskCreationService {
       }
     }
 
+    // IMPORTANT: Create and store session BEFORE creating v2Session
+    // This ensures canUseTool callback can find the session when it's invoked
     const session: TaskCreationSession = {
       id: sessionId,
       projectId,
@@ -453,12 +552,28 @@ export class TaskCreationService {
       completedAt: null,
       sdkSessionId: null,
       pendingToolUseId: null,
-      v2Session: v2Session as V2Session,
+      v2Session: null, // Will be set after v2Session is created
       systemPromptSent: false,
       dbSessionId,
+      pendingPermissionResolver: null,
+      pendingQuestionsInput: null,
+      activeStreamIterator: null,
+      streamProcessingPromise: null,
     };
 
+    // Store session BEFORE creating v2Session so canUseTool callback can access it
     this.sessions.set(sessionId, session);
+
+    // Now create v2Session - canUseTool callback can now find the session
+    const v2Session = unstable_v2_createSession({
+      model: taskCreationModel,
+      env: { ...process.env, CLAUDE_CODE_ENABLE_TASKS: 'true', DEBUG_CLAUDE_AGENT_SDK: '1' },
+      allowedTools,
+      canUseTool,
+    });
+
+    // Update session with v2Session reference
+    session.v2Session = v2Session as V2Session;
 
     // Create stream for real-time events
     try {
@@ -561,19 +676,40 @@ export class TaskCreationService {
         { id: string; name: string; input: string; startTime: number }
       >();
 
-      // Track AskUserQuestion tool call specifically for pausing conversation
-      let askUserQuestionInput: {
-        toolUseId: string;
-        questions: Array<{
-          question: string;
-          header: string;
-          multiSelect: boolean;
-          options: Array<{ label: string; description?: string }>;
-        }>;
-      } | null = null;
-
       // Stream response using V2 API
-      for await (const msg of session.v2Session.stream()) {
+      // Note: AskUserQuestion is handled by canUseTool callback, which pauses the stream
+      // When answerQuestions() resolves the permission, the stream continues automatically
+      //
+      // IMPORTANT: We use a manual while loop instead of for-await to avoid iterator cleanup issues.
+      // When we need to exit early (e.g., questions detected), using for-await's break/return
+      // calls iterator.return() which closes the iterator and prevents the background processor
+      // from continuing to consume it. With a manual loop, we can exit without cleanup.
+      const streamIterator = session.v2Session.stream();
+      session.activeStreamIterator = streamIterator;
+
+      // Flag to signal early return (when questions detected)
+      let shouldReturnEarly = false;
+
+      // Manual iteration loop - allows us to exit without calling iterator.return()
+      // Use a labeled loop so inner break can exit both loops
+      outerLoop: while (true) {
+        // Check if we should exit BEFORE calling next() - important to avoid blocking
+        if (shouldReturnEarly) {
+          console.log('[TaskCreationService] 🚪 Exiting loop - shouldReturnEarly is true');
+          break;
+        }
+
+        const iterResult = await streamIterator.next();
+        if (iterResult.done) {
+          break;
+        }
+        const msg = iterResult.value;
+
+        // DON'T break when pendingPermissionResolver is set!
+        // The SDK's canUseTool callback pauses the stream internally via the Promise.
+        // Breaking here loses the iterator state. Instead, we return control but let
+        // a background processor continue consuming the iterator after permission resolves.
+
         // Log ALL message types to debug event format
         console.log(`[TaskCreationService] 📨 Stream msg type: ${msg.type}`, {
           hasSessionId: !!msg.session_id,
@@ -604,18 +740,14 @@ export class TaskCreationService {
             };
           };
 
-          // Check tool_use_result field
+          // Log tool_use_result (handled by canUseTool for AskUserQuestion)
           if (userMsg.tool_use_result) {
             const toolResult = userMsg.tool_use_result;
             console.log('[TaskCreationService] 🛠️ SDK V2 tool_use_result found:', {
               toolName: toolResult.tool_name,
               hasInput: !!toolResult.input,
             });
-
-            if (toolResult.tool_name === 'AskUserQuestion' && toolResult.input) {
-              console.log('[TaskCreationService] ✅ AskUserQuestion from SDK V2 captured!');
-              askUserQuestionInput = toolResult.input as NonNullable<typeof askUserQuestionInput>;
-            }
+            // Note: AskUserQuestion is handled by canUseTool callback, no need to capture here
           }
         }
 
@@ -645,7 +777,13 @@ export class TaskCreationService {
                 }
               }
 
-              // Check for AskUserQuestion tool_use - BREAK to pause for user input
+              // Detect AskUserQuestion tool_use - spawn background processor and return control
+              // canUseTool callback handles questions parsing, publishing, and pausing
+              // The SDK will wait for the permission Promise to resolve before continuing
+              //
+              // CRITICAL: We must NOT break from the loop here!
+              // Breaking loses the iterator state. Instead, we spawn a background task
+              // that continues consuming the SAME iterator after permission resolves.
               if (
                 block.type === 'tool_use' &&
                 block.name === 'AskUserQuestion' &&
@@ -653,54 +791,59 @@ export class TaskCreationService {
                 block.id
               ) {
                 console.log(
-                  '[TaskCreationService] 🛑 AskUserQuestion tool detected - BREAKING for user input'
+                  '[TaskCreationService] 📝 AskUserQuestion tool_use detected - spawning background processor'
                 );
-                console.log(
-                  '[TaskCreationService] Tool input:',
-                  JSON.stringify(block.input, null, 2)
-                );
-                console.log('[TaskCreationService] Tool use ID:', block.id);
-                const input = block.input as {
-                  questions: Array<{
-                    question: string;
-                    header: string;
-                    multiSelect: boolean;
-                    options: Array<{ label: string; description?: string }>;
-                  }>;
-                };
-                askUserQuestionInput = {
-                  toolUseId: block.id,
-                  questions: input.questions,
-                };
 
-                // Publish tool:start event for AskUserQuestion (V2 path)
-                if (session.dbSessionId && this.sessionService) {
-                  try {
-                    await this.sessionService.publish(session.dbSessionId, {
-                      id: createId(),
-                      type: 'tool:start',
-                      timestamp: Date.now(),
-                      data: {
-                        id: block.id,
-                        tool: 'AskUserQuestion',
-                        input: block.input as Record<string, unknown>,
-                      },
-                    });
-                    console.log('[TaskCreationService] Published tool:start for AskUserQuestion');
-                  } catch (error) {
-                    console.error('[TaskCreationService] Failed to publish tool:start:', error);
-                  }
+                // Store accumulated text before returning
+                if (accumulated) {
+                  await this.addAssistantMessage(session, accumulated, undefined);
+                  accumulated = ''; // Reset accumulator for background processing
                 }
-                // BREAK out of the inner loop
-                break;
+
+                // Set status to waiting_user in case canUseTool hasn't run yet
+                // canUseTool will also set this, so it's safe to set it here too
+                session.status = 'waiting_user';
+
+                // Spawn a background task to continue processing the stream
+                // This task will resume when the canUseTool Promise resolves (after user answers)
+                // We pass the same streamIterator, accumulated state, and other context
+                console.log('[TaskCreationService] 🔄 Spawning background stream processor...');
+                session.streamProcessingPromise = this.processStreamInBackground(
+                  session,
+                  streamIterator,
+                  inFlightTools,
+                  onToken
+                );
+
+                // Wait for canUseTool to set pendingQuestions before returning
+                // This ensures the SSE update includes the questions
+                // canUseTool is called by the SDK when processing the tool_use, which happens
+                // shortly after we detect the tool_use block in the stream
+                const maxWait = 5000; // 5 seconds max wait
+                const pollInterval = 50; // 50ms poll interval
+                let waited = 0;
+                while (!session.pendingQuestions && waited < maxWait) {
+                  await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                  waited += pollInterval;
+                }
+
+                if (session.pendingQuestions) {
+                  console.log(
+                    '[TaskCreationService] ✅ Questions ready, setting flag to exit loop'
+                  );
+                } else {
+                  console.log(
+                    '[TaskCreationService] ⚠️ Questions not ready after timeout, exiting loop anyway'
+                  );
+                }
+
+                // Set flag and break to exit both loops without calling iterator.return()
+                // This is critical because the background processor is consuming the same iterator
+                // Using 'return' inside for-await would trigger cleanup that blocks/conflicts
+                shouldReturnEarly = true;
+                break outerLoop;
               }
             }
-          }
-
-          // If we found AskUserQuestion, break out of the outer stream loop too
-          if (askUserQuestionInput) {
-            console.log('[TaskCreationService] 🛑 Breaking out of stream loop for AskUserQuestion');
-            break;
           }
         }
 
@@ -824,26 +967,13 @@ export class TaskCreationService {
                 );
               }
 
-              // Check if this is an AskUserQuestion tool call - capture its input
+              // Log AskUserQuestion tool call (handled by canUseTool callback)
               if (toolInfo.name === 'AskUserQuestion' && parsedInput.questions) {
                 console.log(
-                  '[TaskCreationService] Captured AskUserQuestion tool call with',
+                  '[TaskCreationService] 📝 AskUserQuestion tool call completed with',
                   (parsedInput.questions as unknown[]).length,
-                  'questions'
+                  'questions (canUseTool handles pause/resume)'
                 );
-                askUserQuestionInput = {
-                  toolUseId: toolInfo.id,
-                  questions: (
-                    parsedInput as {
-                      questions: Array<{
-                        question: string;
-                        header: string;
-                        multiSelect: boolean;
-                        options: Array<{ label: string; description?: string }>;
-                      }>;
-                    }
-                  ).questions,
-                };
               }
 
               // Publish tool:result event with the accumulated input and duration
@@ -1030,12 +1160,19 @@ export class TaskCreationService {
       // Log what we have after streaming
       console.log('[TaskCreationService] 📊 Stream completed:', {
         accumulatedTextLength: accumulated.length,
-        hasAskUserQuestionToolInput: !!askUserQuestionInput,
+        hasPendingQuestions: !!session.pendingQuestions,
+        hasPendingPermissionResolver: !!session.pendingPermissionResolver,
         inFlightToolsCount: inFlightTools.size,
       });
 
       // Helper to apply pending questions to session state
       const applyPendingQuestions = async (questions: PendingQuestions): Promise<void> => {
+        console.log('[TaskCreationService] Applying pending questions:', {
+          sessionId,
+          questionsId: questions.id,
+          questionCount: questions.questions.length,
+          round: questions.round,
+        });
         session.pendingQuestions = questions;
         session.questionRound = questions.round;
         session.totalQuestionsAsked = questions.totalAsked;
@@ -1051,24 +1188,17 @@ export class TaskCreationService {
       // Build usage info for message persistence
       const usageInfo = totalTokens > 0 ? { modelUsed, inputTokens, outputTokens } : undefined;
 
-      // Check if we have an AskUserQuestion tool call to handle (takes priority)
-      if (askUserQuestionInput) {
-        console.log('[TaskCreationService] Processing AskUserQuestion tool call (priority path)');
-        const questions = this.parseAskUserQuestionToolInput(askUserQuestionInput, session);
-        if (questions) {
-          console.log(
-            '[TaskCreationService] Parsed AskUserQuestion tool:',
-            questions.questions.length,
-            'questions'
-          );
-
-          if (accumulated) {
-            await this.addAssistantMessage(session, accumulated, usageInfo);
-          }
-          await applyPendingQuestions(questions);
-          return ok(session);
-        }
-      }
+      // Note: AskUserQuestion is now handled by canUseTool callback, which:
+      // - Parses questions and stores them in session.pendingQuestions
+      // - Publishes questions to UI via streams
+      // - Pauses stream execution via pending Promise
+      // - When answerQuestions() is called, the Promise resolves and stream continues
+      //
+      // If we reach here, either:
+      // - Claude didn't call AskUserQuestion (going straight to task suggestion)
+      // - Or the stream completed after answers were provided
+      //
+      // Either way, we should process the accumulated response for task suggestions
 
       // Add assistant response if we have content
       if (accumulated) {
@@ -1113,6 +1243,15 @@ export class TaskCreationService {
         }
       }
 
+      // Check if we exited early due to questions detection
+      // In this case, return immediately so the HTTP handler can respond with questions
+      if (shouldReturnEarly) {
+        console.log(
+          '[TaskCreationService] 📤 Returning early to allow HTTP response with questions'
+        );
+        return ok(session);
+      }
+
       return ok(session);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1127,6 +1266,209 @@ export class TaskCreationService {
       }
 
       return err(TaskCreationErrors.API_ERROR(message));
+    }
+  }
+
+  /**
+   * Process the SDK stream in the background after AskUserQuestion is detected.
+   * This method continues consuming the SAME stream iterator that was created in sendMessage,
+   * which is critical because the SDK's internal state (pending permission resolution) is
+   * tied to that specific iterator instance.
+   *
+   * The stream will naturally pause at the canUseTool Promise until the user provides answers.
+   * Once answerQuestions() resolves the Promise, the SDK continues generating messages,
+   * and this background processor will capture them.
+   */
+  private async processStreamInBackground(
+    session: TaskCreationSession,
+    streamIterator: AsyncGenerator<SDKMessage>,
+    _inFlightTools: Map<number, { id: string; name: string; input: string; startTime: number }>,
+    onToken?: TokenCallback
+  ): Promise<void> {
+    // Note: _inFlightTools is passed for potential future use in tracking tool state,
+    // but not currently used in background processing since we focus on post-permission messages
+    console.log('[TaskCreationService] 🔄 Background stream processor started');
+
+    let accumulated = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let modelUsed = '';
+
+    try {
+      // Continue processing from the same iterator
+      // The SDK will pause here until canUseTool Promise resolves
+      for await (const msg of streamIterator) {
+        // Check if session was cancelled
+        if (session.status === 'cancelled' || session.status === 'completed') {
+          console.log('[TaskCreationService] [BG] Session ended, stopping background processor');
+          break;
+        }
+
+        console.log(`[TaskCreationService] [BG] 📨 Stream msg type: ${msg.type}`);
+
+        // Handle assistant messages
+        if (msg.type === 'assistant') {
+          const assistantMsg = msg as {
+            type: 'assistant';
+            message?: {
+              content?: Array<{
+                type: string;
+                id?: string;
+                name?: string;
+                input?: unknown;
+                text?: string;
+              }>;
+              model?: string;
+              usage?: { input_tokens?: number; output_tokens?: number };
+            };
+          };
+
+          // Extract model and usage
+          if (assistantMsg.message?.model) {
+            modelUsed = assistantMsg.message.model;
+          }
+          if (assistantMsg.message?.usage) {
+            inputTokens = assistantMsg.message.usage.input_tokens ?? 0;
+            outputTokens = assistantMsg.message.usage.output_tokens ?? 0;
+          }
+
+          // Accumulate text content
+          if (assistantMsg.message?.content) {
+            for (const block of assistantMsg.message.content) {
+              if (block.type === 'text' && block.text) {
+                accumulated += block.text;
+                if (onToken) {
+                  onToken(block.text, accumulated);
+                }
+              }
+
+              // Check for another AskUserQuestion (multi-round questioning)
+              if (
+                block.type === 'tool_use' &&
+                block.name === 'AskUserQuestion' &&
+                block.input &&
+                block.id
+              ) {
+                console.log(
+                  '[TaskCreationService] [BG] 📝 Another AskUserQuestion detected - waiting for answers'
+                );
+
+                if (accumulated) {
+                  await this.addAssistantMessage(session, accumulated, undefined);
+                  accumulated = '';
+                }
+
+                session.status = 'waiting_user';
+                // The canUseTool callback will handle the new questions
+                // Continue the loop - it will pause again at the new canUseTool Promise
+              }
+            }
+          }
+        }
+
+        // Handle streaming events
+        if (msg.type === 'stream_event') {
+          const event = msg.event as {
+            type: string;
+            index?: number;
+            content_block?: { type: string; id?: string; name?: string };
+            delta?: { type: string; text?: string; partial_json?: string };
+            message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+
+          if (event.type === 'message_start' && event.message) {
+            if (event.message.model) modelUsed = event.message.model;
+            if (event.message.usage) inputTokens = event.message.usage.input_tokens ?? 0;
+          }
+
+          if (event.type === 'message_delta' && event.usage) {
+            outputTokens = event.usage.output_tokens ?? 0;
+          }
+
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta?.type === 'text_delta' &&
+            event.delta.text
+          ) {
+            const delta = event.delta.text;
+            accumulated += delta;
+
+            if (onToken) {
+              onToken(delta, accumulated);
+            }
+
+            try {
+              await this.streams.publishTaskCreationToken(session.id, {
+                sessionId: session.id,
+                delta,
+                accumulated,
+              });
+            } catch (error) {
+              console.error('[TaskCreationService] [BG] Failed to publish token:', error);
+            }
+          }
+        }
+
+        // Handle result message (end of stream)
+        if (msg.type === 'result') {
+          console.log('[TaskCreationService] [BG] 🎯 Result message received - stream complete');
+          const result = msg as {
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+          if (result.usage) {
+            inputTokens = result.usage.input_tokens ?? inputTokens;
+            outputTokens = result.usage.output_tokens ?? outputTokens;
+          }
+          break;
+        }
+      }
+
+      // Process accumulated content
+      if (accumulated) {
+        const usageInfo =
+          inputTokens + outputTokens > 0 ? { modelUsed, inputTokens, outputTokens } : undefined;
+
+        await this.addAssistantMessage(session, accumulated, usageInfo);
+
+        // Parse task suggestion from accumulated content
+        console.log('[TaskCreationService] [BG] Parsing response for task suggestion...');
+        const suggestion = this.parseSuggestion(accumulated);
+        if (suggestion) {
+          console.log('[TaskCreationService] [BG] Found task suggestion:', {
+            title: suggestion.title.substring(0, 50),
+            priority: suggestion.priority,
+          });
+          session.suggestion = suggestion;
+          session.pendingQuestions = null;
+
+          try {
+            await this.streams.publishTaskCreationSuggestion(session.id, {
+              sessionId: session.id,
+              suggestion,
+            });
+          } catch (error) {
+            console.error('[TaskCreationService] [BG] Failed to publish suggestion:', error);
+          }
+        }
+      }
+
+      console.log('[TaskCreationService] [BG] 🏁 Background stream processor completed');
+    } catch (error) {
+      console.error('[TaskCreationService] [BG] Error in background stream processor:', error);
+
+      try {
+        await this.streams.publishTaskCreationError(session.id, {
+          sessionId: session.id,
+          error: error instanceof Error ? error.message : 'Background processing error',
+        });
+      } catch (streamError) {
+        console.error('[TaskCreationService] [BG] Failed to publish error:', streamError);
+      }
+    } finally {
+      // Clean up
+      session.activeStreamIterator = null;
+      session.streamProcessingPromise = null;
     }
   }
 
@@ -1307,6 +1649,13 @@ export class TaskCreationService {
     }
 
     if (!session.pendingQuestions || session.pendingQuestions.id !== questionsId) {
+      console.error('[TaskCreationService] Questions ID mismatch:', {
+        sessionId,
+        providedQuestionsId: questionsId,
+        hasPendingQuestions: !!session.pendingQuestions,
+        serverQuestionsId: session.pendingQuestions?.id ?? null,
+        sessionStatus: session.status,
+      });
       return err({
         code: 'INVALID_QUESTIONS_ID',
         message: 'Questions ID does not match pending questions',
@@ -1331,16 +1680,87 @@ export class TaskCreationService {
       '\n'
     );
 
-    // Clear pending questions and tool use ID
+    // Check if we have a pending permission resolver (from canUseTool callback)
+    const resolver = session.pendingPermissionResolver;
+    const originalInput = session.pendingQuestionsInput;
+
+    // Clear pending state
     session.pendingQuestions = null;
     session.pendingToolUseId = null;
+    session.pendingPermissionResolver = null;
+    session.pendingQuestionsInput = null;
     session.status = 'active';
 
-    // If we have a pending tool_use_id, send as a tool result
-    // This properly continues the SDK conversation from where we paused
-    if (pendingToolUseId && session.v2Session && session.sdkSessionId) {
+    // If we have a permission resolver, resolve it with the answers
+    // This continues the SDK's permission flow with the user's answers
+    if (resolver && originalInput) {
+      console.log('[TaskCreationService] 🔓 Resolving permission with answers:', {
+        sessionId,
+        questionCount: questions.length,
+        answerCount: Object.keys(answers).length,
+      });
+
+      // Format answers as a simple key-value object for the SDK
+      // The SDK's AskUserQuestion expects answers as { [questionIndex]: selectedAnswer }
+      const formattedAnswers: Record<string, string> = {};
+      for (const [index, answer] of Object.entries(answers)) {
+        // Convert array answers to comma-separated string
+        formattedAnswers[index] = Array.isArray(answer) ? answer.join(', ') : answer;
+      }
+
+      // Publish tool:result event for AskUserQuestion
+      if (session.dbSessionId && this.sessionService) {
+        try {
+          await this.sessionService.publish(session.dbSessionId, {
+            id: createId(),
+            type: 'tool:result',
+            timestamp: Date.now(),
+            data: {
+              id: pendingToolUseId ?? 'unknown',
+              tool: 'AskUserQuestion',
+              input: { questions },
+              output: { answers: formattedAnswers },
+              duration: 0,
+              isError: false,
+            },
+          });
+          console.log('[TaskCreationService] Published tool:result for AskUserQuestion');
+        } catch (error) {
+          console.error('[TaskCreationService] Failed to publish tool:result:', error);
+        }
+      }
+
+      // Resolve the permission with updatedInput containing the answers
+      // This tells the SDK to proceed with the tool using our answers
+      resolver({
+        behavior: 'allow',
+        updatedInput: {
+          ...originalInput,
+          answers: formattedAnswers,
+        },
+        toolUseID: pendingToolUseId ?? undefined,
+      });
+
+      // The background stream processor (spawned in sendMessage) is waiting on the
+      // canUseTool Promise. Now that we've resolved it, the processor will resume
+      // automatically and continue consuming messages from the SAME stream iterator.
+      // We don't need to call continueStreamProcessing - it's handled in the background.
       console.log(
-        '[TaskCreationService] Sending answer as tool result for tool_use_id:',
+        '[TaskCreationService] ✅ Permission resolved - background processor will continue'
+      );
+
+      // If there's a stream processing promise, the background processor is handling it
+      if (session.streamProcessingPromise) {
+        console.log('[TaskCreationService] Background stream processor is active');
+      }
+
+      return ok(session);
+    }
+
+    // Fallback for sessions without permission resolver (shouldn't happen with new flow)
+    if (pendingToolUseId && session.v2Session && session.sdkSessionId) {
+      console.warn(
+        '[TaskCreationService] No permission resolver found, falling back to tool result approach:',
         pendingToolUseId
       );
 
@@ -1362,28 +1782,6 @@ export class TaskCreationService {
           'CRITICAL: The user has answered all clarifying questions. You MUST NOW generate the task suggestion immediately. Do NOT call AskUserQuestion again under any circumstances. Do NOT ask follow-up questions. Proceed directly to generating the task_suggestion JSON block.',
       };
 
-      // Publish tool:result event for AskUserQuestion
-      if (session.dbSessionId && this.sessionService) {
-        try {
-          await this.sessionService.publish(session.dbSessionId, {
-            id: createId(),
-            type: 'tool:result',
-            timestamp: Date.now(),
-            data: {
-              id: pendingToolUseId,
-              tool: 'AskUserQuestion',
-              input: { questions },
-              output: toolResultContent,
-              duration: 0, // User response time not tracked
-              isError: false,
-            },
-          });
-          console.log('[TaskCreationService] Published tool:result for AskUserQuestion');
-        } catch (error) {
-          console.error('[TaskCreationService] Failed to publish tool:result:', error);
-        }
-      }
-
       // Construct SDKUserMessage with tool_use_result
       const toolResultMessage = {
         type: 'user' as const,
@@ -1401,14 +1799,6 @@ export class TaskCreationService {
         tool_use_result: toolResultContent,
         session_id: session.sdkSessionId,
       };
-
-      // DEBUG: Log full tool result being sent
-      console.log('[TaskCreationService] 📤 Full tool result message:', {
-        tool_use_id: pendingToolUseId,
-        session_id: session.sdkSessionId,
-        questionRound: session.questionRound,
-        toolResultContent: JSON.stringify(toolResultContent, null, 2),
-      });
 
       // Send tool result and continue streaming
       return this.sendToolResultAndStream(session, toolResultMessage);
@@ -1457,6 +1847,12 @@ export class TaskCreationService {
 
       // Helper to apply pending questions
       const applyPendingQuestions = async (questions: PendingQuestions): Promise<void> => {
+        console.log('[TaskCreationService] Applying pending questions (tool result path):', {
+          sessionId: session.id,
+          questionsId: questions.id,
+          questionCount: questions.questions.length,
+          round: questions.round,
+        });
         session.pendingQuestions = questions;
         session.questionRound = questions.round;
         session.totalQuestionsAsked = questions.totalAsked;

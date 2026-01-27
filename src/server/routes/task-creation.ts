@@ -25,6 +25,13 @@ function sendTaskCreationSSEUpdate(
     suggestion?: unknown;
   }
 ): void {
+  console.log('[TaskCreation SSE] sendTaskCreationSSEUpdate called:', {
+    sessionId,
+    messageCount: session.messages.length,
+    hasPendingQuestions: !!session.pendingQuestions,
+    hasSuggestion: !!session.suggestion,
+  });
+
   // Send assistant message event
   const lastMessage = session.messages[session.messages.length - 1];
   if (lastMessage && lastMessage.role === 'assistant') {
@@ -42,6 +49,7 @@ function sendTaskCreationSSEUpdate(
 
   // Send questions event if pending
   if (session.pendingQuestions) {
+    console.log('[TaskCreation SSE] 📤 Sending questions event');
     const questionsData = JSON.stringify({
       type: 'task-creation:questions',
       data: {
@@ -50,6 +58,9 @@ function sendTaskCreationSSEUpdate(
       },
     });
     controller.enqueue(new TextEncoder().encode(`data: ${questionsData}\n\n`));
+    console.log('[TaskCreation SSE] ✅ Questions event enqueued');
+  } else {
+    console.log('[TaskCreation SSE] ⚠️ No pendingQuestions to send');
   }
 
   // Send suggestion event if available (only when no pending questions)
@@ -140,8 +151,17 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
       }
 
       // Send events to SSE based on session state
+      console.log('[TaskCreation Route] About to send SSE update:', {
+        sessionId,
+        hasController: !!controller,
+        sseConnectionsSize: sseConnections.size,
+        registeredSessionIds: Array.from(sseConnections.keys()),
+        hasPendingQuestions: !!result.value?.pendingQuestions,
+      });
       if (controller) {
         sendTaskCreationSSEUpdate(controller, sessionId, result.value);
+      } else {
+        console.log('[TaskCreation Route] ⚠️ No SSE controller found for session:', sessionId);
       }
 
       return json({ ok: true, data: { messageId: 'msg-sent' } });
