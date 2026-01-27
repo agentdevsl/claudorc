@@ -1,9 +1,16 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { CheckCircle, Lightning, Warning, WarningCircle, XCircle } from '@phosphor-icons/react';
 import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import { LABEL_TYPES, type Priority } from './constants';
-import { agentStatusVariants, cardVariants, labelVariants, priorityVariants } from './styles';
+import {
+  agentStatusVariants,
+  cardVariants,
+  labelVariants,
+  lastRunStatusVariants,
+  priorityVariants,
+} from './styles';
 
 interface KanbanCardProps {
   /** Task data */
@@ -16,6 +23,8 @@ interface KanbanCardProps {
   onSelect: (multiSelect: boolean) => void;
   /** Callback to open task detail */
   onOpen: () => void;
+  /** Callback to run the task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: () => void;
 }
 
 /**
@@ -46,12 +55,36 @@ function formatTaskId(id: string): string {
   return `#TSK-${id.slice(-3).toUpperCase()}`;
 }
 
+/**
+ * Get icon and label for last agent run status
+ */
+function getLastRunStatusInfo(status: Task['lastAgentStatus']): {
+  icon: React.ReactNode;
+  label: string;
+} | null {
+  if (!status) return null;
+
+  switch (status) {
+    case 'completed':
+      return { icon: <CheckCircle className="w-3 h-3" weight="fill" />, label: 'Completed' };
+    case 'cancelled':
+      return { icon: <XCircle className="w-3 h-3" weight="fill" />, label: 'Cancelled' };
+    case 'error':
+      return { icon: <WarningCircle className="w-3 h-3" weight="fill" />, label: 'Error' };
+    case 'turn_limit':
+      return { icon: <Warning className="w-3 h-3" weight="fill" />, label: 'Turn limit' };
+    default:
+      return null;
+  }
+}
+
 export function KanbanCard({
   task,
   isSelected,
   isDragging,
   onSelect,
   onOpen,
+  onRunNow,
 }: KanbanCardProps): React.JSX.Element {
   const {
     attributes,
@@ -104,6 +137,13 @@ export function KanbanCard({
   const priority = getPriority(task);
   const labels = task.labels ?? [];
   const isAgentRunning = Boolean(task.agentId) && task.column === 'in_progress';
+  const canRunNow = task.column === 'backlog' && onRunNow;
+  const lastRunStatus = getLastRunStatusInfo(task.lastAgentStatus);
+
+  const handleRunNow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRunNow?.();
+  };
 
   return (
     <article
@@ -142,6 +182,27 @@ export function KanbanCard({
       {/* Footer */}
       <div className="flex items-center justify-between mt-2.5">
         <span className="font-mono text-xs text-fg-muted">{formatTaskId(task.id)}</span>
+
+        {/* Last run status badge (only show when not running) */}
+        {lastRunStatus && !isAgentRunning && (
+          <div className={lastRunStatusVariants({ status: task.lastAgentStatus })}>
+            {lastRunStatus.icon}
+            <span>{lastRunStatus.label}</span>
+          </div>
+        )}
+
+        {/* Run Now button for backlog tasks */}
+        {canRunNow && (
+          <button
+            type="button"
+            onClick={handleRunNow}
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-accent text-fg hover:bg-accent-hover transition-colors"
+            aria-label="Run task now"
+          >
+            <Lightning className="w-3 h-3" weight="fill" />
+            <span>Run</span>
+          </button>
+        )}
       </div>
 
       {/* Agent Status Badge */}

@@ -63,6 +63,8 @@ interface KanbanColumnProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onAddTask?: () => void;
+  /** Callback to run a task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: (taskId: string) => void;
   /** Custom header action to replace the default add button */
   headerAction?: React.ReactNode;
   config?: ColumnConfig;
@@ -79,6 +81,7 @@ export function KanbanColumn({
   isCollapsed = false,
   onToggleCollapse,
   onAddTask,
+  onRunNow,
   headerAction,
 }: KanbanColumnProps): React.JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -214,6 +217,7 @@ export function KanbanColumn({
                   onSelect={onTaskSelect}
                   isSelected={isTaskSelected?.(task.id) ?? false}
                   priority={getPriorityFromLabels(task.labels)}
+                  onRunNow={id === 'backlog' && onRunNow ? () => onRunNow(task.id) : undefined}
                 />
               ))}
             </div>

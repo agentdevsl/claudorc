@@ -15,7 +15,15 @@ import type { DiffSummary } from '@/lib/types/diff';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId'
+  | 'id'
+  | 'projectId'
+  | 'title'
+  | 'description'
+  | 'column'
+  | 'position'
+  | 'labels'
+  | 'agentId'
+  | 'lastAgentStatus'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -82,6 +90,21 @@ function ProjectKanban(): React.JSX.Element {
     const result = await apiClient.tasks.move(taskId, column, position);
     if (!result.ok) {
       console.error('[ProjectKanban] Failed to move task:', result.error);
+      // Revert optimistic update on error
+      fetchData();
+    }
+  };
+
+  const handleRunNow = async (taskId: string) => {
+    // Optimistic update - move to in_progress
+    setTasks((prev) =>
+      prev.map((task) => (task.id === taskId ? { ...task, column: 'in_progress' as const } : task))
+    );
+
+    // Move task to in_progress which will auto-trigger the agent
+    const result = await apiClient.tasks.move(taskId, 'in_progress', 0);
+    if (!result.ok) {
+      console.error('[ProjectKanban] Failed to run task:', result.error);
       // Revert optimistic update on error
       fetchData();
     }
@@ -163,6 +186,7 @@ function ProjectKanban(): React.JSX.Element {
         tasks={tasks as Parameters<typeof KanbanBoard>[0]['tasks']}
         onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
         onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
+        onRunNow={handleRunNow}
       />
 
       {/* New Task Dialog - AI-powered task creation with streaming */}

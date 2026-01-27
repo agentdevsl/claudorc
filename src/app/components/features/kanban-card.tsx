@@ -1,6 +1,15 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Circle, DotsSixVertical, Spinner } from '@phosphor-icons/react';
+import {
+  CheckCircle,
+  Circle,
+  DotsSixVertical,
+  Lightning,
+  Spinner,
+  Warning,
+  WarningCircle,
+  XCircle,
+} from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
@@ -36,6 +45,35 @@ const cardVariants = cva(
   }
 );
 
+/**
+ * Last agent run status styling
+ */
+const LAST_RUN_STATUS_CONFIG: Record<
+  NonNullable<Task['lastAgentStatus']>,
+  { icon: React.ReactNode; label: string; className: string }
+> = {
+  completed: {
+    icon: <CheckCircle className="h-3 w-3" weight="fill" />,
+    label: 'Completed',
+    className: 'bg-[var(--done-muted)] text-[var(--done-fg)]',
+  },
+  cancelled: {
+    icon: <XCircle className="h-3 w-3" weight="fill" />,
+    label: 'Cancelled',
+    className: 'bg-[var(--bg-muted)] text-[var(--fg-muted)]',
+  },
+  error: {
+    icon: <WarningCircle className="h-3 w-3" weight="fill" />,
+    label: 'Error',
+    className: 'bg-[var(--danger-muted)] text-[var(--danger-fg)]',
+  },
+  turn_limit: {
+    icon: <Warning className="h-3 w-3" weight="fill" />,
+    label: 'Turn limit',
+    className: 'bg-[var(--attention-muted)] text-[var(--attention-fg)]',
+  },
+};
+
 interface KanbanCardProps {
   task: Task;
   onClick?: () => void;
@@ -43,6 +81,8 @@ interface KanbanCardProps {
   isDragging?: boolean;
   isSelected?: boolean;
   priority?: Priority;
+  /** Callback to run the task immediately (only shown in backlog) */
+  onRunNow?: () => void;
 }
 
 export function KanbanCard({
@@ -52,6 +92,7 @@ export function KanbanCard({
   isDragging: isDraggingProp,
   isSelected = false,
   priority,
+  onRunNow,
 }: KanbanCardProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -161,21 +202,55 @@ export function KanbanCard({
         </div>
       </div>
 
-      {/* Footer with ID and agent status */}
-      <div className="mt-2.5 flex items-center justify-between">
+      {/* Footer with ID, status badges, and run button */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
         <span className="font-mono text-xs text-[var(--fg-muted)]" data-testid="task-id">
           {formatTaskId(task.id)}
         </span>
 
-        {task.agentId && (
-          <div
-            className="flex items-center gap-1.5 rounded bg-[var(--attention-muted)] px-2 py-1 text-xs text-[var(--attention-fg)]"
-            data-testid="agent-status-indicator"
-          >
-            <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
-            <span>Agent running</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          {/* Last run status badge (only when not running) */}
+          {task.lastAgentStatus && !task.agentId && (
+            <div
+              className={cn(
+                'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].className
+              )}
+              data-testid="last-run-status"
+            >
+              {LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].icon}
+              <span>{LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].label}</span>
+            </div>
+          )}
+
+          {/* Agent running badge */}
+          {task.agentId && (
+            <div
+              className="flex items-center gap-1.5 rounded bg-[var(--attention-muted)] px-2 py-1 text-xs text-[var(--attention-fg)]"
+              data-testid="agent-status-indicator"
+            >
+              <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
+              <span>Running</span>
+            </div>
+          )}
+
+          {/* Run Now button (only for backlog tasks without running agent) */}
+          {onRunNow && !task.agentId && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRunNow();
+              }}
+              className="flex items-center gap-1 rounded bg-[var(--accent-emphasis)] px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-[var(--accent-fg)]"
+              data-testid="run-now-button"
+              aria-label="Run task now"
+            >
+              <Lightning className="h-3 w-3" weight="fill" />
+              <span>Run</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Agent status bar (when running) */}

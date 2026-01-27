@@ -30,6 +30,8 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   /** Callback when new task is requested for a column */
   onNewTask?: (column: TaskColumn) => void;
+  /** Callback to run a task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: (taskId: string) => void;
   /** Custom header action for backlog column (e.g., AI create button) */
   backlogHeaderAction?: React.ReactNode;
   /** Loading state */
@@ -78,6 +80,7 @@ export function KanbanBoard({
   onTaskMove,
   onTaskClick,
   onNewTask,
+  onRunNow,
   backlogHeaderAction,
   isLoading: _isLoading,
 }: KanbanBoardProps): React.JSX.Element {
@@ -275,6 +278,7 @@ export function KanbanBoard({
                   isDragging={activeId === task.id}
                   onSelect={(multi) => handleCardSelect(task.id, multi)}
                   onOpen={() => handleCardOpen(task)}
+                  onRunNow={onRunNow ? () => onRunNow(task.id) : undefined}
                 />
               ))}
             </KanbanColumn>

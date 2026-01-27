@@ -123,6 +123,28 @@ export const agentStatusVariants = cva('flex items-center gap-1.5 px-2 py-1 roun
 export type AgentStatusVariants = VariantProps<typeof agentStatusVariants>;
 
 /**
+ * Last agent run status badge styles
+ */
+export const lastRunStatusVariants = cva(
+  'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium',
+  {
+    variants: {
+      status: {
+        completed: 'bg-done-muted text-done',
+        cancelled: 'bg-surface-muted text-fg-muted',
+        error: 'bg-danger-muted text-danger',
+        turn_limit: 'bg-attention-muted text-attention',
+      },
+    },
+    defaultVariants: {
+      status: 'completed',
+    },
+  }
+);
+
+export type LastRunStatusVariants = VariantProps<typeof lastRunStatusVariants>;
+
+/**
  * Task mode badge styles
  */
 export const modeBadgeVariants = cva(
