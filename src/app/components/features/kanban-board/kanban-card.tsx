@@ -196,10 +196,31 @@ export function KanbanCard({
           <button
             type="button"
             onClick={handleRunNow}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-accent text-fg hover:bg-accent-hover transition-colors"
+            className={cn(
+              // Base layout - compact pill shape
+              'group/run relative inline-flex items-center gap-1.5',
+              'h-6 px-2.5 rounded-full',
+              // Typography
+              'text-[11px] font-medium tracking-wide',
+              // Colors - Claude brand accent
+              'bg-claude-subtle text-claude',
+              'border border-claude/20',
+              // Hover state - energetic glow
+              'hover:bg-claude-muted hover:border-claude/40',
+              'hover:shadow-[0_0_12px_rgba(217,119,87,0.25)]',
+              // Active state
+              'active:scale-[0.97] active:shadow-none',
+              // Focus ring
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-subtle',
+              // Smooth transitions
+              'transition-all duration-150 ease-out'
+            )}
             aria-label="Run task now"
           >
-            <Lightning className="w-3 h-3" weight="fill" />
+            <Lightning
+              className="w-3 h-3 transition-transform duration-150 group-hover/run:scale-110"
+              weight="fill"
+            />
             <span>Run</span>
           </button>
         )}
