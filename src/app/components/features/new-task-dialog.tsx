@@ -824,6 +824,7 @@ export function NewTaskDialog({
     messages,
     streamingContent,
     isStreaming,
+    isAnswering,
     suggestion,
     pendingQuestions,
     createdTaskId,
@@ -1293,7 +1294,7 @@ export function NewTaskDialog({
                       onSelectAnswer={handleSelectAnswer}
                       onSubmitAnswers={handleSubmitAnswers}
                       onSkip={handleSkipQuestions}
-                      isSubmitting={isStreaming}
+                      isSubmitting={isStreaming || isAnswering}
                     />
                   </div>
                 )}

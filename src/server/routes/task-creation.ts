@@ -136,7 +136,29 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
           }
         : undefined;
 
-      const result = await taskCreationService.sendMessage(sessionId, message, onToken);
+      // Callback for when background processor finds a suggestion (sends SSE event)
+      const onSuggestion = controller
+        ? (suggestion: {
+            title: string;
+            description: string;
+            labels: string[];
+            priority: string;
+          }) => {
+            console.log('[TaskCreation Route] 📤 onSuggestion callback - sending SSE event');
+            const suggestionData = JSON.stringify({
+              type: 'task-creation:suggestion',
+              data: { sessionId, suggestion },
+            });
+            controller.enqueue(new TextEncoder().encode(`data: ${suggestionData}\n\n`));
+          }
+        : undefined;
+
+      const result = await taskCreationService.sendMessage(
+        sessionId,
+        message,
+        onToken,
+        onSuggestion
+      );
 
       if (!result.ok) {
         // Send error to SSE if connected

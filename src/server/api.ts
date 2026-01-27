@@ -113,6 +113,7 @@ const mockStreamsService: DurableStreamsService = {
   publishTaskCreationStarted: async () => undefined,
   publishTaskCreationMessage: async () => undefined,
   publishTaskCreationToken: async () => undefined,
+  publishTaskCreationQuestions: async () => undefined,
   publishTaskCreationSuggestion: async () => undefined,
   publishTaskCreationError: async () => undefined,
   publishTaskCreationCompleted: async () => undefined,

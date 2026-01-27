@@ -74,11 +74,14 @@ describe('TaskCreationService', () => {
         expect(result.value.systemPromptSent).toBe(false);
       }
 
-      expect(unstable_v2_createSession).toHaveBeenCalledWith({
-        model: 'claude-sonnet-4-20250514',
-        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
-        allowedTools: DEFAULT_TASK_CREATION_TOOLS,
-      });
+      expect(unstable_v2_createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'claude-sonnet-4-20250514',
+          env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+          allowedTools: DEFAULT_TASK_CREATION_TOOLS,
+          canUseTool: expect.any(Function),
+        })
+      );
       expect(streams.createStream).toHaveBeenCalled();
       expect(streams.publishTaskCreationStarted).toHaveBeenCalled();
     });
@@ -110,11 +113,14 @@ describe('TaskCreationService', () => {
       const result = await service.startConversation('p1', ['Read', 'Grep']);
 
       expect(result.ok).toBe(true);
-      expect(unstable_v2_createSession).toHaveBeenCalledWith({
-        model: 'claude-sonnet-4-20250514',
-        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
-        allowedTools: ['Read', 'Grep', 'AskUserQuestion'],
-      });
+      expect(unstable_v2_createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'claude-sonnet-4-20250514',
+          env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+          allowedTools: ['Read', 'Grep', 'AskUserQuestion'],
+          canUseTool: expect.any(Function),
+        })
+      );
     });
 
     it('does not duplicate AskUserQuestion if already in configured tools', async () => {
@@ -129,11 +135,14 @@ describe('TaskCreationService', () => {
       const result = await service.startConversation('p1', ['Read', 'AskUserQuestion']);
 
       expect(result.ok).toBe(true);
-      expect(unstable_v2_createSession).toHaveBeenCalledWith({
-        model: 'claude-sonnet-4-20250514',
-        env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
-        allowedTools: ['Read', 'AskUserQuestion'],
-      });
+      expect(unstable_v2_createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'claude-sonnet-4-20250514',
+          env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
+          allowedTools: ['Read', 'AskUserQuestion'],
+          canUseTool: expect.any(Function),
+        })
+      );
     });
   });
 

@@ -110,6 +110,8 @@ export interface TaskCreationSession {
   activeStreamIterator: AsyncGenerator<SDKMessage> | null;
   /** Promise that resolves when the current stream processing completes */
   streamProcessingPromise: Promise<void> | null;
+  /** Callback for when background processor finds a suggestion - used to send SSE events */
+  onSuggestionCallback: SuggestionCallback | null;
 }
 
 export interface TaskCreationError {
@@ -202,6 +204,7 @@ CRITICAL: Always use the AskUserQuestion tool first before generating a task sug
 // ============================================================================
 
 export type TokenCallback = (delta: string, accumulated: string) => void;
+export type SuggestionCallback = (suggestion: TaskSuggestion) => void;
 
 export class TaskCreationService {
   private sessions = new Map<string, TaskCreationSession>();
@@ -559,6 +562,7 @@ export class TaskCreationService {
       pendingQuestionsInput: null,
       activeStreamIterator: null,
       streamProcessingPromise: null,
+      onSuggestionCallback: null,
     };
 
     // Store session BEFORE creating v2Session so canUseTool callback can access it
@@ -604,7 +608,8 @@ export class TaskCreationService {
   async sendMessage(
     sessionId: string,
     content: string,
-    onToken?: TokenCallback
+    onToken?: TokenCallback,
+    onSuggestion?: SuggestionCallback
   ): Promise<Result<TaskCreationSession, TaskCreationError>> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -617,6 +622,11 @@ export class TaskCreationService {
 
     if (!session.v2Session) {
       return err(TaskCreationErrors.API_ERROR('No active V2 session'));
+    }
+
+    // Store suggestion callback for background processor to use
+    if (onSuggestion) {
+      session.onSuggestionCallback = onSuggestion;
     }
 
     // Add user message
@@ -1432,24 +1442,41 @@ export class TaskCreationService {
         await this.addAssistantMessage(session, accumulated, usageInfo);
 
         // Parse task suggestion from accumulated content
-        console.log('[TaskCreationService] [BG] Parsing response for task suggestion...');
-        const suggestion = this.parseSuggestion(accumulated);
-        if (suggestion) {
-          console.log('[TaskCreationService] [BG] Found task suggestion:', {
-            title: suggestion.title.substring(0, 50),
-            priority: suggestion.priority,
-          });
-          session.suggestion = suggestion;
-          session.pendingQuestions = null;
-
-          try {
-            await this.streams.publishTaskCreationSuggestion(session.id, {
-              sessionId: session.id,
-              suggestion,
+        // Only parse suggestions if we're not waiting for user input (questions)
+        // The background processor may receive pre-tool content that looks like a suggestion
+        // but we shouldn't act on it until the user has answered questions
+        if (session.status !== 'waiting_user') {
+          console.log('[TaskCreationService] [BG] Parsing response for task suggestion...');
+          const suggestion = this.parseSuggestion(accumulated);
+          if (suggestion) {
+            console.log('[TaskCreationService] [BG] Found task suggestion:', {
+              title: suggestion.title.substring(0, 50),
+              priority: suggestion.priority,
             });
-          } catch (error) {
-            console.error('[TaskCreationService] [BG] Failed to publish suggestion:', error);
+            session.suggestion = suggestion;
+            session.pendingQuestions = null;
+
+            // Call the SSE callback if registered (sends event to client)
+            if (session.onSuggestionCallback) {
+              console.log(
+                '[TaskCreationService] [BG] 📤 Calling onSuggestionCallback to send SSE event'
+              );
+              session.onSuggestionCallback(suggestion);
+            }
+
+            try {
+              await this.streams.publishTaskCreationSuggestion(session.id, {
+                sessionId: session.id,
+                suggestion,
+              });
+            } catch (error) {
+              console.error('[TaskCreationService] [BG] Failed to publish suggestion:', error);
+            }
           }
+        } else {
+          console.log(
+            '[TaskCreationService] [BG] Skipping suggestion parsing - waiting for user input'
+          );
         }
       }
 

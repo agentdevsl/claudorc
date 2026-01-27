@@ -44,6 +44,8 @@ export interface UseTaskCreationState {
   error: string | null;
   /** Local error from hook operations (separate from session errors) */
   localError: string | null;
+  /** Whether an answer submission is in progress (prevents double-click) */
+  isAnswering: boolean;
 }
 
 export interface UseTaskCreationActions {
@@ -122,6 +124,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
   // Local error state for operation failures (separate from session errors)
   const [localError, setLocalError] = useState<string | null>(null);
+  // Track answer submission to prevent double-clicks
+  const [isAnswering, setIsAnswering] = useState(false);
 
   // Get session and messages from TanStack DB (reactive)
   const session = useTaskCreationSession(sessionId);
@@ -242,37 +246,48 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
         return;
       }
 
-      // Clear any previous local error
+      // Prevent double-submission
+      if (isAnswering) {
+        console.log('[useTaskCreation] Answer already in progress, ignoring');
+        return;
+      }
+
+      // Clear any previous local error and mark as submitting
       setLocalError(null);
+      setIsAnswering(true);
 
-      const result = await apiClient.taskCreation.answerQuestions(
-        sessionId,
-        pendingQuestions.id,
-        answers
-      );
+      try {
+        const result = await apiClient.taskCreation.answerQuestions(
+          sessionId,
+          pendingQuestions.id,
+          answers
+        );
 
-      if (!result.ok) {
-        console.error('[useTaskCreation] Failed to answer questions:', result.error);
+        if (!result.ok) {
+          console.error('[useTaskCreation] Failed to answer questions:', result.error);
 
-        // If session is stale or missing, reset and let user start fresh
-        if (
-          result.error.code === 'INVALID_QUESTIONS_ID' ||
-          result.error.code === 'SESSION_NOT_FOUND' ||
-          result.error.message?.includes('Questions ID does not match') ||
-          result.error.message?.includes('Session not found')
-        ) {
-          console.log('[useTaskCreation] Session state mismatch - resetting');
-          resetTaskCreationSession(sessionId);
-          setSessionId(null);
-          setLocalError('Session expired. Please start a new conversation.');
-          return;
+          // If session is stale or missing, reset and let user start fresh
+          if (
+            result.error.code === 'INVALID_QUESTIONS_ID' ||
+            result.error.code === 'SESSION_NOT_FOUND' ||
+            result.error.message?.includes('Questions ID does not match') ||
+            result.error.message?.includes('Session not found')
+          ) {
+            console.log('[useTaskCreation] Session state mismatch - resetting');
+            resetTaskCreationSession(sessionId);
+            setSessionId(null);
+            setLocalError('Session expired. Please start a new conversation.');
+            return;
+          }
+
+          // Set local error - SSE may also send an error event but this ensures immediate feedback
+          setLocalError(result.error.message || 'Failed to submit answers');
         }
-
-        // Set local error - SSE may also send an error event but this ensures immediate feedback
-        setLocalError(result.error.message || 'Failed to submit answers');
+      } finally {
+        setIsAnswering(false);
       }
     },
-    [sessionId, pendingQuestions]
+    [sessionId, pendingQuestions, isAnswering]
   );
 
   // Skip clarifying questions
@@ -321,6 +336,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     }
     setSessionId(null);
     setLocalError(null);
+    setIsAnswering(false);
   }, [sessionId]);
 
   // Clear local error
@@ -340,6 +356,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
     createdTaskId,
     error,
     localError,
+    isAnswering,
     // Actions
     startConversation,
     sendMessage,
