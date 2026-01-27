@@ -361,6 +361,12 @@ export const apiClient = {
         title: string;
         projectId: string;
       }>('/api/tasks', { method: 'POST', body: data }),
+
+    /**
+     * Delete a task
+     */
+    delete: (id: string) =>
+      apiServerFetch<{ ok: boolean }>(`/api/tasks/${id}`, { method: 'DELETE' }),
   },
 
   sessions: {

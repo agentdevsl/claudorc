@@ -193,7 +193,12 @@ function ProjectKanban(): React.JSX.Element {
           }
         }}
         onDelete={async (id) => {
-          setTasks((prev) => prev.filter((task) => task.id !== id));
+          const result = await apiClient.tasks.delete(id);
+          if (result.ok) {
+            setTasks((prev) => prev.filter((task) => task.id !== id));
+          } else {
+            console.error('[ProjectKanban] Failed to delete task:', result.error);
+          }
         }}
       />
 
