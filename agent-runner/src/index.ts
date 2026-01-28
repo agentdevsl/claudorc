@@ -342,7 +342,7 @@ async function runPlanningPhase(): Promise<void> {
     // The SDK/CLI handles directory access via cwd and environment
     session = unstable_v2_createSession({
       model: config.model,
-      env: { ...process.env },
+      env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
       permissionMode: 'plan', // Planning mode - read-only exploration
       canUseTool, // Use official SDK callback for tool interception
     });
@@ -485,6 +485,21 @@ async function runPlanningPhase(): Promise<void> {
             isError: toolSummary.is_error ?? false,
             durationMs: Date.now() - startTime,
           });
+
+          // If ExitPlanMode completed successfully, end the planning session
+          if (toolSummary.tool_name === 'ExitPlanMode' && !toolSummary.is_error) {
+            console.error('[agent-runner] ExitPlanMode completed - ending planning session');
+            session.close();
+            events.planReady({
+              plan: accumulatedText,
+              turnCount: turn,
+              sdkSessionId: sdkSessionId ?? '',
+              launchSwarm: exitPlanModeOptions?.launchSwarm,
+              teammateCount: exitPlanModeOptions?.teammateCount,
+              allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+            });
+            return;
+          }
         }
       }
 
@@ -645,7 +660,7 @@ async function runExecutionPhase(): Promise<void> {
       // Resume existing session
       session = unstable_v2_resumeSession(config.sdkSessionId, {
         model: config.model,
-        env: { ...process.env },
+        env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
         permissionMode: 'bypassPermissions',
         canUseTool, // Track tools even in bypass mode
       });
@@ -653,7 +668,7 @@ async function runExecutionPhase(): Promise<void> {
       // Create new session
       session = unstable_v2_createSession({
         model: config.model,
-        env: { ...process.env },
+        env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
         permissionMode: 'bypassPermissions',
         canUseTool, // Track tools even in bypass mode
       });
