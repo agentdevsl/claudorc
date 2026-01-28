@@ -2,7 +2,7 @@
  * Project routes
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { agents } from '../../db/schema/agents.js';
@@ -171,9 +171,13 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
             total: projectTasks.length,
           };
 
-          // Get running agents for this project
+          // Get active agents for this project (starting, planning, or running)
+          const activeStatuses = ['starting', 'planning', 'running'] as const;
           const runningAgents = await db.query.agents.findMany({
-            where: and(eq(agents.projectId, project.id), eq(agents.status, 'running')),
+            where: and(
+              eq(agents.projectId, project.id),
+              inArray(agents.status, [...activeStatuses])
+            ),
           });
 
           // Get task titles for running agents
