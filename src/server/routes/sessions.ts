@@ -7,6 +7,106 @@ import type { DurableStreamsService } from '../../services/durable-streams.servi
 import type { SessionService } from '../../services/session.service.js';
 import { corsHeaders, isValidId, json } from '../shared.js';
 
+// Helper to format session as markdown
+function formatSessionAsMarkdown(
+  session: {
+    id: string;
+    title?: string | null;
+    status: string;
+    createdAt?: string;
+    closedAt?: string | null;
+  },
+  events: Array<{ id: string; type: string; timestamp: number; data: unknown }>
+): string {
+  const lines: string[] = [];
+
+  lines.push(`# Session: ${session.title || session.id}`);
+  lines.push('');
+  lines.push(`**Status:** ${session.status}`);
+  if (session.createdAt) {
+    lines.push(`**Created:** ${new Date(session.createdAt).toLocaleString()}`);
+  }
+  if (session.closedAt) {
+    lines.push(`**Closed:** ${new Date(session.closedAt).toLocaleString()}`);
+  }
+  lines.push('');
+  lines.push('## Events');
+  lines.push('');
+
+  for (const event of events) {
+    const time = new Date(event.timestamp).toLocaleTimeString();
+    const data = event.data as Record<string, unknown>;
+
+    lines.push(`### ${time} - ${event.type}`);
+    lines.push('');
+
+    // Format content based on event type
+    if (event.type === 'container-agent:message') {
+      const role = (data.role as string) || 'unknown';
+      const content = (data.content as string) || '';
+      lines.push(`**${role}:** ${content}`);
+    } else if (event.type.includes('tool')) {
+      const toolName =
+        (data.toolName as string) || (data.tool as string) || (data.name as string) || 'unknown';
+      lines.push(`**Tool:** ${toolName}`);
+      if (data.input) {
+        lines.push('```json');
+        lines.push(JSON.stringify(data.input, null, 2));
+        lines.push('```');
+      }
+      if (data.output || data.result) {
+        lines.push('**Output:**');
+        lines.push('```');
+        lines.push(String(data.output || data.result).slice(0, 500));
+        lines.push('```');
+      }
+    } else {
+      lines.push('```json');
+      lines.push(JSON.stringify(data, null, 2));
+      lines.push('```');
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// Helper to format events as CSV
+function formatEventsAsCsv(
+  events: Array<{ id: string; type: string; timestamp: number; data: unknown }>
+): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push('timestamp,type,role,tool,content');
+
+  for (const event of events) {
+    const time = new Date(event.timestamp).toISOString();
+    const data = event.data as Record<string, unknown>;
+
+    const role = (data.role as string) || '';
+    const tool = (data.toolName as string) || (data.tool as string) || (data.name as string) || '';
+    let content = (data.content as string) || '';
+
+    // Escape CSV fields
+    const escapeCSV = (str: string) => {
+      if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Truncate long content for CSV
+    if (content.length > 200) {
+      content = content.slice(0, 200) + '...';
+    }
+
+    lines.push([time, event.type, role, tool, escapeCSV(content)].join(','));
+  }
+
+  return lines.join('\n');
+}
+
 interface SessionsDeps {
   sessionService: SessionService;
   durableStreamsService?: DurableStreamsService;
@@ -143,6 +243,84 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
       console.error('[Sessions] Get summary error:', error);
       return json(
         { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to get session summary' } },
+        500
+      );
+    }
+  });
+
+  // POST /api/sessions/:id/export - Export session in various formats
+  app.post('/:id/export', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
+
+    try {
+      const body = await c.req.json();
+      const format = body.format as 'json' | 'markdown' | 'csv';
+
+      if (!format || !['json', 'markdown', 'csv'].includes(format)) {
+        return json(
+          {
+            ok: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid format. Must be json, markdown, or csv',
+            },
+          },
+          400
+        );
+      }
+
+      // Get session details
+      const sessionResult = await sessionService.getById(id);
+      if (!sessionResult.ok) {
+        return json({ ok: false, error: sessionResult.error }, sessionResult.error.status ?? 404);
+      }
+      const session = sessionResult.value;
+
+      // Get all events
+      const eventsResult = await sessionService.getEventsBySession(id, { limit: 10000, offset: 0 });
+      const events = eventsResult.ok ? eventsResult.value : [];
+
+      // Generate export content based on format
+      let content: string;
+      let contentType: string;
+      let filename: string;
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const sessionTitle = session.title || 'session';
+      const safeTitle = sessionTitle.replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 50);
+
+      switch (format) {
+        case 'json':
+          content = JSON.stringify({ session, events }, null, 2);
+          contentType = 'application/json';
+          filename = `${safeTitle}_${timestamp}.json`;
+          break;
+
+        case 'markdown':
+          content = formatSessionAsMarkdown(session, events);
+          contentType = 'text/markdown';
+          filename = `${safeTitle}_${timestamp}.md`;
+          break;
+
+        case 'csv':
+          content = formatEventsAsCsv(events);
+          contentType = 'text/csv';
+          filename = `${safeTitle}_events_${timestamp}.csv`;
+          break;
+      }
+
+      return json({ ok: true, data: { content, contentType, filename } });
+    } catch (error) {
+      console.error('[Sessions] Export error:', error);
+      return json(
+        { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to export session' } },
         500
       );
     }

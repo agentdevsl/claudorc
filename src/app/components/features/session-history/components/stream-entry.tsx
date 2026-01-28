@@ -4,12 +4,12 @@ import {
   CaretRight,
   CheckCircle,
   Code,
-  Gear,
   Lightning,
   Spinner,
   Terminal,
   User,
   WarningCircle,
+  Wrench,
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
@@ -44,7 +44,7 @@ const typeIcons = {
   system: Terminal,
   user: User,
   assistant: Code,
-  tool: Gear,
+  tool: Wrench,
 } as const;
 
 const statusIcons = {

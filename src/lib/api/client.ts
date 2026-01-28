@@ -465,7 +465,7 @@ export const apiClient = {
       }>(`/api/sessions/${encodeURIComponent(id)}/summary`),
 
     export: (id: string, format: 'json' | 'markdown' | 'csv') =>
-      apiFetch<{
+      apiServerFetch<{
         content: string;
         contentType: string;
         filename: string;
