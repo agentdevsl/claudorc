@@ -604,6 +604,14 @@ export class ContainerAgentService {
       sandboxId: agent.sandboxId,
     });
 
+    // Capture stderr for debugging - critical for understanding agent-runner failures
+    agent.execResult.stderr.on('data', (chunk: Buffer) => {
+      const stderrText = chunk.toString().trim();
+      if (stderrText) {
+        infoLog('processAgentOutput:stderr', stderrText, { taskId: agent.taskId });
+      }
+    });
+
     try {
       // Process the stdout stream through the bridge
       debugLog('processAgentOutput', 'Processing stdout stream through bridge', {

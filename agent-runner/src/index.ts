@@ -18,7 +18,7 @@ import { isAbsolute, join, resolve } from 'node:path';
  * The OAuth token is written to ~/.claude/.credentials.json before starting the SDK.
  * This is required because OAuth tokens passed via ANTHROPIC_API_KEY env var are blocked.
  */
-import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import { type SDKSession, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createEventEmitter } from './event-emitter.js';
 
 // Configuration from environment
@@ -149,14 +149,34 @@ async function runAgent(): Promise<void> {
 
   // Create Claude Agent SDK session
   // The SDK reads auth from ~/.claude/.credentials.json
-  const session = unstable_v2_createSession({
-    model: config.model,
-    env: { ...process.env },
-    // Accept file edits without interactive prompts (required for non-interactive container)
-    permissionMode: 'acceptEdits',
-    // Add workspace directory to allowed directories via CLI args
-    executableArgs: ['--add-dir', config.cwd, '--add-dir', WORKSPACE_ROOT],
-  });
+  let session: SDKSession;
+  try {
+    console.error('[agent-runner] Creating SDK session...');
+    session = unstable_v2_createSession({
+      model: config.model,
+      env: { ...process.env },
+      // Add workspace directory to allowed directories via CLI args
+      executableArgs: [
+        '--add-dir',
+        config.cwd,
+        '--add-dir',
+        WORKSPACE_ROOT,
+        // Accept file edits without interactive prompts (required for non-interactive container)
+        '--permission-mode',
+        'acceptEdits',
+      ],
+    });
+    console.error('[agent-runner] SDK session created successfully');
+  } catch (sessionError) {
+    const errMsg = sessionError instanceof Error ? sessionError.message : String(sessionError);
+    console.error('[agent-runner] Failed to create SDK session:', errMsg);
+    events.error({
+      error: `SDK session creation failed: ${errMsg}`,
+      code: 'SDK_SESSION_FAILED',
+      turnCount: 0,
+    });
+    process.exit(1);
+  }
 
   let turn = 0;
   let accumulatedText = '';
@@ -166,15 +186,22 @@ async function runAgent(): Promise<void> {
     await session.send(config.prompt as string);
 
     // Process the stream
+    console.error('[agent-runner] Processing SDK stream...');
+    let messageCount = 0;
+
     for await (const msg of session.stream()) {
+      messageCount++;
+      console.error(`[agent-runner] Message ${messageCount}: type=${msg.type}`);
+
       // Check for cancellation
       if (await shouldStop()) {
+        console.error('[agent-runner] Stop file detected, cancelling...');
         events.cancelled(turn);
         session.close();
         return;
       }
 
-      // Handle different message types
+      // Handle streaming events (token deltas)
       if (msg.type === 'stream_event') {
         const event = msg.event as {
           type: string;
@@ -185,6 +212,7 @@ async function runAgent(): Promise<void> {
         // Track turns on message_start
         if (event.type === 'message_start') {
           turn++;
+          console.error(`[agent-runner] Turn ${turn}/${config.maxTurns}`);
           events.turn({
             turn,
             maxTurns: config.maxTurns,
@@ -193,6 +221,7 @@ async function runAgent(): Promise<void> {
 
           // Check turn limit
           if (turn >= config.maxTurns) {
+            console.error('[agent-runner] Turn limit reached');
             events.complete({
               status: 'turn_limit',
               turnCount: turn,
@@ -203,7 +232,7 @@ async function runAgent(): Promise<void> {
           }
         }
 
-        // Capture text deltas
+        // Capture text deltas for streaming output
         if (
           event.type === 'content_block_delta' &&
           event.delta?.type === 'text_delta' &&
@@ -218,10 +247,28 @@ async function runAgent(): Promise<void> {
         }
       }
 
-      // Handle assistant messages
+      // Handle tool progress events
+      if (msg.type === 'tool_progress') {
+        const toolMsg = msg as {
+          tool_use_id: string;
+          tool_name: string;
+          elapsed_time_seconds: number;
+        };
+        console.error(
+          `[agent-runner] Tool progress: ${toolMsg.tool_name} (${toolMsg.elapsed_time_seconds}s)`
+        );
+        events.toolStart({
+          toolName: toolMsg.tool_name,
+          toolId: toolMsg.tool_use_id,
+          input: {},
+        });
+      }
+
+      // Handle assistant messages (complete turns)
       if (msg.type === 'assistant') {
         const text = getAssistantText(msg);
         if (text) {
+          console.error(`[agent-runner] Assistant message: ${text.slice(0, 100)}...`);
           events.message({
             role: 'assistant',
             content: text,
@@ -231,16 +278,30 @@ async function runAgent(): Promise<void> {
 
       // Handle result (completion)
       if (msg.type === 'result') {
-        const result = msg as { text?: string };
-        events.complete({
-          status: 'completed',
-          turnCount: turn,
-          result: result.text ?? (accumulatedText || 'Task completed'),
-        });
+        const result = msg as { text?: string; subtype?: string; is_error?: boolean };
+        console.error(
+          `[agent-runner] Result: subtype=${result.subtype}, is_error=${result.is_error}`
+        );
+
+        if (result.is_error) {
+          events.complete({
+            status: 'turn_limit',
+            turnCount: turn,
+            result: result.text ?? 'Task ended with error',
+          });
+        } else {
+          events.complete({
+            status: 'completed',
+            turnCount: turn,
+            result: result.text ?? (accumulatedText || 'Task completed'),
+          });
+        }
         session.close();
         return;
       }
     }
+
+    console.error(`[agent-runner] Stream ended. Total messages: ${messageCount}, turns: ${turn}`);
 
     // Stream ended without explicit result
     events.complete({
