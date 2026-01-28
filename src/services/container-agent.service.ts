@@ -185,15 +185,14 @@ export class ContainerAgentService {
         !errorMessage.includes('UNIQUE constraint failed') &&
         !errorMessage.includes('already exists')
       ) {
-        infoLog('startAgent', 'Failed to create session record - agent tracking may be affected', {
+        infoLog('startAgent', 'Failed to create session record', {
           sessionId,
           taskId,
           error: errorMessage,
         });
-        // Continue anyway - the agent can still run, just without proper session tracking
-      } else {
-        debugLog('startAgent', 'Session already exists, continuing', { sessionId });
+        return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
       }
+      debugLog('startAgent', 'Session already exists, continuing', { sessionId });
     }
 
     // Create durable stream for real-time events
@@ -209,14 +208,13 @@ export class ContainerAgentService {
       const errorMessage = streamErr instanceof Error ? streamErr.message : String(streamErr);
       // Only ignore "already exists" errors
       if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate')) {
-        infoLog('startAgent', 'Failed to create durable stream - real-time events may not work', {
+        infoLog('startAgent', 'Failed to create durable stream', {
           sessionId,
           error: errorMessage,
         });
-        // Continue anyway - agent can still run, but UI won't get real-time updates
-      } else {
-        debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
+        return err(SandboxErrors.STREAM_CREATE_FAILED(errorMessage));
       }
+      debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
     }
 
     // Resolve agent configuration
@@ -603,10 +601,27 @@ export class ContainerAgentService {
           .where(eq(tasks.id, taskId));
       }
     } catch (error) {
-      infoLog('handleAgentComplete', 'Failed to update task', {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[ContainerAgentService] Failed to update task status:', {
         taskId,
-        error: error instanceof Error ? error.message : String(error),
+        status,
+        error: errorMessage,
       });
+      // Publish error event so UI knows task update failed
+      try {
+        await this.streams.publish(agent.sessionId, 'container-agent:task-update-failed', {
+          taskId,
+          sessionId: agent.sessionId,
+          error: errorMessage,
+          attemptedStatus: status,
+        });
+      } catch (publishErr) {
+        // If we can't even publish the error, just log it
+        console.error(
+          '[ContainerAgentService] Failed to publish task update error event:',
+          publishErr
+        );
+      }
     }
 
     // Clean up sentinel file
@@ -687,10 +702,27 @@ export class ContainerAgentService {
         .where(eq(tasks.id, taskId));
       debugLog('handleAgentError', 'Task agent refs cleared, status set to error', { taskId });
     } catch (err) {
-      infoLog('handleAgentError', 'Failed to update task', {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('[ContainerAgentService] Failed to update task status:', {
         taskId,
-        error: err instanceof Error ? err.message : String(err),
+        status: 'error',
+        error: errorMessage,
       });
+      // Publish error event so UI knows task update failed
+      try {
+        await this.streams.publish(agent.sessionId, 'container-agent:task-update-failed', {
+          taskId,
+          sessionId: agent.sessionId,
+          error: errorMessage,
+          attemptedStatus: 'error',
+        });
+      } catch (publishErr) {
+        // If we can't even publish the error, just log it
+        console.error(
+          '[ContainerAgentService] Failed to publish task update error event:',
+          publishErr
+        );
+      }
     }
 
     // Remove from running agents

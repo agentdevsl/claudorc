@@ -72,10 +72,14 @@ try {
   sqlite.exec(SANDBOX_MIGRATION_SQL);
   console.log('[API Server] Sandbox migration applied');
 } catch (error) {
-  // Ignore error if column already exists
+  // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-    console.warn('[API Server] Sandbox migration skipped (column may already exist)');
+    console.warn(
+      '[API Server] Sandbox migration error (unexpected):',
+      error instanceof Error ? error.message : String(error)
+    );
   }
+  // Silently ignore duplicate column errors (expected when migration already applied)
 }
 
 // Run template sync interval migration (may fail if columns already exist)
@@ -83,12 +87,14 @@ try {
   sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
   console.log('[API Server] Template sync interval migration applied');
 } catch (error) {
-  // Ignore error if columns already exist
+  // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
     console.warn(
-      '[API Server] Template sync interval migration skipped (columns may already exist)'
+      '[API Server] Template sync interval migration error (unexpected):',
+      error instanceof Error ? error.message : String(error)
     );
   }
+  // Silently ignore duplicate column errors (expected when migration already applied)
 }
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
@@ -116,12 +122,16 @@ const taskService = new TaskService(db, {
 });
 
 // Mock DurableStreamsService for task creation (SSE handled separately)
+console.warn(
+  '[API Server] Using mock DurableStreamsService - real-time task creation events disabled'
+);
 const mockStreamsService: DurableStreamsService = {
   createStream: async () => undefined,
   publish: async () => 1,
 } as unknown as DurableStreamsService;
 
 // Mock DurableStreamsServer for SessionService
+console.warn('[API Server] Using mock DurableStreamsServer - some session features limited');
 const mockStreamsServer: DurableStreamsServer = {
   createStream: async () => undefined,
   publish: async () => 1, // Returns offset
@@ -187,11 +197,19 @@ try {
   dockerProvider = createDockerProvider();
   console.log('[API Server] Docker provider initialized');
 } catch (error) {
-  // Docker initialization failed - this is expected if Docker isn't installed/running
-  console.warn(
-    '[API Server] Docker not available, container agent service disabled:',
-    error instanceof Error ? error.message : String(error)
-  );
+  const message = error instanceof Error ? error.message : String(error);
+  // Distinguish between expected Docker unavailability and unexpected errors
+  const isExpectedError =
+    message.includes('ENOENT') || // Docker socket not found
+    message.includes('connect ECONNREFUSED') || // Docker not running
+    message.includes('permission denied') || // No access to Docker socket
+    message.includes('Cannot connect to Docker'); // Docker daemon offline
+
+  if (isExpectedError) {
+    console.log('[API Server] Docker not available (expected), container agent service disabled');
+  } else {
+    console.error('[API Server] Docker initialization failed with unexpected error:', message);
+  }
 }
 
 // Step 2: Create default sandbox (only if Docker is available)

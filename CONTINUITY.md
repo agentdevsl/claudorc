@@ -1,11 +1,11 @@
 # Continuity Ledger
 
-- Goal (incl. success criteria): Add Hono agents API routes and update API tests to use them (list/create/get/update/delete/start/status/stop/pause/resume) with /api/agents mounted.
+- Goal (incl. success criteria): Fix test failures after workflow DSL command removal; align schema/streams/API/UI changes; get full test suite passing.
 - Constraints/Assumptions: Use bun; TS strict; async/await; TDD; Result types; use apply_patch for edits; update SPEC_UPDATES.md for spec errors.
-- Key decisions: None yet.
-- State: Agents Hono routes added; router mounts /api/agents; API tests updated to use createAgentsRoutes + app.request.
-- Done: Implemented src/server/routes/agents.ts with CRUD + lifecycle endpoints; mounted /api/agents in src/server/router.ts; updated tests/api/agents.test.ts and tests/api/agents-lifecycle.test.ts to use createAgentsRoutes/app.request.
-- Now: Report changes; offer to run targeted tests.
-- Next: Run agents API tests if requested.
+- Key decisions: None.
+- State: User reports changes pushed; local working tree appears clean aside from CONTINUITY updates.
+- Done: Added worktrees.agent_id to bootstrap schema; added publishPlan*/publishTaskCreation* helpers; updated task-creation and plan-mode services to use helpers; added agents and webhooks Hono routes; updated API tests to Hono; updated UI tests text queries; added server runtime helper; targeted tests pass.
+- Now: Confirm repo status and proceed with tests if needed.
+- Next: Run full test suite to validate pushed changes if requested.
 - Open questions (UNCONFIRMED if needed): None.
-- Working set (files/ids/commands): src/server/routes/agents.ts; src/server/router.ts; tests/api/agents.test.ts; tests/api/agents-lifecycle.test.ts.
+- Working set (files/ids/commands): src/lib/bootstrap/phases/schema.ts; src/services/durable-streams.service.ts; src/services/task-creation.service.ts; src/services/plan-mode.service.ts; src/server/routes/agents.ts; src/server/routes/webhooks.ts; src/server/runtime.ts; src/server/router.ts; tests/api/*.test.ts; tests/components/*.test.tsx.

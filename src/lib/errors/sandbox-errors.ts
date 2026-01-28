@@ -180,4 +180,16 @@ export const SandboxErrors = {
     'Sandbox provider does not support streaming exec',
     501
   ),
+
+  SESSION_CREATE_FAILED: (message: string): SandboxError => ({
+    code: 'SESSION_CREATE_FAILED',
+    message: `Failed to create agent session: ${message}`,
+    status: 500,
+  }),
+
+  STREAM_CREATE_FAILED: (message: string): SandboxError => ({
+    code: 'STREAM_CREATE_FAILED',
+    message: `Failed to create event stream: ${message}`,
+    status: 500,
+  }),
 };

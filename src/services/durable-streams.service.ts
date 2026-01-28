@@ -183,6 +183,13 @@ export interface ContainerAgentCancelledEvent {
   turnCount: number;
 }
 
+export interface ContainerAgentTaskUpdateFailedEvent {
+  taskId: string;
+  sessionId: string;
+  error: string;
+  attemptedStatus: string;
+}
+
 /**
  * Task creation events
  */
@@ -299,6 +306,7 @@ export interface StreamEventMap {
   'container-agent:complete': ContainerAgentCompleteEvent;
   'container-agent:error': ContainerAgentErrorEvent;
   'container-agent:cancelled': ContainerAgentCancelledEvent;
+  'container-agent:task-update-failed': ContainerAgentTaskUpdateFailedEvent;
 }
 
 /**
