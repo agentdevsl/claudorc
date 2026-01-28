@@ -194,12 +194,20 @@ export function SavedWorkflowsPanel({
             const isDeleting = deleteConfirm === workflow.id;
 
             return (
-              <button
-                type="button"
+              // biome-ignore lint/a11y/useSemanticElements: Can't use <button> because it contains a nested delete button
+              <div
                 key={workflow.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelect(workflow)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelect(workflow);
+                  }
+                }}
                 className={cn(
-                  'w-full text-left p-3 rounded-[var(--radius)] border transition-all duration-200 relative overflow-hidden group',
+                  'w-full text-left p-3 rounded-[var(--radius)] border transition-all duration-200 relative overflow-hidden group cursor-pointer',
                   isActive
                     ? 'bg-[var(--accent-subtle)] border-[var(--accent-muted)] ring-1 ring-[var(--accent-fg)]'
                     : 'bg-[var(--bg-subtle)] border-[var(--border-default)] hover:border-[var(--border-muted)] hover:bg-[var(--bg-muted)]'
@@ -286,7 +294,7 @@ export function SavedWorkflowsPanel({
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })
         )}

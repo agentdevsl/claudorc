@@ -98,7 +98,7 @@ function formatEventsAsCsv(
 
     // Truncate long content for CSV
     if (content.length > 200) {
-      content = content.slice(0, 200) + '...';
+      content = `${content.slice(0, 200)}...`;
     }
 
     lines.push([time, event.type, role, tool, escapeCSV(content)].join(','));

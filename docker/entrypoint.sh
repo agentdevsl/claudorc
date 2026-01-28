@@ -12,5 +12,8 @@ if [ -d /workspace ] && [ ! -w /workspace ]; then
     echo "[entrypoint] Warning: Could not fix /workspace permissions" >&2
 fi
 
+# Ensure .claude directories exist for SDK (plans, credentials, etc.)
+mkdir -p /home/node/.claude/plans 2>/dev/null || true
+
 # Execute the command
 exec "$@"

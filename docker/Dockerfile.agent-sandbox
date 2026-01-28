@@ -57,6 +57,9 @@ RUN git config --system --add safe.directory '*' && \
 # Ensure /workspace exists and is writable by node user
 RUN mkdir -p /workspace && chown -R node:node /workspace
 
+# Create .claude directories for SDK (plans, credentials, etc.)
+RUN mkdir -p /home/node/.claude/plans && chown -R node:node /home/node/.claude
+
 # Allow node user to use sudo for permission fixes (passwordless)
 RUN echo "node ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers.d/node-chown
 
