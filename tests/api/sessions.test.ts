@@ -125,9 +125,19 @@ describe('Session API', () => {
 
   it('updates presence', async () => {
     sessionServiceMocks.updatePresence.mockResolvedValue(ok(undefined));
+    sessionServiceMocks.getById.mockResolvedValue(ok(sampleSession));
 
-    const response = await app.request('http://localhost/');
+    const response = await app.request(
+      `http://localhost/${sampleSession.id}/presence`,
+      jsonRequest(`http://localhost/${sampleSession.id}/presence`, {
+        userId: 'user-1',
+        cursor: { x: 1, y: 2 },
+      })
+    );
+
     expect(response?.status).toBe(200);
+    const data = await parseJson<{ ok: true; data: { updated: boolean } }>(response as Response);
+    expect(data.data.updated).toBe(true);
   });
 
   it('returns presence', async () => {
@@ -140,9 +150,13 @@ describe('Session API', () => {
         },
       ])
     );
+    sessionServiceMocks.getById.mockResolvedValue(ok(sampleSession));
 
-    const response = await app.request('http://localhost/');
+    const response = await app.request(`http://localhost/${sampleSession.id}/presence`);
+
     expect(response?.status).toBe(200);
+    const data = await parseJson<{ ok: true; data: { userId: string }[] }>(response as Response);
+    expect(data.data).toHaveLength(1);
   });
 
   it('returns history events', async () => {
