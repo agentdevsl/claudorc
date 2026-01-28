@@ -147,6 +147,24 @@ function ProjectKanban(): React.JSX.Element {
     }
   };
 
+  const handleStopAgent = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/stop-agent`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        showError('Failed to stop agent', error.message || 'Unknown error');
+        return;
+      }
+      // Refresh to get updated task state
+      await fetchData();
+    } catch (error) {
+      console.error('[ProjectKanban] Failed to stop agent:', error);
+      showError('Failed to stop agent', error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
   const handleTaskClick = (task: ClientTask) => {
     if (task.column === 'waiting_approval') {
       setApprovalTask(task);
@@ -234,6 +252,7 @@ function ProjectKanban(): React.JSX.Element {
         onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
         onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
         onRunNow={handleRunNow}
+        onStopAgent={handleStopAgent}
       />
 
       {/* New Task Dialog - AI-powered task creation with streaming */}

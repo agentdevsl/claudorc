@@ -66,6 +66,8 @@ interface KanbanColumnProps {
   onAddTask?: () => void;
   /** Callback to run a task immediately (moves to in_progress and triggers agent) */
   onRunNow?: (taskId: string) => void;
+  /** Callback to stop a running agent */
+  onStopAgent?: (taskId: string) => void;
   /** Custom header action to replace the default add button */
   headerAction?: React.ReactNode;
   config?: ColumnConfig;
@@ -85,6 +87,7 @@ export function KanbanColumn({
   onToggleCollapse,
   onAddTask,
   onRunNow,
+  onStopAgent,
   headerAction,
   agentStatuses,
 }: KanbanColumnProps): React.JSX.Element {
@@ -222,6 +225,11 @@ export function KanbanColumn({
                   isSelected={isTaskSelected?.(task.id) ?? false}
                   priority={getPriorityFromLabels(task.labels)}
                   onRunNow={id === 'backlog' && onRunNow ? () => onRunNow(task.id) : undefined}
+                  onStop={
+                    task.agentId && task.column === 'in_progress' && onStopAgent
+                      ? () => onStopAgent(task.id)
+                      : undefined
+                  }
                   agentStatus={task.sessionId ? agentStatuses?.get(task.sessionId) : undefined}
                 />
               ))}

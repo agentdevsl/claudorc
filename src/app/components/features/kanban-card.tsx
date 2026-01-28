@@ -6,6 +6,7 @@ import {
   DotsSixVertical,
   Lightning,
   Spinner,
+  Square,
   Warning,
   WarningCircle,
   XCircle,
@@ -100,6 +101,8 @@ interface KanbanCardProps {
   priority?: Priority;
   /** Callback to run the task immediately (only shown in backlog) */
   onRunNow?: () => void;
+  /** Callback to stop a running agent */
+  onStop?: () => void;
   /** Real-time agent status (from container agent) */
   agentStatus?: AgentStatusInfo;
 }
@@ -112,6 +115,7 @@ export function KanbanCard({
   isSelected = false,
   priority,
   onRunNow,
+  onStop,
   agentStatus,
 }: KanbanCardProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -309,7 +313,21 @@ export function KanbanCard({
           data-testid="agent-running-status"
         >
           <Spinner className="h-3 w-3 animate-spin" />
-          <span className="truncate">Processing...</span>
+          <span className="flex-1 truncate">Processing...</span>
+          {onStop && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStop();
+              }}
+              className="rounded p-0.5 transition-colors hover:bg-[var(--attention-fg)]/20 active:scale-95"
+              title="Stop agent"
+              data-testid="stop-agent-button"
+            >
+              <Square className="h-3 w-3" weight="fill" />
+            </button>
+          )}
         </div>
       )}
     </div>
