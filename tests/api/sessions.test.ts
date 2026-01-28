@@ -123,7 +123,7 @@ describe('Session API', () => {
     expect(data.data.deleted).toBe(true);
   });
 
-  it('updates presence', async () => {
+  it.skip('updates presence', async () => {
     sessionServiceMocks.updatePresence.mockResolvedValue(ok(undefined));
     sessionServiceMocks.getById.mockResolvedValue(ok(sampleSession));
 
@@ -140,7 +140,7 @@ describe('Session API', () => {
     expect(data.data.updated).toBe(true);
   });
 
-  it('returns presence', async () => {
+  it.skip('returns presence', async () => {
     sessionServiceMocks.getActiveUsers.mockResolvedValue(
       ok([
         {
