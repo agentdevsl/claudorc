@@ -1,4 +1,4 @@
-import { Clock, Gear, Timer, WarningCircle } from '@phosphor-icons/react';
+import { Clock, Terminal, Timer, WarningCircle } from '@phosphor-icons/react';
 import type * as React from 'react';
 import type { ToolCallSummaryBarProps } from '../types';
 import { formatDuration } from '../utils/format-duration';
@@ -16,7 +16,7 @@ export function ToolCallSummaryBar({ stats }: ToolCallSummaryBarProps): React.JS
         <span className="h-3 w-px bg-border" />
 
         <span className="flex items-center gap-1 text-fg-muted">
-          <Gear className="h-3.5 w-3.5" weight="bold" />
+          <Terminal className="h-3.5 w-3.5" weight="bold" />
           <span className="font-medium text-fg">{stats.totalCalls}</span> Calls
         </span>
 

@@ -1,4 +1,4 @@
-import { Clock, Funnel, Gear, Timer, WarningCircle, Wrench } from '@phosphor-icons/react';
+import { Clock, Funnel, Terminal, Timer, WarningCircle, Wrench } from '@phosphor-icons/react';
 import type * as React from 'react';
 import { useMemo, useState } from 'react';
 import { Skeleton } from '@/app/components/ui/skeleton';
@@ -152,7 +152,7 @@ export function ToolCallsFullView({
       <div className="shrink-0 border-b border-border bg-surface-subtle px-4 py-2">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
           <span className="flex items-center gap-1.5 text-fg-muted">
-            <Gear className="h-3.5 w-3.5" weight="bold" />
+            <Terminal className="h-3.5 w-3.5" weight="bold" />
             <span className="font-medium text-fg">{stats.totalCalls}</span> Calls
           </span>
 

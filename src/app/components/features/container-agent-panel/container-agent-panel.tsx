@@ -31,7 +31,7 @@ export function ContainerAgentPanel({
   const isActive = state.status === 'running' || state.status === 'starting';
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="flex flex-1 min-h-0 flex-col rounded-lg border border-border bg-surface">
       {/* Header with status and controls */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-4 py-3">
         <ContainerAgentHeader
@@ -68,9 +68,9 @@ export function ContainerAgentPanel({
       )}
 
       {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Stream output */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col">
           <ContainerAgentStream
             streamedText={state.streamedText}
             messages={state.messages}
@@ -83,7 +83,7 @@ export function ContainerAgentPanel({
 
         {/* Tool executions sidebar */}
         {state.toolExecutions.length > 0 && (
-          <div className="w-full border-t border-border lg:w-80 lg:border-l lg:border-t-0">
+          <div className="flex flex-col min-h-0 w-full border-t border-border lg:w-80 lg:border-l lg:border-t-0">
             <ContainerAgentToolList tools={state.toolExecutions} />
           </div>
         )}

@@ -74,7 +74,7 @@ export interface ContainerAgentState {
   /** Tool executions */
   toolExecutions: ContainerAgentToolExecution[];
   /** Messages from the agent */
-  messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>;
+  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; timestamp: number }>;
   /** Final result if completed */
   result?: string;
   /** Error message if failed */
@@ -201,7 +201,7 @@ export function useContainerAgent(sessionId: string | null): {
 
   // Handle message
   const handleMessage = useCallback(
-    (data: { role: 'user' | 'assistant'; content: string; timestamp: number }) => {
+    (data: { role: 'user' | 'assistant' | 'system'; content: string; timestamp: number }) => {
       setIsStreaming(false);
       setState((prev) => ({
         ...prev,

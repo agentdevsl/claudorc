@@ -340,7 +340,7 @@ export function TaskDetailDialog({
               />
             </div>
           ) : showContainerAgentPanel ? (
-            <div className="flex-1 min-h-0 p-4">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
               <ContainerAgentPanel
                 sessionId={task.sessionId}
                 onStop={onStopAgent ? () => onStopAgent(task.id) : undefined}

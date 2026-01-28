@@ -132,7 +132,7 @@ export function ContainerAgentToolList({ tools }: ContainerAgentToolListProps): 
   const errorCount = tools.filter((t) => t.status === 'error').length;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-1 min-h-0 flex-col">
       {/* Header */}
       <div className="border-b border-border bg-surface-subtle px-3 py-2">
         <div className="flex items-center justify-between">

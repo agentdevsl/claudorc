@@ -109,7 +109,7 @@ const rawContainerAgentToolResultSchema = z.object({
 const rawContainerAgentMessageSchema = z.object({
   taskId: z.string(),
   sessionId: z.string(),
-  role: z.enum(['user', 'assistant']),
+  role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
 });
 
@@ -276,7 +276,7 @@ export interface ContainerAgentToolResult {
 export interface ContainerAgentMessage {
   taskId: string;
   sessionId: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
 }

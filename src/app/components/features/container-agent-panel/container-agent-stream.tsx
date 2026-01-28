@@ -4,7 +4,7 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import type { ContainerAgentStatus } from './container-agent-header';
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
 }
@@ -76,7 +76,7 @@ export function ContainerAgentStream({
   const hasContent = messages.length > 0 || streamedText.length > 0;
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex flex-1 min-h-0 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-4 py-2">
         <div className="flex items-center gap-2 text-sm text-fg-muted">
