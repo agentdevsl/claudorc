@@ -34,6 +34,9 @@ import { cn } from '@/lib/utils/cn';
 
 type SandboxProvider = 'docker' | 'devcontainer' | 'kubernetes';
 
+// Sandbox container mode: shared or per-project
+type SandboxContainerMode = 'shared' | 'per-project';
+
 // Default project sandbox settings that projects inherit
 interface DefaultSandboxSettings {
   enabled: boolean;
@@ -43,6 +46,7 @@ interface DefaultSandboxSettings {
   idleTimeoutMinutes: number;
   image?: string;
   namespace?: string;
+  containerMode?: SandboxContainerMode;
 }
 
 interface K8sStatus {
@@ -85,6 +89,7 @@ function SandboxSettingsPage(): React.JSX.Element {
     idleTimeoutMinutes: 30,
     image: '',
     namespace: 'default',
+    containerMode: 'shared',
   });
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
@@ -169,6 +174,8 @@ function SandboxSettingsPage(): React.JSX.Element {
     try {
       const result = await apiClient.settings.update({
         'sandbox.defaults': defaultSettings,
+        // Also save container mode separately for container-agent.service to read
+        'sandbox.mode': defaultSettings.containerMode ?? 'shared',
       });
       if (result.ok) {
         setDefaultsSaved(true);
@@ -728,6 +735,87 @@ function SandboxSettingsPage(): React.JSX.Element {
                 )}
               </div>
 
+              {/* Container Mode - Docker only */}
+              {defaultSettings.provider === 'docker' && (
+                <div
+                  className={cn(
+                    'transition-opacity',
+                    defaultSettings.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+                  )}
+                >
+                  <p className="mb-3 text-sm font-medium text-fg">Container Mode</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Shared Container */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDefaultSettings((prev) => ({ ...prev, containerMode: 'shared' }))
+                      }
+                      className={cn(
+                        'relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all',
+                        defaultSettings.containerMode === 'shared'
+                          ? 'border-accent bg-accent/10'
+                          : 'border-border hover:border-fg-subtle'
+                      )}
+                      data-testid="container-mode-shared"
+                    >
+                      <span className="text-xl">🔗</span>
+                      <div>
+                        <span
+                          className={cn(
+                            'text-sm font-medium',
+                            defaultSettings.containerMode === 'shared' ? 'text-accent' : 'text-fg'
+                          )}
+                        >
+                          Shared Container
+                        </span>
+                        <p className="mt-1 text-xs text-fg-muted">
+                          One container for all projects. Simpler setup.
+                        </p>
+                      </div>
+                      {defaultSettings.containerMode === 'shared' && (
+                        <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                      )}
+                    </button>
+
+                    {/* Per-Project Container */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDefaultSettings((prev) => ({ ...prev, containerMode: 'per-project' }))
+                      }
+                      className={cn(
+                        'relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all',
+                        defaultSettings.containerMode === 'per-project'
+                          ? 'border-accent bg-accent/10'
+                          : 'border-border hover:border-fg-subtle'
+                      )}
+                      data-testid="container-mode-per-project"
+                    >
+                      <span className="text-xl">📁</span>
+                      <div>
+                        <span
+                          className={cn(
+                            'text-sm font-medium',
+                            defaultSettings.containerMode === 'per-project'
+                              ? 'text-accent'
+                              : 'text-fg'
+                          )}
+                        >
+                          Per-Project Container
+                        </span>
+                        <p className="mt-1 text-xs text-fg-muted">
+                          Unique container per project with isolated mounts.
+                        </p>
+                      </div>
+                      {defaultSettings.containerMode === 'per-project' && (
+                        <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Save button */}
               <div className="flex justify-end">
                 <Button
@@ -1064,116 +1152,118 @@ function SandboxSettingsPage(): React.JSX.Element {
               </div>
             )}
 
-            {/* Config list - using modernized cards */}
+            {/* Config list - using modernized cards, sorted by memory low to high */}
             {!isLoading && configs.length > 0 && (
               <div className="space-y-3">
-                {configs.map((config) => (
-                  <div
-                    key={config.id}
-                    data-testid={`sandbox-config-${config.id}`}
-                    className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border"
-                  >
-                    {/* Card header */}
-                    <div className="mb-4 flex items-start gap-3">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
-                        <Package className="h-4 w-4 text-fg-muted" weight="duotone" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-medium text-fg">{config.name}</h3>
-                          <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-muted">
-                            {config.type === 'kubernetes'
-                              ? '☸️ Kubernetes'
-                              : config.type === 'devcontainer'
-                                ? '📦 DevContainer'
-                                : '🐳 Docker'}
-                          </span>
-                          {config.isDefault && (
-                            <span className="rounded bg-success-muted px-2 py-0.5 text-xs font-medium text-success">
-                              Default
+                {[...configs]
+                  .sort((a, b) => a.memoryMb - b.memoryMb)
+                  .map((config) => (
+                    <div
+                      key={config.id}
+                      data-testid={`sandbox-config-${config.id}`}
+                      className="rounded-lg border border-border/70 bg-surface-subtle/30 p-5 transition-all hover:border-border"
+                    >
+                      {/* Card header */}
+                      <div className="mb-4 flex items-start gap-3">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-surface-emphasis/50">
+                          <Package className="h-4 w-4 text-fg-muted" weight="duotone" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-medium text-fg">{config.name}</h3>
+                            <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-medium text-fg-muted">
+                              {config.type === 'kubernetes'
+                                ? '☸️ Kubernetes'
+                                : config.type === 'devcontainer'
+                                  ? '📦 DevContainer'
+                                  : '🐳 Docker'}
                             </span>
+                            {config.isDefault && (
+                              <span className="rounded bg-success-muted px-2 py-0.5 text-xs font-medium text-success">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          {config.description && (
+                            <p className="mt-0.5 text-xs text-fg-muted">{config.description}</p>
                           )}
                         </div>
-                        {config.description && (
-                          <p className="mt-0.5 text-xs text-fg-muted">{config.description}</p>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditEditor(config)}
+                            data-testid={`edit-sandbox-config-${config.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(config)}
+                            data-testid={`delete-sandbox-config-${config.id}`}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Resource Grid */}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="rounded-lg bg-surface-subtle p-3">
+                          <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                            <HardDrive className="h-3.5 w-3.5" />
+                            Memory
+                          </div>
+                          <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                            {config.memoryMb}
+                            <span className="ml-0.5 text-sm font-normal text-fg-muted">MB</span>
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-surface-subtle p-3">
+                          <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                            <Cpu className="h-3.5 w-3.5" />
+                            CPU
+                          </div>
+                          <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                            {config.cpuCores}
+                            <span className="ml-0.5 text-sm font-normal text-fg-muted">cores</span>
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-surface-subtle p-3">
+                          <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                            <TreeStructure className="h-3.5 w-3.5" />
+                            Processes
+                          </div>
+                          <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                            {config.maxProcesses}
+                            <span className="ml-0.5 text-sm font-normal text-fg-muted">PIDs</span>
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-surface-subtle p-3">
+                          <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                            <Timer className="h-3.5 w-3.5" />
+                            Timeout
+                          </div>
+                          <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
+                            {config.timeoutMinutes}
+                            <span className="ml-0.5 text-sm font-normal text-fg-muted">min</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-4 border-t border-border/50 pt-3">
+                        <p className="font-mono text-xs text-fg-muted">Image: {config.baseImage}</p>
+                        {config.volumeMountPath && (
+                          <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-fg-muted">
+                            <FolderOpen className="h-3 w-3" />
+                            Mount: {config.volumeMountPath}
+                          </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditEditor(config)}
-                          data-testid={`edit-sandbox-config-${config.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(config)}
-                          data-testid={`delete-sandbox-config-${config.id}`}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </div>
-
-                    {/* Resource Grid */}
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-lg bg-surface-subtle p-3">
-                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
-                          <HardDrive className="h-3.5 w-3.5" />
-                          Memory
-                        </div>
-                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
-                          {config.memoryMb}
-                          <span className="ml-0.5 text-sm font-normal text-fg-muted">MB</span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-surface-subtle p-3">
-                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
-                          <Cpu className="h-3.5 w-3.5" />
-                          CPU
-                        </div>
-                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
-                          {config.cpuCores}
-                          <span className="ml-0.5 text-sm font-normal text-fg-muted">cores</span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-surface-subtle p-3">
-                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
-                          <TreeStructure className="h-3.5 w-3.5" />
-                          Processes
-                        </div>
-                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
-                          {config.maxProcesses}
-                          <span className="ml-0.5 text-sm font-normal text-fg-muted">PIDs</span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-surface-subtle p-3">
-                        <div className="flex items-center gap-1.5 text-xs text-fg-muted">
-                          <Timer className="h-3.5 w-3.5" />
-                          Timeout
-                        </div>
-                        <div className="mt-1.5 font-mono text-lg font-semibold text-fg">
-                          {config.timeoutMinutes}
-                          <span className="ml-0.5 text-sm font-normal text-fg-muted">min</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="mt-4 border-t border-border/50 pt-3">
-                      <p className="font-mono text-xs text-fg-muted">Image: {config.baseImage}</p>
-                      {config.volumeMountPath && (
-                        <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-fg-muted">
-                          <FolderOpen className="h-3 w-3" />
-                          Mount: {config.volumeMountPath}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>

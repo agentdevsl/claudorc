@@ -426,6 +426,7 @@ const app = createRouter({
   agentService,
   commandRunner: bunCommandRunner,
   durableStreamsService,
+  dockerProvider,
 });
 
 // Start server

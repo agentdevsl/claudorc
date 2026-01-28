@@ -7,6 +7,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import type { EventEmittingSandboxProvider } from '../lib/sandbox/index.js';
 import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
@@ -30,6 +31,7 @@ import { createHealthRoutes } from './routes/health.js';
 import { createMarketplacesRoutes } from './routes/marketplaces.js';
 import { createProjectsRoutes } from './routes/projects.js';
 import { createK8sRoutes, createSandboxRoutes } from './routes/sandbox.js';
+import { createSandboxStatusRoutes } from './routes/sandbox-status.js';
 import { createSessionsRoutes } from './routes/sessions.js';
 import { createSettingsRoutes } from './routes/settings.js';
 import { createTaskCreationRoutes } from './routes/task-creation.js';
@@ -54,6 +56,7 @@ export interface RouterDependencies {
   agentService: AgentService;
   commandRunner: CommandRunner;
   durableStreamsService?: DurableStreamsService;
+  dockerProvider?: EventEmittingSandboxProvider | null;
 }
 
 /**
@@ -172,6 +175,14 @@ export function createRouter(deps: RouterDependencies) {
     '/api/sandbox-configs',
     createSandboxRoutes({
       sandboxConfigService: deps.sandboxConfigService,
+    })
+  );
+
+  app.route(
+    '/api/sandbox/status',
+    createSandboxStatusRoutes({
+      db: deps.db,
+      dockerProvider: deps.dockerProvider ?? null,
     })
   );
 

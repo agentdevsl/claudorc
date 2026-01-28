@@ -26,6 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+# Install Claude Code CLI globally (required by Claude Agent SDK)
+# The SDK spawns the CLI process and communicates with it
+RUN npm install -g @anthropic-ai/claude-code
+
 # Create directory for agent runner
 RUN mkdir -p /opt/agent-runner
 

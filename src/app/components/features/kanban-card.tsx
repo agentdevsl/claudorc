@@ -262,8 +262,8 @@ export function KanbanCard({
             </div>
           )}
 
-          {/* Run Now button (only for backlog tasks without running agent) */}
-          {onRunNow && !task.agentId && !task.sessionId && (
+          {/* Run Now button (for backlog tasks - onRunNow is only passed for backlog) */}
+          {onRunNow && (
             <button
               type="button"
               onClick={(e) => {

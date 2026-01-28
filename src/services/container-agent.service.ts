@@ -8,6 +8,7 @@
  * - Tracks running agents per task
  */
 import { eq } from 'drizzle-orm';
+import { settings } from '../db/schema/settings.js';
 
 // Debug logging helper
 const DEBUG = process.env.DEBUG_CONTAINER_AGENT === 'true' || process.env.DEBUG === 'true';
@@ -149,9 +150,27 @@ export class ContainerAgentService {
         debugLog('startAgent', 'Failed to publish validating status', { error: String(e) })
       );
 
-    // Get or create a sandbox for this project
-    // Important: We need a project-specific sandbox to mount the correct project path
-    infoLog('startAgent', 'Getting sandbox for project', { projectId });
+    // Check sandbox mode setting: 'shared' uses one container for all, 'per-project' creates unique containers
+    let sandboxMode: 'shared' | 'per-project' = 'shared'; // Default to shared for simplicity
+    try {
+      const modeSetting = await this.db.query.settings.findFirst({
+        where: eq(settings.key, 'sandbox.mode'),
+      });
+      if (modeSetting?.value) {
+        const parsed = JSON.parse(modeSetting.value);
+        if (parsed === 'per-project' || parsed === 'shared') {
+          sandboxMode = parsed;
+        }
+      }
+    } catch (settingsErr) {
+      debugLog('startAgent', 'Failed to read sandbox.mode setting, using default', {
+        error: settingsErr instanceof Error ? settingsErr.message : String(settingsErr),
+      });
+    }
+    infoLog('startAgent', 'Sandbox mode', { mode: sandboxMode });
+
+    // Get sandbox - strategy depends on mode
+    infoLog('startAgent', 'Getting sandbox for project', { projectId, mode: sandboxMode });
     let sandbox = await this.provider.get(projectId);
     infoLog('startAgent', 'Sandbox lookup result', {
       projectId,
@@ -161,9 +180,12 @@ export class ContainerAgentService {
       sandboxStatus: sandbox?.status,
     });
 
-    // If no project-specific sandbox exists (only default found or none), create one
-    // This ensures the correct project path is mounted to /workspace
-    if (!sandbox || sandbox.projectId !== projectId) {
+    // In shared mode: use whatever sandbox is available (even if projectId doesn't match)
+    // In per-project mode: create project-specific sandbox if needed
+    const needsNewSandbox =
+      sandboxMode === 'per-project' && (!sandbox || sandbox.projectId !== projectId);
+
+    if (needsNewSandbox) {
       infoLog('startAgent', 'Creating project-specific sandbox', {
         projectId,
         projectPath: project.path,
@@ -208,6 +230,10 @@ export class ContainerAgentService {
         });
         return err(SandboxErrors.CONTAINER_CREATION_FAILED(errorMsg));
       }
+    } else if (!sandbox) {
+      // No sandbox available at all
+      infoLog('startAgent', 'No sandbox available', { projectId, mode: sandboxMode });
+      return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
 
     infoLog('startAgent', 'Sandbox ready', { sandboxId: sandbox.id, status: sandbox.status });

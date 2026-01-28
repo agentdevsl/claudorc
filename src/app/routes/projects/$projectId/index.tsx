@@ -6,8 +6,10 @@ import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 // Use separate dialogs: new-task-dialog for creation, task-detail-dialog for editing with mode toggle
 import { NewTaskDialog } from '@/app/components/features/new-task-dialog';
+import { SandboxIndicator } from '@/app/components/features/sandbox-indicator';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/index';
 import { AIActionButton } from '@/app/components/ui/ai-action-button';
+import { useSandboxStatus } from '@/app/hooks/use-sandbox-status';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
@@ -45,6 +47,9 @@ function ProjectKanban(): React.JSX.Element {
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
+
+  // Fetch sandbox status for the title bar indicator
+  const { data: sandboxStatus, isLoading: sandboxLoading } = useSandboxStatus(projectId);
 
   // Fetch project and tasks from API
   const fetchData = useCallback(async () => {
@@ -192,15 +197,25 @@ function ProjectKanban(): React.JSX.Element {
         <AIActionButton onClick={() => setShowNewTask(true)} data-testid="add-task-button" />
       }
       actions={
-        <Link
-          to="/projects/$projectId/settings"
-          params={{ projectId: project.id }}
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
-          data-testid="project-settings-link"
-        >
-          <GearSix className="h-4 w-4" />
-          <span className="sr-only">Project settings</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {sandboxStatus && (
+            <SandboxIndicator
+              mode={sandboxStatus.mode}
+              containerStatus={sandboxStatus.containerStatus}
+              dockerAvailable={sandboxStatus.dockerAvailable}
+              isLoading={sandboxLoading}
+            />
+          )}
+          <Link
+            to="/projects/$projectId/settings"
+            params={{ projectId: project.id }}
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
+            data-testid="project-settings-link"
+          >
+            <GearSix className="h-4 w-4" />
+            <span className="sr-only">Project settings</span>
+          </Link>
+        </div>
       }
     >
       <KanbanBoard

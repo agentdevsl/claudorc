@@ -240,6 +240,97 @@ The stream handler publishes these events during execution:
 - **Frontend**: `DurableStreamsClient` connects via EventSource
 - Events are published through `sessionService.publish()`
 
+## Docker Container Agent Architecture
+
+AgentPane can run Claude agents inside isolated Docker containers for sandboxed execution. This provides security isolation and prevents agents from affecting the host system.
+
+### Container Execution Flow
+
+1. **Task Move to In Progress** → Container agent service triggered
+2. **Status: Initializing** → Validate configuration
+3. **Status: Validating** → Check project and sandbox settings
+4. **Status: Credentials** → Configure authentication
+5. **Status: Creating Sandbox** → Create project-specific Docker container
+6. **Status: Executing** → Start agent-runner inside container
+7. **Status: Running** → Agent actively working on task
+
+### Authentication Configuration
+
+The Claude Agent SDK requires OAuth authentication. Write the OAuth credentials to `~/.claude/.credentials.json` instead of using environment variables. The SDK reads this file automatically (same as `claude login` would create).
+
+**Credentials File Format:**
+```json
+{
+  "claudeAiOauth": {
+    "accessToken": "sk-ant-oat01-...",
+    "refreshToken": "",
+    "expiresAt": 1737417600000,
+    "scopes": ["user:inference", "user:profile", "user:sessions:claude_code"],
+    "subscriptionType": "max"
+  }
+}
+```
+
+OAuth tokens passed via `ANTHROPIC_API_KEY` env var are blocked by the API, which is why the credentials file approach is required.
+
+### Key Container Files
+
+| File | Purpose |
+|------|---------|
+| `agent-runner/src/index.ts` | Entry point for Claude Agent SDK inside container |
+| `agent-runner/src/event-emitter.ts` | Emits structured events for real-time UI updates |
+| `docker/Dockerfile.agent-sandbox` | Docker image with Claude CLI and agent runner |
+| `docker/entrypoint.sh` | Fixes permissions for bind-mounted volumes |
+| `src/services/container-agent.service.ts` | Orchestrates container creation and agent execution |
+
+### Agent Runner Configuration
+
+The agent runner accepts these environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLAUDE_OAUTH_TOKEN` | Yes | OAuth token for Claude authentication |
+| `AGENT_TASK_ID` | Yes | Task ID being worked on |
+| `AGENT_SESSION_ID` | Yes | Session ID for event streaming |
+| `AGENT_PROMPT` | Yes | The task prompt |
+| `AGENT_MAX_TURNS` | No | Maximum turns (default: 50) |
+| `AGENT_MODEL` | No | Model to use (default: claude-sonnet-4-20250514) |
+| `AGENT_CWD` | No | Working directory (default: /workspace) |
+| `AGENT_STOP_FILE` | No | Sentinel file path for cancellation |
+
+### Sandbox Mode Setting
+
+The app supports two sandbox modes, controlled by the `sandbox.mode` setting in **Settings → Defaults → Sandbox Mode**:
+
+| Mode | Behavior |
+|------|----------|
+| `Shared Container` (default) | Use a single Docker container for all projects |
+| `Per-Project Container` | Create a unique container per project with project path mounted |
+
+### Container Security
+
+- Runs as non-root `node` user
+- Project directories bind-mounted to `/workspace`
+- Git configured with `safe.directory '*'` for mounted volumes
+- Limited sudo access for permission fixes only
+- Claude CLI installed globally for SDK compatibility
+
+### Status Breadcrumbs
+
+The UI displays startup progress through these stages:
+
+```typescript
+type ContainerAgentStage =
+  | 'initializing'    // Validating configuration
+  | 'validating'      // Checking project settings
+  | 'credentials'     // Configuring authentication
+  | 'creating_sandbox' // Creating Docker container
+  | 'executing'       // Starting agent runner
+  | 'running';        // Agent actively working
+```
+
+See `src/app/components/features/container-agent-panel/container-agent-status-breadcrumbs.tsx` for the UI implementation.
+
 ## Important: Use Subagents Liberally
 
 When performing any research, concurrent subagents can be used for performance and isolation. Use parallel tool calls and tasks where possible.
