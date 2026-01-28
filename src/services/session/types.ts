@@ -22,7 +22,18 @@ export type SessionEventType =
   | 'agent:turn_limit'
   | 'agent:completed'
   | 'agent:error'
-  | 'agent:warning';
+  | 'agent:warning'
+  // Container agent event types
+  | 'container-agent:started'
+  | 'container-agent:token'
+  | 'container-agent:turn'
+  | 'container-agent:tool:start'
+  | 'container-agent:tool:result'
+  | 'container-agent:message'
+  | 'container-agent:complete'
+  | 'container-agent:error'
+  | 'container-agent:cancelled'
+  | 'container-agent:plan_ready';
 
 export type SessionEvent = {
   id: string;

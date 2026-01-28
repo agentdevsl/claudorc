@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { CaretDown, CaretRight, Gear } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton, SkeletonText } from '@/app/components/ui/skeleton';
+import { cn } from '@/lib/utils/cn';
 import type { StreamViewerProps } from '../types';
 import { StreamEntry } from './stream-entry';
 
@@ -10,6 +12,21 @@ export function StreamViewer({
 }: StreamViewerProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentEntryRef = useRef<HTMLDivElement>(null);
+  const [startupExpanded, setStartupExpanded] = useState(false);
+
+  // Separate startup entries from main entries
+  const { startupEntries, mainEntries } = useMemo(() => {
+    const startup: typeof entries = [];
+    const main: typeof entries = [];
+    for (const entry of entries) {
+      if (entry.isStartup) {
+        startup.push(entry);
+      } else {
+        main.push(entry);
+      }
+    }
+    return { startupEntries: startup, mainEntries: main };
+  }, [entries]);
 
   // Scroll to current entry when it changes
   useEffect(() => {
@@ -59,7 +76,42 @@ export function StreamViewer({
       role="log"
       aria-label="Session event stream"
     >
-      {entries.map((entry) => {
+      {/* Startup logs section - collapsible */}
+      {startupEntries.length > 0 && (
+        <div className="mb-3 rounded-md border border-border bg-surface-subtle">
+          <button
+            type="button"
+            onClick={() => setStartupExpanded(!startupExpanded)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-fg-muted hover:bg-surface-muted transition-colors"
+          >
+            {startupExpanded ? (
+              <CaretDown className="h-3.5 w-3.5" />
+            ) : (
+              <CaretRight className="h-3.5 w-3.5" />
+            )}
+            <Gear className="h-3.5 w-3.5" />
+            <span>System Logs</span>
+            <span className="ml-auto rounded-full bg-surface px-2 py-0.5 text-[10px] text-fg-subtle">
+              {startupEntries.length}
+            </span>
+          </button>
+          {startupExpanded && (
+            <div className={cn('border-t border-border p-2 space-y-1')}>
+              {startupEntries.map((entry) => {
+                const isCurrent = entry.id === currentEntryId;
+                return (
+                  <div key={entry.id} ref={isCurrent ? currentEntryRef : undefined}>
+                    <StreamEntry entry={entry} isCurrent={isCurrent} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main entries */}
+      {mainEntries.map((entry) => {
         const isCurrent = entry.id === currentEntryId;
         return (
           <div key={entry.id} ref={isCurrent ? currentEntryRef : undefined}>

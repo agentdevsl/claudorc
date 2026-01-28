@@ -153,6 +153,8 @@ export interface StreamEntry {
   };
   /** Whether this is the current playback position */
   isCurrent?: boolean;
+  /** Whether this entry is from the startup/initialization phase (before first tool call) */
+  isStartup?: boolean;
 }
 
 // ===== Session Summary Metrics =====

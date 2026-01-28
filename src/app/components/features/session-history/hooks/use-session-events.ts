@@ -285,6 +285,7 @@ interface ToolResultData {
 /**
  * Parse session events into stream entries for display.
  * Consolidates tool:start and tool:result events into single entries.
+ * Marks events before first tool call as "startup" events for separate display.
  */
 export function parseEventsToStreamEntries(
   events: SessionDetail['events'],
@@ -295,14 +296,23 @@ export function parseEventsToStreamEntries(
   }
 
   // Build a map of tool:start events by ID for pairing
+  // Support both standard (tool:start) and container-agent events
   const toolStartEvents = new Map<
     string,
     { event: SessionDetail['events'][0]; data: ToolStartData }
   >();
 
   for (const event of events) {
-    if (event.type === 'tool:start') {
-      const data = event.data as ToolStartData;
+    const isToolStart = event.type === 'tool:start' || event.type === 'container-agent:tool:start';
+    if (isToolStart) {
+      // Normalize container-agent data: toolId -> id, toolName -> tool
+      const rawData = event.data as Record<string, unknown>;
+      const data: ToolStartData = {
+        id: (rawData.toolId as string) ?? (rawData.id as string),
+        tool: (rawData.toolName as string) ?? (rawData.tool as string),
+        name: (rawData.name as string) ?? (rawData.toolName as string),
+        input: rawData.input as Record<string, unknown> | undefined,
+      };
       if (data.id) {
         toolStartEvents.set(data.id, { event, data });
       }
@@ -322,6 +332,173 @@ export function parseEventsToStreamEntries(
     let type: StreamEntryType = 'system';
     let content = '';
     let toolCall: StreamEntry['toolCall'];
+
+    // Handle container-agent events by normalizing to standard processing
+    const eventType = event.type;
+
+    // Container-agent tool events - normalize data and process
+    if (eventType === 'container-agent:tool:start') {
+      const rawData = event.data as Record<string, unknown>;
+      const toolData: ToolStartData = {
+        id: (rawData.toolId as string) ?? (rawData.id as string),
+        tool: (rawData.toolName as string) ?? (rawData.tool as string),
+        name: (rawData.name as string) ?? (rawData.toolName as string),
+        input: rawData.input as Record<string, unknown> | undefined,
+      };
+      const toolId = toolData.id;
+
+      // Look ahead for matching result
+      const hasMatchingResult = toolId
+        ? events.some((e) => {
+            if (e.type !== 'container-agent:tool:result') return false;
+            const rd = e.data as Record<string, unknown>;
+            return (rd.toolId ?? rd.id) === toolId;
+          })
+        : false;
+
+      if (hasMatchingResult) continue;
+
+      type = 'tool';
+      const toolName = toolData.tool ?? toolData.name ?? 'Unknown';
+      content = toolName;
+      toolCall = {
+        name: toolName,
+        input: toolData.input ?? {},
+        status: 'running',
+        startTimeOffset: timeOffset,
+      };
+
+      entries.push({
+        id: event.id,
+        type,
+        timestamp: event.timestamp,
+        timeOffset,
+        content,
+        toolCall,
+      });
+      continue;
+    }
+
+    if (eventType === 'container-agent:tool:result') {
+      type = 'tool';
+      const rawData = event.data as Record<string, unknown>;
+      const resultData = {
+        id: (rawData.toolId as string) ?? (rawData.id as string),
+        tool: (rawData.toolName as string) ?? (rawData.tool as string),
+        name: (rawData.name as string) ?? (rawData.toolName as string),
+        input: rawData.input as Record<string, unknown> | undefined,
+        output: rawData.output ?? rawData.result,
+        error: rawData.error as string | undefined,
+        isError: rawData.isError as boolean | undefined,
+        duration: rawData.durationMs as number | undefined,
+      };
+      const toolId = resultData.id;
+      const toolName = resultData.tool ?? resultData.name ?? 'Unknown';
+      const hasError = resultData.error || resultData.isError;
+
+      let startTimeOffset = timeOffset;
+      let duration: number | undefined;
+
+      if (toolId) {
+        const startEntry = toolStartEvents.get(toolId);
+        if (startEntry) {
+          pairedToolStartIds.add(toolId);
+          const startOffsetMs = calculateTimeOffset(startEntry.event.timestamp, sessionStartTime);
+          startTimeOffset = formatTimeOffset(startOffsetMs);
+          duration = resultData.duration ?? event.timestamp - startEntry.event.timestamp;
+        }
+      }
+
+      content = toolName;
+      toolCall = {
+        name: toolName,
+        input: resultData.input ?? {},
+        output: resultData.output,
+        status: hasError ? 'error' : 'complete',
+        startTimeOffset,
+        endTimeOffset: timeOffset,
+        duration,
+        error: hasError ? (resultData.error ?? 'Tool execution failed') : undefined,
+      };
+
+      entries.push({
+        id: event.id,
+        type,
+        timestamp: event.timestamp,
+        timeOffset,
+        content,
+        toolCall,
+      });
+      continue;
+    }
+
+    // Skip only high-frequency token events
+    if (eventType === 'container-agent:token') {
+      continue;
+    }
+
+    // Handle container-agent system events
+    if (eventType === 'container-agent:started') {
+      type = 'system';
+      content = `Session started`;
+      entries.push({
+        id: event.id,
+        type,
+        timestamp: event.timestamp,
+        timeOffset,
+        content,
+        isStartup: true, // Always startup
+      } as StreamEntry);
+      continue;
+    }
+    if (eventType === 'container-agent:complete') {
+      type = 'system';
+      content = `Session completed successfully`;
+      entries.push({ id: event.id, type, timestamp: event.timestamp, timeOffset, content });
+      continue;
+    }
+    if (eventType === 'container-agent:turn') {
+      const turnData = event.data as { turn?: number; maxTurns?: number };
+      type = 'system';
+      content = `Turn ${turnData.turn ?? '?'}/${turnData.maxTurns ?? '?'}`;
+      entries.push({ id: event.id, type, timestamp: event.timestamp, timeOffset, content });
+      continue;
+    }
+    if (eventType === 'container-agent:error') {
+      type = 'system';
+      content = `Error: ${(event.data as { error?: string })?.error ?? 'Unknown error'}`;
+      entries.push({ id: event.id, type, timestamp: event.timestamp, timeOffset, content });
+      continue;
+    }
+    if (eventType === 'container-agent:message') {
+      const msgData = event.data as { role?: string; content?: string };
+      const msgContent = msgData.content ?? '';
+
+      // Map role to entry type
+      if (msgData.role === 'user') {
+        type = 'user';
+      } else if (msgData.role === 'system') {
+        type = 'system';
+      } else {
+        type = 'assistant';
+      }
+      content = msgContent;
+
+      // System messages are startup/status messages
+      const isStartup = type === 'system';
+      entries.push({
+        id: event.id,
+        type,
+        timestamp: event.timestamp,
+        timeOffset,
+        content,
+        isStartup,
+      } as StreamEntry);
+      continue;
+    }
+    if (eventType === 'container-agent:plan_ready' || eventType === 'container-agent:cancelled') {
+      continue; // Skip these events in the stream view
+    }
 
     switch (event.type) {
       case 'agent:started':
@@ -453,9 +630,53 @@ export function parseEventsToStreamEntries(
         content = (event.data as { output?: string })?.output ?? '';
         break;
 
-      default:
+      case 'state:update': {
+        // Show state:update events with stage info in the startup section
+        const stateData = event.data as Record<string, unknown>;
+        if (stateData.stage || stateData.taskId || stateData.sessionId) {
+          type = 'system';
+          // Format nicely: show stage and message
+          const stage = stateData.stage as string | undefined;
+          const message = stateData.message as string | undefined;
+          content = message || stage || 'Status update';
+          entries.push({
+            id: event.id,
+            type,
+            timestamp: event.timestamp,
+            timeOffset,
+            content,
+            isStartup: true,
+          } as StreamEntry);
+          continue;
+        }
         type = 'system';
         content = JSON.stringify(event.data);
+        break;
+      }
+
+      default: {
+        // Show events with stage info in the startup section
+        const rawData = event.data as Record<string, unknown>;
+        if (rawData && typeof rawData === 'object') {
+          if (rawData.stage || (rawData.taskId && rawData.sessionId && rawData.message)) {
+            type = 'system';
+            const stage = rawData.stage as string | undefined;
+            const message = rawData.message as string | undefined;
+            content = message || stage || 'Status update';
+            entries.push({
+              id: event.id,
+              type,
+              timestamp: event.timestamp,
+              timeOffset,
+              content,
+              isStartup: true,
+            } as StreamEntry);
+            continue;
+          }
+        }
+        type = 'system';
+        content = JSON.stringify(event.data);
+      }
     }
 
     entries.push({

@@ -160,7 +160,7 @@ export interface ContainerAgentToolResultEvent {
 export interface ContainerAgentMessageEvent {
   taskId: string;
   sessionId: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 

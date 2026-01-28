@@ -279,7 +279,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content: `🔍 Validating project configuration for "${project.name}"...`,
     });
     infoLog('startAgent', 'Validating project configuration', { projectId, taskId });
@@ -302,7 +302,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content: `✅ Configuration validated: model=${agentConfig.model}, maxTurns=${agentConfig.maxTurns}`,
     });
     infoLog('startAgent', 'Sandbox validated', {
@@ -324,7 +324,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content: '🔑 Retrieving OAuth credentials...',
     });
     infoLog('startAgent', 'Retrieving OAuth credentials', { taskId });
@@ -358,7 +358,7 @@ export class ContainerAgentService {
       await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
-        role: 'assistant',
+        role: 'system',
         content: '❌ No OAuth token configured. Please add your Anthropic API key in Settings.',
       });
       return err(SandboxErrors.API_KEY_NOT_CONFIGURED);
@@ -367,7 +367,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content: '✅ OAuth credentials retrieved successfully',
     });
 
@@ -403,7 +403,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content: `📦 Preparing sandbox container (${containerShort})...`,
     });
     infoLog('startAgent', 'Preparing sandbox environment', {
@@ -416,7 +416,7 @@ export class ContainerAgentService {
       await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
-        role: 'assistant',
+        role: 'system',
         content: `⚠️ Sandbox status: ${sandbox.status} (expecting: running)`,
       });
       infoLog('startAgent', 'Sandbox not running, attempting to verify', {
@@ -426,7 +426,7 @@ export class ContainerAgentService {
       await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
-        role: 'assistant',
+        role: 'system',
         content: '✅ Sandbox container ready',
       });
     }
@@ -471,7 +471,7 @@ export class ContainerAgentService {
     await this.streams.publish(sessionId, 'container-agent:message', {
       taskId,
       sessionId,
-      role: 'assistant',
+      role: 'system',
       content:
         phase === 'plan'
           ? `🧠 Starting planning phase with ${agentConfig.model}...`

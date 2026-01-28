@@ -159,6 +159,17 @@ async function writeCredentialsFile(): Promise<void> {
   const claudeDir = join(home, '.claude');
   const credentialsFile = join(claudeDir, '.credentials.json');
 
+  // Debug: Log paths and token status
+  console.error(`[agent-runner] Home directory: ${home}`);
+  console.error(`[agent-runner] Credentials path: ${credentialsFile}`);
+  console.error(
+    `[agent-runner] Token received: ${config.oauthToken ? `${config.oauthToken.slice(0, 15)}...` : 'NONE'}`
+  );
+
+  if (!config.oauthToken) {
+    throw new Error('No OAuth token provided via CLAUDE_OAUTH_TOKEN environment variable');
+  }
+
   // Use null instead of empty string for refreshToken - SDK may reject empty string
   // expiresAt as milliseconds (matching SDK's expected format from `claude login`)
   const credentials = {
@@ -300,12 +311,13 @@ async function runPlanningPhase(): Promise<void> {
       return { behavior: 'allow' as const, toolUseID: options.toolUseID };
     };
 
+    // Note: executableArgs with --add-dir causes EPIPE errors in SDK 0.2.x
+    // The SDK/CLI handles directory access via cwd and environment
     session = unstable_v2_createSession({
       model: config.model,
       env: { ...process.env },
       permissionMode: 'plan', // Planning mode - read-only exploration
       canUseTool, // Use official SDK callback for tool interception
-      executableArgs: ['--add-dir', config.cwd, '--add-dir', WORKSPACE_ROOT],
     });
     console.error('[agent-runner] SDK session created successfully');
   } catch (sessionError) {
@@ -519,19 +531,14 @@ async function runExecutionPhase(): Promise<void> {
   try {
     console.error('[agent-runner] Creating SDK session with bypass permissions...');
 
+    // Note: executableArgs with --add-dir causes EPIPE errors in SDK 0.2.x
+    // The SDK/CLI handles directory access via cwd and environment
     if (config.sdkSessionId) {
       // Resume existing session
       session = unstable_v2_resumeSession(config.sdkSessionId, {
         model: config.model,
         env: { ...process.env },
         permissionMode: 'bypassPermissions',
-        executableArgs: [
-          '--add-dir',
-          config.cwd,
-          '--add-dir',
-          WORKSPACE_ROOT,
-          '--dangerously-skip-permissions',
-        ],
       });
     } else {
       // Create new session
@@ -539,13 +546,6 @@ async function runExecutionPhase(): Promise<void> {
         model: config.model,
         env: { ...process.env },
         permissionMode: 'bypassPermissions',
-        executableArgs: [
-          '--add-dir',
-          config.cwd,
-          '--add-dir',
-          WORKSPACE_ROOT,
-          '--dangerously-skip-permissions',
-        ],
       });
     }
     console.error('[agent-runner] SDK session ready');
