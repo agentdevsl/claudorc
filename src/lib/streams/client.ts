@@ -138,7 +138,14 @@ const rawContainerAgentCancelledSchema = z.object({
 const rawContainerAgentStatusSchema = z.object({
   taskId: z.string(),
   sessionId: z.string(),
-  stage: z.enum(['initializing', 'validating', 'credentials', 'executing', 'running']),
+  stage: z.enum([
+    'initializing',
+    'validating',
+    'credentials',
+    'creating_sandbox',
+    'executing',
+    'running',
+  ]),
   message: z.string(),
 });
 
@@ -207,7 +214,13 @@ export interface RawSessionEvent {
 export interface ContainerAgentStatus {
   taskId: string;
   sessionId: string;
-  stage: 'initializing' | 'validating' | 'credentials' | 'executing' | 'running';
+  stage:
+    | 'initializing'
+    | 'validating'
+    | 'credentials'
+    | 'creating_sandbox'
+    | 'executing'
+    | 'running';
   message: string;
   timestamp: number;
 }

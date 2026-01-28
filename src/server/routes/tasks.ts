@@ -292,5 +292,27 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
   });
 
+  // POST /api/tasks/:id/stop-agent - Stop a running container agent for a task
+  app.post('/:id/stop-agent', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const result = await taskService.stopAgent(id);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: { stopped: true } });
+    } catch (error) {
+      console.error('[Tasks] StopAgent error:', error);
+      return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to stop agent' } }, 500);
+    }
+  });
+
   return app;
 }

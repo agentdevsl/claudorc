@@ -74,6 +74,7 @@ export type MoveTaskResult = {
  */
 export interface ContainerAgentTrigger {
   startAgent: (input: StartAgentInput) => Promise<Result<void, unknown>>;
+  stopAgent: (taskId: string) => Promise<Result<void, unknown>>;
   isAgentRunning: (taskId: string) => boolean;
 }
 
@@ -95,6 +96,26 @@ export class TaskService {
    */
   setContainerAgentService(service: ContainerAgentTrigger): void {
     this.containerAgentService = service;
+  }
+
+  /**
+   * Stop a running container agent for a task.
+   */
+  async stopAgent(taskId: string): Promise<Result<void, TaskError>> {
+    if (!this.containerAgentService) {
+      return err(TaskErrors.AGENT_NOT_RUNNING);
+    }
+
+    if (!this.containerAgentService.isAgentRunning(taskId)) {
+      return err(TaskErrors.AGENT_NOT_RUNNING);
+    }
+
+    const result = await this.containerAgentService.stopAgent(taskId);
+    if (!result.ok) {
+      return err(TaskErrors.AGENT_STOP_FAILED);
+    }
+
+    return ok(undefined);
   }
 
   /**

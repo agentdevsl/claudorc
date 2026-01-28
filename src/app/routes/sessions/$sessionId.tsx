@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { AgentSessionView } from '@/app/components/features/agent-session-view';
+import { ContainerAgentPanel } from '@/app/components/features/container-agent-panel';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { apiClient } from '@/lib/api/client';
@@ -9,9 +10,18 @@ import { apiClient } from '@/lib/api/client';
 type ClientSession = {
   id: string;
   agentId?: string | null;
+  taskId?: string | null;
   title?: string | null;
   status: string;
 };
+
+/**
+ * Detect if this is a container-agent session.
+ * Container-agent sessions have taskId but no agentId (they don't create separate agent records).
+ */
+function isContainerAgentSession(session: ClientSession): boolean {
+  return session.agentId === null && session.taskId !== null;
+}
 
 export const Route = createFileRoute('/sessions/$sessionId')({
   component: SessionPage,
@@ -81,6 +91,40 @@ function SessionPage(): React.JSX.Element {
     return <div className="p-6 text-sm text-fg-muted">Session not found.</div>;
   }
 
+  // Render container-agent session view
+  if (isContainerAgentSession(session)) {
+    return (
+      <LayoutShell
+        breadcrumbs={[
+          { label: 'Sessions', to: '/sessions' },
+          { label: session.title ?? session.id },
+        ]}
+      >
+        <div className="relative h-full">
+          {actionError && (
+            <div className="absolute left-1/2 top-4 z-50 -translate-x-1/2 rounded-md border border-danger bg-danger/10 px-4 py-2 text-sm text-danger">
+              {actionError}
+            </div>
+          )}
+          <ContainerAgentPanel
+            sessionId={session.id}
+            onStop={async () => {
+              if (session.taskId) {
+                try {
+                  await fetch(`/api/tasks/${session.taskId}/stop-agent`, { method: 'POST' });
+                } catch {
+                  setActionError('Failed to stop agent');
+                  setTimeout(() => setActionError(null), 5000);
+                }
+              }
+            }}
+          />
+        </div>
+      </LayoutShell>
+    );
+  }
+
+  // Render legacy agent session view
   return (
     <LayoutShell
       breadcrumbs={[{ label: 'Sessions', to: '/sessions' }, { label: session.title ?? session.id }]}

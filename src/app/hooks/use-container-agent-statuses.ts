@@ -12,7 +12,13 @@ import {
 export interface AgentStatusInfo {
   sessionId: string;
   taskId: string;
-  currentStage?: 'initializing' | 'validating' | 'credentials' | 'executing' | 'running';
+  currentStage?:
+    | 'initializing'
+    | 'validating'
+    | 'credentials'
+    | 'creating_sandbox'
+    | 'executing'
+    | 'running';
   statusMessage?: string;
   isStarting: boolean;
   isRunning: boolean;

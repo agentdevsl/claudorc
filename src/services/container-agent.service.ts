@@ -149,9 +149,10 @@ export class ContainerAgentService {
         debugLog('startAgent', 'Failed to publish validating status', { error: String(e) })
       );
 
-    // Get the sandbox for this project
+    // Get or create a sandbox for this project
+    // Important: We need a project-specific sandbox to mount the correct project path
     infoLog('startAgent', 'Getting sandbox for project', { projectId });
-    const sandbox = await this.provider.get(projectId);
+    let sandbox = await this.provider.get(projectId);
     infoLog('startAgent', 'Sandbox lookup result', {
       projectId,
       foundSandbox: !!sandbox,
@@ -159,18 +160,57 @@ export class ContainerAgentService {
       sandboxProjectId: sandbox?.projectId,
       sandboxStatus: sandbox?.status,
     });
-    if (!sandbox) {
-      infoLog('startAgent', 'Sandbox not found for project', { projectId });
-      return err(SandboxErrors.CONTAINER_NOT_FOUND);
-    }
-    if (sandbox.projectId !== projectId) {
-      // Allow fallback to default sandbox for any project
-      infoLog('startAgent', 'Using default sandbox for project (fallback allowed)', {
+
+    // If no project-specific sandbox exists (only default found or none), create one
+    // This ensures the correct project path is mounted to /workspace
+    if (!sandbox || sandbox.projectId !== projectId) {
+      infoLog('startAgent', 'Creating project-specific sandbox', {
         projectId,
-        sandboxProjectId: sandbox.projectId,
+        projectPath: project.path,
+        reason: sandbox ? 'default sandbox has wrong mount' : 'no sandbox found',
       });
+
+      // Publish status about creating sandbox
+      await this.streams
+        .publish(sessionId, 'container-agent:status', {
+          taskId,
+          sessionId,
+          stage: 'creating_sandbox',
+          message: 'Creating project sandbox...',
+        })
+        .catch((e) =>
+          debugLog('startAgent', 'Failed to publish creating_sandbox status', { error: String(e) })
+        );
+
+      try {
+        // Import sandbox defaults
+        const { SANDBOX_DEFAULTS } = await import('../lib/sandbox/types.js');
+
+        sandbox = await this.provider.create({
+          projectId,
+          projectPath: project.path,
+          image: SANDBOX_DEFAULTS.image,
+          memoryMb: SANDBOX_DEFAULTS.memoryMb,
+          cpuCores: SANDBOX_DEFAULTS.cpuCores,
+          idleTimeoutMinutes: SANDBOX_DEFAULTS.idleTimeoutMinutes,
+          volumeMounts: [],
+        });
+
+        infoLog('startAgent', 'Created project-specific sandbox', {
+          sandboxId: sandbox.id,
+          projectPath: project.path,
+        });
+      } catch (createError) {
+        const errorMsg = createError instanceof Error ? createError.message : String(createError);
+        infoLog('startAgent', 'Failed to create project sandbox', {
+          projectId,
+          error: errorMsg,
+        });
+        return err(SandboxErrors.CONTAINER_CREATION_FAILED(errorMsg));
+      }
     }
-    infoLog('startAgent', 'Sandbox found', { sandboxId: sandbox.id, status: sandbox.status });
+
+    infoLog('startAgent', 'Sandbox ready', { sandboxId: sandbox.id, status: sandbox.status });
 
     if (sandbox.status !== 'running') {
       infoLog('startAgent', 'Sandbox not running', {

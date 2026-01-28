@@ -193,7 +193,13 @@ export interface ContainerAgentTaskUpdateFailedEvent {
 export interface ContainerAgentStatusEvent {
   taskId: string;
   sessionId: string;
-  stage: 'initializing' | 'validating' | 'credentials' | 'executing' | 'running';
+  stage:
+    | 'initializing'
+    | 'validating'
+    | 'credentials'
+    | 'creating_sandbox'
+    | 'executing'
+    | 'running';
   message: string;
 }
 

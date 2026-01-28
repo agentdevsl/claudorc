@@ -45,12 +45,30 @@ RUN npm run build
 RUN rm -rf src tsconfig.json && \
     npm prune --production
 
+# Configure git for mounted volumes (prevents "dubious ownership" errors)
+RUN git config --system --add safe.directory '*' && \
+    git config --system user.email "agent@sandbox.local" && \
+    git config --system user.name "AgentPane Sandbox"
+
+# Ensure /workspace exists and is writable by node user
+RUN mkdir -p /workspace && chown -R node:node /workspace
+
+# Allow node user to use sudo for permission fixes (passwordless)
+RUN echo "node ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers.d/node-chown
+
+# Copy entrypoint script
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Set working directory back to workspace
 WORKDIR /workspace
 
-# Default entrypoint for the sandbox (not the agent runner)
-# The agent runner is invoked via docker exec
-ENTRYPOINT ["/bin/bash"]
+# Switch to non-root user for security
+USER node
+
+# Use entrypoint script to fix permissions, then run command
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]
 
 # Labels
 LABEL org.opencontainers.image.title="Agent Sandbox"

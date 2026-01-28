@@ -21,6 +21,7 @@ export type ContainerAgentStage =
   | 'initializing'
   | 'validating'
   | 'credentials'
+  | 'creating_sandbox'
   | 'executing'
   | 'running';
 

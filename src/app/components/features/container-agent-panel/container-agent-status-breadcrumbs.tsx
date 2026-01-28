@@ -15,6 +15,7 @@ const STAGES: ContainerAgentStage[] = [
   'initializing',
   'validating',
   'credentials',
+  'creating_sandbox',
   'executing',
   'running',
 ];
@@ -23,6 +24,7 @@ const stageLabels: Record<ContainerAgentStage, string> = {
   initializing: 'Initializing',
   validating: 'Validating',
   credentials: 'Credentials',
+  creating_sandbox: 'Creating Sandbox',
   executing: 'Executing',
   running: 'Running',
 };

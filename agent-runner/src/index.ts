@@ -152,6 +152,10 @@ async function runAgent(): Promise<void> {
   const session = unstable_v2_createSession({
     model: config.model,
     env: { ...process.env },
+    // Accept file edits without interactive prompts (required for non-interactive container)
+    permissionMode: 'acceptEdits',
+    // Add workspace directory to allowed directories via CLI args
+    executableArgs: ['--add-dir', config.cwd, '--add-dir', WORKSPACE_ROOT],
   });
 
   let turn = 0;
