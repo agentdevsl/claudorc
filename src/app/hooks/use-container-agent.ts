@@ -165,19 +165,28 @@ export function useContainerAgent(sessionId: string | null): {
 
   // Handle tool start
   const handleToolStart = useCallback((data: ContainerAgentToolStart) => {
-    setState((prev) => ({
-      ...prev,
-      toolExecutions: [
-        ...prev.toolExecutions,
-        {
-          toolId: data.toolId,
-          toolName: data.toolName,
-          input: data.input,
-          status: 'running',
-          startedAt: data.timestamp,
-        },
-      ],
-    }));
+    setState((prev) => {
+      // Check if tool already exists to prevent duplicates on reconnection
+      const existingIndex = prev.toolExecutions.findIndex((t) => t.toolId === data.toolId);
+      if (existingIndex >= 0) {
+        // Tool already exists, don't add duplicate
+        return prev;
+      }
+      // Add new tool
+      return {
+        ...prev,
+        toolExecutions: [
+          ...prev.toolExecutions,
+          {
+            toolId: data.toolId,
+            toolName: data.toolName,
+            input: data.input,
+            status: 'running',
+            startedAt: data.timestamp,
+          },
+        ],
+      };
+    });
   }, []);
 
   // Handle tool result
