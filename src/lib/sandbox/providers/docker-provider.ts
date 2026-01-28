@@ -415,6 +415,75 @@ export class DockerProvider implements EventEmittingSandboxProvider {
     this.docker = new Docker(options);
   }
 
+  /**
+   * Recover existing Docker containers on startup.
+   * Scans for containers with the 'agentpane-' prefix and re-registers them in memory.
+   * This enables the provider to survive server restarts without losing container state.
+   */
+  async recover(): Promise<{ recovered: number; removed: number }> {
+    let recovered = 0;
+    let removed = 0;
+
+    try {
+      // List all containers (including stopped ones) with agentpane prefix
+      const containers = await this.docker.listContainers({
+        all: true,
+        filters: { name: ['agentpane-'] },
+      });
+
+      for (const containerInfo of containers) {
+        const containerName = containerInfo.Names[0]?.replace(/^\//, '') ?? '';
+        // Parse container name: agentpane-{projectId}-{sandboxId8}
+        const match = containerName.match(/^agentpane-(.+)-([a-z0-9]{8})$/);
+        if (!match || !match[1] || !match[2]) continue;
+
+        const projectId = match[1];
+        const sandboxIdPrefix = match[2];
+        const containerId = containerInfo.Id;
+        const isRunning = containerInfo.State === 'running';
+
+        // Skip if we already have this project registered
+        if (this.projectToSandbox.has(projectId)) {
+          continue;
+        }
+
+        // For stopped containers, remove them to avoid stale state
+        if (!isRunning) {
+          try {
+            const container = this.docker.getContainer(containerId);
+            await container.remove({ force: true });
+            removed++;
+            console.log(`[DockerProvider] Removed stopped container: ${containerName}`);
+          } catch (err) {
+            console.warn(
+              `[DockerProvider] Failed to remove stopped container ${containerName}:`,
+              err
+            );
+          }
+          continue;
+        }
+
+        // Re-register running containers
+        const sandboxId = `recovered-${sandboxIdPrefix}`;
+        const container = this.docker.getContainer(containerId);
+
+        const sandbox = new DockerSandbox(sandboxId, projectId, containerId, 'running', container);
+
+        this.sandboxes.set(sandboxId, sandbox);
+        this.projectToSandbox.set(projectId, sandboxId);
+        recovered++;
+
+        console.log(
+          `[DockerProvider] Recovered container: ${containerName} for project ${projectId}`
+        );
+      }
+    } catch (error) {
+      console.error('[DockerProvider] Failed to recover containers:', error);
+    }
+
+    return { recovered, removed };
+  }
+
   async create(config: SandboxConfig): Promise<Sandbox> {
     // Check if sandbox already exists for project
     const existing = this.projectToSandbox.get(config.projectId);
@@ -496,45 +565,18 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async get(projectId: string): Promise<Sandbox | null> {
-    console.log(
-      `[DockerProvider] get(${projectId}) - projectToSandbox keys:`,
-      Array.from(this.projectToSandbox.keys())
-    );
-    console.log(
-      `[DockerProvider] get(${projectId}) - sandboxes keys:`,
-      Array.from(this.sandboxes.keys())
-    );
-
     // First check for project-specific sandbox
     const sandboxId = this.projectToSandbox.get(projectId);
-    console.log(`[DockerProvider] get(${projectId}) - direct lookup sandboxId:`, sandboxId);
     if (sandboxId) {
-      const sandbox = this.sandboxes.get(sandboxId);
-      console.log(
-        `[DockerProvider] get(${projectId}) - found direct sandbox:`,
-        sandbox?.id,
-        sandbox?.projectId
-      );
-      return sandbox ?? null;
+      return this.sandboxes.get(sandboxId) ?? null;
     }
 
     // Fall back to global default sandbox (projectId = 'default')
     const defaultSandboxId = this.projectToSandbox.get('default');
-    console.log(
-      `[DockerProvider] get(${projectId}) - fallback to default sandboxId:`,
-      defaultSandboxId
-    );
     if (defaultSandboxId) {
-      const sandbox = this.sandboxes.get(defaultSandboxId);
-      console.log(
-        `[DockerProvider] get(${projectId}) - found default sandbox:`,
-        sandbox?.id,
-        sandbox?.projectId
-      );
-      return sandbox ?? null;
+      return this.sandboxes.get(defaultSandboxId) ?? null;
     }
 
-    console.log(`[DockerProvider] get(${projectId}) - no sandbox found`);
     return null;
   }
 

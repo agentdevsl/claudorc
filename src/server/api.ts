@@ -305,6 +305,14 @@ let containerAgentService: ReturnType<typeof createContainerAgentService> | null
 try {
   dockerProvider = createDockerProvider();
   console.log('[API Server] Docker provider initialized');
+
+  // Recover existing containers from previous runs
+  const { recovered, removed } = await dockerProvider.recover();
+  if (recovered > 0 || removed > 0) {
+    console.log(
+      `[API Server] Container recovery: ${recovered} recovered, ${removed} stale removed`
+    );
+  }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   // Distinguish between expected Docker unavailability and unexpected errors
