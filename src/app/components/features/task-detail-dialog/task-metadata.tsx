@@ -1,4 +1,12 @@
-import { Brain, CalendarBlank, Clock, FileCode, GitBranch, Hash } from '@phosphor-icons/react';
+import {
+  Brain,
+  CalendarBlank,
+  Clock,
+  FileCode,
+  GitBranch,
+  Hash,
+  Terminal,
+} from '@phosphor-icons/react';
 import { ModelSelectorInline } from '@/app/components/ui/model-selector';
 import type { Task } from '@/db/schema/tasks';
 import { getModelById } from '@/lib/constants/models';
@@ -7,6 +15,7 @@ import { cn } from '@/lib/utils/cn';
 interface TaskMetadataProps {
   task: Task;
   onModelChange?: (modelId: string | null) => void;
+  onViewSession?: (sessionId: string) => void;
 }
 
 function formatDate(date: Date | string | null | undefined): string {
@@ -65,7 +74,11 @@ function MetadataItem({
   );
 }
 
-export function TaskMetadata({ task, onModelChange }: TaskMetadataProps): React.JSX.Element {
+export function TaskMetadata({
+  task,
+  onModelChange,
+  onViewSession,
+}: TaskMetadataProps): React.JSX.Element {
   // Extract additional metadata from diffSummary if available
   const diffSummary = task.diffSummary as {
     filesChanged?: number;
@@ -113,6 +126,32 @@ export function TaskMetadata({ task, onModelChange }: TaskMetadataProps): React.
         <MetadataItem label="Files Changed" value={fileChangesDisplay} icon={FileCode} />
         <MetadataItem label="Branch" value={task.branch || '-'} icon={GitBranch} />
       </div>
+
+      {/* Session Link */}
+      {task.sessionId &&
+        (() => {
+          const sessionId = task.sessionId;
+          return (
+            <div className="rounded-md border border-border bg-surface-subtle p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-fg-muted" />
+                  <div>
+                    <p className="text-sm font-medium text-fg">Agent Session</p>
+                    <p className="text-xs text-fg-muted">View execution logs and tool calls</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onViewSession?.(sessionId)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-accent/10 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
+                >
+                  <Terminal className="h-3.5 w-3.5" />#{sessionId.slice(0, 7)}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Model Override Section */}
       <div className="rounded-md border border-border bg-surface-subtle p-4">

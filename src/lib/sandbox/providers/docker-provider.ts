@@ -542,6 +542,9 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async list(): Promise<SandboxInfo[]> {
+    // Validate containers exist before returning - prune stale entries
+    await this.validateContainers();
+
     const infos: SandboxInfo[] = [];
 
     for (const [sandboxId, sandbox] of this.sandboxes) {
@@ -559,6 +562,44 @@ export class DockerProvider implements EventEmittingSandboxProvider {
     }
 
     return infos;
+  }
+
+  /**
+   * Validate that cached containers actually exist in Docker.
+   * Removes stale entries from the in-memory cache.
+   */
+  async validateContainers(): Promise<void> {
+    const staleIds: string[] = [];
+
+    for (const [sandboxId, sandbox] of this.sandboxes) {
+      try {
+        const container = this.docker.getContainer(sandbox.containerId);
+        await container.inspect();
+      } catch (error) {
+        // Container doesn't exist - mark for removal
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          if ((error as { statusCode: number }).statusCode === 404) {
+            console.log(
+              `[DockerProvider] Container ${sandbox.containerId.slice(0, 12)} not found in Docker, removing stale entry`
+            );
+            staleIds.push(sandboxId);
+          }
+        }
+      }
+    }
+
+    // Remove stale entries
+    for (const sandboxId of staleIds) {
+      const sandbox = this.sandboxes.get(sandboxId);
+      if (sandbox) {
+        this.projectToSandbox.delete(sandbox.projectId);
+        this.sandboxes.delete(sandboxId);
+      }
+    }
+
+    if (staleIds.length > 0) {
+      console.log(`[DockerProvider] Pruned ${staleIds.length} stale sandbox entries`);
+    }
   }
 
   async pullImage(image: string): Promise<void> {

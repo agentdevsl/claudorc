@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
 import { projects } from '../db/schema/projects.js';
+import { sessions } from '../db/schema/sessions.js';
 import { settings } from '../db/schema/settings.js';
 import type { Task, TaskColumn } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
@@ -271,6 +272,37 @@ export class TaskService {
       newPosition = (lastInColumn?.position ?? -1) + 1;
     }
 
+    // PRODUCTION-ROBUST: Generate sessionId upfront for in_progress moves
+    // This ensures the sessionId is included in the returned task so the
+    // frontend can immediately subscribe to the stream
+    let sessionId: string | null = null;
+    if (column === 'in_progress' && this.containerAgentService) {
+      sessionId = task.sessionId ?? createId();
+
+      // IMPORTANT: Create session record BEFORE updating task with sessionId
+      // SQLite foreign keys are enforced, so the session must exist first
+      if (sessionId && sessionId !== task.sessionId) {
+        try {
+          await this.db.insert(sessions).values({
+            id: sessionId,
+            projectId: task.projectId,
+            taskId: task.id,
+            agentId: null,
+            title: task.title ?? `Task ${task.id}`,
+            url: `/projects/${task.projectId}/sessions/${sessionId}`,
+            status: 'active',
+            createdAt: new Date().toISOString(),
+          });
+        } catch (insertErr) {
+          // Ignore if session already exists (race condition or retry)
+          const errorMsg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+          if (!errorMsg.includes('UNIQUE constraint')) {
+            console.warn('[TaskService] Failed to create session record:', errorMsg);
+          }
+        }
+      }
+    }
+
     const [updated] = await this.db
       .update(tasks)
       .set({
@@ -279,6 +311,8 @@ export class TaskService {
         updatedAt: new Date().toISOString(),
         ...(column === 'in_progress' ? { startedAt: new Date().toISOString() } : {}),
         ...(column === 'verified' ? { completedAt: new Date().toISOString() } : {}),
+        // Include sessionId in the update so it's returned to frontend
+        ...(sessionId ? { sessionId } : {}),
       })
       .where(eq(tasks.id, id))
       .returning();
@@ -290,8 +324,8 @@ export class TaskService {
     // Trigger container agent when moving to in_progress (if sandbox is enabled)
     // We await the agent startup to capture any errors
     let agentError: string | undefined;
-    if (column === 'in_progress' && this.containerAgentService) {
-      agentError = await this.triggerContainerAgent(updated);
+    if (column === 'in_progress' && this.containerAgentService && sessionId) {
+      agentError = await this.triggerContainerAgent(updated, sessionId);
     }
 
     return ok({ task: updated, agentError });
@@ -316,9 +350,12 @@ export class TaskService {
 
   /**
    * Trigger container agent execution for a task if sandbox is enabled.
-   * Returns an error message string if the agent fails to start, or undefined on success.
+   *
+   * @param task - The task to execute
+   * @param sessionId - Pre-generated sessionId (required for frontend to subscribe immediately)
+   * @returns Error message string if the agent fails to start, or undefined on success
    */
-  private async triggerContainerAgent(task: Task): Promise<string | undefined> {
+  private async triggerContainerAgent(task: Task, sessionId: string): Promise<string | undefined> {
     if (!this.containerAgentService) {
       return undefined;
     }
@@ -368,19 +405,9 @@ export class TaskService {
     // Build task prompt
     const prompt = this.buildTaskPrompt(task);
 
-    // Generate session ID for this agent run
-    const sessionId = task.sessionId ?? createId();
-
-    // Update task with session ID if it was generated (do this before starting agent)
-    if (!task.sessionId) {
-      await this.db
-        .update(tasks)
-        .set({ sessionId, updatedAt: new Date().toISOString() })
-        .where(eq(tasks.id, task.id));
-    }
-
     // Trigger agent execution asynchronously - results flow through the stream
     // We don't await the full result; the client subscribes to the sessionId stream
+    // The sessionId was already set on the task in moveColumn() before this call
     console.log(
       `[TaskService] Triggering container agent for task ${task.id}, sessionId: ${sessionId}`
     );

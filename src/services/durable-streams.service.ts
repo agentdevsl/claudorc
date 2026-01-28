@@ -1,4 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
+import { desc, eq } from 'drizzle-orm';
+import { sessionEvents } from '../db/schema/session-events.js';
+import type { Database } from '../types/database.js';
 import type { SessionEvent, SessionEventType } from './session.service.js';
 
 /**
@@ -183,6 +186,17 @@ export interface ContainerAgentCancelledEvent {
   turnCount: number;
 }
 
+export interface ContainerAgentPlanReadyEvent {
+  taskId: string;
+  sessionId: string;
+  plan: string;
+  turnCount: number;
+  sdkSessionId: string;
+  launchSwarm?: boolean;
+  teammateCount?: number;
+  allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+}
+
 export interface ContainerAgentTaskUpdateFailedEvent {
   taskId: string;
   sessionId: string;
@@ -327,6 +341,7 @@ export interface StreamEventMap {
   'container-agent:error': ContainerAgentErrorEvent;
   'container-agent:cancelled': ContainerAgentCancelledEvent;
   'container-agent:task-update-failed': ContainerAgentTaskUpdateFailedEvent;
+  'container-agent:plan_ready': ContainerAgentPlanReadyEvent;
 }
 
 /**
@@ -363,7 +378,23 @@ export interface StreamEvent<T = unknown> {
 export class DurableStreamsService {
   private subscribers = new Map<string, Set<(event: StreamEvent) => void>>();
 
-  constructor(private server: DurableStreamsServer) {}
+  constructor(
+    private server: DurableStreamsServer,
+    private db?: Database
+  ) {}
+
+  /**
+   * Map event type to channel for database storage.
+   * Channels group related events (e.g., all container-agent events go to 'containerAgent').
+   */
+  private getChannelForType(type: TypedEventType): string {
+    // Map event types to their channels
+    if (type.startsWith('plan:')) return 'plan';
+    if (type.startsWith('sandbox:')) return 'sandbox';
+    if (type.startsWith('task-creation:')) return 'taskCreation';
+    if (type.startsWith('container-agent:')) return 'containerAgent';
+    return 'default';
+  }
 
   /**
    * Create a new stream for a session or plan
@@ -407,6 +438,9 @@ export class DurableStreamsService {
    * Type-safe publish for mapped event types.
    * Ensures the data type matches the event type at compile time.
    *
+   * Events are persisted to the database FIRST, then published to the in-memory stream.
+   * This ensures events are durable and available after page refresh or server restart.
+   *
    * @example
    * // TypeScript enforces correct data shape:
    * await streams.publish(streamId, 'plan:started', { sessionId, taskId, projectId });
@@ -426,18 +460,46 @@ export class DurableStreamsService {
     }
 
     try {
-      const offset = await this.server.publish(streamId, type, data);
+      const timestamp = Date.now();
+      const eventId = createId();
+
+      // Get next offset for this session from database (if db available)
+      let offset = 0;
+      if (this.db) {
+        const lastEvent = await this.db.query.sessionEvents.findFirst({
+          where: eq(sessionEvents.sessionId, streamId),
+          orderBy: [desc(sessionEvents.offset)],
+        });
+        offset = (lastEvent?.offset ?? -1) + 1;
+
+        // PERSIST TO DATABASE FIRST (ensures durability)
+        await this.db.insert(sessionEvents).values({
+          id: eventId,
+          sessionId: streamId,
+          offset,
+          type,
+          channel: this.getChannelForType(type),
+          data: data as unknown,
+          timestamp,
+        });
+      }
+
+      // THEN publish to in-memory stream for real-time delivery
+      const memoryOffset = await this.server.publish(streamId, type, data);
+
+      // Use database offset if available, otherwise use memory offset
+      const finalOffset = this.db ? offset : memoryOffset;
 
       const event: StreamEvent<StreamEventMap[T]> = {
-        id: createId(),
+        id: eventId,
         type,
-        timestamp: Date.now(),
+        timestamp,
         data,
-        offset,
+        offset: finalOffset,
       };
       this.notifySubscribers(streamId, event);
 
-      return offset;
+      return finalOffset;
     } catch (error) {
       console.error('[DurableStreamsService] publish failed:', { streamId, type, error });
       throw new Error(

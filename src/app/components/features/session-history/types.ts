@@ -245,6 +245,8 @@ export interface SessionDetailViewProps {
   onDelete?: () => void;
   /** Callback for refresh */
   onRefresh?: () => void;
+  /** Callback to navigate to the linked task */
+  onViewTask?: (taskId: string, projectId: string) => void;
 }
 
 export interface StreamViewerProps {

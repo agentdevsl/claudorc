@@ -41,7 +41,8 @@ export type ContainerAgentEventType =
   | 'agent:message'
   | 'agent:complete'
   | 'agent:error'
-  | 'agent:cancelled';
+  | 'agent:cancelled'
+  | 'agent:plan_ready';
 
 /**
  * Raw event structure from the container stdout.
@@ -67,11 +68,24 @@ const EVENT_TYPE_MAP: Record<ContainerAgentEventType, TypedEventType> = {
   'agent:complete': 'container-agent:complete',
   'agent:error': 'container-agent:error',
   'agent:cancelled': 'container-agent:cancelled',
+  'agent:plan_ready': 'container-agent:plan_ready',
 };
 
 /**
  * Options for creating a container bridge.
  */
+/**
+ * Plan ready data from ExitPlanMode.
+ */
+export interface PlanReadyData {
+  plan: string;
+  turnCount: number;
+  sdkSessionId: string;
+  launchSwarm?: boolean;
+  teammateCount?: number;
+  allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+}
+
 export interface ContainerBridgeOptions {
   taskId: string;
   sessionId: string;
@@ -79,6 +93,7 @@ export interface ContainerBridgeOptions {
   streams: DurableStreamsService;
   onComplete?: (status: 'completed' | 'turn_limit' | 'cancelled', turnCount: number) => void;
   onError?: (error: string, turnCount: number) => void;
+  onPlanReady?: (data: PlanReadyData) => void;
 }
 
 /**
@@ -91,6 +106,12 @@ export interface ContainerBridge {
   processStream(stream: Readable): Promise<void>;
 
   /**
+   * Process a stderr stream from the container to capture error events.
+   * The agent-runner writes JSON error events to stderr as a fallback when stdout fails.
+   */
+  processStderr(stream: Readable): void;
+
+  /**
    * Stop processing and clean up.
    */
   stop(): void;
@@ -100,7 +121,7 @@ export interface ContainerBridge {
  * Create a container bridge for processing agent events from Docker stdout.
  */
 export function createContainerBridge(options: ContainerBridgeOptions): ContainerBridge {
-  const { taskId, sessionId, projectId, streams, onComplete, onError } = options;
+  const { taskId, sessionId, projectId, streams, onComplete, onError, onPlanReady } = options;
   let readline: Interface | null = null;
   let stopped = false;
   let lineCount = 0;
@@ -292,6 +313,34 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
     }
   }
 
+  /**
+   * Handle plan_ready event.
+   */
+  function handlePlanReady(event: ContainerAgentEvent): void {
+    const data = event.data as unknown as PlanReadyData;
+
+    if (!data || typeof data.plan !== 'string' || typeof data.turnCount !== 'number') {
+      infoLog('handlePlanReady', 'Invalid plan_ready event data', {
+        taskId,
+        data: event.data,
+      });
+      return;
+    }
+
+    infoLog('handlePlanReady', 'Plan ready for approval', {
+      taskId,
+      turnCount: data.turnCount,
+      sdkSessionId: data.sdkSessionId,
+      launchSwarm: data.launchSwarm,
+      teammateCount: data.teammateCount,
+      planLength: data.plan.length,
+    });
+
+    if (onPlanReady) {
+      onPlanReady(data);
+    }
+  }
+
   return {
     async processStream(stream: Readable): Promise<void> {
       if (stopped) {
@@ -341,6 +390,8 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
           handleError(event);
         } else if (event.type === 'agent:cancelled') {
           handleCancelled(event);
+        } else if (event.type === 'agent:plan_ready') {
+          handlePlanReady(event);
         }
       }
 
@@ -348,6 +399,64 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
         taskId,
         totalLines: lineCount,
         totalEvents: eventCount,
+      });
+    },
+
+    processStderr(stream: Readable): void {
+      if (stopped) {
+        debugLog('processStderr', 'Bridge already stopped, skipping', { taskId });
+        return;
+      }
+
+      infoLog('processStderr', 'Starting to process stderr stream for error events', {
+        taskId,
+        sessionId,
+      });
+
+      const stderrReader = createInterface({
+        input: stream,
+        crlfDelay: Infinity,
+      });
+
+      stderrReader.on('line', async (line: string) => {
+        if (stopped) {
+          return;
+        }
+
+        // Check if line looks like a JSON error event from agent-runner
+        // The agent-runner writes JSON to stderr in its final catch block
+        if (line.includes('"type":"agent:error"') || line.includes('"type": "agent:error"')) {
+          try {
+            const event = JSON.parse(line.trim()) as ContainerAgentEvent;
+
+            // Validate it's an error event with required fields
+            if (
+              event.type === 'agent:error' &&
+              event.taskId === taskId &&
+              event.sessionId === sessionId
+            ) {
+              infoLog('processStderr', 'Captured error event from stderr', {
+                taskId,
+                error: (event.data as { error?: string }).error,
+              });
+
+              eventCount++;
+
+              // Publish the error event
+              await publishEvent(event);
+
+              // Handle the error
+              handleError(event);
+            }
+          } catch {
+            // Not valid JSON, just a regular stderr log line - ignore
+            debugLog('processStderr', 'Non-JSON stderr line', { line: line.slice(0, 100) });
+          }
+        }
+      });
+
+      stderrReader.on('close', () => {
+        debugLog('processStderr', 'Stderr stream closed', { taskId });
       });
     },
 

@@ -8,7 +8,6 @@
  * - Tracks running agents per task
  */
 import { eq } from 'drizzle-orm';
-import { settings } from '../db/schema/settings.js';
 
 // Debug logging helper
 const DEBUG = process.env.DEBUG_CONTAINER_AGENT === 'true' || process.env.DEBUG === 'true';
@@ -44,6 +43,11 @@ import type { ApiKeyService } from './api-key.service.js';
 import type { DurableStreamsService } from './durable-streams.service.js';
 
 /**
+ * Agent execution phase.
+ */
+export type AgentPhase = 'plan' | 'execute';
+
+/**
  * Input for starting a container agent.
  */
 export interface StartAgentInput {
@@ -53,6 +57,10 @@ export interface StartAgentInput {
   prompt: string;
   model?: string;
   maxTurns?: number;
+  /** Execution phase: 'plan' for planning, 'execute' for execution (default: 'plan') */
+  phase?: AgentPhase;
+  /** SDK session ID to resume (for execution after plan approval) */
+  sdkSessionId?: string;
 }
 
 /**
@@ -77,6 +85,23 @@ interface RunningAgent {
   stopFilePath: string;
   startedAt: Date;
   stopRequested: boolean;
+  phase: AgentPhase;
+}
+
+/**
+ * Plan data stored after planning phase completes.
+ */
+export interface PlanData {
+  taskId: string;
+  sessionId: string;
+  projectId: string;
+  plan: string;
+  turnCount: number;
+  sdkSessionId: string;
+  launchSwarm?: boolean;
+  teammateCount?: number;
+  allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  createdAt: Date;
 }
 
 /**
@@ -85,6 +110,9 @@ interface RunningAgent {
 export class ContainerAgentService {
   /** Map of taskId -> running agent */
   private runningAgents = new Map<string, RunningAgent>();
+
+  /** Map of taskId -> pending plan data (awaiting approval) */
+  private pendingPlans = new Map<string, PlanData>();
 
   constructor(
     private db: Database,
@@ -95,144 +123,51 @@ export class ContainerAgentService {
 
   /**
    * Start an agent for a task inside its project's sandbox container.
+   * @param input.phase - 'plan' for planning mode (default), 'execute' for execution mode
    */
   async startAgent(input: StartAgentInput): Promise<Result<void, SandboxError>> {
-    const { projectId, taskId, sessionId, prompt, model, maxTurns } = input;
+    const {
+      projectId,
+      taskId,
+      sessionId,
+      prompt,
+      model,
+      maxTurns,
+      phase = 'plan',
+      sdkSessionId,
+    } = input;
 
-    infoLog('startAgent', 'Starting agent', { taskId, projectId, sessionId, model, maxTurns });
-    debugLog('startAgent', 'Prompt preview', {
-      promptLength: prompt.length,
-      promptStart: prompt.slice(0, 100),
+    infoLog('startAgent', 'Starting agent', {
+      taskId,
+      projectId,
+      sessionId,
+      model,
+      maxTurns,
+      phase,
+      sdkSessionId: sdkSessionId ? '[set]' : undefined,
     });
 
-    // Publish initializing status (before any checks, so UI gets immediate feedback)
-    await this.streams
-      .publish(sessionId, 'container-agent:status', {
-        taskId,
-        sessionId,
-        stage: 'initializing',
-        message: 'Initializing container agent...',
-      })
-      .catch((e) =>
-        debugLog('startAgent', 'Failed to publish initializing status', { error: String(e) })
-      );
-
-    // Check if agent is already running for this task
+    // Check if agent is already running for this task (fast, in-memory check)
     if (this.runningAgents.has(taskId)) {
       infoLog('startAgent', 'Agent already running for task', { taskId });
       return err(SandboxErrors.AGENT_ALREADY_RUNNING(taskId));
     }
 
-    // Get project to find sandbox and config
-    debugLog('startAgent', 'Fetching project', { projectId });
-    const project = await this.db.query.projects.findFirst({
-      where: eq(projects.id, projectId),
-    });
+    // Parallel fetch: project and sandbox lookup at the same time
+    const [project, sandbox] = await Promise.all([
+      this.db.query.projects.findFirst({ where: eq(projects.id, projectId) }),
+      this.provider.get(projectId),
+    ]);
 
     if (!project) {
       infoLog('startAgent', 'Project not found', { projectId });
       return err(SandboxErrors.PROJECT_NOT_FOUND);
     }
-    debugLog('startAgent', 'Project found', {
-      projectName: project.name,
-      projectConfig: project.config,
-    });
 
-    // Publish validating status
-    await this.streams
-      .publish(sessionId, 'container-agent:status', {
-        taskId,
-        sessionId,
-        stage: 'validating',
-        message: 'Validating sandbox container...',
-      })
-      .catch((e) =>
-        debugLog('startAgent', 'Failed to publish validating status', { error: String(e) })
-      );
-
-    // Check sandbox mode setting: 'shared' uses one container for all, 'per-project' creates unique containers
-    let sandboxMode: 'shared' | 'per-project' = 'shared'; // Default to shared for simplicity
-    try {
-      const modeSetting = await this.db.query.settings.findFirst({
-        where: eq(settings.key, 'sandbox.mode'),
-      });
-      if (modeSetting?.value) {
-        const parsed = JSON.parse(modeSetting.value);
-        if (parsed === 'per-project' || parsed === 'shared') {
-          sandboxMode = parsed;
-        }
-      }
-    } catch (settingsErr) {
-      debugLog('startAgent', 'Failed to read sandbox.mode setting, using default', {
-        error: settingsErr instanceof Error ? settingsErr.message : String(settingsErr),
-      });
-    }
-    infoLog('startAgent', 'Sandbox mode', { mode: sandboxMode });
-
-    // Get sandbox - strategy depends on mode
-    infoLog('startAgent', 'Getting sandbox for project', { projectId, mode: sandboxMode });
-    let sandbox = await this.provider.get(projectId);
-    infoLog('startAgent', 'Sandbox lookup result', {
-      projectId,
-      foundSandbox: !!sandbox,
-      sandboxId: sandbox?.id,
-      sandboxProjectId: sandbox?.projectId,
-      sandboxStatus: sandbox?.status,
-    });
-
-    // In shared mode: use whatever sandbox is available (even if projectId doesn't match)
-    // In per-project mode: create project-specific sandbox if needed
-    const needsNewSandbox =
-      sandboxMode === 'per-project' && (!sandbox || sandbox.projectId !== projectId);
-
-    if (needsNewSandbox) {
-      infoLog('startAgent', 'Creating project-specific sandbox', {
-        projectId,
-        projectPath: project.path,
-        reason: sandbox ? 'default sandbox has wrong mount' : 'no sandbox found',
-      });
-
-      // Publish status about creating sandbox
-      await this.streams
-        .publish(sessionId, 'container-agent:status', {
-          taskId,
-          sessionId,
-          stage: 'creating_sandbox',
-          message: 'Creating project sandbox...',
-        })
-        .catch((e) =>
-          debugLog('startAgent', 'Failed to publish creating_sandbox status', { error: String(e) })
-        );
-
-      try {
-        // Import sandbox defaults
-        const { SANDBOX_DEFAULTS } = await import('../lib/sandbox/types.js');
-
-        sandbox = await this.provider.create({
-          projectId,
-          projectPath: project.path,
-          image: SANDBOX_DEFAULTS.image,
-          memoryMb: SANDBOX_DEFAULTS.memoryMb,
-          cpuCores: SANDBOX_DEFAULTS.cpuCores,
-          idleTimeoutMinutes: SANDBOX_DEFAULTS.idleTimeoutMinutes,
-          volumeMounts: [],
-        });
-
-        infoLog('startAgent', 'Created project-specific sandbox', {
-          sandboxId: sandbox.id,
-          projectPath: project.path,
-        });
-      } catch (createError) {
-        const errorMsg = createError instanceof Error ? createError.message : String(createError);
-        infoLog('startAgent', 'Failed to create project sandbox', {
-          projectId,
-          error: errorMsg,
-        });
-        return err(SandboxErrors.CONTAINER_CREATION_FAILED(errorMsg));
-      }
-    } else if (!sandbox) {
-      // No sandbox available at all
-      infoLog('startAgent', 'No sandbox available', { projectId, mode: sandboxMode });
+    // Use shared sandbox mode by default (fastest path - no per-project container creation)
+    // Sandbox was already fetched in parallel above
+    if (!sandbox) {
+      infoLog('startAgent', 'No sandbox available', { projectId });
       return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
 
@@ -316,6 +251,39 @@ export class ContainerAgentService {
       debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
     }
 
+    // Publish initial status event (awaited to ensure stream is working)
+    try {
+      await this.streams.publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'initializing',
+        message: 'Starting...',
+      });
+      debugLog('startAgent', 'Initial status event published', { sessionId });
+    } catch (publishErr) {
+      const errorMessage = publishErr instanceof Error ? publishErr.message : String(publishErr);
+      infoLog('startAgent', 'Failed to publish initial status event', {
+        sessionId,
+        error: errorMessage,
+      });
+      // Continue anyway - the stream exists, this is just a status update
+    }
+
+    // Stage: Validating - verify project and sandbox configuration
+    await this.streams.publish(sessionId, 'container-agent:status', {
+      taskId,
+      sessionId,
+      stage: 'validating',
+      message: 'Validating configuration...',
+    });
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content: `🔍 Validating project configuration for "${project.name}"...`,
+    });
+    infoLog('startAgent', 'Validating project configuration', { projectId, taskId });
+
     // Resolve agent configuration
     const agentConfig: AgentConfig = {
       model: model ?? project.config?.model ?? 'claude-sonnet-4-20250514',
@@ -326,20 +294,40 @@ export class ContainerAgentService {
       maxTurns: agentConfig.maxTurns,
     });
 
+    // Validate sandbox is available
+    if (!sandbox) {
+      infoLog('startAgent', 'Sandbox validation failed - no sandbox available');
+      return err(SandboxErrors.CONTAINER_NOT_FOUND);
+    }
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content: `✅ Configuration validated: model=${agentConfig.model}, maxTurns=${agentConfig.maxTurns}`,
+    });
+    infoLog('startAgent', 'Sandbox validated', {
+      sandboxId: sandbox.id,
+      status: sandbox.status,
+      containerId: sandbox.containerId?.slice(0, 12),
+    });
+
     // Create sentinel file path for cancellation
     const stopFilePath = `/tmp/.agent-stop-${taskId}`;
 
-    // Publish credentials status
-    await this.streams
-      .publish(sessionId, 'container-agent:status', {
-        taskId,
-        sessionId,
-        stage: 'credentials',
-        message: 'Retrieving authentication credentials...',
-      })
-      .catch((e) =>
-        debugLog('startAgent', 'Failed to publish credentials status', { error: String(e) })
-      );
+    // Stage: Credentials - get OAuth token
+    await this.streams.publish(sessionId, 'container-agent:status', {
+      taskId,
+      sessionId,
+      stage: 'credentials',
+      message: 'Authenticating...',
+    });
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content: '🔑 Retrieving OAuth credentials...',
+    });
+    infoLog('startAgent', 'Retrieving OAuth credentials', { taskId });
 
     // Get OAuth token from database (via ApiKeyService)
     // The Claude Agent SDK requires OAuth tokens to be written to ~/.claude/.credentials.json
@@ -367,8 +355,21 @@ export class ContainerAgentService {
 
     if (!oauthToken) {
       infoLog('startAgent', 'No OAuth token available');
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'assistant',
+        content: '❌ No OAuth token configured. Please add your Anthropic API key in Settings.',
+      });
       return err(SandboxErrors.API_KEY_NOT_CONFIGURED);
     }
+
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content: '✅ OAuth credentials retrieved successfully',
+    });
 
     // Build environment variables for agent-runner
     // CLAUDE_OAUTH_TOKEN is used by agent-runner to write credentials file
@@ -382,14 +383,56 @@ export class ContainerAgentService {
       AGENT_MODEL: agentConfig.model,
       AGENT_CWD: '/workspace',
       AGENT_STOP_FILE: stopFilePath,
+      AGENT_PHASE: phase,
+      ...(sdkSessionId ? { AGENT_SDK_SESSION_ID: sdkSessionId } : {}),
     };
     debugLog('startAgent', 'Environment variables prepared', {
       ...env,
       AGENT_PROMPT: `[${prompt.length} chars]`,
+      AGENT_PHASE: phase,
     });
 
+    // Stage: Creating Sandbox - ensure container is ready
+    await this.streams.publish(sessionId, 'container-agent:status', {
+      taskId,
+      sessionId,
+      stage: 'creating_sandbox',
+      message: 'Preparing sandbox...',
+    });
+    const containerShort = sandbox.containerId?.slice(0, 12) ?? 'unknown';
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content: `📦 Preparing sandbox container (${containerShort})...`,
+    });
+    infoLog('startAgent', 'Preparing sandbox environment', {
+      sandboxId: sandbox.id,
+      containerId: containerShort,
+    });
+
+    // Verify container is actually running in Docker
+    if (sandbox.status !== 'running') {
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'assistant',
+        content: `⚠️ Sandbox status: ${sandbox.status} (expecting: running)`,
+      });
+      infoLog('startAgent', 'Sandbox not running, attempting to verify', {
+        status: sandbox.status,
+      });
+    } else {
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'assistant',
+        content: '✅ Sandbox container ready',
+      });
+    }
+
     // Create the container bridge to process stdout events
-    debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId });
+    debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId, phase });
     const bridge = createContainerBridge({
       taskId,
       sessionId,
@@ -407,19 +450,33 @@ export class ContainerAgentService {
         infoLog('bridge:onError', 'Agent error via bridge callback', { taskId, error, turnCount });
         this.handleAgentError(taskId, error, turnCount);
       },
+      onPlanReady: (planData) => {
+        infoLog('bridge:onPlanReady', 'Plan ready via bridge callback', {
+          taskId,
+          planLength: planData.plan.length,
+          sdkSessionId: planData.sdkSessionId,
+          launchSwarm: planData.launchSwarm,
+        });
+        this.handlePlanReady(taskId, sessionId, projectId, planData);
+      },
     });
 
-    // Publish executing status
-    await this.streams
-      .publish(sessionId, 'container-agent:status', {
-        taskId,
-        sessionId,
-        stage: 'executing',
-        message: 'Starting agent process in container...',
-      })
-      .catch((e) =>
-        debugLog('startAgent', 'Failed to publish executing status', { error: String(e) })
-      );
+    // Await status event for persistence (critical for UI breadcrumbs)
+    await this.streams.publish(sessionId, 'container-agent:status', {
+      taskId,
+      sessionId,
+      stage: 'executing',
+      message: phase === 'plan' ? 'Planning...' : 'Executing...',
+    });
+    await this.streams.publish(sessionId, 'container-agent:message', {
+      taskId,
+      sessionId,
+      role: 'assistant',
+      content:
+        phase === 'plan'
+          ? `🧠 Starting planning phase with ${agentConfig.model}...`
+          : `⚡ Starting execution phase with ${agentConfig.model}...`,
+    });
 
     try {
       // Start the agent-runner process inside the container
@@ -451,6 +508,7 @@ export class ContainerAgentService {
         stopFilePath,
         startedAt: new Date(),
         stopRequested: false,
+        phase,
       };
 
       this.runningAgents.set(taskId, runningAgent);
@@ -463,26 +521,20 @@ export class ContainerAgentService {
       debugLog('startAgent', 'Starting stdout stream processing', { taskId });
       this.processAgentOutput(runningAgent);
 
-      // Publish running status
+      // Await critical status events for persistence
       await this.streams.publish(sessionId, 'container-agent:status', {
         taskId,
         sessionId,
         stage: 'running',
-        message: 'Agent is now running',
+        message: 'Running',
       });
-
-      // Publish started event (legacy, for backward compatibility)
       await this.streams.publish(sessionId, 'container-agent:started', {
         taskId,
         sessionId,
         model: agentConfig.model,
         maxTurns: agentConfig.maxTurns,
       });
-      infoLog('startAgent', 'Agent started successfully', {
-        taskId,
-        sessionId,
-        model: agentConfig.model,
-      });
+      infoLog('startAgent', 'Agent started', { taskId, sessionId });
 
       return ok(undefined);
     } catch (error) {
@@ -604,13 +656,10 @@ export class ContainerAgentService {
       sandboxId: agent.sandboxId,
     });
 
-    // Capture stderr for debugging - critical for understanding agent-runner failures
-    agent.execResult.stderr.on('data', (chunk: Buffer) => {
-      const stderrText = chunk.toString().trim();
-      if (stderrText) {
-        infoLog('processAgentOutput:stderr', stderrText, { taskId: agent.taskId });
-      }
-    });
+    // Process stderr through the bridge to capture JSON error events
+    // The agent-runner writes error events to stderr as a fallback when stdout fails (e.g., EPIPE)
+    // This is critical for surfacing initialization errors to the UI
+    agent.bridge.processStderr(agent.execResult.stderr);
 
     try {
       // Process the stdout stream through the bridge
@@ -900,6 +949,105 @@ export class ContainerAgentService {
       taskId,
       remainingAgents: this.runningAgents.size,
     });
+  }
+
+  /**
+   * Handle plan ready event from planning phase.
+   * Stores the plan data for later execution when approved.
+   */
+  private handlePlanReady(
+    taskId: string,
+    sessionId: string,
+    projectId: string,
+    planData: {
+      plan: string;
+      turnCount: number;
+      sdkSessionId: string;
+      launchSwarm?: boolean;
+      teammateCount?: number;
+      allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+    }
+  ): void {
+    infoLog('handlePlanReady', 'Storing plan data for approval', {
+      taskId,
+      sessionId,
+      planLength: planData.plan.length,
+      sdkSessionId: planData.sdkSessionId,
+      launchSwarm: planData.launchSwarm,
+      teammateCount: planData.teammateCount,
+    });
+
+    // Store plan data for later execution
+    this.pendingPlans.set(taskId, {
+      taskId,
+      sessionId,
+      projectId,
+      plan: planData.plan,
+      turnCount: planData.turnCount,
+      sdkSessionId: planData.sdkSessionId,
+      launchSwarm: planData.launchSwarm,
+      teammateCount: planData.teammateCount,
+      allowedPrompts: planData.allowedPrompts,
+      createdAt: new Date(),
+    });
+
+    // Clean up running agent (planning phase completed)
+    this.runningAgents.delete(taskId);
+
+    infoLog('handlePlanReady', 'Plan stored, waiting for approval', {
+      taskId,
+      pendingPlans: this.pendingPlans.size,
+      remainingAgents: this.runningAgents.size,
+    });
+  }
+
+  /**
+   * Get pending plan data for a task.
+   */
+  getPendingPlan(taskId: string): PlanData | undefined {
+    return this.pendingPlans.get(taskId);
+  }
+
+  /**
+   * Approve a plan and start execution phase.
+   */
+  async approvePlan(taskId: string): Promise<Result<void, SandboxError>> {
+    const planData = this.pendingPlans.get(taskId);
+    if (!planData) {
+      infoLog('approvePlan', 'No pending plan found', { taskId });
+      return err(SandboxErrors.PLAN_NOT_FOUND(taskId));
+    }
+
+    infoLog('approvePlan', 'Approving plan and starting execution', {
+      taskId,
+      sdkSessionId: planData.sdkSessionId,
+      launchSwarm: planData.launchSwarm,
+    });
+
+    // Remove from pending plans
+    this.pendingPlans.delete(taskId);
+
+    // Start execution phase with the SDK session ID to resume
+    const result = await this.startAgent({
+      projectId: planData.projectId,
+      taskId: planData.taskId,
+      sessionId: planData.sessionId,
+      prompt: planData.plan, // Use plan as context (though session will resume)
+      phase: 'execute',
+      sdkSessionId: planData.sdkSessionId,
+    });
+
+    return result;
+  }
+
+  /**
+   * Reject a plan and clean up.
+   */
+  rejectPlan(taskId: string): boolean {
+    const existed = this.pendingPlans.has(taskId);
+    this.pendingPlans.delete(taskId);
+    infoLog('rejectPlan', existed ? 'Plan rejected' : 'No plan to reject', { taskId });
+    return existed;
   }
 }
 

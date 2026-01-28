@@ -210,6 +210,10 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         controllers.add(controller);
         sseConnections.set(sessionId, controllers);
 
+        console.log(
+          `[SSE] Connection established for session ${sessionId}, fromOffset=${fromOffset}`
+        );
+
         // Send initial connected event
         const connectedData = JSON.stringify({
           type: 'connected',
@@ -231,17 +235,28 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
                 ) => Array<{ type: string; data: unknown; offset: number; timestamp: number }>;
               }
             ).getEvents(sessionId);
-            for (const event of existingEvents) {
-              if (event.offset >= fromOffset) {
-                const eventData = JSON.stringify({
-                  type: event.type,
-                  data: event.data,
-                  timestamp: event.timestamp,
-                  offset: event.offset,
-                });
-                controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
-              }
+
+            // Filter events by offset and count how many will be replayed
+            const eventsToReplay = existingEvents.filter(
+              (event: { offset: number }) => event.offset >= fromOffset
+            );
+            console.log(
+              `[SSE] Replaying ${eventsToReplay.length} events for session ${sessionId} (total stored: ${existingEvents.length}, fromOffset: ${fromOffset})`
+            );
+
+            for (const event of eventsToReplay) {
+              const eventData = JSON.stringify({
+                type: event.type,
+                data: event.data,
+                timestamp: event.timestamp,
+                offset: event.offset,
+              });
+              controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
             }
+          } else {
+            console.log(
+              `[SSE] Server does not have getEvents method for session ${sessionId}, no replay available`
+            );
           }
 
           // Then subscribe to new events
@@ -250,6 +265,9 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
               if (typeof event.offset === 'number' && event.offset < fromOffset) {
                 return;
               }
+              console.log(
+                `[SSE] Sending live event to session ${sessionId}: type=${event.type}, offset=${event.offset}`
+              );
               const eventData = JSON.stringify({
                 type: event.type,
                 data: event.data,
@@ -263,6 +281,8 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
               cleanupSSEConnection(sessionId, controller, { pingInterval, unsubscribe });
             }
           });
+        } else {
+          console.log(`[SSE] No durableStreamsService available for session ${sessionId}`);
         }
 
         // Send keep-alive ping every 15 seconds
@@ -277,6 +297,7 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         }, 15000);
       },
       cancel() {
+        console.log(`[SSE] Connection cancelled/closed for session ${sessionId}`);
         cleanupSSEConnection(sessionId, streamController, { pingInterval, unsubscribe });
       },
     });

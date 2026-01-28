@@ -166,6 +166,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
     // Notify real-time subscribers
     const subs = this.subscribers.get(id);
+    const subscriberCount = subs?.size ?? 0;
     if (subs) {
       for (const callback of subs) {
         try {
@@ -176,7 +177,9 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
       }
     }
 
-    console.log(`[InMemoryStreams] Published to ${id}: ${type} (offset: ${offset})`);
+    console.log(
+      `[InMemoryStreams] Published to ${id}: ${type} (offset: ${offset}, subscribers: ${subscriberCount}, total events: ${events.length})`
+    );
     return offset;
   }
 
@@ -215,7 +218,9 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
   // Get all events for a stream (for SSE endpoint)
   getEvents(id: string): StoredEvent[] {
-    return this.streams.get(id) ?? [];
+    const events = this.streams.get(id) ?? [];
+    console.log(`[InMemoryStreams] getEvents called for ${id}: ${events.length} events available`);
+    return events;
   }
 
   // Add a real-time subscriber callback
@@ -229,7 +234,13 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
       this.subscribers.set(id, subs);
     }
     subs.add(callback);
-    return () => subs.delete(callback);
+    console.log(`[InMemoryStreams] Added real-time subscriber for ${id} (total: ${subs.size})`);
+    return () => {
+      subs.delete(callback);
+      console.log(
+        `[InMemoryStreams] Removed real-time subscriber for ${id} (remaining: ${subs.size})`
+      );
+    };
   }
 }
 
@@ -238,7 +249,8 @@ const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
 console.log('[API Server] Using in-memory DurableStreamsServer for local development');
 
 // DurableStreamsService for SSE and container agent events
-const durableStreamsService = new DurableStreamsService(inMemoryStreamsServer);
+// Pass db for event persistence to session_events table
+const durableStreamsService = new DurableStreamsService(inMemoryStreamsServer, db);
 
 // SessionService for session management (needed for task creation history)
 const sessionService = new SessionService(db, inMemoryStreamsServer, {

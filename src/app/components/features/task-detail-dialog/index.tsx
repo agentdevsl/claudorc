@@ -299,6 +299,7 @@ export function TaskDetailDialog({
                 <TaskMetadata
                   task={task}
                   onModelChange={(modelId) => handleFieldChange('modelOverride', modelId)}
+                  onViewSession={onViewSession}
                 />
 
                 {/* Labels */}

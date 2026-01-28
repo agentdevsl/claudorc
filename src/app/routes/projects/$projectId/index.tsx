@@ -1,5 +1,5 @@
 import { GearSix } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
 import { KanbanBoard } from '@/app/components/features/kanban-board';
@@ -40,6 +40,7 @@ export const Route = createFileRoute('/projects/$projectId/')({
 function ProjectKanban(): React.JSX.Element {
   const { projectId } = Route.useParams();
   const { error: showError, warning: showWarning } = useToast();
+  const navigate = useNavigate();
   const [project, setProject] = useState<ProjectListItem | null>(null);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -262,6 +263,9 @@ function ProjectKanban(): React.JSX.Element {
           } else {
             console.error('[ProjectKanban] Failed to delete task:', result.error);
           }
+        }}
+        onViewSession={(sessionId) => {
+          navigate({ to: '/sessions/$sessionId', params: { sessionId } });
         }}
       />
 

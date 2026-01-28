@@ -198,4 +198,10 @@ export const SandboxErrors = {
     message: `Failed to create event stream: ${message}`,
     status: 500,
   }),
+
+  // Plan errors
+  PLAN_NOT_FOUND: (taskId: string) =>
+    createError('SANDBOX_PLAN_NOT_FOUND', `No pending plan found for task: ${taskId}`, 404, {
+      taskId,
+    }),
 };
