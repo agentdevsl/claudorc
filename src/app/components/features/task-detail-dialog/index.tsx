@@ -1,6 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ContainerAgentPanel } from '@/app/components/features/container-agent-panel';
 import { PlanSessionView } from '@/app/components/features/plan-session-view';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
@@ -13,6 +13,59 @@ import { TaskHeader } from './task-header';
 import { TaskLabels } from './task-labels';
 import { TaskMetadata } from './task-metadata';
 import { TaskWorktree } from './task-worktree';
+
+/**
+ * Custom hook for drag functionality
+ */
+function useDraggable() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only allow dragging from left mouse button
+      if (e.button !== 0) return;
+
+      setIsDragging(true);
+      dragStart.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      };
+      e.preventDefault();
+    },
+    [position]
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({
+        x: e.clientX - dragStart.current.x,
+        y: e.clientY - dragStart.current.y,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const reset = useCallback(() => {
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  return { position, isDragging, handleMouseDown, reset };
+}
 
 export interface TaskViewer {
   userId: string;
@@ -114,14 +167,16 @@ export function TaskDetailDialog({
 }: TaskDetailDialogProps): React.JSX.Element {
   const [state, dispatch] = useReducer(dialogReducer, initialState);
   const [pendingChanges, setPendingChanges] = useState<Partial<UpdateTaskInput>>({});
+  const { position, isDragging, handleMouseDown, reset: resetPosition } = useDraggable();
 
   // Reset state when task changes or dialog closes
   useEffect(() => {
     if (!open || !task) {
       setPendingChanges({});
       dispatch({ type: 'CANCEL_EDIT' });
+      resetPosition();
     }
-  }, [open, task]);
+  }, [open, task, resetPosition]);
 
   // Merge pending changes with task for display
   const displayTask = useMemo(() => {
@@ -247,24 +302,33 @@ export function TaskDetailDialog({
           aria-describedby={undefined}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-full max-w-2xl max-h-[90vh]',
-            '-translate-x-1/2 -translate-y-1/2',
             'rounded-xl border border-border bg-surface shadow-xl',
             'flex flex-col overflow-hidden',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-            'duration-200 ease-out'
+            'duration-200 ease-out',
+            isDragging && 'cursor-grabbing'
           )}
+          style={{
+            transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
+          }}
         >
           <VisuallyHidden>
             <DialogPrimitive.Title>{displayTask.title || 'Task details'}</DialogPrimitive.Title>
           </VisuallyHidden>
-          {/* Header */}
-          <TaskHeader
-            task={displayTask}
-            viewers={viewers}
-            onPriorityChange={(priority) => handleFieldChange('priority', priority)}
-          />
+          {/* Header - acts as drag handle */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Drag handle needs mouse event */}
+          <div
+            onMouseDown={handleMouseDown}
+            className={cn('cursor-grab', isDragging && 'cursor-grabbing')}
+          >
+            <TaskHeader
+              task={displayTask}
+              viewers={viewers}
+              onPriorityChange={(priority) => handleFieldChange('priority', priority)}
+            />
+          </div>
 
           {/* Content area - conditionally render based on mode */}
           {showPlanSessionView ? (
@@ -276,7 +340,7 @@ export function TaskDetailDialog({
               />
             </div>
           ) : showContainerAgentPanel ? (
-            <div className="flex-1 overflow-hidden p-4">
+            <div className="flex-1 min-h-0 p-4">
               <ContainerAgentPanel
                 sessionId={task.sessionId}
                 onStop={onStopAgent ? () => onStopAgent(task.id) : undefined}

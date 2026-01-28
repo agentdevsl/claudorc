@@ -26,6 +26,7 @@ function infoLog(context: string, message: string, data?: Record<string, unknown
   console.log(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
 }
 
+import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
 import { sessions } from '../db/schema/sessions.js';
 import { tasks } from '../db/schema/tasks.js';
@@ -198,6 +199,43 @@ export class ContainerAgentService {
       return err(SandboxErrors.TASK_NOT_FOUND(taskId));
     }
 
+    // Create or reuse agent record for this container agent run
+    // This allows the UI to track active agents
+    const agentId = `agent-${taskId}`;
+    debugLog('startAgent', 'Creating agent record', { agentId, projectId, taskId });
+    try {
+      await this.db
+        .insert(agents)
+        .values({
+          id: agentId,
+          projectId,
+          name: `Container Agent`,
+          type: 'task',
+          status: 'starting',
+          currentTaskId: taskId,
+          currentSessionId: sessionId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .onConflictDoUpdate({
+          target: agents.id,
+          set: {
+            status: 'starting',
+            currentTaskId: taskId,
+            currentSessionId: sessionId,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      debugLog('startAgent', 'Agent record created/updated', { agentId });
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      infoLog('startAgent', 'Failed to create agent record', {
+        agentId,
+        error: errorMessage,
+      });
+      // Continue anyway - agent tracking is non-critical
+    }
+
     // Create database session record for this container agent run
     debugLog('startAgent', 'Creating session record', { sessionId, taskId });
     try {
@@ -205,7 +243,7 @@ export class ContainerAgentService {
         id: sessionId,
         projectId,
         taskId,
-        agentId: null, // Container agents don't have a separate agent record
+        agentId,
         title: task.title ?? `Container Agent - ${taskId}`,
         url: `/projects/${projectId}/sessions/${sessionId}`,
         status: 'active',
@@ -227,6 +265,27 @@ export class ContainerAgentService {
         return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
       }
       debugLog('startAgent', 'Session already exists, continuing', { sessionId });
+    }
+
+    // Link agent and session to task
+    debugLog('startAgent', 'Linking agent and session to task', { taskId, agentId, sessionId });
+    try {
+      await this.db
+        .update(tasks)
+        .set({
+          agentId,
+          sessionId,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tasks.id, taskId));
+      debugLog('startAgent', 'Task linked to agent and session', { taskId });
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      infoLog('startAgent', 'Failed to link task to agent/session', {
+        taskId,
+        error: errorMessage,
+      });
+      // Continue anyway - linking is non-critical
     }
 
     // Create durable stream for real-time events
@@ -516,6 +575,22 @@ export class ContainerAgentService {
         taskId,
         totalRunning: this.runningAgents.size,
       });
+
+      // Update agent status to 'running' in database
+      try {
+        await this.db
+          .update(agents)
+          .set({
+            status: phase === 'plan' ? 'planning' : 'running',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agents.id, agentId));
+        debugLog('startAgent', 'Agent status updated to running', { agentId, phase });
+      } catch (dbErr) {
+        const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+        infoLog('startAgent', 'Failed to update agent status', { agentId, error: errorMessage });
+        // Non-critical, continue
+      }
 
       // Start processing the stdout stream (async, don't await)
       debugLog('startAgent', 'Starting stdout stream processing', { taskId });
@@ -842,6 +917,27 @@ export class ContainerAgentService {
       }
     }
 
+    // Update agent status to completed/idle
+    const agentId = `agent-${taskId}`;
+    try {
+      await this.db
+        .update(agents)
+        .set({
+          status: 'completed',
+          currentTaskId: null,
+          currentSessionId: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(agents.id, agentId));
+      debugLog('handleAgentComplete', 'Agent status updated to completed', { agentId });
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      infoLog('handleAgentComplete', 'Failed to update agent status', {
+        agentId,
+        error: errorMessage,
+      });
+    }
+
     // Clean up sentinel file
     try {
       debugLog('handleAgentComplete', 'Cleaning up sentinel file', {
@@ -941,6 +1037,27 @@ export class ContainerAgentService {
           publishErr
         );
       }
+    }
+
+    // Update agent status to error
+    const agentId = `agent-${taskId}`;
+    try {
+      await this.db
+        .update(agents)
+        .set({
+          status: 'error',
+          currentTaskId: null,
+          currentSessionId: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(agents.id, agentId));
+      debugLog('handleAgentError', 'Agent status updated to error', { agentId });
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      infoLog('handleAgentError', 'Failed to update agent status', {
+        agentId,
+        error: errorMessage,
+      });
     }
 
     // Remove from running agents
