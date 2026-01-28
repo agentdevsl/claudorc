@@ -457,6 +457,37 @@ async function runPlanningPhase(): Promise<void> {
         });
       }
 
+      // Handle tool_use_summary events (actual tool completion with results from SDK)
+      if (msg.type === 'tool_use_summary') {
+        const toolSummary = msg as {
+          tool_use_id?: string;
+          tool_name?: string;
+          tool_input?: Record<string, unknown>;
+          tool_result?: string;
+          is_error?: boolean;
+        };
+
+        console.error(
+          `[agent-runner] Tool summary: ${toolSummary.tool_name} (error: ${toolSummary.is_error})`
+        );
+
+        if (toolSummary.tool_use_id) {
+          // Remove from activeTools to avoid duplicate emission
+          const startInfo = activeTools.get(toolSummary.tool_use_id);
+          activeTools.delete(toolSummary.tool_use_id);
+
+          // Emit tool result with actual content from SDK
+          const startTime = startInfo?.startTime ?? Date.now();
+          events.toolResult({
+            toolName: toolSummary.tool_name ?? 'unknown',
+            toolId: toolSummary.tool_use_id,
+            result: toolSummary.tool_result ?? '',
+            isError: toolSummary.is_error ?? false,
+            durationMs: Date.now() - startTime,
+          });
+        }
+      }
+
       // Handle assistant messages
       if (msg.type === 'assistant') {
         // Assistant message means all previous tools have completed
@@ -504,6 +535,9 @@ async function runPlanningPhase(): Promise<void> {
     console.error(
       `[agent-runner] Planning stream ended. Messages: ${messageCount}, turns: ${turn}`
     );
+
+    // Emit results for any remaining active tools
+    emitAllToolResults();
 
     // Stream ended - emit plan_ready if we have content
     session.close();
@@ -732,6 +766,37 @@ async function runExecutionPhase(): Promise<void> {
             toolName: toolMsg.tool_name,
             toolId: toolMsg.tool_use_id,
             input: {},
+          });
+        }
+      }
+
+      // Handle tool_use_summary events (actual tool completion with results from SDK)
+      if (msg.type === 'tool_use_summary') {
+        const toolSummary = msg as {
+          tool_use_id?: string;
+          tool_name?: string;
+          tool_input?: Record<string, unknown>;
+          tool_result?: string;
+          is_error?: boolean;
+        };
+
+        console.error(
+          `[agent-runner] Tool summary: ${toolSummary.tool_name} (error: ${toolSummary.is_error})`
+        );
+
+        if (toolSummary.tool_use_id) {
+          // Remove from activeTools to avoid duplicate emission
+          const startInfo = activeTools.get(toolSummary.tool_use_id);
+          activeTools.delete(toolSummary.tool_use_id);
+
+          // Emit tool result with actual content from SDK
+          const startTime = startInfo?.startTime ?? Date.now();
+          events.toolResult({
+            toolName: toolSummary.tool_name ?? 'unknown',
+            toolId: toolSummary.tool_use_id,
+            result: toolSummary.tool_result ?? '',
+            isError: toolSummary.is_error ?? false,
+            durationMs: Date.now() - startTime,
           });
         }
       }

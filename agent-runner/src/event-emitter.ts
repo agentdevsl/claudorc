@@ -172,10 +172,11 @@ export class EventEmitter {
   }
 
   /**
-   * Emit agent:tool:result event (ASYNC - frequent during execution).
+   * Emit agent:tool:result event (SYNC - critical for UI state).
+   * Changed to synchronous to ensure tool results are delivered before process exit.
    */
   toolResult(data: AgentToolResultData): void {
-    this.emit('agent:tool:result', { ...data }, false);
+    this.emit('agent:tool:result', { ...data }, true);
   }
 
   /**

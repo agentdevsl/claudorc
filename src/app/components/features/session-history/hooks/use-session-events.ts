@@ -319,6 +319,23 @@ export function parseEventsToStreamEntries(
     }
   }
 
+  // Build map of tool:result events by ID for instant lookup
+  const toolResultEvents = new Map<
+    string,
+    { event: SessionDetail['events'][0]; data: Record<string, unknown> }
+  >();
+  for (const event of events) {
+    const isToolResult =
+      event.type === 'tool:result' || event.type === 'container-agent:tool:result';
+    if (isToolResult) {
+      const rawData = event.data as Record<string, unknown>;
+      const toolId = (rawData.toolId as string) ?? (rawData.id as string);
+      if (toolId) {
+        toolResultEvents.set(toolId, { event, data: rawData });
+      }
+    }
+  }
+
   // Track which tool:start events have been paired with results
   const pairedToolStartIds = new Set<string>();
 
@@ -347,14 +364,8 @@ export function parseEventsToStreamEntries(
       };
       const toolId = toolData.id;
 
-      // Look ahead for matching result
-      const hasMatchingResult = toolId
-        ? events.some((e) => {
-            if (e.type !== 'container-agent:tool:result') return false;
-            const rd = e.data as Record<string, unknown>;
-            return (rd.toolId ?? rd.id) === toolId;
-          })
-        : false;
+      // Check for matching result using pre-built map
+      const hasMatchingResult = toolId ? toolResultEvents.has(toolId) : false;
 
       if (hasMatchingResult) continue;
 
@@ -560,10 +571,8 @@ export function parseEventsToStreamEntries(
         const toolData = event.data as ToolStartData;
         const toolId = toolData.id;
 
-        // Look ahead to see if there's a matching result event
-        const hasMatchingResult = toolId
-          ? events.some((e) => e.type === 'tool:result' && (e.data as ToolResultData).id === toolId)
-          : false;
+        // Check for matching result using pre-built map
+        const hasMatchingResult = toolId ? toolResultEvents.has(toolId) : false;
 
         if (hasMatchingResult) {
           // Skip this event - it will be consolidated with the result

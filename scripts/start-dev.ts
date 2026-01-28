@@ -118,6 +118,36 @@ async function killExistingProcesses() {
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
+async function checkSandboxImage() {
+  logStep('🐳', 'Checking agent-sandbox Docker image...');
+
+  try {
+    const proc = Bun.spawn(['bash', 'scripts/check-sandbox-image.sh'], {
+      cwd: process.cwd(),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const output = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+
+    // Parse output for status
+    if (output.includes('up to date')) {
+      const imageId = output.match(/Image ID: (sha256:\w{12})/)?.[1] || 'unknown';
+      console.log(`   ${colors.dim}Image is up to date (${imageId.slice(7, 19)})${colors.reset}`);
+    } else if (output.includes('Updated')) {
+      log('📥', 'Downloaded newer image from Docker Hub', colors.green);
+    } else if (output.includes('not found')) {
+      log('📥', 'Pulling agent-sandbox image...', colors.yellow);
+    }
+
+    return exitCode === 0;
+  } catch {
+    console.log(`   ${colors.dim}Skipping image check (Docker not available)${colors.reset}`);
+    return true; // Don't fail startup if Docker isn't available
+  }
+}
+
 async function main() {
   console.clear();
   console.log(
@@ -127,6 +157,9 @@ async function main() {
 
   // Kill any existing processes
   await killExistingProcesses();
+
+  // Check sandbox Docker image
+  await checkSandboxImage();
 
   // Start API server
   logStep('📡', `Starting API server on port ${API_PORT}...`);
