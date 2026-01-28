@@ -49,15 +49,15 @@ describe('Task Workflow Integration', () => {
     const moveResult1 = await taskService.moveColumn(task.id, 'in_progress');
     expect(moveResult1.ok).toBe(true);
     if (moveResult1.ok) {
-      expect(moveResult1.value.column).toBe('in_progress');
-      expect(moveResult1.value.startedAt).toBeTruthy();
+      expect(moveResult1.value.task.column).toBe('in_progress');
+      expect(moveResult1.value.task.startedAt).toBeTruthy();
     }
 
     // Move from in_progress to waiting_approval
     const moveResult2 = await taskService.moveColumn(task.id, 'waiting_approval');
     expect(moveResult2.ok).toBe(true);
     if (moveResult2.ok) {
-      expect(moveResult2.value.column).toBe('waiting_approval');
+      expect(moveResult2.value.task.column).toBe('waiting_approval');
     }
   });
 

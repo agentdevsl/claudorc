@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WorktreeService } from '../../src/services/worktree.service';
+import { createTestAgent } from '../factories/agent.factory';
 import { createTestProject } from '../factories/project.factory';
 import { createTestTask } from '../factories/task.factory';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
@@ -83,12 +84,15 @@ describe('WorktreeService Integration', () => {
     if (!setupSuccessful) return;
 
     const project = await createTestProject({ path: projectPath });
+    const agent = await createTestAgent(project.id, { name: 'Test Agent' });
     const task = await createTestTask(project.id, { title: 'Test task' });
 
     const result = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task.id,
+        taskTitle: task.title,
         baseBranch: 'main',
       },
       {
@@ -101,7 +105,7 @@ describe('WorktreeService Integration', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.status).toBe('active');
-      expect(result.value.branch).toContain('agent/');
+      expect(result.value.branch).toContain('test-task');
       expect(result.value.baseBranch).toBe('main');
     }
   });
@@ -110,12 +114,15 @@ describe('WorktreeService Integration', () => {
     if (!setupSuccessful) return;
 
     const project = await createTestProject({ path: projectPath });
+    const agent = await createTestAgent(project.id, { name: 'Test Agent' });
     const task = await createTestTask(project.id, { title: 'Test task' });
 
     const createResult = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task.id,
+        taskTitle: task.title,
         baseBranch: 'main',
       },
       {
@@ -145,12 +152,15 @@ describe('WorktreeService Integration', () => {
     if (!setupSuccessful) return;
 
     const project = await createTestProject({ path: projectPath });
+    const agent = await createTestAgent(project.id, { name: 'Test Agent' });
     const task = await createTestTask(project.id, { title: 'Test task' });
 
     const createResult = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task.id,
+        taskTitle: task.title,
         baseBranch: 'main',
       },
       {
@@ -178,12 +188,15 @@ describe('WorktreeService Integration', () => {
     if (!setupSuccessful) return;
 
     const project = await createTestProject({ path: projectPath });
+    const agent = await createTestAgent(project.id, { name: 'Test Agent' });
     const task = await createTestTask(project.id, { title: 'Test task' });
 
     const createResult = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task.id,
+        taskTitle: task.title,
         baseBranch: 'main',
       },
       {
@@ -211,13 +224,16 @@ describe('WorktreeService Integration', () => {
     if (!setupSuccessful) return;
 
     const project = await createTestProject({ path: projectPath });
+    const agent = await createTestAgent(project.id, { name: 'Test Agent' });
     const task1 = await createTestTask(project.id, { title: 'Task 1' });
     const task2 = await createTestTask(project.id, { title: 'Task 2' });
 
     const wt1 = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task1.id,
+        taskTitle: task1.title,
         baseBranch: 'main',
       },
       {
@@ -230,7 +246,9 @@ describe('WorktreeService Integration', () => {
     const wt2 = await worktreeService.create(
       {
         projectId: project.id,
+        agentId: agent.id,
         taskId: task2.id,
+        taskTitle: task2.title,
         baseBranch: 'main',
       },
       {

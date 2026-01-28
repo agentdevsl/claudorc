@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@/db/schema/agents';
 import { AgentErrors } from '@/lib/errors/agent-errors';
 import { err, ok } from '@/lib/utils/result';
+import { createAgentsRoutes } from '@/server/routes/agents';
 
 const agentServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -15,27 +16,7 @@ const agentServiceMocks = vi.hoisted(() => ({
   resume: vi.fn(),
 }));
 
-vi.mock('@/services/task.service', () => ({ TaskService: class {} }));
-vi.mock('@/services/worktree.service', () => ({ WorktreeService: class {} }));
-vi.mock('@/services/session.service', () => ({ SessionService: class {} }));
-vi.mock('@/services/project.service', () => ({ ProjectService: class {} }));
-vi.mock('@/services/agent.service', () => ({
-  AgentService: class {
-    list = agentServiceMocks.list;
-    create = agentServiceMocks.create;
-    getById = agentServiceMocks.getById;
-    update = agentServiceMocks.update;
-    delete = agentServiceMocks.delete;
-    start = agentServiceMocks.start;
-    stop = agentServiceMocks.stop;
-    pause = agentServiceMocks.pause;
-    resume = agentServiceMocks.resume;
-  },
-}));
-vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
-
-import { Route as AgentPauseRoute } from '@/app/routes/api/agents/$id/pause';
-import { Route as AgentResumeRoute } from '@/app/routes/api/agents/$id/resume';
+let app: ReturnType<typeof createAgentsRoutes>;
 
 const sampleAgent: Agent = {
   id: 'agent-1',
@@ -51,36 +32,31 @@ const sampleAgent: Agent = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 };
 
-const jsonRequest = (url: string, body: unknown, init?: RequestInit): Request =>
-  new Request(url, {
-    ...init,
-    method: init?.method ?? 'POST',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    body: JSON.stringify(body),
-  });
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  return (await response.json()) as T;
-};
+const jsonRequest = (body: unknown, init?: RequestInit) => ({
+  ...init,
+  method: init?.method ?? 'POST',
+  headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+  body: JSON.stringify(body),
+});
 
 describe('Agent Lifecycle API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    app = createAgentsRoutes({
+      agentService: agentServiceMocks as never,
+    });
   });
 
   describe('POST /api/agents/:id/pause', () => {
     it('pauses a running agent', async () => {
       agentServiceMocks.pause.mockResolvedValue(ok(undefined));
 
-      const response = await AgentPauseRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/agents/agent-1/pause', {
-          method: 'POST',
-        }),
-        params: { id: sampleAgent.id },
+      const response = await app.request('/agent-1/pause', {
+        method: 'POST',
       });
 
-      expect(response?.status).toBe(200);
-      const data = await parseJson<{ ok: true; data: { paused: boolean } }>(response as Response);
+      expect(response.status).toBe(200);
+      const data = (await response.json()) as { ok: true; data: { paused: boolean } };
       expect(data.data.paused).toBe(true);
       expect(agentServiceMocks.pause).toHaveBeenCalledWith(sampleAgent.id);
     });
@@ -88,15 +64,12 @@ describe('Agent Lifecycle API', () => {
     it('returns 404 for non-existent agent', async () => {
       agentServiceMocks.pause.mockResolvedValue(err(AgentErrors.NOT_FOUND));
 
-      const response = await AgentPauseRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/agents/agent-404/pause', {
-          method: 'POST',
-        }),
-        params: { id: 'agent-404' },
+      const response = await app.request('/agent-404/pause', {
+        method: 'POST',
       });
 
-      expect(response?.status).toBe(404);
-      const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
+      expect(response.status).toBe(404);
+      const data = (await response.json()) as { ok: false; error: { code: string } };
       expect(data.error.code).toBe('AGENT_NOT_FOUND');
     });
   });
@@ -111,16 +84,13 @@ describe('Agent Lifecycle API', () => {
         })
       );
 
-      const response = await AgentResumeRoute.options.server?.handlers?.POST({
-        request: jsonRequest('http://localhost/api/agents/agent-1/resume', {}),
-        params: { id: sampleAgent.id },
-      });
+      const response = await app.request('/agent-1/resume', jsonRequest({}));
 
-      expect(response?.status).toBe(200);
-      const data = await parseJson<{
+      expect(response.status).toBe(200);
+      const data = (await response.json()) as {
         ok: true;
         data: { runId: string; status: string; turnCount: number };
-      }>(response as Response);
+      };
       expect(data.data.runId).toBe('run-123');
       expect(agentServiceMocks.resume).toHaveBeenCalledWith(sampleAgent.id, undefined);
     });
@@ -134,14 +104,14 @@ describe('Agent Lifecycle API', () => {
         })
       );
 
-      const response = await AgentResumeRoute.options.server?.handlers?.POST({
-        request: jsonRequest('http://localhost/api/agents/agent-1/resume', {
+      const response = await app.request(
+        '/agent-1/resume',
+        jsonRequest({
           feedback: 'Please continue with the next step',
-        }),
-        params: { id: sampleAgent.id },
-      });
+        })
+      );
 
-      expect(response?.status).toBe(200);
+      expect(response.status).toBe(200);
       expect(agentServiceMocks.resume).toHaveBeenCalledWith(
         sampleAgent.id,
         'Please continue with the next step'
@@ -151,13 +121,10 @@ describe('Agent Lifecycle API', () => {
     it('returns 404 for non-existent agent', async () => {
       agentServiceMocks.resume.mockResolvedValue(err(AgentErrors.NOT_FOUND));
 
-      const response = await AgentResumeRoute.options.server?.handlers?.POST({
-        request: jsonRequest('http://localhost/api/agents/agent-404/resume', {}),
-        params: { id: 'agent-404' },
-      });
+      const response = await app.request('/agent-404/resume', jsonRequest({}));
 
-      expect(response?.status).toBe(404);
-      const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
+      expect(response.status).toBe(404);
+      const data = (await response.json()) as { ok: false; error: { code: string } };
       expect(data.error.code).toBe('AGENT_NOT_FOUND');
     });
   });

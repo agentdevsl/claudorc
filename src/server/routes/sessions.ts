@@ -47,6 +47,34 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
     }
   });
 
+  // POST /api/sessions
+  app.post('/', async (c) => {
+    try {
+      const body = await c.req.json();
+      const { projectId, taskId, agentId, title } = body;
+
+      if (!projectId) {
+        return json(
+          { ok: false, error: { code: 'VALIDATION_ERROR', message: 'projectId is required' } },
+          400
+        );
+      }
+
+      const result = await sessionService.create({ projectId, taskId, agentId, title });
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status ?? 400);
+      }
+
+      return json({ ok: true, data: result.value }, 201);
+    } catch (error) {
+      console.error('[Sessions] Create error:', error);
+      return json(
+        { ok: false, error: { code: 'SERVER_ERROR', message: 'Failed to create session' } },
+        500
+      );
+    }
+  });
+
   // GET /api/sessions/:id/events
   app.get('/:id/events', async (c) => {
     const id = c.req.param('id');

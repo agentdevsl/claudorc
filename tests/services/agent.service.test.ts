@@ -12,6 +12,7 @@ import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/data
 
 // Mock external dependencies
 vi.mock('../../src/lib/agents/stream-handler', () => ({
+  runAgentPlanning: vi.fn(),
   runAgentWithStreaming: vi.fn(),
 }));
 
@@ -22,9 +23,9 @@ vi.mock('../../src/lib/agents/hooks/index', () => ({
   }),
 }));
 
-import { runAgentWithStreaming } from '../../src/lib/agents/stream-handler';
+import { runAgentPlanning } from '../../src/lib/agents/stream-handler';
 
-const mockRunAgentWithStreaming = vi.mocked(runAgentWithStreaming);
+const mockRunAgentPlanning = vi.mocked(runAgentPlanning);
 
 describe('AgentService', () => {
   let agentService: AgentService;
@@ -279,7 +280,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'completed',
         turnCount: 5,
@@ -289,7 +290,8 @@ describe('AgentService', () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.agent.status).toBe('running');
+        // Agent enters planning phase first (planning-first flow)
+        expect(result.value.agent.status).toBe('planning');
         expect(result.value.task.id).toBe(task.id);
         expect(mockWorktreeService.create).toHaveBeenCalled();
         expect(mockSessionService.create).toHaveBeenCalled();
@@ -305,7 +307,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'completed',
         turnCount: 5,
@@ -696,7 +698,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'completed',
         turnCount: 15,
@@ -726,7 +728,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'turn_limit',
         turnCount: 50,
@@ -755,7 +757,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'paused',
         turnCount: 25,
@@ -783,7 +785,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockResolvedValue({
+      mockRunAgentPlanning.mockResolvedValue({
         runId: 'run-1',
         status: 'error',
         turnCount: 5,
@@ -812,7 +814,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockRejectedValue(new Error('Execution failed'));
+      mockRunAgentPlanning.mockRejectedValue(new Error('Execution failed'));
 
       const result = await agentService.start(agent.id, task.id);
 
@@ -842,7 +844,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockRejectedValue(new Error('Rate limit exceeded'));
+      mockRunAgentPlanning.mockRejectedValue(new Error('Rate limit exceeded'));
 
       await agentService.start(agent.id, task.id);
 
@@ -865,7 +867,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockRejectedValue(new Error('Unknown error'));
+      mockRunAgentPlanning.mockRejectedValue(new Error('Unknown error'));
 
       await agentService.start(agent.id, task.id);
 
@@ -888,7 +890,7 @@ describe('AgentService', () => {
 
       mockWorktreeService.create.mockResolvedValue({ ok: true, value: worktree });
       mockSessionService.create.mockResolvedValue({ ok: true, value: session });
-      mockRunAgentWithStreaming.mockRejectedValue(new Error('Test error'));
+      mockRunAgentPlanning.mockRejectedValue(new Error('Test error'));
 
       await agentService.start(agent.id, task.id);
 

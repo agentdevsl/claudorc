@@ -27,11 +27,11 @@ describe('ProjectSettings', () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(<ProjectSettings project={project} onSave={onSave} onDelete={onDelete} />);
 
-    fireEvent.change(screen.getByLabelText('Default branch'), {
+    fireEvent.change(screen.getByLabelText(/default branch/i), {
       target: { value: 'develop' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: /save settings/i }));
 
     expect(onSave).toHaveBeenCalled();
     const [payload] = onSave.mock.calls[0] ?? [];

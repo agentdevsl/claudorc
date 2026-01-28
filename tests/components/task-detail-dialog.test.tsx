@@ -42,7 +42,12 @@ describe('TaskDetailDialog', () => {
         />
       );
 
-      expect(screen.getByText('My task title')).toBeInTheDocument();
+      // There are two h2 elements: one visually hidden for accessibility (DialogTitle)
+      // and one visible in the TaskHeader. Both have the same task title text.
+      const headings = screen.getAllByRole('heading', { name: 'My task title' });
+      expect(headings.length).toBeGreaterThanOrEqual(1);
+      // Verify the visible heading is rendered with the correct styling class
+      expect(headings.some((h) => h.classList.contains('text-xl'))).toBe(true);
     });
 
     it('renders "No task selected" when task is null', () => {
@@ -85,8 +90,8 @@ describe('TaskDetailDialog', () => {
       );
 
       // Check for metadata section labels
-      expect(screen.getByText('Branch')).toBeInTheDocument();
-      expect(screen.getByText('Created')).toBeInTheDocument();
+      expect(screen.getByText(/branch/i)).toBeInTheDocument();
+      expect(screen.getByText(/created/i)).toBeInTheDocument();
     });
   });
 
@@ -199,7 +204,7 @@ describe('TaskDetailDialog', () => {
         />
       );
 
-      expect(screen.getByText('Start Task')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /start task/i })).toBeInTheDocument();
     });
 
     it('shows "Approve" button for waiting_approval tasks with onMoveColumn', () => {
@@ -214,7 +219,7 @@ describe('TaskDetailDialog', () => {
         />
       );
 
-      expect(screen.getByText('Approve')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     });
   });
 

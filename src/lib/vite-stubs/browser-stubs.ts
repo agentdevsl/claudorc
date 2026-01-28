@@ -265,7 +265,11 @@ export function getStubId(source: string): string | null {
   }
 
   // api/runtime pattern
-  if (source.includes('api/runtime') || source === '@/app/routes/api/runtime') {
+  if (
+    source.includes('api/runtime') ||
+    source === '@/app/routes/api/runtime' ||
+    source === '@/server/runtime'
+  ) {
     return '\0api-runtime-stub';
   }
 

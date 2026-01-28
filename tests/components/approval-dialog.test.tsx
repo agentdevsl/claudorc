@@ -40,8 +40,8 @@ describe('ApprovalDialog', () => {
     );
 
     expect(screen.getByText('Ship it')).toBeInTheDocument();
-    expect(screen.getByText('Approve & merge')).toBeInTheDocument();
-    expect(screen.getByText('Reject')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /approve & merge/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
   });
 
   it('calls onApprove', () => {
@@ -57,7 +57,7 @@ describe('ApprovalDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Approve & merge'));
+    fireEvent.click(screen.getByRole('button', { name: /approve & merge/i }));
     expect(onApprove).toHaveBeenCalled();
   });
 });

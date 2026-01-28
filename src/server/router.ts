@@ -20,6 +20,7 @@ import type { TemplateService } from '../services/template.service.js';
 import type { CommandRunner, WorktreeService } from '../services/worktree.service.js';
 // Types
 import type { Database } from '../types/database.js';
+import { createAgentsRoutes } from './routes/agents.js';
 import { createApiKeysRoutes } from './routes/api-keys.js';
 import { createFilesystemRoutes } from './routes/filesystem.js';
 import { createGitRoutes } from './routes/git.js';
@@ -34,6 +35,7 @@ import { createSettingsRoutes } from './routes/settings.js';
 import { createTaskCreationRoutes } from './routes/task-creation.js';
 import { createTasksRoutes } from './routes/tasks.js';
 import { createTemplatesRoutes } from './routes/templates.js';
+import { createWebhooksRoutes } from './routes/webhooks.js';
 import { createWorkflowDesignerRoutes } from './routes/workflow-designer.js';
 import { createWorkflowsRoutes } from './routes/workflows.js';
 import { createWorktreesRoutes } from './routes/worktrees.js';
@@ -91,6 +93,13 @@ export function createRouter(deps: RouterDependencies) {
     '/api/projects',
     createProjectsRoutes({
       db: deps.db,
+    })
+  );
+
+  app.route(
+    '/api/agents',
+    createAgentsRoutes({
+      agentService: deps.agentService,
     })
   );
 
@@ -180,6 +189,13 @@ export function createRouter(deps: RouterDependencies) {
   app.route(
     '/api/workflow-designer',
     createWorkflowDesignerRoutes({
+      templateService: deps.templateService,
+    })
+  );
+
+  app.route(
+    '/api/webhooks',
+    createWebhooksRoutes({
       templateService: deps.templateService,
     })
   );

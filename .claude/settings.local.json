@@ -72,7 +72,10 @@
       "Bash(git rebase:*)",
       "Bash(npm run typecheck:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker ps:*)"
     ],
     "deny": [
       "Write(.gitignore)",

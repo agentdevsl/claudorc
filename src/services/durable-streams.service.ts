@@ -418,6 +418,88 @@ export class DurableStreamsService {
     }
   }
 
+  // ============================================
+  // Compatibility helpers (plan + task creation)
+  // ============================================
+
+  async publishPlanStarted(streamId: string, data: PlanStartedEvent): Promise<void> {
+    await this.publish(streamId, 'plan:started', data);
+  }
+
+  async publishPlanTurn(streamId: string, data: PlanTurnEvent): Promise<void> {
+    await this.publish(streamId, 'plan:turn', data);
+  }
+
+  async publishPlanToken(streamId: string, data: PlanTokenEvent): Promise<void> {
+    await this.publish(streamId, 'plan:token', data);
+  }
+
+  async publishPlanInteraction(streamId: string, data: PlanInteractionEvent): Promise<void> {
+    await this.publish(streamId, 'plan:interaction', data);
+  }
+
+  async publishPlanCompleted(streamId: string, data: PlanCompletedEvent): Promise<void> {
+    await this.publish(streamId, 'plan:completed', data);
+  }
+
+  async publishPlanError(streamId: string, data: PlanErrorEvent): Promise<void> {
+    await this.publish(streamId, 'plan:error', data);
+  }
+
+  async publishPlanCancelled(streamId: string, data: { sessionId: string }): Promise<void> {
+    await this.publish(streamId, 'plan:cancelled', data);
+  }
+
+  async publishTaskCreationStarted(
+    streamId: string,
+    data: TaskCreationStartedEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:started', data);
+  }
+
+  async publishTaskCreationMessage(
+    streamId: string,
+    data: TaskCreationMessageEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:message', data);
+  }
+
+  async publishTaskCreationToken(streamId: string, data: TaskCreationTokenEvent): Promise<void> {
+    await this.publish(streamId, 'task-creation:token', data);
+  }
+
+  async publishTaskCreationSuggestion(
+    streamId: string,
+    data: TaskCreationSuggestionEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:suggestion', data);
+  }
+
+  async publishTaskCreationQuestions(
+    streamId: string,
+    data: TaskCreationQuestionsEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:questions', data);
+  }
+
+  async publishTaskCreationCompleted(
+    streamId: string,
+    data: TaskCreationCompletedEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:completed', data);
+  }
+
+  async publishTaskCreationCancelled(
+    streamId: string,
+    data: TaskCreationCancelledEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:cancelled', data);
+  }
+
+  async publishTaskCreationError(streamId: string, data: TaskCreationErrorEvent): Promise<void> {
+    await this.publish(streamId, 'task-creation:error', data);
+  }
+
   /**
    * Publish a session event (uses SessionEvent's own type/data structure)
    */

@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS "sessions" (
 CREATE TABLE IF NOT EXISTS "worktrees" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "project_id" TEXT NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+  "agent_id" TEXT REFERENCES "agents"("id") ON DELETE SET NULL,
   "task_id" TEXT,
   "branch" TEXT NOT NULL,
   "path" TEXT NOT NULL,
