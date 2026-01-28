@@ -25,13 +25,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create directory for agent runner
 RUN mkdir -p /opt/agent-runner
 
-# Copy agent runner package
-COPY agent-runner/package.json /opt/agent-runner/
-COPY agent-runner/dist /opt/agent-runner/dist/
+# Copy agent runner source and config files
+COPY agent-runner/package.json agent-runner/package-lock.json* /opt/agent-runner/
+COPY agent-runner/tsconfig.json /opt/agent-runner/
+COPY agent-runner/src /opt/agent-runner/src/
 
-# Install agent runner dependencies (production only)
+# Install dependencies (including devDependencies for build)
 WORKDIR /opt/agent-runner
-RUN npm install --production --ignore-scripts
+RUN npm install --ignore-scripts
+
+# Build TypeScript to JavaScript
+RUN npm run build
+
+# Clean up: remove source files and devDependencies to reduce image size
+RUN rm -rf src tsconfig.json && \
+    npm prune --production
 
 # Set working directory back to workspace
 WORKDIR /workspace

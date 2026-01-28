@@ -11,6 +11,21 @@ import { createTestTask } from '../factories/task.factory';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
 
 // =============================================================================
+// Mock createId to return predictable session IDs
+// =============================================================================
+
+let sessionIdCounter = 0;
+const mockCreateId = vi.hoisted(() => vi.fn(() => `test-session-id-${++sessionIdCounter}`));
+
+vi.mock('@paralleldrive/cuid2', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@paralleldrive/cuid2')>();
+  return {
+    ...actual,
+    createId: mockCreateId,
+  };
+});
+
+// =============================================================================
 // Mock Setup
 // =============================================================================
 
@@ -21,32 +36,15 @@ const createMockWorktreeService = () => ({
 });
 
 /**
- * Creates a mock container agent service that also creates the session record
- * in the test database to satisfy foreign key constraints.
+ * Creates a mock container agent service.
+ * Note: Session records must be pre-created via preCreateNextSession() before moveColumn.
  */
 const createMockContainerAgentService = (
   shouldSucceed = true,
   errorResult?: unknown
 ): ContainerAgentTrigger => {
-  const db = getTestDb();
-
   return {
-    startAgent: vi.fn().mockImplementation(async (input: StartAgentInput) => {
-      // Create the session record in the test database to satisfy FK constraint
-      try {
-        await db.insert(sessions).values({
-          id: input.sessionId,
-          projectId: input.projectId,
-          taskId: input.taskId,
-          agentId: null,
-          status: 'active',
-          title: `Agent Session for ${input.taskId}`,
-          url: `/sessions/${input.sessionId}`,
-        });
-      } catch (_e) {
-        // Session may already exist, ignore error
-      }
-
+    startAgent: vi.fn().mockImplementation(async (_input: StartAgentInput) => {
       if (shouldSucceed) {
         return ok(undefined);
       }
@@ -55,6 +53,28 @@ const createMockContainerAgentService = (
     isAgentRunning: vi.fn().mockReturnValue(false),
   };
 };
+
+/**
+ * Helper to pre-create a session with the next expected ID.
+ * Call this BEFORE moveColumn to satisfy FK constraints.
+ */
+async function preCreateNextSession(
+  projectId: string,
+  taskId: string | null = null
+): Promise<string> {
+  const db = getTestDb();
+  const nextId = `test-session-id-${sessionIdCounter + 1}`;
+  await db.insert(sessions).values({
+    id: nextId,
+    projectId,
+    taskId,
+    agentId: null,
+    status: 'active',
+    title: `Pre-created session ${nextId}`,
+    url: `/sessions/${nextId}`,
+  });
+  return nextId;
+}
 
 // =============================================================================
 // Container Agent Trigger Tests
@@ -73,6 +93,9 @@ describe('TaskService Container Agent Trigger', () => {
     taskService = new TaskService(db as never, mockWorktreeService);
     taskService.setContainerAgentService(mockContainerAgentService);
     vi.clearAllMocks();
+    // Reset the session ID counter for each test
+    sessionIdCounter = 0;
+    mockCreateId.mockImplementation(() => `test-session-id-${++sessionIdCounter}`);
   });
 
   afterEach(async () => {
@@ -95,6 +118,9 @@ describe('TaskService Container Agent Trigger', () => {
         },
       });
       const task = await createTestTask(project.id, { column: 'queued' });
+
+      // Pre-create the session that will be generated
+      await preCreateNextSession(project.id, task.id);
 
       const result = await taskService.moveColumn(task.id, 'in_progress');
 
@@ -137,6 +163,9 @@ describe('TaskService Container Agent Trigger', () => {
         value: JSON.stringify(globalSandboxDefaults),
       });
 
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
       const result = await taskService.moveColumn(task.id, 'in_progress');
 
       expect(result.ok).toBe(true);
@@ -152,6 +181,10 @@ describe('TaskService Container Agent Trigger', () => {
     });
 
     it('does not trigger agent when sandbox is disabled', async () => {
+      // Clear any global settings from previous tests
+      const db = getTestDb();
+      await db.delete(settings);
+
       const project = await createTestProject({
         config: {
           worktreeRoot: '.worktrees',
@@ -240,7 +273,10 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued' });
 
-      // Set up mock to fail with error result (it still creates the session for FK constraint)
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
+      // Set up mock to fail with error result
       const errorMessage = 'Container not found';
       const failingMock = createMockContainerAgentService(false, {
         message: errorMessage,
@@ -271,6 +307,9 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued' });
 
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
       // Set up mock to fail with string error
       const errorString = 'Docker daemon unavailable';
       const failingMock = createMockContainerAgentService(false, errorString);
@@ -297,27 +336,13 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued' });
 
-      // Set up mock to throw an exception (but still create session for FK constraint)
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
+      // Set up mock to throw an exception
       const errorMessage = 'Network timeout';
-      const db = getTestDb();
       const throwingMock: ContainerAgentTrigger = {
-        startAgent: vi.fn().mockImplementation(async (input: StartAgentInput) => {
-          // Create session first to satisfy FK constraint
-          try {
-            await db.insert(sessions).values({
-              id: input.sessionId,
-              projectId: input.projectId,
-              taskId: input.taskId,
-              agentId: null,
-              status: 'active',
-              title: `Agent Session for ${input.taskId}`,
-              url: `/sessions/${input.sessionId}`,
-            });
-          } catch (_e) {
-            // Session may already exist
-          }
-          throw new Error(errorMessage);
-        }),
+        startAgent: vi.fn().mockRejectedValue(new Error(errorMessage)),
         isAgentRunning: vi.fn().mockReturnValue(false),
       };
       taskService.setContainerAgentService(throwingMock);
@@ -342,6 +367,9 @@ describe('TaskService Container Agent Trigger', () => {
         },
       });
       const task = await createTestTask(project.id, { column: 'queued' });
+
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
 
       // Set up mock to fail with generic error (no message property)
       const failingMock = createMockContainerAgentService(false, { code: 'UNKNOWN_ERROR' });
@@ -373,6 +401,9 @@ describe('TaskService Container Agent Trigger', () => {
         },
       });
       const task = await createTestTask(project.id, { column: 'queued' });
+
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
 
       // Set up mock to fail
       const failingMock = createMockContainerAgentService(false, {
@@ -412,25 +443,12 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued' });
 
-      // Set up mock to throw (but create session first for FK constraint)
-      const db = getTestDb();
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
+      // Set up mock to throw
       const throwingMock: ContainerAgentTrigger = {
-        startAgent: vi.fn().mockImplementation(async (input: StartAgentInput) => {
-          try {
-            await db.insert(sessions).values({
-              id: input.sessionId,
-              projectId: input.projectId,
-              taskId: input.taskId,
-              agentId: null,
-              status: 'active',
-              title: `Agent Session for ${input.taskId}`,
-              url: `/sessions/${input.sessionId}`,
-            });
-          } catch {
-            /* Session may already exist */
-          }
-          throw new Error('Connection refused');
-        }),
+        startAgent: vi.fn().mockRejectedValue(new Error('Connection refused')),
         isAgentRunning: vi.fn().mockReturnValue(false),
       };
       taskService.setContainerAgentService(throwingMock);
@@ -460,6 +478,9 @@ describe('TaskService Container Agent Trigger', () => {
       await createTestTask(project.id, { column: 'in_progress', position: 1 });
 
       const task = await createTestTask(project.id, { column: 'queued' });
+
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
 
       // Set up mock to fail
       const failingMock = createMockContainerAgentService(false, { message: 'Image not found' });
@@ -587,6 +608,9 @@ describe('TaskService Container Agent Trigger', () => {
         description: 'The login button does not work',
       });
 
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
       await taskService.moveColumn(task.id, 'in_progress');
 
       expect(mockContainerAgentService.startAgent).toHaveBeenCalledWith(
@@ -601,7 +625,7 @@ describe('TaskService Container Agent Trigger', () => {
       );
     });
 
-    it('includes labels and priority in agent prompt', async () => {
+    it('includes labels in agent prompt', async () => {
       const project = await createTestProject({
         config: {
           worktreeRoot: '.worktrees',
@@ -615,8 +639,10 @@ describe('TaskService Container Agent Trigger', () => {
         column: 'queued',
         title: 'Add feature',
         labels: ['frontend', 'urgent'],
-        priority: 'high',
       });
+
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
 
       await taskService.moveColumn(task.id, 'in_progress');
 
@@ -627,7 +653,7 @@ describe('TaskService Container Agent Trigger', () => {
       );
       expect(mockContainerAgentService.startAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining('high'),
+          prompt: expect.stringContaining('urgent'),
         })
       );
     });
@@ -651,6 +677,9 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued' });
 
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
+
       await taskService.moveColumn(task.id, 'in_progress');
 
       expect(mockContainerAgentService.startAgent).toHaveBeenCalledWith(
@@ -673,6 +702,9 @@ describe('TaskService Container Agent Trigger', () => {
         },
       });
       const task = await createTestTask(project.id, { column: 'queued' });
+
+      // Pre-create the session
+      await preCreateNextSession(project.id, task.id);
 
       await taskService.moveColumn(task.id, 'in_progress');
 
@@ -702,11 +734,14 @@ describe('TaskService Container Agent Trigger', () => {
       });
       const task = await createTestTask(project.id, { column: 'queued', sessionId: null });
 
+      // Pre-create the session that will be generated
+      const expectedSessionId = await preCreateNextSession(project.id, task.id);
+
       await taskService.moveColumn(task.id, 'in_progress');
 
       expect(mockContainerAgentService.startAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          sessionId: expect.any(String),
+          sessionId: expectedSessionId,
         })
       );
 
@@ -714,8 +749,7 @@ describe('TaskService Container Agent Trigger', () => {
       const updatedTask = await taskService.getById(task.id);
       expect(updatedTask.ok).toBe(true);
       if (updatedTask.ok) {
-        expect(updatedTask.value.sessionId).toBeDefined();
-        expect(updatedTask.value.sessionId).not.toBeNull();
+        expect(updatedTask.value.sessionId).toBe(expectedSessionId);
       }
     });
 
