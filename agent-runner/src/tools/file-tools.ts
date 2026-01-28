@@ -2,11 +2,11 @@
  * File operation tools for the agent-runner.
  */
 import { readFile as fsReadFile, writeFile as fsWriteFile, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import type { ToolContext, ToolResponse } from './types.js';
 
 /** The sandbox workspace root - all file operations must stay within this directory */
-const WORKSPACE_ROOT = '/workspace';
+const WORKSPACE_ROOT = process.env.AGENT_WORKSPACE_ROOT ?? '/workspace';
 
 export interface ReadFileArgs {
   path: string;
@@ -47,19 +47,54 @@ function resolvePath(path: string, cwd: string): string {
  * Validate that a resolved path (after following symlinks) stays within the workspace.
  * This catches symlink-based escapes that resolvePath alone cannot detect.
  */
-async function validateRealPath(filePath: string): Promise<void> {
+async function validateRealPath(filePath: string, allowMissing = false): Promise<void> {
   try {
     const real = await realpath(filePath);
     if (!real.startsWith(`${WORKSPACE_ROOT}/`) && real !== WORKSPACE_ROOT) {
       throw new Error(`Access denied: path resolves outside workspace via symlink`);
     }
   } catch (error) {
-    // If realpath fails because file doesn't exist yet, that's OK for write operations
-    // The resolvePath check already validated the logical path
     if (error instanceof Error && error.message.includes('Access denied')) {
       throw error;
     }
-    // For ENOENT or other errors, the file doesn't exist which is fine
+
+    if (
+      allowMissing &&
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'ENOENT'
+    ) {
+      return;
+    }
+
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Validate that a file's parent directory (after following symlinks) stays within the workspace.
+ * This prevents creating new files via a symlinked parent directory.
+ */
+async function validateParentRealPath(filePath: string): Promise<void> {
+  const parent = dirname(filePath);
+  try {
+    const realParent = await realpath(parent);
+    if (!realParent.startsWith(`${WORKSPACE_ROOT}/`) && realParent !== WORKSPACE_ROOT) {
+      throw new Error(`Access denied: parent directory resolves outside workspace via symlink`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Access denied')) {
+      throw error;
+    }
+
+    if (error && typeof error === 'object' && 'code' in error) {
+      if ((error as { code?: string }).code === 'ENOENT') {
+        throw new Error('Parent directory does not exist');
+      }
+    }
+
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -123,8 +158,10 @@ export async function writeFileTool(
   try {
     const filePath = resolvePath(args.path, context.cwd);
 
+    // Validate parent real path to prevent symlink escapes for new files
+    await validateParentRealPath(filePath);
     // Validate real path for existing files (symlink escape protection)
-    await validateRealPath(filePath);
+    await validateRealPath(filePath, true);
 
     await fsWriteFile(filePath, args.content, 'utf-8');
 
@@ -156,6 +193,13 @@ export async function editFileTool(
     await validateRealPath(filePath);
 
     const content = await fsReadFile(filePath, 'utf-8');
+
+    if (args.old_string.length === 0) {
+      return {
+        content: [{ type: 'text', text: 'Error: old_string must not be empty' }],
+        is_error: true,
+      };
+    }
 
     if (args.old_string === args.new_string) {
       return {

@@ -119,6 +119,10 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
 
     try {
       const event = JSON.parse(trimmed) as ContainerAgentEvent;
+      const data =
+        event.data && typeof event.data === 'object' && !Array.isArray(event.data)
+          ? (event.data as Record<string, unknown>)
+          : {};
 
       // Validate event structure
       if (!event.type || !event.timestamp || !event.taskId || !event.sessionId) {
@@ -138,7 +142,7 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
         dataKeys: Object.keys(event.data || {}),
       });
 
-      return event;
+      return { ...event, data };
     } catch (parseError) {
       // Check if this looks like it was supposed to be JSON (starts with { or [)
       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -203,6 +207,22 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       turnCount: number;
     };
 
+    if (!data || typeof data.turnCount !== 'number') {
+      infoLog('handleComplete', 'Invalid completion event data', {
+        taskId,
+        data: event.data,
+      });
+      return;
+    }
+
+    if (!['completed', 'turn_limit', 'cancelled'].includes(data.status)) {
+      infoLog('handleComplete', 'Invalid completion status', {
+        taskId,
+        status: data.status,
+      });
+      return;
+    }
+
     infoLog('handleComplete', 'Agent completed', {
       taskId,
       status: data.status,
@@ -225,6 +245,14 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       turnCount: number;
     };
 
+    if (!data || typeof data.error !== 'string' || typeof data.turnCount !== 'number') {
+      infoLog('handleError', 'Invalid error event data', {
+        taskId,
+        data: event.data,
+      });
+      return;
+    }
+
     infoLog('handleError', 'Agent error received', {
       taskId,
       error: data.error,
@@ -243,6 +271,14 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
    */
   function handleCancelled(event: ContainerAgentEvent): void {
     const data = event.data as { turnCount: number };
+
+    if (!data || typeof data.turnCount !== 'number') {
+      infoLog('handleCancelled', 'Invalid cancelled event data', {
+        taskId,
+        data: event.data,
+      });
+      return;
+    }
 
     infoLog('handleCancelled', 'Agent cancelled', {
       taskId,
@@ -337,12 +373,16 @@ export function parseContainerEvent(line: string): ContainerAgentEvent | null {
 
   try {
     const event = JSON.parse(trimmed) as ContainerAgentEvent;
+    const data =
+      event.data && typeof event.data === 'object' && !Array.isArray(event.data)
+        ? (event.data as Record<string, unknown>)
+        : {};
 
     if (!event.type || !event.timestamp || !event.taskId || !event.sessionId) {
       return null;
     }
 
-    return event;
+    return { ...event, data };
   } catch {
     return null;
   }

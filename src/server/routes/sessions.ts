@@ -5,7 +5,7 @@
 import { Hono } from 'hono';
 import type { DurableStreamsService } from '../../services/durable-streams.service.js';
 import type { SessionService } from '../../services/session.service.js';
-import { isValidId, json } from '../shared.js';
+import { corsHeaders, isValidId, json } from '../shared.js';
 
 interface SessionsDeps {
   sessionService: SessionService;
@@ -13,7 +13,7 @@ interface SessionsDeps {
 }
 
 // Track SSE connections for cleanup
-const sseConnections = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+const sseConnections = new Map<string, Set<ReadableStreamDefaultController<Uint8Array>>>();
 
 export function createSessionsRoutes({ sessionService, durableStreamsService }: SessionsDeps) {
   const app = new Hono();
@@ -144,10 +144,12 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
     // Create SSE stream with keep-alive
     let pingInterval: ReturnType<typeof setInterval> | null = null;
     let unsubscribe: (() => void) | null = null;
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
 
     // Helper function for consistent SSE cleanup
     const cleanupSSEConnection = (
       id: string,
+      controller: ReadableStreamDefaultController<Uint8Array> | null,
       refs: {
         pingInterval: ReturnType<typeof setInterval> | null;
         unsubscribe: (() => void) | null;
@@ -161,13 +163,24 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         refs.unsubscribe();
         unsubscribe = null;
       }
-      sseConnections.delete(id);
+      if (controller) {
+        const controllers = sseConnections.get(id);
+        if (controllers) {
+          controllers.delete(controller);
+          if (controllers.size === 0) {
+            sseConnections.delete(id);
+          }
+        }
+      }
     };
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
+        streamController = controller;
         // Store controller for this session
-        sseConnections.set(sessionId, controller);
+        const controllers = sseConnections.get(sessionId) ?? new Set();
+        controllers.add(controller);
+        sseConnections.set(sessionId, controllers);
 
         // Send initial connected event
         const connectedData = JSON.stringify({
@@ -182,17 +195,20 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         if (durableStreamsService) {
           unsubscribe = durableStreamsService.addSubscriber(sessionId, (event) => {
             try {
+              if (typeof event.offset === 'number' && event.offset < fromOffset) {
+                return;
+              }
               const eventData = JSON.stringify({
                 type: event.type,
                 data: event.data,
                 timestamp: event.timestamp,
-                offset: 0, // TODO: Track real offsets
+                offset: typeof event.offset === 'number' ? event.offset : 0,
               });
               controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
             } catch (err) {
               // Connection closed - log and clean up
               console.debug(`[SSE] Connection closed for session ${sessionId}:`, err);
-              cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
+              cleanupSSEConnection(sessionId, controller, { pingInterval, unsubscribe });
             }
           });
         }
@@ -204,12 +220,12 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
           } catch (err) {
             // Connection closed during ping - log and clean up
             console.debug(`[SSE] Ping failed for session ${sessionId}, cleaning up:`, err);
-            cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
+            cleanupSSEConnection(sessionId, controller, { pingInterval, unsubscribe });
           }
         }, 15000);
       },
       cancel() {
-        cleanupSSEConnection(sessionId, { pingInterval, unsubscribe });
+        cleanupSSEConnection(sessionId, streamController, { pingInterval, unsubscribe });
       },
     });
 
@@ -218,8 +234,8 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Origin': corsHeaders['Access-Control-Allow-Origin'],
+        'Access-Control-Allow-Headers': corsHeaders['Access-Control-Allow-Headers'],
       },
     });
   });

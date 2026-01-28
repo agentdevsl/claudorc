@@ -27,6 +27,7 @@ import {
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
 import { createDockerProvider } from '../lib/sandbox/index.js';
+import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
 import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
 import { createContainerAgentService } from '../services/container-agent.service.js';
@@ -129,6 +130,9 @@ const mockStreamsServer: DurableStreamsServer = {
   },
 };
 
+// DurableStreamsService for SSE and container agent events
+const durableStreamsService = new DurableStreamsService(mockStreamsServer);
+
 // SessionService for session management (needed for task creation history)
 const sessionService = new SessionService(db, mockStreamsServer, {
   baseUrl: 'http://localhost:3001',
@@ -218,7 +222,7 @@ if (dockerProvider) {
         );
       }
 
-      const defaultImage = defaults?.image || 'agentpane-sandbox:latest';
+      const defaultImage = defaults?.image ?? SANDBOX_DEFAULTS.image;
       console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
 
       // Check if the image exists
@@ -267,8 +271,6 @@ if (dockerProvider) {
   // Step 3: Create ContainerAgentService (only if Docker is available)
   try {
     // Create DurableStreamsService for container agent events
-    const durableStreamsService = new DurableStreamsService(mockStreamsServer);
-
     // Create ContainerAgentService for Docker-based agent execution
     containerAgentService = createContainerAgentService(db, dockerProvider, durableStreamsService);
 
@@ -303,6 +305,7 @@ const app = createRouter({
   marketplaceService,
   agentService,
   commandRunner: bunCommandRunner,
+  durableStreamsService,
 });
 
 // Start server

@@ -2,11 +2,13 @@
  * Search tools (glob and grep) for the agent-runner.
  */
 import { exec } from 'node:child_process';
+import { realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ToolContext, ToolResponse } from './types.js';
 
 const execAsync = promisify(exec);
+const WORKSPACE_ROOT = process.env.AGENT_WORKSPACE_ROOT ?? '/workspace';
 
 /**
  * Escape a string for safe use in single-quoted shell arguments.
@@ -29,6 +31,42 @@ function validateNumericParam(value: unknown, min: number, max: number): number 
   return Math.min(value, max);
 }
 
+function resolvePath(path: string, cwd: string): string {
+  const resolved = isAbsolute(path) ? path : resolve(cwd, path);
+  const normalized = resolve(resolved);
+
+  if (!normalized.startsWith(`${WORKSPACE_ROOT}/`) && normalized !== WORKSPACE_ROOT) {
+    throw new Error(`Access denied: path '${path}' resolves outside workspace`);
+  }
+
+  return normalized;
+}
+
+async function validateRealPath(path: string, allowMissing = false): Promise<void> {
+  try {
+    const real = await realpath(path);
+    if (!real.startsWith(`${WORKSPACE_ROOT}/`) && real !== WORKSPACE_ROOT) {
+      throw new Error('Access denied: path resolves outside workspace via symlink');
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Access denied')) {
+      throw error;
+    }
+
+    if (
+      allowMissing &&
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'ENOENT'
+    ) {
+      return;
+    }
+
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 export interface GlobArgs {
   pattern: string;
   path?: string;
@@ -47,11 +85,20 @@ export interface GrepArgs {
  * Find files matching a glob pattern using fd (or find as fallback).
  */
 export async function globTool(args: GlobArgs, context: ToolContext): Promise<ToolResponse> {
-  const searchPath = args.path
-    ? isAbsolute(args.path)
-      ? args.path
-      : resolve(context.cwd, args.path)
-    : context.cwd;
+  let searchPath: string;
+
+  try {
+    searchPath = args.path
+      ? resolvePath(args.path, context.cwd)
+      : resolvePath(context.cwd, context.cwd);
+    await validateRealPath(searchPath, true);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: 'text', text: `Error searching for files: ${message}` }],
+      is_error: true,
+    };
+  }
 
   try {
     // Escape shell arguments to prevent command injection
@@ -102,13 +149,33 @@ export async function globTool(args: GlobArgs, context: ToolContext): Promise<To
  * Search for text patterns using ripgrep (or grep as fallback).
  */
 export async function grepTool(args: GrepArgs, context: ToolContext): Promise<ToolResponse> {
-  const searchPath = args.path
-    ? isAbsolute(args.path)
-      ? args.path
-      : resolve(context.cwd, args.path)
-    : context.cwd;
+  let searchPath: string;
+  try {
+    searchPath = args.path
+      ? resolvePath(args.path, context.cwd)
+      : resolvePath(context.cwd, context.cwd);
+    await validateRealPath(searchPath, true);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: 'text', text: `Error searching: ${message}` }],
+      is_error: true,
+    };
+  }
 
   const outputMode = args.output_mode ?? 'files_with_matches';
+
+  if (args.output_mode && !['content', 'files_with_matches', 'count'].includes(args.output_mode)) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Error searching: invalid output_mode '${args.output_mode}'. Expected 'content', 'files_with_matches', or 'count'.`,
+        },
+      ],
+      is_error: true,
+    };
+  }
 
   try {
     // Build ripgrep command
@@ -142,7 +209,9 @@ export async function grepTool(args: GrepArgs, context: ToolContext): Promise<To
     const escapedPath = shellEscape(searchPath);
 
     // Try ripgrep first, fall back to grep
-    const command = `rg ${rgFlags} '${escapedPattern}' '${escapedPath}' 2>/dev/null || grep -r ${outputMode === 'files_with_matches' ? '-l' : '-n'} '${escapedPattern}' '${escapedPath}' 2>/dev/null`;
+    const grepFlags =
+      outputMode === 'files_with_matches' ? '-l' : outputMode === 'count' ? '-c' : '-n';
+    const command = `rg ${rgFlags} '${escapedPattern}' '${escapedPath}' 2>/dev/null || grep -r ${grepFlags} '${escapedPattern}' '${escapedPath}' 2>/dev/null`;
 
     const { stdout } = await execAsync(command, {
       cwd: context.cwd,

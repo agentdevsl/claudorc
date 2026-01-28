@@ -99,14 +99,6 @@ const createMockStreams = (): DurableStreamsService =>
   ({
     createStream: vi.fn().mockResolvedValue(undefined),
     publish: vi.fn().mockResolvedValue(1), // Returns offset
-    publishSandboxCreating: vi.fn().mockResolvedValue(undefined),
-    publishSandboxReady: vi.fn().mockResolvedValue(undefined),
-    publishSandboxIdle: vi.fn().mockResolvedValue(undefined),
-    publishSandboxStopping: vi.fn().mockResolvedValue(undefined),
-    publishSandboxStopped: vi.fn().mockResolvedValue(undefined),
-    publishSandboxError: vi.fn().mockResolvedValue(undefined),
-    publishSandboxTmuxCreated: vi.fn().mockResolvedValue(undefined),
-    publishSandboxTmuxDestroyed: vi.fn().mockResolvedValue(undefined),
     getServer: vi.fn(),
     addSubscriber: vi.fn().mockReturnValue(() => {}),
   }) as unknown as DurableStreamsService;
@@ -161,8 +153,16 @@ describe('SandboxService', () => {
       if (result.ok) {
         expect(result.value.projectId).toBe('project-123');
         expect(result.value.status).toBe('running');
-        expect(mockStreams.publishSandboxCreating).toHaveBeenCalled();
-        expect(mockStreams.publishSandboxReady).toHaveBeenCalled();
+        expect(mockStreams.publish).toHaveBeenCalledWith(
+          expect.any(String),
+          'sandbox:creating',
+          expect.objectContaining({ projectId: 'project-123' })
+        );
+        expect(mockStreams.publish).toHaveBeenCalledWith(
+          expect.any(String),
+          'sandbox:ready',
+          expect.objectContaining({ projectId: 'project-123' })
+        );
       }
     });
 
@@ -207,8 +207,9 @@ describe('SandboxService', () => {
       const result = await service.create(config);
 
       expect(result.ok).toBe(true);
-      expect(mockStreams.publishSandboxError).toHaveBeenCalledWith(
+      expect(mockStreams.publish).toHaveBeenCalledWith(
         expect.any(String),
+        'sandbox:error',
         expect.objectContaining({
           code: 'CREDENTIALS_INJECTION_WARNING',
         })
@@ -237,7 +238,11 @@ describe('SandboxService', () => {
       if (!result.ok) {
         expect(result.error.code).toBe('SANDBOX_CONTAINER_CREATION_FAILED');
       }
-      expect(mockStreams.publishSandboxError).toHaveBeenCalled();
+      expect(mockStreams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'sandbox:error',
+        expect.objectContaining({ projectId: 'project-123' })
+      );
     });
 
     it('returns error with code when provider throws coded error', async () => {
@@ -270,7 +275,13 @@ describe('SandboxService', () => {
   describe('Get or Create for Project', () => {
     it('returns existing running sandbox', async () => {
       const project = await createTestProject({
-        config: { sandbox: { enabled: true } },
+        config: {
+          worktreeRoot: '.worktrees',
+          defaultBranch: 'main',
+          allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+          maxTurns: 50,
+          sandbox: { enabled: true, provider: 'docker', idleTimeoutMinutes: 30 },
+        },
       });
 
       // Insert sandbox record
@@ -307,7 +318,13 @@ describe('SandboxService', () => {
 
     it('returns error when sandbox not enabled for project', async () => {
       const project = await createTestProject({
-        config: { sandbox: { enabled: false } },
+        config: {
+          worktreeRoot: '.worktrees',
+          defaultBranch: 'main',
+          allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+          maxTurns: 50,
+          sandbox: { enabled: false, provider: 'docker', idleTimeoutMinutes: 30 },
+        },
       });
 
       const result = await service.getOrCreateForProject(project.id);
@@ -347,11 +364,16 @@ describe('SandboxService', () => {
 
       expect(result.ok).toBe(true);
       expect(mockSandbox.stop).toHaveBeenCalled();
-      expect(mockStreams.publishSandboxStopping).toHaveBeenCalledWith(
+      expect(mockStreams.publish).toHaveBeenCalledWith(
         'sandbox-to-stop',
+        'sandbox:stopping',
         expect.objectContaining({ reason: 'manual' })
       );
-      expect(mockStreams.publishSandboxStopped).toHaveBeenCalled();
+      expect(mockStreams.publish).toHaveBeenCalledWith(
+        'sandbox-to-stop',
+        'sandbox:stopped',
+        expect.objectContaining({ projectId: project.id })
+      );
     });
 
     it('returns error when sandbox not found', async () => {
@@ -391,7 +413,11 @@ describe('SandboxService', () => {
       if (!result.ok) {
         expect(result.error.code).toBe('SANDBOX_CONTAINER_STOP_FAILED');
       }
-      expect(mockStreams.publishSandboxError).toHaveBeenCalled();
+      expect(mockStreams.publish).toHaveBeenCalledWith(
+        'sandbox-fail-stop',
+        'sandbox:error',
+        expect.objectContaining({ projectId: project.id })
+      );
     });
   });
 
@@ -470,6 +496,27 @@ describe('SandboxService', () => {
       if (!result.ok) {
         expect(result.error.code).toBe('SANDBOX_CONTAINER_NOT_FOUND');
       }
+    });
+  });
+
+  // =============================================================================
+  // Streaming Exec Support (2 tests)
+  // =============================================================================
+
+  describe('Streaming Exec Support', () => {
+    it('returns true when sandbox supports execStream', async () => {
+      const mockSandbox = createMockSandbox({
+        execStream: vi.fn() as Sandbox['execStream'],
+      });
+      (mockProvider.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockSandbox);
+
+      await expect(service.supportsStreamingExec('sandbox-123')).resolves.toBe(true);
+    });
+
+    it('returns false when sandbox is missing', async () => {
+      (mockProvider.getById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await expect(service.supportsStreamingExec('missing')).resolves.toBe(false);
     });
   });
 
@@ -574,7 +621,11 @@ describe('SandboxService', () => {
       if (result.ok) {
         expect(result.value.taskId).toBe('task-123');
       }
-      expect(mockStreams.publishSandboxTmuxCreated).toHaveBeenCalled();
+      expect(mockStreams.publish).toHaveBeenCalledWith(
+        'sandbox-123',
+        'sandbox:tmux:created',
+        expect.objectContaining({ taskId: 'task-123' })
+      );
     });
 
     it('returns error when sandbox not found for project', async () => {
@@ -635,8 +686,9 @@ describe('SandboxService', () => {
       // Fast forward 5 minutes to trigger idle check
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
 
-      expect(mockStreams.publishSandboxIdle).toHaveBeenCalledWith(
+      expect(mockStreams.publish).toHaveBeenCalledWith(
         'idle-sandbox',
+        'sandbox:idle',
         expect.objectContaining({
           sandboxId: 'idle-sandbox',
           projectId: project.id,
@@ -670,7 +722,11 @@ describe('SandboxService', () => {
       // Fast forward 5 minutes
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
 
-      expect(mockStreams.publishSandboxIdle).not.toHaveBeenCalled();
+      expect(mockStreams.publish).not.toHaveBeenCalledWith(
+        'active-sandbox',
+        'sandbox:idle',
+        expect.any(Object)
+      );
 
       service.stopIdleChecker();
     });

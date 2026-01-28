@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { existsSync } from 'node:fs';
+import { access } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
 /**
  * Agent Runner - Entry point for running Claude Agent SDK inside Docker containers.
  *
@@ -30,6 +31,9 @@ const config = {
   stopFile: process.env.AGENT_STOP_FILE,
 };
 
+const WORKSPACE_ROOT = process.env.AGENT_WORKSPACE_ROOT ?? '/workspace';
+const ALLOWED_STOP_ROOTS = [WORKSPACE_ROOT, '/tmp'];
+
 // Validate required configuration
 function validateConfig(): void {
   if (!config.apiKey) {
@@ -44,16 +48,53 @@ function validateConfig(): void {
   if (!config.prompt) {
     throw new Error('AGENT_PROMPT is required');
   }
+
+  config.cwd = resolveWorkspacePath(config.cwd, WORKSPACE_ROOT);
+
+  if (config.stopFile) {
+    config.stopFile = resolveStopFilePath(config.stopFile);
+  }
+}
+
+function resolveWorkspacePath(path: string, fallbackCwd: string): string {
+  const resolved = isAbsolute(path) ? path : resolve(fallbackCwd, path);
+  const normalized = resolve(resolved);
+
+  if (!normalized.startsWith(`${WORKSPACE_ROOT}/`) && normalized !== WORKSPACE_ROOT) {
+    throw new Error(`AGENT_CWD must be within ${WORKSPACE_ROOT}`);
+  }
+
+  return normalized;
+}
+
+function resolveStopFilePath(path: string): string {
+  const resolved = isAbsolute(path) ? path : resolve('/tmp', path);
+  const normalized = resolve(resolved);
+
+  const allowed = ALLOWED_STOP_ROOTS.some(
+    (root) => normalized === root || normalized.startsWith(`${root}/`)
+  );
+
+  if (!allowed) {
+    throw new Error(`AGENT_STOP_FILE must be within ${ALLOWED_STOP_ROOTS.join(' or ')}`);
+  }
+
+  return normalized;
 }
 
 /**
  * Check if the agent should stop (sentinel file exists).
  */
-function shouldStop(): boolean {
+async function shouldStop(): Promise<boolean> {
   if (!config.stopFile) {
     return false;
   }
-  return existsSync(config.stopFile);
+  try {
+    await access(config.stopFile);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -113,7 +154,7 @@ async function runAgent(): Promise<void> {
   try {
     while (turn < config.maxTurns) {
       // Check for cancellation
-      if (shouldStop()) {
+      if (await shouldStop()) {
         events.cancelled(turn);
         return;
       }
@@ -140,7 +181,7 @@ async function runAgent(): Promise<void> {
       // Process stream events
       for await (const event of stream) {
         // Check for cancellation during streaming
-        if (shouldStop()) {
+        if (await shouldStop()) {
           events.cancelled(turn);
           return;
         }
@@ -213,15 +254,18 @@ async function runAgent(): Promise<void> {
         );
         const durationMs = Date.now() - startTime;
 
+        const hasNonText = result.content.some((c) => c.type !== 'text');
         const resultText = result.content
           .filter((c): c is { type: 'text'; text: string } => c.type === 'text' && !!c.text)
           .map((c) => c.text)
           .join('\n');
 
+        const safeResultText = resultText || (hasNonText ? '[Non-text tool result omitted]' : '');
+
         events.toolResult({
           toolName: toolUse.name,
           toolId: toolUse.id,
-          result: resultText,
+          result: safeResultText,
           isError: result.is_error ?? false,
           durationMs,
         });
@@ -229,7 +273,7 @@ async function runAgent(): Promise<void> {
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: resultText,
+          content: safeResultText,
           is_error: result.is_error,
         });
       }

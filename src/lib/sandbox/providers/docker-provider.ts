@@ -281,7 +281,7 @@ class DockerSandbox implements Sandbox {
       const escapedCwd = this.shellEscape(cwd);
       const escapedCmd = this.shellEscape(cmd);
       const escapedArgs = args.map((arg) => this.shellEscape(arg)).join(' ');
-      fullCmd = ['sh', '-c', `cd ${escapedCwd} && ${escapedCmd} ${escapedArgs}`];
+      fullCmd = ['sh', '-c', `cd ${escapedCwd} && exec ${escapedCmd} ${escapedArgs}`];
     } else {
       // Without cwd, pass command directly without shell (safer)
       fullCmd = [cmd, ...args];
@@ -343,21 +343,42 @@ class DockerSandbox implements Sandbox {
       stderrStream.destroy(err);
     });
 
+    const terminateExec = async (): Promise<void> => {
+      try {
+        const inspection = (await exec.inspect()) as { Pid?: number };
+        const pid = inspection.Pid;
+        if (pid && pid > 0) {
+          const killer = await this.container.exec({
+            Cmd: ['kill', '-TERM', String(pid)],
+            AttachStdout: false,
+            AttachStderr: false,
+            User: 'root',
+          });
+          await killer.start({ hijack: true, stdin: false });
+        }
+      } catch (error) {
+        console.warn('[DockerProvider] Failed to terminate exec process:', error);
+      }
+    };
+
     return {
       stdout: stdoutStream as Readable,
       stderr: stderrStream as Readable,
 
       async wait(): Promise<{ exitCode: number }> {
         return new Promise((resolve, reject) => {
-          dockerStream.on('end', async () => {
+          const resolveWithInspect = async () => {
             try {
               const inspection = await exec.inspect();
-              resolve({ exitCode: inspection.ExitCode ?? 0 });
+              const exitCode = typeof inspection.ExitCode === 'number' ? inspection.ExitCode : -1;
+              resolve({ exitCode });
             } catch (err) {
               reject(err);
             }
-          });
+          };
 
+          dockerStream.on('end', resolveWithInspect);
+          dockerStream.on('close', resolveWithInspect);
           dockerStream.on('error', reject);
         });
       },
@@ -366,8 +387,8 @@ class DockerSandbox implements Sandbox {
         killed = true;
         stdoutStream.end();
         stderrStream.end();
-        // Note: Docker exec doesn't have a direct kill method.
-        // The process will be killed when the container stops or via a separate exec call.
+        dockerStream.destroy();
+        void terminateExec();
       },
     };
   }

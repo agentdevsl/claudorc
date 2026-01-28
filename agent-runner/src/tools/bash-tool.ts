@@ -2,10 +2,16 @@
  * Bash command execution tool for the agent-runner.
  */
 import { exec } from 'node:child_process';
+import { stat } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ToolContext, ToolResponse } from './types.js';
 
 const execAsync = promisify(exec);
+const WORKSPACE_ROOT = process.env.AGENT_WORKSPACE_ROOT ?? '/workspace';
+const DEFAULT_TIMEOUT_MS = 120000;
+const MIN_TIMEOUT_MS = 1000;
+const MAX_TIMEOUT_MS = 300000;
 
 export interface BashArgs {
   command: string;
@@ -35,6 +41,26 @@ function isDangerousCommand(command: string): boolean {
   return DANGEROUS_PATTERNS.some((pattern) => pattern.test(command));
 }
 
+function resolveWorkspacePath(path: string, cwd: string): string {
+  const resolved = isAbsolute(path) ? path : resolve(cwd, path);
+  const normalized = resolve(resolved);
+
+  if (!normalized.startsWith(`${WORKSPACE_ROOT}/`) && normalized !== WORKSPACE_ROOT) {
+    throw new Error(`Access denied: path '${path}' resolves outside workspace`);
+  }
+
+  return normalized;
+}
+
+function normalizeTimeout(timeout: number | undefined): number {
+  if (!Number.isFinite(timeout) || typeof timeout !== 'number') {
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  const clamped = Math.min(Math.max(Math.trunc(timeout), MIN_TIMEOUT_MS), MAX_TIMEOUT_MS);
+  return clamped;
+}
+
 /**
  * Execute a bash command.
  */
@@ -52,8 +78,25 @@ export async function bashTool(args: BashArgs, context: ToolContext): Promise<To
     };
   }
 
-  const cwd = args.cwd ?? context.cwd;
-  const timeout = args.timeout ?? 120000; // 2 minute default
+  let cwd: string;
+  try {
+    cwd = resolveWorkspacePath(args.cwd ?? context.cwd, context.cwd);
+    const stats = await stat(cwd);
+    if (!stats.isDirectory()) {
+      return {
+        content: [{ type: 'text', text: `Error: ${cwd} is not a directory` }],
+        is_error: true,
+      };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: 'text', text: `Error: invalid working directory: ${message}` }],
+      is_error: true,
+    };
+  }
+
+  const timeout = normalizeTimeout(args.timeout);
 
   try {
     const { stdout, stderr } = await execAsync(args.command, {

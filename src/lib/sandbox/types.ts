@@ -114,7 +114,7 @@ export interface SandboxHealthCheck {
  * Default values
  */
 export const SANDBOX_DEFAULTS = {
-  image: 'agent-sandbox:latest',
+  image: 'agentpane/agent-sandbox:latest',
   memoryMb: 4096,
   cpuCores: 2,
   idleTimeoutMinutes: 30,

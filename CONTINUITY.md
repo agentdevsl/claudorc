@@ -1,11 +1,11 @@
 # Continuity Ledger
 
-- Goal (incl. success criteria): Fix 400 INVALID_QUESTIONS_ID when answering AI task questions; add regression tests.
+- Goal (incl. success criteria): Align workflow DSL with commands merged into skills; fix tests accordingly, including UI for workflow designer.
 - Constraints/Assumptions: Use bun; TS strict; async/await; TDD; Result types; update SPEC_UPDATES.md for spec errors.
 - Key decisions: None yet.
-- State: Added more visible spinner styling for question submit.
-- Done: Updated submit answers button to show visible spinner styling while submitting.
-- Now: Confirm spinner visibility in UI.
-- Next: Add server-side idempotent handling/logging if 400 persists.
+- State: Broader test suite run; multiple failures to triage.
+- Done: Fixed plan_options migration schema; updated container/sandbox tooling; targeted tests run; full test run revealed workflow-dsl command-related failures.
+- Now: Triage failing tests from full run.
+- Next: Identify root causes and fix failing tests.
 - Open questions (UNCONFIRMED): None.
-- Working set (files/ids/commands): `src/app/components/features/new-task-dialog/questions-panel.tsx`.
+- Working set (files/ids/commands): `bun run test`, `/Users/simon.lynch/.local/share/opencode/tool-output/tool_c0224b3a6001xa5LOZ3DSm3Ae3`.

@@ -31,6 +31,12 @@ A workflow consists of:
 - **loop**: Iterates over a collection or until a condition (e.g., "repeat 2 times", "until all pass")
 - **parallel**: Executes multiple branches concurrently (e.g., "concurrent", "in parallel")
 
+### Skill Recognition
+
+Items that start with "/" are skills. Examples:
+- /speckit.specify
+- /commit
+
 ### CRITICAL: Type Classification Rules
 
 **Simple rule: If it starts with "/" → it's a SKILL. Otherwise → it's CONTEXT.**
@@ -119,6 +125,7 @@ Generate a JSON object with this structure:
 
 3. **Use correct node types**:
    - \`skill\` - For ANY "/name" invocation (items starting with "/")
+   - Treat command list items as skills (use \`skill\` nodes)
    - \`context\` - For prompting/context content (items NOT starting with "/")
    - \`agent\` - For AI agent invocations (e.g., "use opus agents", "concurrent agents")
    - \`loop\` - For repetition (e.g., "repeat 2 times", "iterate until")
@@ -194,30 +201,21 @@ ${template.content}
 \`\`\`
 `;
 
-  if (template.skills && template.skills.length > 0) {
+  const skillLines = template.skills?.map(
+    (skill) =>
+      `- **${skill.name}** (ID: ${skill.id})${skill.description ? `: ${skill.description}` : ''}`
+  );
+  const commandLines = template.commands?.map(
+    (cmd) =>
+      `- **${cmd.name}** (Command: \`${cmd.command}\`)${cmd.description ? ` - ${cmd.description}` : ''}`
+  );
+
+  const availableSkills = [...(skillLines ?? []), ...(commandLines ?? [])];
+  if (availableSkills.length > 0) {
     prompt += `
 ### Available Skills
 
-${template.skills
-  .map(
-    (skill) =>
-      `- **${skill.name}** (ID: ${skill.id})${skill.description ? `: ${skill.description}` : ''}`
-  )
-  .join('\n')}
-`;
-  }
-
-  // Commands are now treated as context - show them for reference but they become context nodes
-  if (template.commands && template.commands.length > 0) {
-    prompt += `
-### Available Context Items
-
-${template.commands
-  .map(
-    (cmd) =>
-      `- **${cmd.name}**: \`${cmd.command}\`${cmd.description ? ` - ${cmd.description}` : ''}`
-  )
-  .join('\n')}
+${availableSkills.join('\n')}
 `;
   }
 

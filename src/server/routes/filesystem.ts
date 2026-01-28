@@ -2,6 +2,8 @@
  * Filesystem routes
  */
 
+import { access, readdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Hono } from 'hono';
 import { json } from '../shared.js';
 
@@ -23,8 +25,14 @@ export function createFilesystemRoutes() {
       `${homeDir}/src`,
     ];
 
-    const { existsSync, readdirSync, statSync } = await import('node:fs');
-    const { join } = await import('node:path');
+    const canAccess = async (path: string): Promise<boolean> => {
+      try {
+        await access(path);
+        return true;
+      } catch {
+        return false;
+      }
+    };
 
     type LocalRepo = {
       name: string;
@@ -41,25 +49,25 @@ export function createFilesystemRoutes() {
     const warnings: AccessWarning[] = [];
 
     for (const searchDir of searchDirs) {
-      if (!existsSync(searchDir)) continue;
+      if (!(await canAccess(searchDir))) continue;
 
       try {
-        const entries = readdirSync(searchDir);
+        const entries = await readdir(searchDir);
 
         for (const entry of entries) {
           const fullPath = join(searchDir, entry);
 
           try {
-            const stat = statSync(fullPath);
-            if (!stat.isDirectory()) continue;
+            const statInfo = await stat(fullPath);
+            if (!statInfo.isDirectory()) continue;
 
             // Check if it's a git repo
             const gitDir = join(fullPath, '.git');
-            if (existsSync(gitDir)) {
+            if (await canAccess(gitDir)) {
               repos.push({
                 name: entry,
                 path: fullPath,
-                lastModified: stat.mtime.toISOString(),
+                lastModified: statInfo.mtime.toISOString(),
               });
             }
           } catch (error) {

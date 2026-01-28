@@ -9,6 +9,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
+import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
 import type { SandboxConfigService } from '../services/sandbox-config.service.js';
@@ -50,6 +51,7 @@ export interface RouterDependencies {
   marketplaceService: MarketplaceService;
   agentService: AgentService;
   commandRunner: CommandRunner;
+  durableStreamsService?: DurableStreamsService;
 }
 
 /**
@@ -131,6 +133,7 @@ export function createRouter(deps: RouterDependencies) {
     '/api/sessions',
     createSessionsRoutes({
       sessionService: deps.sessionService,
+      durableStreamsService: deps.durableStreamsService,
     })
   );
 

@@ -74,6 +74,7 @@ interface RunningAgent {
   execResult: ExecStreamResult;
   stopFilePath: string;
   startedAt: Date;
+  stopRequested: boolean;
 }
 
 /**
@@ -127,6 +128,13 @@ export class ContainerAgentService {
     const sandbox = await this.provider.get(projectId);
     if (!sandbox) {
       infoLog('startAgent', 'Sandbox not found for project', { projectId });
+      return err(SandboxErrors.CONTAINER_NOT_FOUND);
+    }
+    if (sandbox.projectId !== projectId) {
+      infoLog('startAgent', 'Sandbox project mismatch (fallback blocked)', {
+        projectId,
+        sandboxProjectId: sandbox.projectId,
+      });
       return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
     debugLog('startAgent', 'Sandbox found', { sandboxId: sandbox.id, status: sandbox.status });
@@ -291,6 +299,7 @@ export class ContainerAgentService {
         execResult,
         stopFilePath,
         startedAt: new Date(),
+        stopRequested: false,
       };
 
       this.runningAgents.set(taskId, runningAgent);
@@ -367,16 +376,7 @@ export class ContainerAgentService {
       debugLog('stopAgent', 'Killing exec process', { taskId });
       agent.execResult.kill();
 
-      // Stop the bridge
-      debugLog('stopAgent', 'Stopping bridge', { taskId });
-      agent.bridge.stop();
-
-      // Clean up
-      this.runningAgents.delete(taskId);
-      infoLog('stopAgent', 'Agent stopped and cleaned up', {
-        taskId,
-        remainingAgents: this.runningAgents.size,
-      });
+      agent.stopRequested = true;
 
       // Publish cancelled event
       await this.streams.publish(agent.sessionId, 'container-agent:cancelled', {
@@ -458,18 +458,34 @@ export class ContainerAgentService {
       const { exitCode } = await agent.execResult.wait();
       infoLog('processAgentOutput', 'Process exited', { taskId: agent.taskId, exitCode });
 
-      if (exitCode !== 0 && this.runningAgents.has(agent.taskId)) {
-        // Non-zero exit without completion event - emit error
-        infoLog('processAgentOutput', 'Non-zero exit code, publishing error event', {
+      if (this.runningAgents.has(agent.taskId)) {
+        if (agent.stopRequested) {
+          infoLog('processAgentOutput', 'Agent stopped via cancellation request', {
+            taskId: agent.taskId,
+            exitCode,
+          });
+          await this.handleAgentComplete(agent.taskId, 'cancelled', 0);
+          return;
+        }
+
+        const errorMessage =
+          exitCode === 0
+            ? 'Agent exited without emitting a completion event'
+            : `Agent process exited with code ${exitCode}`;
+
+        infoLog('processAgentOutput', 'Process exit without completion, publishing error', {
           taskId: agent.taskId,
           exitCode,
         });
+
         await this.streams.publish(agent.sessionId, 'container-agent:error', {
           taskId: agent.taskId,
           sessionId: agent.sessionId,
-          error: `Agent process exited with code ${exitCode}`,
+          error: errorMessage,
           turnCount: 0,
         });
+
+        await this.handleAgentError(agent.taskId, errorMessage, 0);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -480,12 +496,19 @@ export class ContainerAgentService {
       });
 
       if (this.runningAgents.has(agent.taskId)) {
+        if (agent.stopRequested) {
+          await this.handleAgentComplete(agent.taskId, 'cancelled', 0);
+          return;
+        }
+
         await this.streams.publish(agent.sessionId, 'container-agent:error', {
           taskId: agent.taskId,
           sessionId: agent.sessionId,
           error: message,
           turnCount: 0,
         });
+
+        await this.handleAgentError(agent.taskId, message, 0);
       }
     } finally {
       // Note: Cleanup is handled by handleAgentComplete/handleAgentError callbacks.

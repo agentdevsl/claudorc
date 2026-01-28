@@ -319,6 +319,7 @@ export interface StreamEvent<T = unknown> {
   type: StreamEventType;
   timestamp: number;
   data: T;
+  offset?: number;
 }
 
 /**
@@ -404,6 +405,7 @@ export class DurableStreamsService {
         type,
         timestamp: Date.now(),
         data,
+        offset,
       };
       this.notifySubscribers(streamId, event);
 
@@ -420,7 +422,7 @@ export class DurableStreamsService {
    * Publish a session event (uses SessionEvent's own type/data structure)
    */
   async publishSessionEvent(streamId: string, event: SessionEvent): Promise<void> {
-    await this.server.publish(streamId, event.type, event.data);
+    const offset = await this.server.publish(streamId, event.type, event.data);
 
     // Notify local subscribers
     const streamEvent: StreamEvent = {
@@ -428,6 +430,7 @@ export class DurableStreamsService {
       type: event.type,
       timestamp: event.timestamp,
       data: event.data,
+      offset,
     };
     this.notifySubscribers(streamId, streamEvent);
   }

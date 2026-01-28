@@ -309,11 +309,14 @@ function mapToCompactNodeType(type: WorkflowNode['type']): string {
     case 'parallel':
       // Control flow nodes use their standard (non-compact) type
       // because they have special rendering requirements
+      console.warn(
+        `[layoutWorkflow] No compact variant for "${type}". Falling back to standard type.`
+      );
       return type;
     default: {
       // TypeScript exhaustiveness check - if this is reached, we have an unhandled type
       const exhaustiveCheck: never = type;
-      console.error(
+      console.warn(
         `[layoutWorkflow] Unhandled node type "${exhaustiveCheck}". Node may not render correctly.`
       );
       return type as string;
@@ -551,12 +554,13 @@ function mapEdgeType(edgeType: WorkflowEdge['type']): string {
   // Map to registered edge types: sequential, handoff, dataflow, conditional
   switch (edgeType) {
     case 'sequential':
+      return 'straight';
     case 'handoff':
     case 'dataflow':
     case 'conditional':
       return edgeType;
     default:
       // Default to sequential for unknown types
-      return 'sequential';
+      return 'straight';
   }
 }
