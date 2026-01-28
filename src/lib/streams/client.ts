@@ -177,6 +177,9 @@ export const DEFAULT_RECONNECT_CONFIG: ReconnectConfig = {
  * Session event types from the server
  */
 export type SessionEventType =
+  // Control events
+  | 'connected'
+  // Content events
   | 'chunk'
   | 'tool:start'
   | 'tool:result'
@@ -569,6 +572,11 @@ export class DurableStreamsClient {
  */
 function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
   switch (raw.type) {
+    // Control events - not routed to callbacks
+    case 'connected':
+      // Handshake event from server, no action needed
+      return null;
+
     case 'chunk': {
       const parsed = rawChunkDataSchema.safeParse(raw.data);
       if (!parsed.success) {

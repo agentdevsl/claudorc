@@ -104,9 +104,17 @@ export function useContainerAgentStatuses(
     const currentSessionIds = new Set(sessions.map((s) => s.sessionId));
     const subscriptions = subscriptionsRef.current;
 
+    console.log('[useContainerAgentStatuses] Managing subscriptions:', {
+      sessionsCount: sessions.length,
+      sessions: sessions.map((s) => ({ sessionId: s.sessionId, taskId: s.taskId })),
+      existingSubscriptions: Array.from(subscriptions.keys()),
+    });
+
     // Subscribe to new sessions
     for (const { sessionId, taskId } of sessions) {
       if (!subscriptions.has(sessionId)) {
+        console.log('[useContainerAgentStatuses] Subscribing to session:', sessionId);
+
         // Initialize status
         setStatuses((prev) => {
           const newMap = new Map(prev);
@@ -118,15 +126,31 @@ export function useContainerAgentStatuses(
 
         // Subscribe
         const callbacks: SessionCallbacks = {
-          onContainerAgentStatus: (event) => handleStatus(sessionId, event.data),
-          onContainerAgentStarted: () => handleStarted(sessionId),
-          onContainerAgentComplete: () => handleComplete(sessionId),
-          onContainerAgentError: () => handleComplete(sessionId, true),
-          onContainerAgentCancelled: () => handleComplete(sessionId),
+          onContainerAgentStatus: (event) => {
+            console.log('[useContainerAgentStatuses] Received status event:', event.data);
+            handleStatus(sessionId, event.data);
+          },
+          onContainerAgentStarted: () => {
+            console.log('[useContainerAgentStatuses] Received started event');
+            handleStarted(sessionId);
+          },
+          onContainerAgentComplete: () => {
+            console.log('[useContainerAgentStatuses] Received complete event');
+            handleComplete(sessionId);
+          },
+          onContainerAgentError: () => {
+            console.log('[useContainerAgentStatuses] Received error event');
+            handleComplete(sessionId, true);
+          },
+          onContainerAgentCancelled: () => {
+            console.log('[useContainerAgentStatuses] Received cancelled event');
+            handleComplete(sessionId);
+          },
         };
 
         const subscription = subscribeToSession(sessionId, callbacks);
         subscriptions.set(sessionId, subscription);
+        console.log('[useContainerAgentStatuses] Subscription created for:', sessionId);
       }
     }
 

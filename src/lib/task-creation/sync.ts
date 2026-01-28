@@ -197,9 +197,12 @@ function handleTaskCreationEvent(sessionId: string, event: TaskCreationEvent): v
 }
 
 function handleTokenEvent(sessionId: string, data: TokenEventData): void {
+  // Clear pendingQuestions when streaming starts (fallback if processing event was missed)
+  // This makes the UI more resilient to event ordering issues
   updateSession(sessionId, {
     isStreaming: true,
     streamingContent: data.accumulated,
+    pendingQuestions: null, // Clear questions when AI starts responding
   });
 }
 
