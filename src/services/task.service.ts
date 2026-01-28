@@ -101,19 +101,37 @@ export class TaskService {
 
   /**
    * Stop a running container agent for a task.
+   * If the agent isn't in memory (e.g., container died), cleans up task state anyway.
    */
   async stopAgent(taskId: string): Promise<Result<void, TaskError>> {
-    if (!this.containerAgentService) {
-      return err(TaskErrors.AGENT_NOT_RUNNING);
-    }
+    // Check if agent is actually running in memory
+    const isRunning = this.containerAgentService?.isAgentRunning(taskId);
 
-    if (!this.containerAgentService.isAgentRunning(taskId)) {
-      return err(TaskErrors.AGENT_NOT_RUNNING);
-    }
+    if (isRunning && this.containerAgentService) {
+      // Agent is running - stop it properly
+      const result = await this.containerAgentService.stopAgent(taskId);
+      if (!result.ok) {
+        return err(TaskErrors.AGENT_STOP_FAILED);
+      }
+    } else {
+      // Agent not in memory - clean up task state anyway
+      // This handles cases where container died or server restarted
+      const task = await this.db.query.tasks.findFirst({
+        where: (tasks, { eq }) => eq(tasks.id, taskId),
+      });
 
-    const result = await this.containerAgentService.stopAgent(taskId);
-    if (!result.ok) {
-      return err(TaskErrors.AGENT_STOP_FAILED);
+      if (task?.agentId) {
+        // Update task to remove agent reference and mark as cancelled
+        await this.db
+          .update(tasks)
+          .set({
+            agentId: null,
+            sessionId: null,
+            lastAgentStatus: 'cancelled',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, taskId));
+      }
     }
 
     return ok(undefined);
