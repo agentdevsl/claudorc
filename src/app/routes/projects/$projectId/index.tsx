@@ -111,6 +111,11 @@ function ProjectKanban(): React.JSX.Element {
       console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
       showWarning('Agent failed to start', data.agentError);
     }
+
+    // When moving to in_progress, navigate to the session view to show agent output
+    if (column === 'in_progress' && data.task?.sessionId) {
+      navigate({ to: '/sessions/$sessionId', params: { sessionId: data.task.sessionId } });
+    }
   };
 
   const handleRunNow = async (taskId: string) => {
@@ -134,6 +139,11 @@ function ProjectKanban(): React.JSX.Element {
     if (data.agentError) {
       console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
       showWarning('Agent failed to start', data.agentError);
+    }
+
+    // Navigate to the session view to show agent output
+    if (data.task?.sessionId) {
+      navigate({ to: '/sessions/$sessionId', params: { sessionId: data.task.sessionId } });
     }
   };
 
