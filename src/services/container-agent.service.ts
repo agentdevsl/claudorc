@@ -707,7 +707,14 @@ export class ContainerAgentService {
 
       // Kill the exec process and wait for cleanup
       debugLog('stopAgent', 'Killing exec process', { taskId });
-      await agent.execResult.kill();
+      try {
+        await agent.execResult.kill();
+      } catch (killError) {
+        // HTTP 101 errors can occur during Docker exec termination - this is expected
+        // The process is still terminated, we just couldn't inspect it cleanly
+        const killMessage = killError instanceof Error ? killError.message : String(killError);
+        debugLog('stopAgent', 'Exec kill completed with warning', { taskId, warning: killMessage });
+      }
 
       agent.stopRequested = true;
 
