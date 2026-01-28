@@ -82,6 +82,7 @@ export function createRouter(deps: RouterDependencies) {
     createHealthRoutes({
       db: deps.db,
       githubService: deps.githubService,
+      sandboxProvider: deps.dockerProvider ?? null,
     })
   );
 
