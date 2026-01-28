@@ -121,37 +121,134 @@ const taskService = new TaskService(db, {
   }),
 });
 
-// Mock DurableStreamsService for task creation (SSE handled separately)
-console.warn(
-  '[API Server] Using mock DurableStreamsService - real-time task creation events disabled'
-);
-const mockStreamsService: DurableStreamsService = {
-  createStream: async () => undefined,
-  publish: async () => 1,
-} as unknown as DurableStreamsService;
+// In-memory DurableStreamsServer implementation for local development
+// Stores events per stream and supports real-time subscriptions
+interface StoredEvent {
+  type: string;
+  data: unknown;
+  offset: number;
+  timestamp: number;
+}
 
-// Mock DurableStreamsServer for SessionService
-console.warn('[API Server] Using mock DurableStreamsServer - some session features limited');
-const mockStreamsServer: DurableStreamsServer = {
-  createStream: async () => undefined,
-  publish: async () => 1, // Returns offset
-  subscribe: async function* () {
-    yield { type: 'chunk', data: {}, offset: 0 };
-  },
-};
+class InMemoryDurableStreamsServer implements DurableStreamsServer {
+  private streams = new Map<string, StoredEvent[]>();
+  private subscribers = new Map<
+    string,
+    Set<(event: { type: string; data: unknown; offset: number }) => void>
+  >();
+
+  async createStream(id: string, _schema: unknown): Promise<void> {
+    if (!this.streams.has(id)) {
+      this.streams.set(id, []);
+      this.subscribers.set(id, new Set());
+      console.log(`[InMemoryStreams] Created stream: ${id}`);
+    }
+  }
+
+  async publish(id: string, type: string, data: unknown): Promise<number> {
+    // Auto-create stream if it doesn't exist
+    if (!this.streams.has(id)) {
+      await this.createStream(id, {});
+    }
+
+    const events = this.streams.get(id);
+    if (!events) {
+      return 0;
+    }
+    const offset = events.length;
+    const event: StoredEvent = {
+      type,
+      data,
+      offset,
+      timestamp: Date.now(),
+    };
+    events.push(event);
+
+    // Notify real-time subscribers
+    const subs = this.subscribers.get(id);
+    if (subs) {
+      for (const callback of subs) {
+        try {
+          callback({ type, data, offset });
+        } catch (err) {
+          console.error(`[InMemoryStreams] Subscriber error for ${id}:`, err);
+        }
+      }
+    }
+
+    console.log(`[InMemoryStreams] Published to ${id}: ${type} (offset: ${offset})`);
+    return offset;
+  }
+
+  async *subscribe(id: string): AsyncGenerator<{ type: string; data: unknown; offset: number }> {
+    // First yield all stored events
+    const events = this.streams.get(id) ?? [];
+    for (const event of events) {
+      yield { type: event.type, data: event.data, offset: event.offset };
+    }
+
+    // Then listen for new events using a simple polling approach
+    // For real-time, use addRealtimeSubscriber instead
+    let lastOffset = events.length - 1;
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const currentEvents = this.streams.get(id) ?? [];
+      for (let i = lastOffset + 1; i < currentEvents.length; i++) {
+        const event = currentEvents[i];
+        if (event) {
+          yield { type: event.type, data: event.data, offset: event.offset };
+          lastOffset = i;
+        }
+      }
+    }
+  }
+
+  async deleteStream(id: string): Promise<boolean> {
+    const existed = this.streams.has(id);
+    this.streams.delete(id);
+    this.subscribers.delete(id);
+    if (existed) {
+      console.log(`[InMemoryStreams] Deleted stream: ${id}`);
+    }
+    return existed;
+  }
+
+  // Get all events for a stream (for SSE endpoint)
+  getEvents(id: string): StoredEvent[] {
+    return this.streams.get(id) ?? [];
+  }
+
+  // Add a real-time subscriber callback
+  addRealtimeSubscriber(
+    id: string,
+    callback: (event: { type: string; data: unknown; offset: number }) => void
+  ): () => void {
+    let subs = this.subscribers.get(id);
+    if (!subs) {
+      subs = new Set();
+      this.subscribers.set(id, subs);
+    }
+    subs.add(callback);
+    return () => subs.delete(callback);
+  }
+}
+
+// Create in-memory streams server for local development
+const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
+console.log('[API Server] Using in-memory DurableStreamsServer for local development');
 
 // DurableStreamsService for SSE and container agent events
-const durableStreamsService = new DurableStreamsService(mockStreamsServer);
+const durableStreamsService = new DurableStreamsService(inMemoryStreamsServer);
 
 // SessionService for session management (needed for task creation history)
-const sessionService = new SessionService(db, mockStreamsServer, {
+const sessionService = new SessionService(db, inMemoryStreamsServer, {
   baseUrl: 'http://localhost:3001',
 });
 
 // TaskCreationService for AI-powered task creation (with session tracking)
 const taskCreationService: TaskCreationService = createTaskCreationService(
   db,
-  mockStreamsService,
+  durableStreamsService,
   sessionService
 );
 
@@ -290,7 +387,12 @@ if (dockerProvider) {
   try {
     // Create DurableStreamsService for container agent events
     // Create ContainerAgentService for Docker-based agent execution
-    containerAgentService = createContainerAgentService(db, dockerProvider, durableStreamsService);
+    containerAgentService = createContainerAgentService(
+      db,
+      dockerProvider,
+      durableStreamsService,
+      apiKeyService
+    );
 
     // Wire up container agent service to task service
     taskService.setContainerAgentService(containerAgentService);

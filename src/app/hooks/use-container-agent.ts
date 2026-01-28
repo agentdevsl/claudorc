@@ -4,6 +4,7 @@ import {
   type ContainerAgentComplete,
   type ContainerAgentError,
   type ContainerAgentStarted,
+  type ContainerAgentStatus,
   type ContainerAgentToken,
   type ContainerAgentToolResult,
   type ContainerAgentToolStart,
@@ -12,6 +13,25 @@ import {
   type Subscription,
   subscribeToSession,
 } from '@/lib/streams/client';
+
+/**
+ * Container agent startup stage
+ */
+export type ContainerAgentStage =
+  | 'initializing'
+  | 'validating'
+  | 'credentials'
+  | 'executing'
+  | 'running';
+
+/**
+ * Status breadcrumb entry
+ */
+export interface ContainerAgentStatusEntry {
+  stage: ContainerAgentStage;
+  message: string;
+  timestamp: number;
+}
 
 /**
  * Container agent tool execution state
@@ -34,6 +54,12 @@ export interface ContainerAgentToolExecution {
 export interface ContainerAgentState {
   /** Agent execution status */
   status: 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'cancelled';
+  /** Current startup stage (breadcrumb progress) */
+  currentStage?: ContainerAgentStage;
+  /** Current status message */
+  statusMessage?: string;
+  /** Status breadcrumb history */
+  statusHistory: ContainerAgentStatusEntry[];
   /** Model being used */
   model?: string;
   /** Maximum turns allowed */
@@ -62,6 +88,7 @@ export interface ContainerAgentState {
 
 const initialState: ContainerAgentState = {
   status: 'idle',
+  statusHistory: [],
   currentTurn: 0,
   remainingTurns: 0,
   streamedText: '',
@@ -84,6 +111,24 @@ export function useContainerAgent(sessionId: string | null): {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [isStreaming, setIsStreaming] = useState(false);
   const subscriptionRef = useRef<Subscription | null>(null);
+
+  // Handle status update (breadcrumb progress)
+  const handleStatus = useCallback((data: ContainerAgentStatus) => {
+    setState((prev) => ({
+      ...prev,
+      status: 'starting',
+      currentStage: data.stage,
+      statusMessage: data.message,
+      statusHistory: [
+        ...prev.statusHistory,
+        {
+          stage: data.stage,
+          message: data.message,
+          timestamp: data.timestamp,
+        },
+      ],
+    }));
+  }, []);
 
   // Handle agent started event
   const handleStarted = useCallback((data: ContainerAgentStarted) => {
@@ -216,6 +261,7 @@ export function useContainerAgent(sessionId: string | null): {
     setConnectionState('connecting');
 
     const callbacks: SessionCallbacks = {
+      onContainerAgentStatus: (event) => handleStatus(event.data),
       onContainerAgentStarted: (event) => handleStarted(event.data),
       onContainerAgentToken: (event) => handleToken(event.data),
       onContainerAgentTurn: (event) => handleTurn(event.data),
@@ -249,6 +295,7 @@ export function useContainerAgent(sessionId: string | null): {
     };
   }, [
     sessionId,
+    handleStatus,
     handleStarted,
     handleToken,
     handleTurn,

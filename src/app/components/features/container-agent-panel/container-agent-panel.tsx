@@ -2,6 +2,7 @@ import { Square } from '@phosphor-icons/react';
 import { Button } from '@/app/components/ui/button';
 import { useContainerAgent } from '@/app/hooks/use-container-agent';
 import { ContainerAgentHeader } from './container-agent-header';
+import { ContainerAgentStatusBreadcrumbs } from './container-agent-status-breadcrumbs';
 import { ContainerAgentStream } from './container-agent-stream';
 import { ContainerAgentToolList } from './container-agent-tool-list';
 
@@ -56,6 +57,15 @@ export function ContainerAgentPanel({
           </Button>
         )}
       </div>
+
+      {/* Status breadcrumbs during startup */}
+      {state.status === 'starting' && state.statusHistory.length > 0 && (
+        <ContainerAgentStatusBreadcrumbs
+          currentStage={state.currentStage}
+          statusMessage={state.statusMessage}
+          statusHistory={state.statusHistory}
+        />
+      )}
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">

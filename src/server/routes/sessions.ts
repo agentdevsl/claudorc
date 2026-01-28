@@ -221,6 +221,30 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
 
         // Subscribe to durable streams if available
         if (durableStreamsService) {
+          // First, send any existing events from the stream (for replay)
+          const server = durableStreamsService.getServer();
+          if ('getEvents' in server && typeof server.getEvents === 'function') {
+            const existingEvents = (
+              server as {
+                getEvents: (
+                  id: string
+                ) => Array<{ type: string; data: unknown; offset: number; timestamp: number }>;
+              }
+            ).getEvents(sessionId);
+            for (const event of existingEvents) {
+              if (event.offset >= fromOffset) {
+                const eventData = JSON.stringify({
+                  type: event.type,
+                  data: event.data,
+                  timestamp: event.timestamp,
+                  offset: event.offset,
+                });
+                controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
+              }
+            }
+          }
+
+          // Then subscribe to new events
           unsubscribe = durableStreamsService.addSubscriber(sessionId, (event) => {
             try {
               if (typeof event.offset === 'number' && event.offset < fromOffset) {

@@ -21,7 +21,7 @@ describe('DurableStreamsService', () => {
     await service.publish('stream-1', 'sandbox:creating', {
       sandboxId: 'sandbox-1',
       projectId: 'project-1',
-      image: 'agentpane/agent-sandbox:latest',
+      image: 'srlynch1/agent-sandbox:latest',
     });
 
     expect(received?.offset).toBe(7);

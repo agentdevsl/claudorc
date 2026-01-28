@@ -39,6 +39,7 @@ import type {
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+import type { ApiKeyService } from './api-key.service.js';
 import type { DurableStreamsService } from './durable-streams.service.js';
 
 /**
@@ -87,7 +88,8 @@ export class ContainerAgentService {
   constructor(
     private db: Database,
     private provider: SandboxProvider,
-    private streams: DurableStreamsService
+    private streams: DurableStreamsService,
+    private apiKeyService: ApiKeyService
   ) {}
 
   /**
@@ -101,6 +103,18 @@ export class ContainerAgentService {
       promptLength: prompt.length,
       promptStart: prompt.slice(0, 100),
     });
+
+    // Publish initializing status (before any checks, so UI gets immediate feedback)
+    await this.streams
+      .publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'initializing',
+        message: 'Initializing container agent...',
+      })
+      .catch((e) =>
+        debugLog('startAgent', 'Failed to publish initializing status', { error: String(e) })
+      );
 
     // Check if agent is already running for this task
     if (this.runningAgents.has(taskId)) {
@@ -123,21 +137,40 @@ export class ContainerAgentService {
       projectConfig: project.config,
     });
 
+    // Publish validating status
+    await this.streams
+      .publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'validating',
+        message: 'Validating sandbox container...',
+      })
+      .catch((e) =>
+        debugLog('startAgent', 'Failed to publish validating status', { error: String(e) })
+      );
+
     // Get the sandbox for this project
-    debugLog('startAgent', 'Getting sandbox for project', { projectId });
+    infoLog('startAgent', 'Getting sandbox for project', { projectId });
     const sandbox = await this.provider.get(projectId);
+    infoLog('startAgent', 'Sandbox lookup result', {
+      projectId,
+      foundSandbox: !!sandbox,
+      sandboxId: sandbox?.id,
+      sandboxProjectId: sandbox?.projectId,
+      sandboxStatus: sandbox?.status,
+    });
     if (!sandbox) {
       infoLog('startAgent', 'Sandbox not found for project', { projectId });
       return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
     if (sandbox.projectId !== projectId) {
-      infoLog('startAgent', 'Sandbox project mismatch (fallback blocked)', {
+      // Allow fallback to default sandbox for any project
+      infoLog('startAgent', 'Using default sandbox for project (fallback allowed)', {
         projectId,
         sandboxProjectId: sandbox.projectId,
       });
-      return err(SandboxErrors.CONTAINER_NOT_FOUND);
     }
-    debugLog('startAgent', 'Sandbox found', { sandboxId: sandbox.id, status: sandbox.status });
+    infoLog('startAgent', 'Sandbox found', { sandboxId: sandbox.id, status: sandbox.status });
 
     if (sandbox.status !== 'running') {
       infoLog('startAgent', 'Sandbox not running', {
@@ -230,9 +263,52 @@ export class ContainerAgentService {
     // Create sentinel file path for cancellation
     const stopFilePath = `/tmp/.agent-stop-${taskId}`;
 
+    // Publish credentials status
+    await this.streams
+      .publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'credentials',
+        message: 'Retrieving authentication credentials...',
+      })
+      .catch((e) =>
+        debugLog('startAgent', 'Failed to publish credentials status', { error: String(e) })
+      );
+
+    // Get OAuth token from database (via ApiKeyService)
+    // The Claude Agent SDK requires OAuth tokens to be written to ~/.claude/.credentials.json
+    // We pass it via CLAUDE_OAUTH_TOKEN env var, and agent-runner writes the credentials file
+    let oauthToken: string | null = null;
+    try {
+      oauthToken = await this.apiKeyService.getDecryptedKey('anthropic');
+      infoLog('startAgent', 'Retrieved OAuth token from database', {
+        hasToken: !!oauthToken,
+        isOAuth: oauthToken?.startsWith('sk-ant-oat') ?? false,
+      });
+    } catch (keyErr) {
+      infoLog('startAgent', 'Failed to get OAuth token from database', {
+        error: keyErr instanceof Error ? keyErr.message : String(keyErr),
+      });
+    }
+
+    // Fall back to environment variable if not in database
+    if (!oauthToken) {
+      oauthToken = process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? null;
+      if (oauthToken) {
+        infoLog('startAgent', 'Using OAuth token from environment variable');
+      }
+    }
+
+    if (!oauthToken) {
+      infoLog('startAgent', 'No OAuth token available');
+      return err(SandboxErrors.API_KEY_NOT_CONFIGURED);
+    }
+
     // Build environment variables for agent-runner
+    // CLAUDE_OAUTH_TOKEN is used by agent-runner to write credentials file
+    // (OAuth tokens can't be passed via ANTHROPIC_API_KEY - they're blocked by API)
     const env: Record<string, string> = {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? '[REDACTED]' : '',
+      CLAUDE_OAUTH_TOKEN: '[REDACTED]',
       AGENT_TASK_ID: taskId,
       AGENT_SESSION_ID: sessionId,
       AGENT_PROMPT: prompt,
@@ -244,7 +320,6 @@ export class ContainerAgentService {
     debugLog('startAgent', 'Environment variables prepared', {
       ...env,
       AGENT_PROMPT: `[${prompt.length} chars]`,
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? '[SET]' : '[NOT SET]',
     });
 
     // Create the container bridge to process stdout events
@@ -268,6 +343,18 @@ export class ContainerAgentService {
       },
     });
 
+    // Publish executing status
+    await this.streams
+      .publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'executing',
+        message: 'Starting agent process in container...',
+      })
+      .catch((e) =>
+        debugLog('startAgent', 'Failed to publish executing status', { error: String(e) })
+      );
+
     try {
       // Start the agent-runner process inside the container
       infoLog('startAgent', 'Executing agent-runner in container', {
@@ -280,7 +367,7 @@ export class ContainerAgentService {
         args: ['/opt/agent-runner/dist/index.js'],
         env: {
           ...env,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '', // Use actual key
+          CLAUDE_OAUTH_TOKEN: oauthToken, // Passed to agent-runner to write credentials file
           AGENT_PROMPT: prompt, // Use actual prompt
         },
         cwd: '/workspace',
@@ -310,7 +397,15 @@ export class ContainerAgentService {
       debugLog('startAgent', 'Starting stdout stream processing', { taskId });
       this.processAgentOutput(runningAgent);
 
-      // Publish started event
+      // Publish running status
+      await this.streams.publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'running',
+        message: 'Agent is now running',
+      });
+
+      // Publish started event (legacy, for backward compatibility)
       await this.streams.publish(sessionId, 'container-agent:started', {
         taskId,
         sessionId,
@@ -740,7 +835,8 @@ export class ContainerAgentService {
 export function createContainerAgentService(
   db: Database,
   provider: SandboxProvider,
-  streams: DurableStreamsService
+  streams: DurableStreamsService,
+  apiKeyService: ApiKeyService
 ): ContainerAgentService {
-  return new ContainerAgentService(db, provider, streams);
+  return new ContainerAgentService(db, provider, streams, apiKeyService);
 }

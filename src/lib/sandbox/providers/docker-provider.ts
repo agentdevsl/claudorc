@@ -298,7 +298,9 @@ class DockerSandbox implements Sandbox {
       User: asRoot ? 'root' : SANDBOX_DEFAULTS.userHome.split('/').pop(),
     });
 
-    const dockerStream = await exec.start({ hijack: true, stdin: false });
+    // Start exec - use regular stream mode (not hijack) since we only need stdout/stderr
+    // This avoids HTTP 101 issues that occur with hijack mode in some docker-modem versions
+    const dockerStream = (await exec.start({ Detach: false, Tty: false })) as NodeJS.ReadableStream;
 
     // Create pass-through streams for stdout and stderr
     const stdoutStream = new PassThrough();
@@ -354,7 +356,7 @@ class DockerSandbox implements Sandbox {
             AttachStderr: false,
             User: 'root',
           });
-          await killer.start({ hijack: true, stdin: false });
+          await killer.start({ Detach: true });
         }
       } catch (error) {
         console.warn('[DockerProvider] Failed to terminate exec process:', error);
@@ -387,7 +389,10 @@ class DockerSandbox implements Sandbox {
         killed = true;
         stdoutStream.end();
         stderrStream.end();
-        dockerStream.destroy();
+        // Destroy the stream if it has a destroy method (Duplex streams do)
+        if ('destroy' in dockerStream && typeof dockerStream.destroy === 'function') {
+          dockerStream.destroy();
+        }
         void terminateExec();
       },
     };
@@ -490,18 +495,45 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async get(projectId: string): Promise<Sandbox | null> {
+    console.log(
+      `[DockerProvider] get(${projectId}) - projectToSandbox keys:`,
+      Array.from(this.projectToSandbox.keys())
+    );
+    console.log(
+      `[DockerProvider] get(${projectId}) - sandboxes keys:`,
+      Array.from(this.sandboxes.keys())
+    );
+
     // First check for project-specific sandbox
     const sandboxId = this.projectToSandbox.get(projectId);
+    console.log(`[DockerProvider] get(${projectId}) - direct lookup sandboxId:`, sandboxId);
     if (sandboxId) {
-      return this.sandboxes.get(sandboxId) ?? null;
+      const sandbox = this.sandboxes.get(sandboxId);
+      console.log(
+        `[DockerProvider] get(${projectId}) - found direct sandbox:`,
+        sandbox?.id,
+        sandbox?.projectId
+      );
+      return sandbox ?? null;
     }
 
     // Fall back to global default sandbox (projectId = 'default')
     const defaultSandboxId = this.projectToSandbox.get('default');
+    console.log(
+      `[DockerProvider] get(${projectId}) - fallback to default sandboxId:`,
+      defaultSandboxId
+    );
     if (defaultSandboxId) {
-      return this.sandboxes.get(defaultSandboxId) ?? null;
+      const sandbox = this.sandboxes.get(defaultSandboxId);
+      console.log(
+        `[DockerProvider] get(${projectId}) - found default sandbox:`,
+        sandbox?.id,
+        sandbox?.projectId
+      );
+      return sandbox ?? null;
     }
 
+    console.log(`[DockerProvider] get(${projectId}) - no sandbox found`);
     return null;
   }
 

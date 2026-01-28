@@ -1,15 +1,16 @@
 # Agent Sandbox Dockerfile
-# Extends the base sandbox image with the Claude Agent Runner
+# Extends the terraform-ai-tools base image with the Claude Agent Runner
 #
 # Usage:
-#   docker build -f docker/Dockerfile.agent-sandbox -t agentpane/agent-sandbox:latest .
+#   docker build -f docker/Dockerfile.agent-sandbox -t srlynch1/agent-sandbox:latest .
+#   docker push srlynch1/agent-sandbox:latest
 #
 # The image includes:
-# - Base sandbox environment (Node.js, Git, common dev tools)
+# - Base terraform-ai-tools environment (Node.js 22, Terraform, Git, jq)
 # - Claude Agent Runner for SDK execution
 # - ripgrep, fd-find, tree for file operations
 
-ARG BASE_IMAGE=docker/sandbox-templates:claude-code
+ARG BASE_IMAGE=srlynch1/terraform-ai-tools:latest
 
 FROM ${BASE_IMAGE}
 
@@ -17,11 +18,11 @@ FROM ${BASE_IMAGE}
 USER root
 
 # Install additional tools needed by the agent runner
+# (jq, terraform, git already included in base image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     fd-find \
     tree \
-    jq \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -52,7 +53,6 @@ WORKDIR /workspace
 ENTRYPOINT ["/bin/bash"]
 
 # Labels
-LABEL org.opencontainers.image.title="AgentPane Agent Sandbox"
-LABEL org.opencontainers.image.description="Docker sandbox with Claude Agent Runner for AgentPane"
-LABEL org.opencontainers.image.vendor="AgentPane"
-LABEL org.opencontainers.image.source="https://github.com/agentpane/agentpane"
+LABEL org.opencontainers.image.title="Agent Sandbox"
+LABEL org.opencontainers.image.description="Docker sandbox with Claude Agent Runner, based on terraform-ai-tools"
+LABEL org.opencontainers.image.base.name="srlynch1/terraform-ai-tools:latest"

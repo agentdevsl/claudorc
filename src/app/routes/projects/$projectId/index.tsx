@@ -24,6 +24,7 @@ type ClientTask = Pick<
   | 'position'
   | 'labels'
   | 'agentId'
+  | 'sessionId'
   | 'lastAgentStatus'
 > & {
   priority?: 'low' | 'medium' | 'high';

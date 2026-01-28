@@ -181,6 +181,12 @@ export const SandboxErrors = {
     501
   ),
 
+  API_KEY_NOT_CONFIGURED: createError(
+    'SANDBOX_API_KEY_NOT_CONFIGURED',
+    'Anthropic API key not configured. Set via Admin Settings or ANTHROPIC_API_KEY environment variable.',
+    401
+  ),
+
   SESSION_CREATE_FAILED: (message: string): SandboxError => ({
     code: 'SESSION_CREATE_FAILED',
     message: `Failed to create agent session: ${message}`,

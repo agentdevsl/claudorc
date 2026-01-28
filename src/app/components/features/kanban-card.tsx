@@ -74,6 +74,23 @@ const LAST_RUN_STATUS_CONFIG: Record<
   },
 };
 
+/** Stage labels for status display */
+const STAGE_LABELS: Record<string, string> = {
+  initializing: 'Initializing...',
+  validating: 'Validating...',
+  credentials: 'Auth...',
+  executing: 'Starting...',
+  running: 'Running',
+};
+
+/** Agent status info from real-time subscription */
+interface AgentStatusInfo {
+  currentStage?: string;
+  statusMessage?: string;
+  isStarting?: boolean;
+  isRunning?: boolean;
+}
+
 interface KanbanCardProps {
   task: Task;
   onClick?: () => void;
@@ -83,6 +100,8 @@ interface KanbanCardProps {
   priority?: Priority;
   /** Callback to run the task immediately (only shown in backlog) */
   onRunNow?: () => void;
+  /** Real-time agent status (from container agent) */
+  agentStatus?: AgentStatusInfo;
 }
 
 export function KanbanCard({
@@ -93,6 +112,7 @@ export function KanbanCard({
   isSelected = false,
   priority,
   onRunNow,
+  agentStatus,
 }: KanbanCardProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -223,19 +243,27 @@ export function KanbanCard({
             </div>
           )}
 
-          {/* Agent running badge */}
-          {task.agentId && (
+          {/* Agent running badge - show for agentId OR sessionId (container agents) */}
+          {(task.agentId || (task.column === 'in_progress' && task.sessionId)) && (
             <div
               className="flex items-center gap-1.5 rounded bg-[var(--attention-muted)] px-2 py-1 text-xs text-[var(--attention-fg)]"
               data-testid="agent-status-indicator"
             >
-              <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
-              <span>Running</span>
+              {agentStatus?.isStarting ? (
+                <Spinner className="h-3 w-3 animate-spin" />
+              ) : (
+                <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
+              )}
+              <span>
+                {agentStatus?.currentStage
+                  ? (STAGE_LABELS[agentStatus.currentStage] ?? 'Starting...')
+                  : 'Running'}
+              </span>
             </div>
           )}
 
           {/* Run Now button (only for backlog tasks without running agent) */}
-          {onRunNow && !task.agentId && (
+          {onRunNow && !task.agentId && !task.sessionId && (
             <button
               type="button"
               onClick={(e) => {

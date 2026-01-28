@@ -135,6 +135,13 @@ const rawContainerAgentCancelledSchema = z.object({
   turnCount: z.number(),
 });
 
+const rawContainerAgentStatusSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  stage: z.enum(['initializing', 'validating', 'credentials', 'executing', 'running']),
+  message: z.string(),
+});
+
 /**
  * Reconnection configuration
  */
@@ -173,6 +180,7 @@ export type SessionEventType =
   | 'terminal:output'
   | 'state:update'
   // Container agent events
+  | 'container-agent:status'
   | 'container-agent:started'
   | 'container-agent:token'
   | 'container-agent:turn'
@@ -196,6 +204,14 @@ export interface RawSessionEvent {
 /**
  * Container agent event types
  */
+export interface ContainerAgentStatus {
+  taskId: string;
+  sessionId: string;
+  stage: 'initializing' | 'validating' | 'credentials' | 'executing' | 'running';
+  message: string;
+  timestamp: number;
+}
+
 export interface ContainerAgentStarted {
   taskId: string;
   sessionId: string;
@@ -283,6 +299,7 @@ export type TypedSessionEvent =
   | { channel: 'presence'; data: SessionPresence; offset?: number }
   | { channel: 'terminal'; data: SessionTerminal; offset?: number }
   | { channel: 'agentState'; data: SessionAgentState; offset?: number }
+  | { channel: 'containerAgent:status'; data: ContainerAgentStatus; offset?: number }
   | { channel: 'containerAgent:started'; data: ContainerAgentStarted; offset?: number }
   | { channel: 'containerAgent:token'; data: ContainerAgentToken; offset?: number }
   | { channel: 'containerAgent:turn'; data: ContainerAgentTurn; offset?: number }
@@ -307,6 +324,11 @@ export interface SessionCallbacks {
     offset?: number;
   }) => void;
   // Container agent callbacks
+  onContainerAgentStatus?: (event: {
+    channel: 'containerAgent:status';
+    data: ContainerAgentStatus;
+    offset?: number;
+  }) => void;
   onContainerAgentStarted?: (event: {
     channel: 'containerAgent:started';
     data: ContainerAgentStarted;
@@ -671,6 +693,22 @@ function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
     }
 
     // Container agent events
+    case 'container-agent:status': {
+      const parsed = rawContainerAgentStatusSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:status:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:status',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
     case 'container-agent:started': {
       const parsed = rawContainerAgentStartedSchema.safeParse(raw.data);
       if (!parsed.success) {
@@ -838,6 +876,9 @@ function routeEventToCallback(event: TypedSessionEvent, callbacks: SessionCallba
       callbacks.onAgentState?.(event);
       break;
     // Container agent events
+    case 'containerAgent:status':
+      callbacks.onContainerAgentStatus?.(event);
+      break;
     case 'containerAgent:started':
       callbacks.onContainerAgentStarted?.(event);
       break;

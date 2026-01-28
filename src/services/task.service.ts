@@ -353,44 +353,46 @@ export class TaskService {
         .where(eq(tasks.id, task.id));
     }
 
-    // Trigger agent execution and await the result
-    try {
-      const result = await this.containerAgentService.startAgent({
+    // Trigger agent execution asynchronously - results flow through the stream
+    // We don't await the full result; the client subscribes to the sessionId stream
+    console.log(
+      `[TaskService] Triggering container agent for task ${task.id}, sessionId: ${sessionId}`
+    );
+    this.containerAgentService
+      .startAgent({
         projectId: task.projectId,
         taskId: task.id,
         sessionId,
         prompt,
         model: project.config?.model,
         maxTurns: project.config?.maxTurns,
+      })
+      .then((result) => {
+        if (!result.ok) {
+          // Extract error message
+          const errorResult = result as { ok: false; error: unknown };
+          const errorObj = errorResult.error;
+          let errorMsg: string;
+          if (typeof errorObj === 'object' && errorObj !== null && 'message' in errorObj) {
+            errorMsg = (errorObj as { message: string }).message;
+          } else if (typeof errorObj === 'string') {
+            errorMsg = errorObj;
+          } else {
+            errorMsg = 'Failed to start agent';
+          }
+          console.error(`[TaskService] Container agent failed for task ${task.id}:`, errorMsg);
+          // Error is already published to stream by containerAgentService
+        } else {
+          console.log(`[TaskService] Container agent started for task ${task.id}`);
+        }
+      })
+      .catch((error) => {
+        console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
+        // Errors are published to stream
       });
 
-      if (!result.ok) {
-        // Extract error from the error result - cast to access error property
-        const errorResult = result as { ok: false; error: unknown };
-        const errorObj = errorResult.error;
-        let errorMsg: string;
-        if (typeof errorObj === 'object' && errorObj !== null && 'message' in errorObj) {
-          // SandboxError or Error object with message property
-          errorMsg = (errorObj as { message: string }).message;
-        } else if (typeof errorObj === 'string') {
-          errorMsg = errorObj;
-        } else {
-          errorMsg = 'Failed to start agent';
-        }
-        console.error(
-          `[TaskService] Failed to start container agent for task ${task.id}:`,
-          errorMsg
-        );
-        return errorMsg;
-      }
-
-      console.log(`[TaskService] Container agent started for task ${task.id}`);
-      return undefined;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to start agent';
-      console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
-      return errorMsg;
-    }
+    // Return immediately - client subscribes to sessionId stream for results
+    return undefined;
   }
 
   /**

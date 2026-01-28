@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { access } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { isAbsolute, join, resolve } from 'node:path';
 /**
  * Agent Runner - Entry point for running Claude Agent SDK inside Docker containers.
  *
  * Environment variables:
- * - ANTHROPIC_API_KEY: Required. API key for Claude.
+ * - CLAUDE_OAUTH_TOKEN: Required. OAuth token for Claude authentication.
  * - AGENT_TASK_ID: Required. Task ID being worked on.
  * - AGENT_SESSION_ID: Required. Session ID for event streaming.
  * - AGENT_PROMPT: Required. The task prompt.
@@ -13,15 +14,16 @@ import { isAbsolute, resolve } from 'node:path';
  * - AGENT_MODEL: Optional. Model to use (default: claude-sonnet-4-20250514).
  * - AGENT_CWD: Optional. Working directory (default: /workspace).
  * - AGENT_STOP_FILE: Optional. Sentinel file path for cancellation.
+ *
+ * The OAuth token is written to ~/.claude/.credentials.json before starting the SDK.
+ * This is required because OAuth tokens passed via ANTHROPIC_API_KEY env var are blocked.
  */
-import Anthropic from '@anthropic-ai/sdk';
+import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createEventEmitter } from './event-emitter.js';
-import { executeTool, getToolSchemas } from './tools/index.js';
-import type { ToolContext } from './tools/types.js';
 
 // Configuration from environment
 const config = {
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  oauthToken: process.env.CLAUDE_OAUTH_TOKEN,
   taskId: process.env.AGENT_TASK_ID,
   sessionId: process.env.AGENT_SESSION_ID,
   prompt: process.env.AGENT_PROMPT,
@@ -36,8 +38,8 @@ const ALLOWED_STOP_ROOTS = [WORKSPACE_ROOT, '/tmp'];
 
 // Validate required configuration
 function validateConfig(): void {
-  if (!config.apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required');
+  if (!config.oauthToken) {
+    throw new Error('CLAUDE_OAUTH_TOKEN is required');
   }
   if (!config.taskId) {
     throw new Error('AGENT_TASK_ID is required');
@@ -54,6 +56,35 @@ function validateConfig(): void {
   if (config.stopFile) {
     config.stopFile = resolveStopFilePath(config.stopFile);
   }
+}
+
+/**
+ * Write OAuth credentials to ~/.claude/.credentials.json
+ * The Claude Agent SDK reads this file for authentication.
+ * OAuth tokens passed via ANTHROPIC_API_KEY env var are blocked by the API.
+ */
+async function writeCredentialsFile(): Promise<void> {
+  const home = homedir();
+  const claudeDir = join(home, '.claude');
+  const credentialsFile = join(claudeDir, '.credentials.json');
+
+  const credentials = {
+    claudeAiOauth: {
+      accessToken: config.oauthToken,
+      refreshToken: '',
+      expiresAt: Date.now() + 86400000, // 24h
+      scopes: ['user:inference', 'user:profile', 'user:sessions:claude_code'],
+      subscriptionType: 'max',
+    },
+  };
+
+  // Create .claude directory
+  await mkdir(claudeDir, { recursive: true, mode: 0o700 });
+
+  // Write credentials file
+  await writeFile(credentialsFile, JSON.stringify(credentials), { mode: 0o600 });
+
+  console.error(`[agent-runner] Wrote credentials to ${credentialsFile}`);
 }
 
 function resolveWorkspacePath(path: string, fallbackCwd: string): string {
@@ -98,38 +129,17 @@ async function shouldStop(): Promise<boolean> {
 }
 
 /**
- * System prompt for the agent.
- */
-const SYSTEM_PROMPT = `You are an AI assistant helping with software development tasks.
-
-You are running inside a Docker container with access to the project files at /workspace.
-
-Available tools:
-- read_file: Read file contents
-- write_file: Create or overwrite files
-- edit_file: Replace specific text in files (must match exactly)
-- bash: Execute shell commands
-- glob: Find files matching patterns
-- grep: Search for text patterns in files
-
-When working on tasks:
-1. First explore the codebase to understand the context
-2. Make focused, incremental changes
-3. Test your changes when possible
-4. Commit related changes together
-
-Be concise and focused. Complete the task thoroughly but efficiently.`;
-
-/**
- * Main agent loop using the Anthropic SDK.
+ * Main agent loop using the Claude Agent SDK.
  */
 async function runAgent(): Promise<void> {
   validateConfig();
 
-  const client = new Anthropic({ apiKey: config.apiKey });
+  // Write OAuth credentials to ~/.claude/.credentials.json
+  // This must be done before creating the SDK session
+  await writeCredentialsFile();
+
   // Safe to assert after validateConfig() ensures these are set
   const events = createEventEmitter(config.taskId as string, config.sessionId as string);
-  const toolContext: ToolContext = { cwd: config.cwd };
 
   // Emit started event
   events.started({
@@ -137,173 +147,135 @@ async function runAgent(): Promise<void> {
     maxTurns: config.maxTurns,
   });
 
-  // Build tool schemas for the API
-  const tools = getToolSchemas();
-
-  // Initialize conversation with user prompt (safe after validateConfig())
-  const messages: Anthropic.MessageParam[] = [
-    {
-      role: 'user',
-      content: config.prompt as string,
-    },
-  ];
+  // Create Claude Agent SDK session
+  // The SDK reads auth from ~/.claude/.credentials.json
+  const session = unstable_v2_createSession({
+    model: config.model,
+    env: { ...process.env },
+  });
 
   let turn = 0;
   let accumulatedText = '';
 
   try {
-    while (turn < config.maxTurns) {
+    // Send the initial prompt
+    await session.send(config.prompt as string);
+
+    // Process the stream
+    for await (const msg of session.stream()) {
       // Check for cancellation
       if (await shouldStop()) {
         events.cancelled(turn);
+        session.close();
         return;
       }
 
-      turn++;
-      events.turn({
-        turn,
-        maxTurns: config.maxTurns,
-        remaining: config.maxTurns - turn,
-      });
+      // Handle different message types
+      if (msg.type === 'stream_event') {
+        const event = msg.event as {
+          type: string;
+          delta?: { type: string; text?: string };
+          message?: { model?: string };
+        };
 
-      // Make API request with streaming
-      const stream = client.messages.stream({
-        model: config.model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        tools: tools as Anthropic.Tool[],
-        messages,
-      });
+        // Track turns on message_start
+        if (event.type === 'message_start') {
+          turn++;
+          events.turn({
+            turn,
+            maxTurns: config.maxTurns,
+            remaining: config.maxTurns - turn,
+          });
 
-      // Collect response
-      let assistantContent: Anthropic.ContentBlock[] = [];
-
-      // Process stream events
-      for await (const event of stream) {
-        // Check for cancellation during streaming
-        if (await shouldStop()) {
-          events.cancelled(turn);
-          return;
-        }
-
-        if (event.type === 'content_block_delta') {
-          const delta = event.delta;
-          if ('text' in delta && delta.text) {
-            accumulatedText += delta.text;
-            events.token({
-              delta: delta.text,
-              accumulated: accumulatedText,
+          // Check turn limit
+          if (turn >= config.maxTurns) {
+            events.complete({
+              status: 'turn_limit',
+              turnCount: turn,
+              result: `Turn limit reached (${config.maxTurns}). Task may need manual completion.`,
             });
+            session.close();
+            return;
           }
         }
+
+        // Capture text deltas
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta' &&
+          event.delta.text
+        ) {
+          const delta = event.delta.text;
+          accumulatedText += delta;
+          events.token({
+            delta,
+            accumulated: accumulatedText,
+          });
+        }
       }
 
-      // Get final message
-      const response = await stream.finalMessage();
-      assistantContent = response.content;
-
-      // Extract text content for events
-      const textContent = assistantContent
-        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-        .map((block) => block.text)
-        .join('');
-
-      if (textContent) {
-        events.message({
-          role: 'assistant',
-          content: textContent,
-        });
+      // Handle assistant messages
+      if (msg.type === 'assistant') {
+        const text = getAssistantText(msg);
+        if (text) {
+          events.message({
+            role: 'assistant',
+            content: text,
+          });
+        }
       }
 
-      // Add assistant message to conversation
-      messages.push({
-        role: 'assistant',
-        content: assistantContent,
-      });
-
-      // Check if we need to handle tool calls
-      const toolUseBlocks = assistantContent.filter(
-        (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-      );
-
-      if (toolUseBlocks.length === 0) {
-        // No tool calls - agent is done
+      // Handle result (completion)
+      if (msg.type === 'result') {
+        const result = msg as { text?: string };
         events.complete({
           status: 'completed',
           turnCount: turn,
-          result: textContent || 'Task completed',
+          result: result.text ?? (accumulatedText || 'Task completed'),
         });
+        session.close();
         return;
       }
-
-      // Execute tool calls
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-      for (const toolUse of toolUseBlocks) {
-        events.toolStart({
-          toolName: toolUse.name,
-          toolId: toolUse.id,
-          input: toolUse.input as Record<string, unknown>,
-        });
-
-        const startTime = Date.now();
-        const result = await executeTool(
-          toolUse.name,
-          toolUse.input as Record<string, unknown>,
-          toolContext
-        );
-        const durationMs = Date.now() - startTime;
-
-        const hasNonText = result.content.some((c) => c.type !== 'text');
-        const resultText = result.content
-          .filter((c): c is { type: 'text'; text: string } => c.type === 'text' && !!c.text)
-          .map((c) => c.text)
-          .join('\n');
-
-        const safeResultText = resultText || (hasNonText ? '[Non-text tool result omitted]' : '');
-
-        events.toolResult({
-          toolName: toolUse.name,
-          toolId: toolUse.id,
-          result: safeResultText,
-          isError: result.is_error ?? false,
-          durationMs,
-        });
-
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: safeResultText,
-          is_error: result.is_error,
-        });
-      }
-
-      // Add tool results to conversation
-      messages.push({
-        role: 'user',
-        content: toolResults,
-      });
     }
 
-    // Turn limit reached
+    // Stream ended without explicit result
     events.complete({
-      status: 'turn_limit',
+      status: 'completed',
       turnCount: turn,
-      result: `Turn limit reached (${config.maxTurns}). Task may need manual completion.`,
+      result: accumulatedText || 'Task completed',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const code = error instanceof Anthropic.APIError ? error.status?.toString() : undefined;
 
     events.error({
       error: message,
-      code,
+      code: undefined,
       turnCount: turn,
     });
 
     // Exit with error code
     process.exit(1);
+  } finally {
+    session.close();
   }
+}
+
+/**
+ * Extract text content from an assistant message.
+ */
+function getAssistantText(msg: unknown): string | null {
+  const message = (msg as { message?: unknown }).message as {
+    content?: Array<{ type: string; text?: string }>;
+  };
+
+  if (!message?.content) return null;
+
+  const textBlocks = message.content.filter(
+    (block): block is { type: 'text'; text: string } =>
+      block.type === 'text' && typeof block.text === 'string'
+  );
+
+  return textBlocks.map((b) => b.text).join('') || null;
 }
 
 // Run the agent

@@ -190,6 +190,13 @@ export interface ContainerAgentTaskUpdateFailedEvent {
   attemptedStatus: string;
 }
 
+export interface ContainerAgentStatusEvent {
+  taskId: string;
+  sessionId: string;
+  stage: 'initializing' | 'validating' | 'credentials' | 'executing' | 'running';
+  message: string;
+}
+
 /**
  * Task creation events
  */
@@ -297,6 +304,7 @@ export interface StreamEventMap {
   'task-creation:error': TaskCreationErrorEvent;
 
   // Container agent events
+  'container-agent:status': ContainerAgentStatusEvent;
   'container-agent:started': ContainerAgentStartedEvent;
   'container-agent:token': ContainerAgentTokenEvent;
   'container-agent:turn': ContainerAgentTurnEvent;

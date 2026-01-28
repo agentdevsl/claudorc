@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle, Lightning, Warning, WarningCircle, XCircle } from '@phosphor-icons/react';
+import type { AgentStatusInfo } from '@/app/hooks/use-container-agent-statuses';
 import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import { LABEL_TYPES, type Priority } from './constants';
@@ -25,6 +26,8 @@ interface KanbanCardProps {
   onOpen: () => void;
   /** Callback to run the task immediately (moves to in_progress and triggers agent) */
   onRunNow?: () => void;
+  /** Real-time agent status info */
+  agentStatus?: AgentStatusInfo;
 }
 
 /**
@@ -78,6 +81,15 @@ function getLastRunStatusInfo(status: Task['lastAgentStatus']): {
   }
 }
 
+/** Map stage to display label */
+const stageLabels: Record<string, string> = {
+  initializing: 'Initializing...',
+  validating: 'Validating...',
+  credentials: 'Auth...',
+  executing: 'Starting...',
+  running: 'Running',
+};
+
 export function KanbanCard({
   task,
   isSelected,
@@ -85,6 +97,7 @@ export function KanbanCard({
   onSelect,
   onOpen,
   onRunNow,
+  agentStatus,
 }: KanbanCardProps): React.JSX.Element {
   const {
     attributes,
@@ -136,7 +149,9 @@ export function KanbanCard({
 
   const priority = getPriority(task);
   const labels = task.labels ?? [];
-  const isAgentRunning = Boolean(task.agentId) && task.column === 'in_progress';
+  // Agent is running if task has an agentId OR a sessionId (container agents only have sessionId)
+  const isAgentRunning =
+    task.column === 'in_progress' && (Boolean(task.agentId) || Boolean(task.sessionId));
   const canRunNow = task.column === 'backlog' && onRunNow;
   const lastRunStatus = getLastRunStatusInfo(task.lastAgentStatus);
 
@@ -226,11 +241,15 @@ export function KanbanCard({
         )}
       </div>
 
-      {/* Agent Status Badge */}
+      {/* Agent Status Badge with real-time status */}
       {isAgentRunning && (
         <div className={agentStatusVariants({ status: 'running' })}>
           <div className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
-          <span>Agent running...</span>
+          <span>
+            {agentStatus?.currentStage
+              ? (stageLabels[agentStatus.currentStage] ?? 'Starting...')
+              : 'Agent running...'}
+          </span>
         </div>
       )}
     </article>

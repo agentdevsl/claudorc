@@ -12,6 +12,7 @@ import {
   User,
 } from '@phosphor-icons/react';
 import { Skeleton } from '@/app/components/ui/skeleton';
+import type { AgentStatusInfo } from '@/app/hooks/use-container-agent-statuses';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import type { ColumnConfig, Priority } from './kanban-board/constants';
@@ -68,6 +69,8 @@ interface KanbanColumnProps {
   /** Custom header action to replace the default add button */
   headerAction?: React.ReactNode;
   config?: ColumnConfig;
+  /** Agent statuses for real-time tracking (keyed by sessionId) */
+  agentStatuses?: Map<string, AgentStatusInfo>;
 }
 
 export function KanbanColumn({
@@ -83,6 +86,7 @@ export function KanbanColumn({
   onAddTask,
   onRunNow,
   headerAction,
+  agentStatuses,
 }: KanbanColumnProps): React.JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -218,6 +222,7 @@ export function KanbanColumn({
                   isSelected={isTaskSelected?.(task.id) ?? false}
                   priority={getPriorityFromLabels(task.labels)}
                   onRunNow={id === 'backlog' && onRunNow ? () => onRunNow(task.id) : undefined}
+                  agentStatus={task.sessionId ? agentStatuses?.get(task.sessionId) : undefined}
                 />
               ))}
             </div>
