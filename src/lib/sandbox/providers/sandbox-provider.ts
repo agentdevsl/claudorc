@@ -35,7 +35,7 @@ export interface ExecStreamResult {
   /** Promise that resolves when the process exits */
   wait(): Promise<{ exitCode: number }>;
   /** Kill the process */
-  kill(): void;
+  kill(): void | Promise<void>;
 }
 
 /**

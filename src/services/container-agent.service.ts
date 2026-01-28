@@ -105,6 +105,12 @@ export interface PlanData {
   createdAt: Date;
 }
 
+/** TTL for pending plans in milliseconds (1 hour) */
+const PENDING_PLAN_TTL_MS = 60 * 60 * 1000;
+
+/** Cleanup interval for expired plans (every 5 minutes) */
+const PLAN_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * ContainerAgentService manages Claude Agent SDK execution inside Docker containers.
  */
@@ -115,12 +121,53 @@ export class ContainerAgentService {
   /** Map of taskId -> pending plan data (awaiting approval) */
   private pendingPlans = new Map<string, PlanData>();
 
+  /** Interval for cleaning up expired pending plans */
+  private planCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private db: Database,
     private provider: SandboxProvider,
     private streams: DurableStreamsService,
     private apiKeyService: ApiKeyService
-  ) {}
+  ) {
+    // Start periodic cleanup of expired pending plans
+    this.planCleanupInterval = setInterval(() => {
+      this.cleanupExpiredPlans();
+    }, PLAN_CLEANUP_INTERVAL_MS);
+  }
+
+  /**
+   * Clean up expired pending plans to prevent memory leaks.
+   */
+  private cleanupExpiredPlans(): void {
+    const now = Date.now();
+    const expiredTaskIds: string[] = [];
+
+    for (const [taskId, plan] of this.pendingPlans) {
+      const age = now - plan.createdAt.getTime();
+      if (age > PENDING_PLAN_TTL_MS) {
+        expiredTaskIds.push(taskId);
+      }
+    }
+
+    for (const taskId of expiredTaskIds) {
+      infoLog('cleanupExpiredPlans', 'Removing expired pending plan', {
+        taskId,
+        ageMinutes: Math.round(PENDING_PLAN_TTL_MS / 60000),
+      });
+      this.pendingPlans.delete(taskId);
+    }
+  }
+
+  /**
+   * Stop the plan cleanup interval (for testing or shutdown).
+   */
+  dispose(): void {
+    if (this.planCleanupInterval) {
+      clearInterval(this.planCleanupInterval);
+      this.planCleanupInterval = null;
+    }
+  }
 
   /**
    * Start an agent for a task inside its project's sandbox container.
@@ -233,7 +280,7 @@ export class ContainerAgentService {
         agentId,
         error: errorMessage,
       });
-      // Continue anyway - agent tracking is non-critical
+      return err(SandboxErrors.AGENT_RECORD_FAILED(errorMessage));
     }
 
     // Create database session record for this container agent run
@@ -321,11 +368,11 @@ export class ContainerAgentService {
       debugLog('startAgent', 'Initial status event published', { sessionId });
     } catch (publishErr) {
       const errorMessage = publishErr instanceof Error ? publishErr.message : String(publishErr);
-      infoLog('startAgent', 'Failed to publish initial status event', {
+      infoLog('startAgent', 'Failed to publish initial status event - aborting agent start', {
         sessionId,
         error: errorMessage,
       });
-      // Continue anyway - the stream exists, this is just a status update
+      return err(SandboxErrors.STREAM_PUBLISH_FAILED(errorMessage));
     }
 
     // Stage: Validating - verify project and sandbox configuration
@@ -658,9 +705,9 @@ export class ContainerAgentService {
         });
       }
 
-      // Kill the exec process
+      // Kill the exec process and wait for cleanup
       debugLog('stopAgent', 'Killing exec process', { taskId });
-      agent.execResult.kill();
+      await agent.execResult.kill();
 
       agent.stopRequested = true;
 

@@ -385,7 +385,7 @@ class DockerSandbox implements Sandbox {
         });
       },
 
-      kill(): void {
+      async kill(): Promise<void> {
         killed = true;
         stdoutStream.end();
         stderrStream.end();
@@ -393,7 +393,8 @@ class DockerSandbox implements Sandbox {
         if ('destroy' in dockerStream && typeof dockerStream.destroy === 'function') {
           dockerStream.destroy();
         }
-        void terminateExec();
+        // Await termination to ensure process is killed and resources are released
+        await terminateExec();
       },
     };
   }

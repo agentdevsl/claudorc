@@ -199,6 +199,18 @@ export const SandboxErrors = {
     status: 500,
   }),
 
+  STREAM_PUBLISH_FAILED: (message: string): SandboxError => ({
+    code: 'STREAM_PUBLISH_FAILED',
+    message: `Failed to publish event to stream: ${message}`,
+    status: 500,
+  }),
+
+  AGENT_RECORD_FAILED: (message: string): SandboxError => ({
+    code: 'AGENT_RECORD_FAILED',
+    message: `Failed to create agent database record: ${message}`,
+    status: 500,
+  }),
+
   // Plan errors
   PLAN_NOT_FOUND: (taskId: string) =>
     createError('SANDBOX_PLAN_NOT_FOUND', `No pending plan found for task: ${taskId}`, 404, {

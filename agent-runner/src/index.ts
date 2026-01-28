@@ -159,12 +159,10 @@ async function writeCredentialsFile(): Promise<void> {
   const claudeDir = join(home, '.claude');
   const credentialsFile = join(claudeDir, '.credentials.json');
 
-  // Debug: Log paths and token status
+  // Debug: Log paths and token status (never log token contents for security)
   console.error(`[agent-runner] Home directory: ${home}`);
   console.error(`[agent-runner] Credentials path: ${credentialsFile}`);
-  console.error(
-    `[agent-runner] Token received: ${config.oauthToken ? `${config.oauthToken.slice(0, 15)}...` : 'NONE'}`
-  );
+  console.error(`[agent-runner] Token received: ${config.oauthToken ? 'YES' : 'NONE'}`);
 
   if (!config.oauthToken) {
     throw new Error('No OAuth token provided via CLAUDE_OAUTH_TOKEN environment variable');
