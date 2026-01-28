@@ -48,12 +48,17 @@ interface ErrorEventData extends TaskCreationEventData {
   code?: string;
 }
 
+interface ProcessingEventData extends TaskCreationEventData {
+  message?: string;
+}
+
 type TaskCreationEvent =
   | { type: 'connected'; sessionId: string }
   | { type: 'task-creation:token'; data: TokenEventData }
   | { type: 'task-creation:message'; data: MessageEventData }
   | { type: 'task-creation:questions'; data: QuestionsEventData }
   | { type: 'task-creation:suggestion'; data: SuggestionEventData }
+  | { type: 'task-creation:processing'; data: ProcessingEventData }
   | { type: 'task-creation:completed'; data: CompletedEventData }
   | { type: 'task-creation:cancelled'; data: TaskCreationEventData }
   | { type: 'task-creation:error'; data: ErrorEventData };
@@ -176,6 +181,14 @@ function handleTaskCreationEvent(sessionId: string, event: TaskCreationEvent): v
 
     case 'task-creation:error':
       handleErrorEvent(sessionId, event.data);
+      break;
+
+    case 'task-creation:processing':
+      // Answers accepted, clear pending questions and show processing state
+      updateSession(sessionId, {
+        pendingQuestions: null,
+        isStreaming: true,
+      });
       break;
 
     default:

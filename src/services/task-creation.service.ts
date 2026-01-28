@@ -2002,6 +2002,17 @@ export class TaskCreationService {
     session.questionsReadyResolver = null;
     session.status = 'active';
 
+    // Publish processing event to notify frontend that answers were accepted
+    // This clears pendingQuestions and sets isStreaming on the client
+    try {
+      await this.streams.publishTaskCreationProcessing(sessionId, {
+        sessionId,
+        message: 'Processing your answers...',
+      });
+    } catch (error: unknown) {
+      console.error('[TaskCreationService] Failed to publish processing event:', error);
+    }
+
     // If we have a permission resolver, resolve it with the answers
     // This continues the SDK's permission flow with the user's answers
     if (resolver && originalInput) {

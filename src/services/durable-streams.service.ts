@@ -270,6 +270,11 @@ export interface TaskCreationErrorEvent {
   code?: string;
 }
 
+export interface TaskCreationProcessingEvent {
+  sessionId: string;
+  message?: string;
+}
+
 // ============================================
 // Type-safe Event Map
 // ============================================
@@ -305,6 +310,7 @@ export interface StreamEventMap {
   'task-creation:token': TaskCreationTokenEvent;
   'task-creation:suggestion': TaskCreationSuggestionEvent;
   'task-creation:questions': TaskCreationQuestionsEvent;
+  'task-creation:processing': TaskCreationProcessingEvent;
   'task-creation:completed': TaskCreationCompletedEvent;
   'task-creation:cancelled': TaskCreationCancelledEvent;
   'task-creation:error': TaskCreationErrorEvent;
@@ -520,6 +526,13 @@ export class DurableStreamsService {
 
   async publishTaskCreationError(streamId: string, data: TaskCreationErrorEvent): Promise<void> {
     await this.publish(streamId, 'task-creation:error', data);
+  }
+
+  async publishTaskCreationProcessing(
+    streamId: string,
+    data: TaskCreationProcessingEvent
+  ): Promise<void> {
+    await this.publish(streamId, 'task-creation:processing', data);
   }
 
   /**

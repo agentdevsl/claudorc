@@ -253,6 +253,11 @@ export class TaskService {
       return err(TaskErrors.NOT_FOUND);
     }
 
+    // No-op if task is already in the target column
+    if (task.column === column) {
+      return ok({ task });
+    }
+
     if (!canTransition(task.column, column)) {
       return err(TaskErrors.INVALID_TRANSITION(task.column, column));
     }
