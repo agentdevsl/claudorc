@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Agent } from '@/db/schema/agents';
-import { AgentErrors } from '@/lib/errors/agent-errors';
-import { err, ok } from '@/lib/utils/result';
-import { createAgentsRoutes } from '@/server/routes/agents';
+import type { Agent } from '../../src/db/schema/agents.js';
+import { AgentErrors } from '../../src/lib/errors/agent-errors.js';
+import { err, ok } from '../../src/lib/utils/result.js';
+import { createAgentsRoutes } from '../../src/server/routes/agents.js';
 
 const agentServiceMocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -28,8 +28,8 @@ const sampleAgent: Agent = {
   currentTaskId: 'task-1',
   currentSessionId: 'session-1',
   currentTurn: 10,
-  createdAt: new Date('2026-01-01T00:00:00Z'),
-  updatedAt: new Date('2026-01-02T00:00:00Z'),
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-02T00:00:00Z',
 };
 
 const jsonRequest = (body: unknown, init?: RequestInit) => ({

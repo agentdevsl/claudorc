@@ -102,7 +102,8 @@ describe('Task API', () => {
   });
 
   it('validates list query', async () => {
-    const response = await tasksRoute.request('http://localhost/?projectId=not-cuid');
+    // Use an ID with special characters that isValidId rejects
+    const response = await tasksRoute.request('http://localhost/?projectId=invalid$id');
 
     expect(response?.status).toBe(400);
     const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
