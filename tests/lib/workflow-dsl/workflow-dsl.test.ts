@@ -64,10 +64,12 @@ describe('Workflow DSL Module', () => {
           { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 } },
           {
             id: 'task1',
-            type: 'command',
+            type: 'skill',
             label: 'Task 1',
             position: { x: 0, y: 0 },
-            command: 'npm test',
+            skillId: 'npm-test',
+            skillName: 'Npm Test',
+            description: 'npm test',
           },
           { id: 'end', type: 'end', label: 'End', position: { x: 0, y: 0 } },
         ];
@@ -155,10 +157,12 @@ describe('Workflow DSL Module', () => {
           { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 } },
           {
             id: 'task1',
-            type: 'command',
+            type: 'skill',
             label: 'Task 1',
             position: { x: 0, y: 0 },
-            command: 'npm test',
+            skillId: 'npm-test',
+            skillName: 'Npm Test',
+            description: 'npm test',
           },
           { id: 'end', type: 'end', label: 'End', position: { x: 0, y: 0 } },
         ];
@@ -219,10 +223,12 @@ describe('Workflow DSL Module', () => {
           { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 } },
           {
             id: 'task1',
-            type: 'command',
+            type: 'skill',
             label: 'Task 1',
             position: { x: 100, y: 200 },
-            command: 'test',
+            skillId: 'test',
+            skillName: 'Test',
+            description: 'test',
           },
         ];
 
@@ -276,10 +282,11 @@ describe('Workflow DSL Module', () => {
           },
           {
             id: 'cmd1',
-            type: 'command',
+            type: 'skill',
             label: 'Build',
             position: { x: 0, y: 200 },
-            command: 'npm run build',
+            skillId: 'npm-run-build',
+            skillName: 'Npm Run Build',
           },
           {
             id: 'agent1',
@@ -297,7 +304,7 @@ describe('Workflow DSL Module', () => {
         expect(result).toHaveLength(5);
         expect(result[0].type).toBe('compactStart');
         expect(result[1].type).toBe('compactSkill');
-        expect(result[2].type).toBe('compactCommand');
+        expect(result[2].type).toBe('compactSkill');
         expect(result[3].type).toBe('compactAgent');
         expect(result[4].type).toBe('compactEnd');
       });
@@ -352,30 +359,24 @@ describe('Workflow DSL Module', () => {
         expect(result[0].data.nodeType).toBe('skill');
       });
 
-      it('extracts command node data correctly', async () => {
+      it('extracts skill node data correctly for command-mapped skills', async () => {
         const { toReactFlowNodes } = await import('@/lib/workflow-dsl/layout');
 
         const nodes: WorkflowNode[] = [
           {
             id: 'cmd1',
-            type: 'command',
+            type: 'skill',
             label: 'Build',
             position: { x: 0, y: 0 },
-            command: 'npm run build',
-            args: ['--production'],
-            workingDirectory: '/app',
-            environment: { NODE_ENV: 'production' },
-            timeout: 60000,
+            skillId: 'npm-run-build',
+            skillName: 'Npm Run Build',
           },
         ];
 
         const result = toReactFlowNodes(nodes);
 
-        expect(result[0].data.command).toBe('npm run build');
-        expect(result[0].data.args).toEqual(['--production']);
-        expect(result[0].data.workingDirectory).toBe('/app');
-        expect(result[0].data.environment).toEqual({ NODE_ENV: 'production' });
-        expect(result[0].data.timeout).toBe(60000);
+        expect(result[0].data.skillId).toBe('npm-run-build');
+        expect(result[0].data.skillName).toBe('Npm Run Build');
       });
 
       it('extracts agent node data correctly', async () => {
@@ -672,17 +673,18 @@ describe('Workflow DSL Module', () => {
           { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 } },
           {
             id: 'task1',
-            type: 'command',
+            type: 'skill',
             label: 'Task 1',
             position: { x: 0, y: 100 },
-            command: 'npm test',
+            skillId: 'npm-test',
+            skillName: 'Npm Test',
             description: 'Run tests',
           },
         ];
 
         const reactFlowNodes: ReactFlowNode[] = [
           { id: 'start', type: 'compactStart', position: { x: 50, y: 25 }, data: {} },
-          { id: 'task1', type: 'compactCommand', position: { x: 50, y: 150 }, data: {} },
+          { id: 'task1', type: 'compactSkill', position: { x: 50, y: 150 }, data: {} },
         ];
 
         const result = fromReactFlowNodes(reactFlowNodes, originalNodes);
@@ -690,7 +692,7 @@ describe('Workflow DSL Module', () => {
         expect(result[0].position).toEqual({ x: 50, y: 25 });
         expect(result[0].type).toBe('start'); // Original type preserved
         expect(result[1].position).toEqual({ x: 50, y: 150 });
-        expect(result[1].command).toBe('npm test'); // Original properties preserved
+        expect(result[1].skillId).toBe('npm-test'); // Original properties preserved
         expect(result[1].description).toBe('Run tests');
       });
 
@@ -840,7 +842,6 @@ describe('Workflow DSL Module', () => {
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('start');
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('end');
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('skill');
-        expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('command');
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('agent');
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('conditional');
         expect(WORKFLOW_GENERATION_SYSTEM_PROMPT).toContain('loop');
@@ -910,7 +911,7 @@ describe('Workflow DSL Module', () => {
         expect(prompt).toContain('Commit');
       });
 
-      it('includes available commands section when commands provided', async () => {
+      it('includes available skills section when commands provided', async () => {
         const { createWorkflowAnalysisPrompt } = await import('@/lib/workflow-dsl/ai-prompts');
 
         const prompt = createWorkflowAnalysisPrompt({
@@ -922,7 +923,7 @@ describe('Workflow DSL Module', () => {
           ],
         });
 
-        expect(prompt).toContain('Available Commands');
+        expect(prompt).toContain('Available Skills');
         expect(prompt).toContain('build');
         expect(prompt).toContain('npm run build');
         expect(prompt).toContain('Build the project');
@@ -951,7 +952,7 @@ describe('Workflow DSL Module', () => {
         expect(prompt).toContain('System prompt:');
       });
 
-      it('includes known skill and command names for cross-referencing', async () => {
+      it('includes known skill names for cross-referencing', async () => {
         const { createWorkflowAnalysisPrompt } = await import('@/lib/workflow-dsl/ai-prompts');
 
         const prompt = createWorkflowAnalysisPrompt({
@@ -961,12 +962,10 @@ describe('Workflow DSL Module', () => {
           knownCommandNames: ['gh-pr-create', 'npm-build'],
         });
 
-        expect(prompt).toContain('KNOWN SKILL AND COMMAND NAMES');
-        expect(prompt).toContain('SKILLS');
+        expect(prompt).toContain('KNOWN SKILLS');
         expect(prompt).toContain('/speckit.specify');
         expect(prompt).toContain('/speckit.plan');
         expect(prompt).toContain('/commit');
-        expect(prompt).toContain('COMMANDS');
         expect(prompt).toContain('/gh-pr-create');
         expect(prompt).toContain('/npm-build');
       });
@@ -1019,7 +1018,6 @@ describe('Workflow DSL Module', () => {
 
         expect(prompt).toContain('Validate node configurations');
         expect(prompt).toContain('Skill nodes');
-        expect(prompt).toContain('Command nodes');
         expect(prompt).toContain('Agent nodes');
       });
 
@@ -1072,7 +1070,6 @@ describe('Workflow DSL Module', () => {
 
         expect(prompt).toContain('Create appropriate nodes');
         expect(prompt).toContain('skill nodes');
-        expect(prompt).toContain('command nodes');
         expect(prompt).toContain('agent nodes');
       });
 
@@ -1160,7 +1157,6 @@ describe('Workflow DSL Module', () => {
         const { nodeTypeSchema } = await import('@/lib/workflow-dsl/types');
 
         expect(() => nodeTypeSchema.parse('skill')).not.toThrow();
-        expect(() => nodeTypeSchema.parse('command')).not.toThrow();
         expect(() => nodeTypeSchema.parse('agent')).not.toThrow();
         expect(() => nodeTypeSchema.parse('conditional')).not.toThrow();
         expect(() => nodeTypeSchema.parse('loop')).not.toThrow();
@@ -1204,22 +1200,6 @@ describe('Workflow DSL Module', () => {
         expect(() => skillNodeSchema.parse(validNode)).not.toThrow();
         expect(() => skillNodeSchema.parse({ ...validNode, skillId: '' })).toThrow();
         expect(() => skillNodeSchema.parse({ ...validNode, skillName: '' })).toThrow();
-      });
-
-      it('validates command node schema', async () => {
-        const { commandNodeSchema } = await import('@/lib/workflow-dsl/types');
-
-        const validNode = {
-          id: 'cmd1',
-          type: 'command',
-          label: 'Build',
-          position: { x: 0, y: 0 },
-          command: 'npm run build',
-        };
-
-        expect(() => commandNodeSchema.parse(validNode)).not.toThrow();
-        expect(() => commandNodeSchema.parse({ ...validNode, command: '' })).toThrow();
-        expect(() => commandNodeSchema.parse({ ...validNode, timeout: -1 })).toThrow();
       });
 
       it('validates agent node schema', async () => {

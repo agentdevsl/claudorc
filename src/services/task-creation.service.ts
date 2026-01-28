@@ -317,7 +317,7 @@ export class TaskCreationService {
       buffer.lastFlush = Date.now();
 
       try {
-        await this.streams.publish(sessionId, 'task-creation:token', {
+        await this.streams.publishTaskCreationToken(sessionId, {
           sessionId,
           delta: batchedDelta,
           accumulated: getAccumulated(),
@@ -664,7 +664,7 @@ export class TaskCreationService {
 
       // Publish questions event for UI
       try {
-        await this.streams.publish(session.id, 'task-creation:questions', {
+        await this.streams.publishTaskCreationQuestions(session.id, {
           sessionId: session.id,
           questions,
         });
@@ -768,7 +768,7 @@ export class TaskCreationService {
         .createStream(sessionId, { type: 'task-creation', projectId })
         .catch((error) => console.error('[TaskCreationService] Failed to create stream:', error)),
       this.streams
-        .publish(sessionId, 'task-creation:started', { sessionId, projectId })
+        .publishTaskCreationStarted(sessionId, { sessionId, projectId })
         .catch((error) =>
           console.error('[TaskCreationService] Failed to publish start event:', error)
         ),
@@ -823,7 +823,7 @@ export class TaskCreationService {
 
     // Publish user message event
     try {
-      await this.streams.publish(sessionId, 'task-creation:message', {
+      await this.streams.publishTaskCreationMessage(sessionId, {
         sessionId,
         messageId: userMessage.id,
         role: 'user',
@@ -1372,7 +1372,7 @@ export class TaskCreationService {
         session.status = 'waiting_user';
 
         try {
-          await this.streams.publish(sessionId, 'task-creation:questions', {
+          await this.streams.publishTaskCreationQuestions(sessionId, {
             sessionId,
             questions,
           });
@@ -1432,7 +1432,7 @@ export class TaskCreationService {
             }
 
             try {
-              await this.streams.publish(sessionId, 'task-creation:suggestion', {
+              await this.streams.publishTaskCreationSuggestion(sessionId, {
                 sessionId,
                 suggestion,
               });
@@ -1493,7 +1493,7 @@ export class TaskCreationService {
 
       // Fire-and-forget error publishing to avoid delaying error response
       this.streams
-        .publish(sessionId, 'task-creation:error', {
+        .publishTaskCreationError(sessionId, {
           sessionId,
           error: message,
         })
@@ -1694,7 +1694,7 @@ export class TaskCreationService {
             }
 
             try {
-              await this.streams.publish(session.id, 'task-creation:suggestion', {
+              await this.streams.publishTaskCreationSuggestion(session.id, {
                 sessionId: session.id,
                 suggestion,
               });
@@ -1729,7 +1729,7 @@ export class TaskCreationService {
 
       // Fire-and-forget error publishing to avoid delaying error response
       this.streams
-        .publish(session.id, 'task-creation:error', {
+        .publishTaskCreationError(session.id, {
           sessionId: session.id,
           error: errorMessage,
         })
@@ -1772,7 +1772,7 @@ export class TaskCreationService {
 
     // Publish to real-time stream
     try {
-      await this.streams.publish(session.id, 'task-creation:message', {
+      await this.streams.publishTaskCreationMessage(session.id, {
         sessionId: session.id,
         messageId: message.id,
         role: 'assistant',
@@ -1918,7 +1918,7 @@ export class TaskCreationService {
 
       // Publish completion event
       try {
-        await this.streams.publish(sessionId, 'task-creation:completed', {
+        await this.streams.publishTaskCreationCompleted(sessionId, {
           sessionId,
           taskId,
           suggestion: finalSuggestion,
@@ -2001,6 +2001,17 @@ export class TaskCreationService {
     session.questionsReadyPromise = null;
     session.questionsReadyResolver = null;
     session.status = 'active';
+
+    // Publish processing event to notify frontend that answers were accepted
+    // This clears pendingQuestions and sets isStreaming on the client
+    try {
+      await this.streams.publishTaskCreationProcessing(sessionId, {
+        sessionId,
+        message: 'Processing your answers...',
+      });
+    } catch (error: unknown) {
+      console.error('[TaskCreationService] Failed to publish processing event:', error);
+    }
 
     // If we have a permission resolver, resolve it with the answers
     // This continues the SDK's permission flow with the user's answers
@@ -2170,7 +2181,7 @@ export class TaskCreationService {
         session.status = 'waiting_user';
 
         try {
-          await this.streams.publish(session.id, 'task-creation:questions', {
+          await this.streams.publishTaskCreationQuestions(session.id, {
             sessionId: session.id,
             questions,
           });
@@ -2318,7 +2329,7 @@ export class TaskCreationService {
           session.suggestion = suggestion;
 
           try {
-            await this.streams.publish(session.id, 'task-creation:suggestion', {
+            await this.streams.publishTaskCreationSuggestion(session.id, {
               sessionId: session.id,
               suggestion,
             });
@@ -2418,7 +2429,7 @@ export class TaskCreationService {
     }
 
     try {
-      await this.streams.publish(sessionId, 'task-creation:cancelled', {
+      await this.streams.publishTaskCreationCancelled(sessionId, {
         sessionId,
       });
     } catch (error: unknown) {

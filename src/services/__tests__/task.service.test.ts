@@ -71,7 +71,7 @@ describe('TaskService', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.column).toBe('verified');
+      expect(result.value.task.column).toBe('verified');
     }
   });
 
@@ -334,7 +334,7 @@ describe('TaskService', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.column).toBe('in_progress');
+      expect(result.value.task.column).toBe('in_progress');
     }
   });
 
@@ -373,7 +373,7 @@ describe('TaskService', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.position).toBe(5);
+      expect(result.value.task.position).toBe(5);
     }
   });
 

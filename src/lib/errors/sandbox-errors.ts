@@ -148,4 +148,72 @@ export const SandboxErrors = {
 
   // Generic errors
   INTERNAL_ERROR: (message: string) => createError('SANDBOX_INTERNAL_ERROR', message, 500),
+
+  // Task errors
+  TASK_NOT_FOUND: (taskId: string) =>
+    createError('SANDBOX_TASK_NOT_FOUND', `Task not found: ${taskId}`, 404, { taskId }),
+
+  // Container agent errors
+  AGENT_ALREADY_RUNNING: (taskId: string) =>
+    createError(
+      'SANDBOX_AGENT_ALREADY_RUNNING',
+      `Agent is already running for task: ${taskId}`,
+      409,
+      {
+        taskId,
+      }
+    ),
+
+  AGENT_NOT_RUNNING: (taskId: string) =>
+    createError('SANDBOX_AGENT_NOT_RUNNING', `No agent running for task: ${taskId}`, 404, {
+      taskId,
+    }),
+
+  AGENT_START_FAILED: (message: string) =>
+    createError('SANDBOX_AGENT_START_FAILED', `Failed to start agent: ${message}`, 500),
+
+  AGENT_STOP_FAILED: (message: string) =>
+    createError('SANDBOX_AGENT_STOP_FAILED', `Failed to stop agent: ${message}`, 500),
+
+  STREAMING_EXEC_NOT_SUPPORTED: createError(
+    'SANDBOX_STREAMING_EXEC_NOT_SUPPORTED',
+    'Sandbox provider does not support streaming exec',
+    501
+  ),
+
+  API_KEY_NOT_CONFIGURED: createError(
+    'SANDBOX_API_KEY_NOT_CONFIGURED',
+    'Anthropic API key not configured. Set via Admin Settings or ANTHROPIC_API_KEY environment variable.',
+    401
+  ),
+
+  SESSION_CREATE_FAILED: (message: string): SandboxError => ({
+    code: 'SESSION_CREATE_FAILED',
+    message: `Failed to create agent session: ${message}`,
+    status: 500,
+  }),
+
+  STREAM_CREATE_FAILED: (message: string): SandboxError => ({
+    code: 'STREAM_CREATE_FAILED',
+    message: `Failed to create event stream: ${message}`,
+    status: 500,
+  }),
+
+  STREAM_PUBLISH_FAILED: (message: string): SandboxError => ({
+    code: 'STREAM_PUBLISH_FAILED',
+    message: `Failed to publish event to stream: ${message}`,
+    status: 500,
+  }),
+
+  AGENT_RECORD_FAILED: (message: string): SandboxError => ({
+    code: 'AGENT_RECORD_FAILED',
+    message: `Failed to create agent database record: ${message}`,
+    status: 500,
+  }),
+
+  // Plan errors
+  PLAN_NOT_FOUND: (taskId: string) =>
+    createError('SANDBOX_PLAN_NOT_FOUND', `No pending plan found for task: ${taskId}`, 404, {
+      taskId,
+    }),
 };

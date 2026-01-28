@@ -1499,7 +1499,7 @@ describe('DurableStreamsService', () => {
   describe('Sandbox Events', () => {
     it('publishes sandbox creating event', async () => {
       await streamsService.createStream('sandbox-1', {});
-      await streamsService.publishSandboxCreating('sandbox-1', {
+      await streamsService.publish('sandbox-1', 'sandbox:creating', {
         sandboxId: 'sandbox-1',
         projectId: 'project-1',
         image: 'node:22-slim',
@@ -1514,7 +1514,7 @@ describe('DurableStreamsService', () => {
 
     it('publishes sandbox ready event', async () => {
       await streamsService.createStream('sandbox-1', {});
-      await streamsService.publishSandboxReady('sandbox-1', {
+      await streamsService.publish('sandbox-1', 'sandbox:ready', {
         sandboxId: 'sandbox-1',
         projectId: 'project-1',
         containerId: 'container-123',
@@ -1529,7 +1529,7 @@ describe('DurableStreamsService', () => {
 
     it('publishes sandbox error event', async () => {
       await streamsService.createStream('sandbox-1', {});
-      await streamsService.publishSandboxError('sandbox-1', {
+      await streamsService.publish('sandbox-1', 'sandbox:error', {
         sandboxId: 'sandbox-1',
         projectId: 'project-1',
         error: 'Container failed to start',

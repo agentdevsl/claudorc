@@ -1,8 +1,8 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { projects } from './projects.js';
-import { tasks } from './tasks.js';
+import { projects } from './projects';
+import { tasks } from './tasks';
 
 /**
  * Plan session status enum

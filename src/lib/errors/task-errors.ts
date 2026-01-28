@@ -48,6 +48,16 @@ export const TaskErrors = {
     'Position conflict in column. Please refresh and try again.',
     409
   ),
+  AGENT_NOT_RUNNING: createError(
+    'TASK_AGENT_NOT_RUNNING',
+    'No agent is currently running for this task',
+    400
+  ),
+  AGENT_STOP_FAILED: createError(
+    'TASK_AGENT_STOP_FAILED',
+    'Failed to stop agent for this task',
+    500
+  ),
 } as const;
 
 export type TaskError =
@@ -58,4 +68,6 @@ export type TaskError =
   | typeof TaskErrors.ALREADY_APPROVED
   | ReturnType<typeof TaskErrors.NOT_WAITING_APPROVAL>
   | ReturnType<typeof TaskErrors.INVALID_TRANSITION>
-  | typeof TaskErrors.POSITION_CONFLICT;
+  | typeof TaskErrors.POSITION_CONFLICT
+  | typeof TaskErrors.AGENT_NOT_RUNNING
+  | typeof TaskErrors.AGENT_STOP_FAILED;

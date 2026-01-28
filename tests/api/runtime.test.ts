@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DurableStreamsServer } from '@/services/session.service';
+import type { DurableStreamsServer } from '../../src/services/session.service.js';
 
 const streamProviderMocks = vi.hoisted(() => ({
   hasStreamProvider: vi.fn(),
   getStreamProvider: vi.fn(),
 }));
 
-vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
-vi.mock('@/lib/streams/provider', () => ({
+vi.mock('../../src/db/client.js', () => ({ pglite: {}, sqlite: {}, db: {} }));
+vi.mock('../../src/lib/streams/provider.js', () => ({
   hasStreamProvider: streamProviderMocks.hasStreamProvider,
   getStreamProvider: streamProviderMocks.getStreamProvider,
 }));
 
-import { getApiStreamsOrThrow } from '@/app/routes/api/runtime';
+import { getApiStreamsOrThrow } from '../../src/server/runtime.js';
 
 describe('API runtime streams', () => {
   beforeEach(() => {
@@ -20,7 +20,9 @@ describe('API runtime streams', () => {
   });
 
   it('throws when stream provider is missing', () => {
-    streamProviderMocks.hasStreamProvider.mockReturnValue(false);
+    streamProviderMocks.getStreamProvider.mockImplementation(() => {
+      throw new Error('Stream provider not configured');
+    });
 
     expect(() => getApiStreamsOrThrow()).toThrow('Stream provider not configured');
   });
@@ -28,9 +30,9 @@ describe('API runtime streams', () => {
   it('returns the stream provider when configured', () => {
     const provider: DurableStreamsServer = {
       createStream: vi.fn(async () => undefined),
-      publish: vi.fn(async () => undefined),
+      publish: vi.fn(async () => 1),
       subscribe: async function* () {
-        yield { type: 'chunk', data: {} };
+        yield { type: 'chunk', data: {}, offset: 0 };
       },
     };
 

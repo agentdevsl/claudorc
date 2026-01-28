@@ -48,6 +48,8 @@ export interface SessionHistoryProps {
   onProjectChange?: (projectId: string | null) => void;
   /** Callback when session is opened (e.g., for navigation) */
   onOpen?: (sessionId: string) => void;
+  /** Callback to navigate to the linked task */
+  onViewTask?: (taskId: string, projectId: string) => void;
   /** Loading state */
   isLoading?: boolean;
 }
@@ -84,6 +86,7 @@ export function SessionHistory({
   projects,
   selectedProjectId,
   onProjectChange,
+  onViewTask,
   isLoading = false,
 }: SessionHistoryProps): React.JSX.Element {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -274,6 +277,7 @@ export function SessionHistory({
         onExport={handleExport}
         onDelete={handleDelete}
         onRefresh={selectedSessionId ? () => handleSessionSelect(selectedSessionId) : undefined}
+        onViewTask={onViewTask}
       />
     </div>
   );

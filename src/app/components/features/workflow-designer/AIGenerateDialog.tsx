@@ -1,14 +1,12 @@
 import {
   ArrowDown,
   CircleNotch,
-  Command,
   Funnel,
   Info,
   Lightning,
   MagicWand,
   MagnifyingGlass,
   Robot,
-  Terminal,
   Warning,
   X,
 } from '@phosphor-icons/react';
@@ -22,7 +20,7 @@ import { cn } from '@/lib/utils/cn';
 import { layoutWorkflowForReactFlow } from '@/lib/workflow-dsl/layout';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
 
-/** Skill/Command/Agent with content */
+/** Skill/Agent with content */
 interface TemplatePrimitive {
   id?: string;
   name: string;
@@ -40,9 +38,9 @@ interface TemplateWithContent {
   cachedAgents?: TemplatePrimitive[] | null;
 }
 
-/** Flattened skill or command with type info */
-interface SkillOrCommand extends TemplatePrimitive {
-  _type: 'skill' | 'command' | 'agent';
+/** Flattened skill or agent with type info */
+interface SkillOrAgent extends TemplatePrimitive {
+  _type: 'skill' | 'agent';
   templateName: string;
 }
 
@@ -68,7 +66,7 @@ interface AIGenerateDialogProps {
 /**
  * Dialog for AI-powered workflow generation.
  *
- * User selects a skill or command from a flat aggregated list,
+ * User selects a skill from a flat aggregated list,
  * AI analyzes the markdown content to discover workflow steps,
  * then generates the workflow nodes on the canvas.
  */
@@ -86,15 +84,15 @@ export function AIGenerateDialog({
   onGenerate,
 }: AIGenerateDialogProps): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selected, setSelected] = useState<SkillOrCommand | null>(null);
+  const [selected, setSelected] = useState<SkillOrAgent | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiWorkflow, setAiWorkflow] = useState<Workflow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<TagFilter[]>([]);
 
-  // Aggregate all skills/commands from all templates into a flat list
+  // Aggregate all skills from all templates into a flat list
   const allPrimitives = useMemo(() => {
-    const primitives: SkillOrCommand[] = [];
+    const primitives: SkillOrAgent[] = [];
     for (const template of templates) {
       for (const skill of template.cachedSkills ?? []) {
         primitives.push({
@@ -106,7 +104,7 @@ export function AIGenerateDialog({
       for (const cmd of template.cachedCommands ?? []) {
         primitives.push({
           ...cmd,
-          _type: 'command',
+          _type: 'skill',
           templateName: template.name,
         });
       }
@@ -215,7 +213,7 @@ export function AIGenerateDialog({
 
   // Analyze with AI when a primitive is selected
   const analyzeWithAI = useCallback(
-    async (primitive: SkillOrCommand) => {
+    async (primitive: SkillOrAgent) => {
       setIsAnalyzing(true);
       setError(null);
       setAiWorkflow(null);
@@ -242,14 +240,6 @@ export function AIGenerateDialog({
               content: primitive.content ?? '',
             },
           ];
-        } else if (primitive._type === 'command') {
-          body.commands = [
-            {
-              name: primitive.name,
-              description: primitive.description,
-              content: primitive.content ?? '',
-            },
-          ];
         } else if (primitive._type === 'agent') {
           body.agents = [
             {
@@ -260,16 +250,12 @@ export function AIGenerateDialog({
           ];
         }
 
-        // Include all known skill/command names for cross-referencing
+        // Include all known skill names for cross-referencing
         // This helps the AI distinguish between skill invocations vs shell commands
         const knownSkillNames = allPrimitives.filter((p) => p._type === 'skill').map((p) => p.name);
-        const knownCommandNames = allPrimitives
-          .filter((p) => p._type === 'command')
-          .map((p) => p.name);
         const knownAgentNames = allPrimitives.filter((p) => p._type === 'agent').map((p) => p.name);
 
         body.knownSkills = knownSkillNames;
-        body.knownCommands = knownCommandNames;
         body.knownAgents = knownAgentNames;
 
         const response = await fetch('/api/workflow-designer/analyze', {
@@ -302,7 +288,7 @@ export function AIGenerateDialog({
 
   // Handle primitive selection
   const handleSelect = useCallback(
-    (primitive: SkillOrCommand) => {
+    (primitive: SkillOrAgent) => {
       setSelected(primitive);
 
       // Only analyze if the primitive has content
@@ -392,7 +378,7 @@ export function AIGenerateDialog({
                   1
                 </span>
                 <span className="text-[13px] font-semibold text-[var(--fg-default)]">
-                  Select a skill or command
+                  Select a skill
                 </span>
               </div>
 
@@ -403,7 +389,7 @@ export function AIGenerateDialog({
                   <input
                     id="ai-generate-search"
                     type="text"
-                    placeholder="Search skills and commands..."
+                    placeholder="Search skills..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 rounded-[var(--radius)] border border-[var(--border-default)] bg-[var(--bg-default)] text-sm text-[var(--fg-default)] placeholder:text-[var(--fg-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-muted)]"
@@ -423,12 +409,7 @@ export function AIGenerateDialog({
                       </span>
                       {availableTags.typeTags.map((tag) => {
                         const isActive = isTagSelected(tag);
-                        const Icon =
-                          tag.value === 'skill'
-                            ? Lightning
-                            : tag.value === 'command'
-                              ? Terminal
-                              : Robot;
+                        const Icon = tag.value === 'skill' ? Lightning : Robot;
                         return (
                           <button
                             key={`type-${tag.value}`}
@@ -493,7 +474,7 @@ export function AIGenerateDialog({
               {allPrimitives.length === 0 ? (
                 <div className="text-center py-8 text-[var(--fg-muted)]">
                   <Warning className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No skills or commands available</p>
+                  <p className="text-sm">No skills available</p>
                   <p className="text-[11px] mt-1">
                     Sync your org templates to see available skills
                   </p>
@@ -523,18 +504,11 @@ export function AIGenerateDialog({
                   {filteredPrimitives.slice(0, 8).map((primitive, index) => {
                     const isSelected =
                       selected?.name === primitive.name && selected?._type === primitive._type;
-                    const Icon =
-                      primitive._type === 'skill'
-                        ? Lightning
-                        : primitive._type === 'command'
-                          ? Terminal
-                          : Robot;
+                    const Icon = primitive._type === 'skill' ? Lightning : Robot;
                     const colorClass =
                       primitive._type === 'skill'
                         ? 'bg-[var(--done-muted)] text-[var(--done-fg)]'
-                        : primitive._type === 'command'
-                          ? 'bg-[var(--success-muted)] text-[var(--success-fg)]'
-                          : 'bg-[var(--accent-muted)] text-[var(--accent-fg)]';
+                        : 'bg-[var(--accent-muted)] text-[var(--accent-fg)]';
 
                     return (
                       <button
@@ -632,7 +606,7 @@ export function AIGenerateDialog({
                 ) : !aiWorkflow ? (
                   <div className="py-8 flex items-center justify-center text-[var(--fg-muted)]">
                     <div className="text-center">
-                      <Command className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <MagicWand className="h-10 w-10 mx-auto mb-3 opacity-30" />
                       <p className="text-sm">No workflow generated</p>
                       <p className="text-[11px] mt-1">
                         The skill might not have parseable workflow content

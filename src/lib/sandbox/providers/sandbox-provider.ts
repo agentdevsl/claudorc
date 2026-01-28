@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream';
 import type {
   ExecResult,
   SandboxConfig,
@@ -6,6 +7,36 @@ import type {
   SandboxMetrics,
   TmuxSession,
 } from '../types.js';
+
+/**
+ * Options for streaming exec
+ */
+export interface ExecStreamOptions {
+  /** Command to execute */
+  cmd: string;
+  /** Command arguments */
+  args?: string[];
+  /** Environment variables to set */
+  env?: Record<string, string>;
+  /** Working directory */
+  cwd?: string;
+  /** Run as root */
+  asRoot?: boolean;
+}
+
+/**
+ * Result of a streaming exec
+ */
+export interface ExecStreamResult {
+  /** Readable stream for stdout */
+  stdout: Readable;
+  /** Readable stream for stderr */
+  stderr: Readable;
+  /** Promise that resolves when the process exits */
+  wait(): Promise<{ exitCode: number }>;
+  /** Kill the process */
+  kill(): void | Promise<void>;
+}
 
 /**
  * Sandbox instance interface
@@ -78,6 +109,12 @@ export interface Sandbox {
    * Get last activity timestamp
    */
   getLastActivity(): Date;
+
+  /**
+   * Execute a command with streaming output.
+   * Returns readable streams for stdout/stderr instead of buffered strings.
+   */
+  execStream?(options: ExecStreamOptions): Promise<ExecStreamResult>;
 }
 
 /**

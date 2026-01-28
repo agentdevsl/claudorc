@@ -48,12 +48,17 @@ interface ErrorEventData extends TaskCreationEventData {
   code?: string;
 }
 
+interface ProcessingEventData extends TaskCreationEventData {
+  message?: string;
+}
+
 type TaskCreationEvent =
   | { type: 'connected'; sessionId: string }
   | { type: 'task-creation:token'; data: TokenEventData }
   | { type: 'task-creation:message'; data: MessageEventData }
   | { type: 'task-creation:questions'; data: QuestionsEventData }
   | { type: 'task-creation:suggestion'; data: SuggestionEventData }
+  | { type: 'task-creation:processing'; data: ProcessingEventData }
   | { type: 'task-creation:completed'; data: CompletedEventData }
   | { type: 'task-creation:cancelled'; data: TaskCreationEventData }
   | { type: 'task-creation:error'; data: ErrorEventData };
@@ -178,15 +183,26 @@ function handleTaskCreationEvent(sessionId: string, event: TaskCreationEvent): v
       handleErrorEvent(sessionId, event.data);
       break;
 
+    case 'task-creation:processing':
+      // Answers accepted, clear pending questions and show processing state
+      updateSession(sessionId, {
+        pendingQuestions: null,
+        isStreaming: true,
+      });
+      break;
+
     default:
       console.log('[TaskCreation Sync] Unknown event type:', (event as { type: string }).type);
   }
 }
 
 function handleTokenEvent(sessionId: string, data: TokenEventData): void {
+  // Clear pendingQuestions when streaming starts (fallback if processing event was missed)
+  // This makes the UI more resilient to event ordering issues
   updateSession(sessionId, {
     isStreaming: true,
     streamingContent: data.accumulated,
+    pendingQuestions: null, // Clear questions when AI starts responding
   });
 }
 

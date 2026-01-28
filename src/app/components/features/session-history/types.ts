@@ -153,6 +153,8 @@ export interface StreamEntry {
   };
   /** Whether this is the current playback position */
   isCurrent?: boolean;
+  /** Whether this entry is from the startup/initialization phase (before first tool call) */
+  isStartup?: boolean;
 }
 
 // ===== Session Summary Metrics =====
@@ -245,6 +247,8 @@ export interface SessionDetailViewProps {
   onDelete?: () => void;
   /** Callback for refresh */
   onRefresh?: () => void;
+  /** Callback to navigate to the linked task */
+  onViewTask?: (taskId: string, projectId: string) => void;
 }
 
 export interface StreamViewerProps {

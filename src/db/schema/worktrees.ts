@@ -6,6 +6,7 @@ import type { WorktreeStatus } from './enums';
 
 export type { WorktreeStatus } from './enums';
 
+import { agents } from './agents';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
@@ -16,6 +17,7 @@ export const worktrees = sqliteTable('worktrees', {
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
+  agentId: text('agent_id').references((): AnySQLiteColumn => agents.id, { onDelete: 'set null' }),
   taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'set null' }),
   branch: text('branch').notNull(),
   path: text('path').notNull(),

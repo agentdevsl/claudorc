@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { projects } from './projects.js';
-import { templates } from './templates.js';
+import { projects } from './projects';
+import { templates } from './templates';
 
 /**
  * Junction table for many-to-many relationship between templates and projects.

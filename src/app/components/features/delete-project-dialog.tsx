@@ -1,4 +1,4 @@
-import { Warning } from '@phosphor-icons/react';
+import { Folder, Warning } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import {
@@ -9,22 +9,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { Switch } from '@/app/components/ui/switch';
 import { TextInput } from '@/app/components/ui/text-input';
+import { cn } from '@/lib/utils/cn';
 
 interface DeleteProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectName: string;
-  onConfirm: () => Promise<void>;
+  projectPath?: string;
+  onConfirm: (options: { deleteFiles: boolean }) => Promise<void>;
 }
 
 export function DeleteProjectDialog({
   open,
   onOpenChange,
   projectName,
+  projectPath,
   onConfirm,
 }: DeleteProjectDialogProps): React.JSX.Element {
   const [confirmText, setConfirmText] = useState('');
+  const [deleteFiles, setDeleteFiles] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +42,7 @@ export function DeleteProjectDialog({
     setError(null);
 
     try {
-      await onConfirm();
+      await onConfirm({ deleteFiles });
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete project');
@@ -49,6 +54,7 @@ export function DeleteProjectDialog({
   function handleOpenChange(newOpen: boolean): void {
     if (!newOpen) {
       setConfirmText('');
+      setDeleteFiles(false);
       setError(null);
     }
     onOpenChange(newOpen);
@@ -75,6 +81,42 @@ export function DeleteProjectDialog({
             <span className="font-semibold text-fg">{projectName}</span> and all associated data
             including tasks, agents, and sessions.
           </p>
+
+          {/* Delete files option */}
+          {projectPath && (
+            <div
+              className={cn(
+                'flex items-start gap-3 rounded-lg border p-4 transition-colors',
+                deleteFiles ? 'border-danger/50 bg-danger/10' : 'border-border bg-surface-subtle'
+              )}
+            >
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Folder
+                    className={cn('h-5 w-5', deleteFiles ? 'text-danger' : 'text-fg-muted')}
+                    weight={deleteFiles ? 'fill' : 'regular'}
+                  />
+                  <span className="font-medium text-fg">Also delete project files</span>
+                </div>
+                <p className="mt-1 text-sm text-fg-muted">
+                  Permanently delete all files at:{' '}
+                  <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs font-mono">
+                    {projectPath}
+                  </code>
+                </p>
+                {deleteFiles && (
+                  <p className="mt-2 text-sm font-medium text-danger">
+                    ⚠️ This will permanently delete all source code and cannot be recovered!
+                  </p>
+                )}
+              </div>
+              <Switch
+                checked={deleteFiles}
+                onCheckedChange={setDeleteFiles}
+                data-testid="delete-files-toggle"
+              />
+            </div>
+          )}
 
           <div className="rounded-md border border-danger/40 bg-danger/10 p-3">
             <p className="text-sm text-fg">

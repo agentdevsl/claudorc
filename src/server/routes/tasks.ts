@@ -196,5 +196,123 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
   });
 
+  // GET /api/tasks/:id/diff - Get diff for a task
+  app.get('/:id/diff', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const result = await taskService.getDiff(id);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: result.value });
+    } catch (error) {
+      console.error('[Tasks] GetDiff error:', error);
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to get task diff' } },
+        500
+      );
+    }
+  });
+
+  // PATCH /api/tasks/:id/move - Move task to different column
+  // When moving to in_progress, optionally auto-start an agent
+  app.patch('/:id/move', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const body = (await c.req.json()) as {
+        column: 'backlog' | 'queued' | 'in_progress' | 'waiting_approval' | 'verified';
+        position?: number;
+        startAgent?: boolean; // Auto-start agent when moving to in_progress (default: true)
+      };
+
+      if (!body.column) {
+        return json(
+          { ok: false, error: { code: 'MISSING_PARAMS', message: 'column is required' } },
+          400
+        );
+      }
+
+      const validColumns = ['backlog', 'queued', 'in_progress', 'waiting_approval', 'verified'];
+      if (!validColumns.includes(body.column)) {
+        return json(
+          { ok: false, error: { code: 'INVALID_PARAMS', message: 'Invalid column value' } },
+          400
+        );
+      }
+
+      // Move the task - this will trigger container agent if sandbox is enabled for the project
+      const result = await taskService.moveColumn(id, body.column, body.position);
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      const { task: updatedTask, agentError } = result.value;
+
+      // If moving to in_progress, check if we need to start host-side agent as fallback
+      // (container agent is auto-triggered by taskService.moveColumn if sandbox is enabled)
+      const shouldStartHostAgent = body.column === 'in_progress' && body.startAgent !== false;
+
+      if (shouldStartHostAgent) {
+        // Check if project has sandbox enabled - if so, container agent is handling it
+        // We only need host-side agent as fallback when sandbox is NOT enabled
+        // For now, let the container agent service handle it via taskService.moveColumn()
+        // Host-side agent is available but container-based is preferred
+
+        // Log that container agent should have been triggered
+        console.log(
+          `[Tasks] Task ${id} moved to in_progress - container agent will run if sandbox is enabled`
+        );
+      }
+
+      // Return success for the move, but include agent error info if present
+      if (agentError) {
+        console.error(`[Tasks] Failed to start agent for task ${id}:`, agentError);
+        return json({
+          ok: true,
+          data: { task: updatedTask, agentError },
+        });
+      }
+
+      return json({ ok: true, data: { task: updatedTask } });
+    } catch (error) {
+      console.error('[Tasks] Move error:', error);
+      return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to move task' } }, 500);
+    }
+  });
+
+  // POST /api/tasks/:id/stop-agent - Stop a running container agent for a task
+  app.post('/:id/stop-agent', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const result = await taskService.stopAgent(id);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: { stopped: true } });
+    } catch (error) {
+      console.error('[Tasks] StopAgent error:', error);
+      return json({ ok: false, error: { code: 'DB_ERROR', message: 'Failed to stop agent' } }, 500);
+    }
+  });
+
   return app;
 }

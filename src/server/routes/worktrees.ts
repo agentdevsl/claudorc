@@ -48,7 +48,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
   app.post('/', async (c) => {
     let body: {
       projectId: string;
+      agentId: string;
       taskId: string;
+      taskTitle: string;
       baseBranch?: string;
     };
     try {
@@ -60,11 +62,14 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
       );
     }
 
-    if (!body.projectId || !body.taskId) {
+    if (!body.projectId || !body.agentId || !body.taskId || !body.taskTitle) {
       return json(
         {
           ok: false,
-          error: { code: 'MISSING_PARAMS', message: 'projectId and taskId are required' },
+          error: {
+            code: 'MISSING_PARAMS',
+            message: 'projectId, agentId, taskId, and taskTitle are required',
+          },
         },
         400
       );
@@ -73,7 +78,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
     try {
       const result = await worktreeService.create({
         projectId: body.projectId,
+        agentId: body.agentId,
         taskId: body.taskId,
+        taskTitle: body.taskTitle,
         baseBranch: body.baseBranch,
       });
 

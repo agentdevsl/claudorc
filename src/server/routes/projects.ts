@@ -2,7 +2,7 @@
  * Project routes
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { agents } from '../../db/schema/agents.js';
@@ -171,9 +171,13 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
             total: projectTasks.length,
           };
 
-          // Get running agents for this project
+          // Get active agents for this project (starting, planning, or running)
+          const activeStatuses = ['starting', 'planning', 'running'] as const;
           const runningAgents = await db.query.agents.findMany({
-            where: and(eq(agents.projectId, project.id), eq(agents.status, 'running')),
+            where: and(
+              eq(agents.projectId, project.id),
+              inArray(agents.status, [...activeStatuses])
+            ),
           });
 
           // Get task titles for running agents
@@ -378,6 +382,7 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
   // DELETE /api/projects/:id
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+    const deleteFiles = c.req.query('deleteFiles') === 'true';
 
     if (!isValidId(id)) {
       return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
@@ -417,10 +422,61 @@ export function createProjectsRoutes({ db }: ProjectsDeps) {
       // Delete associated agents
       await db.delete(agents).where(eq(agents.projectId, id));
 
-      // Delete the project
+      // Delete the project from database
       await db.delete(projects).where(eq(projects.id, id));
 
-      return json({ ok: true, data: { deleted: true } });
+      // Optionally delete project files
+      let filesActuallyDeleted = false;
+      let fileDeletionError: string | undefined;
+      let deletionBlockedReason: string | undefined;
+
+      if (deleteFiles && existing.path) {
+        const fs = await import('node:fs/promises');
+        const { getNormalizedPath, validatePathForDeletion } = await import(
+          '../../lib/utils/path-safety.js'
+        );
+
+        const normalizedPath = getNormalizedPath(existing.path);
+
+        // Validate path safety using centralized utility
+        const validationResult = validatePathForDeletion(existing.path);
+
+        if (validationResult.safe === false) {
+          console.warn(
+            `[Projects] Refusing to delete path (${validationResult.code}): ${normalizedPath}`
+          );
+          deletionBlockedReason = validationResult.reason;
+        } else {
+          // Safety check: ensure the path exists and is a directory
+          try {
+            const stats = await fs.stat(normalizedPath);
+            if (stats.isDirectory()) {
+              await fs.rm(normalizedPath, { recursive: true, force: true });
+              filesActuallyDeleted = true;
+              console.log(`[Projects] Deleted project files at: ${normalizedPath}`);
+            } else {
+              // Path exists but is not a directory
+              deletionBlockedReason = 'Path is not a directory';
+              console.warn(`[Projects] Path is not a directory: ${normalizedPath}`);
+            }
+          } catch (fsError) {
+            // Track the error and return filesDeleted: false
+            const errorMessage = fsError instanceof Error ? fsError.message : String(fsError);
+            fileDeletionError = errorMessage;
+            console.error(`[Projects] Failed to delete project files: ${errorMessage}`);
+          }
+        }
+      }
+
+      return json({
+        ok: true,
+        data: {
+          deleted: true,
+          filesDeleted: filesActuallyDeleted,
+          ...(fileDeletionError && { fileDeletionError }),
+          ...(deletionBlockedReason && { reason: deletionBlockedReason }),
+        },
+      });
     } catch (error) {
       console.error('[Projects] Delete error:', error);
       return json(

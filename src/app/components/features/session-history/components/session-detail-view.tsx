@@ -31,6 +31,7 @@ export function SessionDetailView({
   onExport,
   onDelete,
   onRefresh,
+  onViewTask,
 }: SessionDetailViewProps): React.JSX.Element {
   const [activeView, setActiveView] = useState<ViewTab>('replay');
   const { entries, toolCalls, toolCallStats, isLoading: eventsLoading } = useSessionEvents(session);
@@ -114,10 +115,21 @@ export function SessionDetailView({
   }
 
   if (session.taskId) {
+    const taskId = session.taskId;
     metaItems.push({
       icon: <CheckCircle className="h-3.5 w-3.5" />,
       label: 'Task',
-      value: <span className="font-mono text-done">#{session.taskId.slice(0, 7)}</span>,
+      value: onViewTask ? (
+        <button
+          type="button"
+          onClick={() => onViewTask(taskId, session.projectId)}
+          className="inline-flex items-center gap-1 font-mono text-done underline-offset-2 hover:underline"
+        >
+          #{taskId.slice(0, 7)}
+        </button>
+      ) : (
+        <span className="font-mono text-done">#{taskId.slice(0, 7)}</span>
+      ),
     });
   }
 

@@ -88,6 +88,9 @@ function SessionsPage(): React.JSX.Element {
           onProjectChange={setSelectedProjectId}
           isLoading={isLoading}
           onOpen={(sessionId) => navigate({ to: '/sessions/$sessionId', params: { sessionId } })}
+          onViewTask={(taskId, projectId) =>
+            navigate({ to: '/projects/$projectId/tasks/$taskId', params: { projectId, taskId } })
+          }
         />
       </div>
     </LayoutShell>

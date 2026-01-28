@@ -1,0 +1,26 @@
+{
+  "name": "@agentpane/agent-runner",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agent runner for Docker sandbox containers - executes Claude Agent SDK inside containers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.20",
+    "@anthropic-ai/sdk": "^0.71.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

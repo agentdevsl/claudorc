@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useMemo, useState } from 'react';
+import { useContainerAgentStatuses } from '@/app/hooks/use-container-agent-statuses';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { COLUMN_CONFIG, COLUMN_ORDER, VALID_TRANSITIONS } from './constants';
 import { DragOverlayCard } from './drag-overlay';
@@ -30,6 +31,8 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   /** Callback when new task is requested for a column */
   onNewTask?: (column: TaskColumn) => void;
+  /** Callback to run a task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: (taskId: string) => void;
   /** Custom header action for backlog column (e.g., AI create button) */
   backlogHeaderAction?: React.ReactNode;
   /** Loading state */
@@ -78,12 +81,24 @@ export function KanbanBoard({
   onTaskMove,
   onTaskClick,
   onNewTask,
+  onRunNow,
   backlogHeaderAction,
   isLoading: _isLoading,
 }: KanbanBoardProps): React.JSX.Element {
   const [{ selectedIds, collapsedColumns }, actions] = useBoardState();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<TaskColumn | null>(null);
+
+  // Get sessions from in-progress tasks that have active sessions
+  // Container agents only have sessionId (no agentId), so we check for sessionId only
+  const activeSessions = useMemo(() => {
+    return tasks
+      .filter((t) => t.column === 'in_progress' && t.sessionId)
+      .map((t) => ({ sessionId: t.sessionId as string, taskId: t.id }));
+  }, [tasks]);
+
+  // Track agent statuses for active sessions
+  const agentStatuses = useContainerAgentStatuses(activeSessions);
 
   // Group tasks by column, sorted by position
   const tasksByColumn = useMemo(() => {
@@ -275,6 +290,8 @@ export function KanbanBoard({
                   isDragging={activeId === task.id}
                   onSelect={(multi) => handleCardSelect(task.id, multi)}
                   onOpen={() => handleCardOpen(task)}
+                  onRunNow={onRunNow ? () => onRunNow(task.id) : undefined}
+                  agentStatus={task.sessionId ? agentStatuses.get(task.sessionId) : undefined}
                 />
               ))}
             </KanbanColumn>

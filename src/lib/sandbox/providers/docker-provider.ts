@@ -1,3 +1,4 @@
+import { PassThrough, type Readable } from 'node:stream';
 import { createId } from '@paralleldrive/cuid2';
 import Docker from 'dockerode';
 import { SandboxErrors } from '../../errors/sandbox-errors.js';
@@ -13,6 +14,8 @@ import type {
 import { SANDBOX_DEFAULTS } from '../types.js';
 import type {
   EventEmittingSandboxProvider,
+  ExecStreamOptions,
+  ExecStreamResult,
   Sandbox,
   SandboxProviderEvent,
   SandboxProviderEventListener,
@@ -250,6 +253,151 @@ class DockerSandbox implements Sandbox {
   getLastActivity(): Date {
     return this._lastActivity;
   }
+
+  /**
+   * Escape a string for safe use in shell commands.
+   * Uses single quotes and handles embedded single quotes.
+   */
+  private shellEscape(str: string): string {
+    // Replace single quotes with: end quote, escaped quote, start quote
+    return `'${str.replace(/'/g, "'\\''")}'`;
+  }
+
+  /**
+   * Execute a command with streaming output.
+   * Returns readable streams for stdout/stderr, useful for long-running processes
+   * like the agent-runner that emit events over time.
+   */
+  async execStream(options: ExecStreamOptions): Promise<ExecStreamResult> {
+    this.touch();
+
+    const { cmd, args = [], env = {}, cwd, asRoot = false } = options;
+
+    // Build command with working directory if specified
+    // When using cwd, we need shell to handle cd, so escape all parts properly
+    let fullCmd: string[];
+    if (cwd) {
+      // Escape cwd and build a safe shell command
+      const escapedCwd = this.shellEscape(cwd);
+      const escapedCmd = this.shellEscape(cmd);
+      const escapedArgs = args.map((arg) => this.shellEscape(arg)).join(' ');
+      fullCmd = ['sh', '-c', `cd ${escapedCwd} && exec ${escapedCmd} ${escapedArgs}`];
+    } else {
+      // Without cwd, pass command directly without shell (safer)
+      fullCmd = [cmd, ...args];
+    }
+
+    // Build environment variables array
+    const envArray = Object.entries(env).map(([k, v]) => `${k}=${v}`);
+
+    const exec = await this.container.exec({
+      Cmd: fullCmd,
+      AttachStdout: true,
+      AttachStderr: true,
+      Env: envArray,
+      User: asRoot ? 'root' : SANDBOX_DEFAULTS.userHome.split('/').pop(),
+    });
+
+    // Start exec - use regular stream mode (not hijack) since we only need stdout/stderr
+    // This avoids HTTP 101 issues that occur with hijack mode in some docker-modem versions
+    const dockerStream = (await exec.start({ Detach: false, Tty: false })) as NodeJS.ReadableStream;
+
+    // Create pass-through streams for stdout and stderr
+    const stdoutStream = new PassThrough();
+    const stderrStream = new PassThrough();
+
+    let buffer = Buffer.alloc(0);
+    let killed = false;
+
+    // Process the multiplexed Docker stream
+    dockerStream.on('data', (chunk: Buffer) => {
+      if (killed) return;
+
+      buffer = Buffer.concat([buffer, chunk]);
+
+      // Parse Docker multiplexed stream (8-byte headers)
+      while (buffer.length >= 8) {
+        const streamType = buffer[0];
+        const payloadSize = buffer.readUInt32BE(4);
+
+        if (buffer.length < 8 + payloadSize) {
+          break; // Wait for more data
+        }
+
+        const payload = buffer.subarray(8, 8 + payloadSize);
+        buffer = buffer.subarray(8 + payloadSize);
+
+        if (streamType === 1) {
+          stdoutStream.write(payload);
+        } else if (streamType === 2) {
+          stderrStream.write(payload);
+        }
+      }
+    });
+
+    dockerStream.on('end', () => {
+      stdoutStream.end();
+      stderrStream.end();
+    });
+
+    dockerStream.on('error', (err) => {
+      stdoutStream.destroy(err);
+      stderrStream.destroy(err);
+    });
+
+    const terminateExec = async (): Promise<void> => {
+      try {
+        const inspection = (await exec.inspect()) as { Pid?: number };
+        const pid = inspection.Pid;
+        if (pid && pid > 0) {
+          const killer = await this.container.exec({
+            Cmd: ['kill', '-TERM', String(pid)],
+            AttachStdout: false,
+            AttachStderr: false,
+            User: 'root',
+          });
+          await killer.start({ Detach: true });
+        }
+      } catch (error) {
+        console.warn('[DockerProvider] Failed to terminate exec process:', error);
+      }
+    };
+
+    return {
+      stdout: stdoutStream as Readable,
+      stderr: stderrStream as Readable,
+
+      async wait(): Promise<{ exitCode: number }> {
+        return new Promise((resolve, reject) => {
+          const resolveWithInspect = async () => {
+            try {
+              const inspection = await exec.inspect();
+              const exitCode = typeof inspection.ExitCode === 'number' ? inspection.ExitCode : -1;
+              resolve({ exitCode });
+            } catch (err) {
+              reject(err);
+            }
+          };
+
+          dockerStream.on('end', resolveWithInspect);
+          dockerStream.on('close', resolveWithInspect);
+          dockerStream.on('error', reject);
+        });
+      },
+
+      async kill(): Promise<void> {
+        killed = true;
+        stdoutStream.end();
+        stderrStream.end();
+        // Destroy the stream if it has a destroy method (Duplex streams do)
+        if ('destroy' in dockerStream && typeof dockerStream.destroy === 'function') {
+          dockerStream.destroy();
+        }
+        // Await termination to ensure process is killed and resources are released
+        await terminateExec();
+      },
+    };
+  }
 }
 
 /**
@@ -348,11 +496,46 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async get(projectId: string): Promise<Sandbox | null> {
+    console.log(
+      `[DockerProvider] get(${projectId}) - projectToSandbox keys:`,
+      Array.from(this.projectToSandbox.keys())
+    );
+    console.log(
+      `[DockerProvider] get(${projectId}) - sandboxes keys:`,
+      Array.from(this.sandboxes.keys())
+    );
+
+    // First check for project-specific sandbox
     const sandboxId = this.projectToSandbox.get(projectId);
-    if (!sandboxId) {
-      return null;
+    console.log(`[DockerProvider] get(${projectId}) - direct lookup sandboxId:`, sandboxId);
+    if (sandboxId) {
+      const sandbox = this.sandboxes.get(sandboxId);
+      console.log(
+        `[DockerProvider] get(${projectId}) - found direct sandbox:`,
+        sandbox?.id,
+        sandbox?.projectId
+      );
+      return sandbox ?? null;
     }
-    return this.sandboxes.get(sandboxId) ?? null;
+
+    // Fall back to global default sandbox (projectId = 'default')
+    const defaultSandboxId = this.projectToSandbox.get('default');
+    console.log(
+      `[DockerProvider] get(${projectId}) - fallback to default sandboxId:`,
+      defaultSandboxId
+    );
+    if (defaultSandboxId) {
+      const sandbox = this.sandboxes.get(defaultSandboxId);
+      console.log(
+        `[DockerProvider] get(${projectId}) - found default sandbox:`,
+        sandbox?.id,
+        sandbox?.projectId
+      );
+      return sandbox ?? null;
+    }
+
+    console.log(`[DockerProvider] get(${projectId}) - no sandbox found`);
+    return null;
   }
 
   async getById(sandboxId: string): Promise<Sandbox | null> {
@@ -360,6 +543,9 @@ export class DockerProvider implements EventEmittingSandboxProvider {
   }
 
   async list(): Promise<SandboxInfo[]> {
+    // Validate containers exist before returning - prune stale entries
+    await this.validateContainers();
+
     const infos: SandboxInfo[] = [];
 
     for (const [sandboxId, sandbox] of this.sandboxes) {
@@ -377,6 +563,44 @@ export class DockerProvider implements EventEmittingSandboxProvider {
     }
 
     return infos;
+  }
+
+  /**
+   * Validate that cached containers actually exist in Docker.
+   * Removes stale entries from the in-memory cache.
+   */
+  async validateContainers(): Promise<void> {
+    const staleIds: string[] = [];
+
+    for (const [sandboxId, sandbox] of this.sandboxes) {
+      try {
+        const container = this.docker.getContainer(sandbox.containerId);
+        await container.inspect();
+      } catch (error) {
+        // Container doesn't exist - mark for removal
+        if (error && typeof error === 'object' && 'statusCode' in error) {
+          if ((error as { statusCode: number }).statusCode === 404) {
+            console.log(
+              `[DockerProvider] Container ${sandbox.containerId.slice(0, 12)} not found in Docker, removing stale entry`
+            );
+            staleIds.push(sandboxId);
+          }
+        }
+      }
+    }
+
+    // Remove stale entries
+    for (const sandboxId of staleIds) {
+      const sandbox = this.sandboxes.get(sandboxId);
+      if (sandbox) {
+        this.projectToSandbox.delete(sandbox.projectId);
+        this.sandboxes.delete(sandboxId);
+      }
+    }
+
+    if (staleIds.length > 0) {
+      console.log(`[DockerProvider] Pruned ${staleIds.length} stale sandbox entries`);
+    }
   }
 
   async pullImage(image: string): Promise<void> {

@@ -26,6 +26,15 @@ const createDbMock = () => ({
 const createStreamsMock = () => ({
   createStream: vi.fn().mockResolvedValue(undefined),
   publish: vi.fn().mockResolvedValue(1),
+  // Task creation convenience methods - these delegate to publish()
+  publishTaskCreationStarted: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationMessage: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationToken: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationSuggestion: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationQuestions: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationCompleted: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationCancelled: vi.fn().mockResolvedValue(undefined),
+  publishTaskCreationError: vi.fn().mockResolvedValue(undefined),
 });
 
 const createV2SessionMock = () => ({
@@ -77,9 +86,8 @@ describe('TaskCreationService', () => {
         })
       );
       expect(streams.createStream).toHaveBeenCalled();
-      expect(streams.publish).toHaveBeenCalledWith(
+      expect(streams.publishTaskCreationStarted).toHaveBeenCalledWith(
         expect.any(String),
-        'task-creation:started',
         expect.objectContaining({ projectId: 'p1' })
       );
     });
@@ -237,15 +245,9 @@ describe('TaskCreationService', () => {
       const sentMessage = v2Session.send.mock.calls[0]?.[0] as string;
       expect(sentMessage).toContain('User message: Create a task');
       // Check message publications (user + assistant)
-      const messageCalls = streams.publish.mock.calls.filter(
-        (call: unknown[]) => call[1] === 'task-creation:message'
-      );
-      expect(messageCalls.length).toBe(2);
+      expect(streams.publishTaskCreationMessage.mock.calls.length).toBe(2);
       // Tokens are batched and flushed together for performance
-      const tokenCalls = streams.publish.mock.calls.filter(
-        (call: unknown[]) => call[1] === 'task-creation:token'
-      );
-      expect(tokenCalls.length).toBeGreaterThan(0);
+      expect(streams.publishTaskCreationToken.mock.calls.length).toBeGreaterThan(0);
     });
 
     it('parses task suggestion from response', async () => {
@@ -297,9 +299,8 @@ describe('TaskCreationService', () => {
         expect(result.value.suggestion?.priority).toBe('high');
       }
 
-      expect(streams.publish).toHaveBeenCalledWith(
+      expect(streams.publishTaskCreationSuggestion).toHaveBeenCalledWith(
         expect.any(String),
-        'task-creation:suggestion',
         expect.objectContaining({ suggestion: expect.any(Object) })
       );
     });
@@ -328,9 +329,8 @@ describe('TaskCreationService', () => {
         expect(result.error.message).toContain('API rate limit exceeded');
       }
 
-      expect(streams.publish).toHaveBeenCalledWith(
+      expect(streams.publishTaskCreationError).toHaveBeenCalledWith(
         expect.any(String),
-        'task-creation:error',
         expect.objectContaining({ error: expect.any(String) })
       );
     });
@@ -427,9 +427,8 @@ describe('TaskCreationService', () => {
       }
 
       expect(db.insert).toHaveBeenCalled();
-      expect(streams.publish).toHaveBeenCalledWith(
+      expect(streams.publishTaskCreationCompleted).toHaveBeenCalledWith(
         expect.any(String),
-        'task-creation:completed',
         expect.objectContaining({ taskId: expect.any(String) })
       );
     });
@@ -530,9 +529,8 @@ describe('TaskCreationService', () => {
       }
 
       expect(v2Session.close).toHaveBeenCalled();
-      expect(streams.publish).toHaveBeenCalledWith(
+      expect(streams.publishTaskCreationCancelled).toHaveBeenCalledWith(
         expect.any(String),
-        'task-creation:cancelled',
         expect.objectContaining({ sessionId: expect.any(String) })
       );
     });

@@ -1,6 +1,7 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { createId } from '@paralleldrive/cuid2';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
+import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
 import type { Worktree, WorktreeStatus } from '../db/schema/worktrees.js';
 import { worktrees } from '../db/schema/worktrees.js';
@@ -10,9 +11,28 @@ import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
 
+/**
+ * Creates a URL-safe slug from a string.
+ * - Converts to lowercase
+ * - Replaces spaces and special chars with hyphens
+ * - Removes consecutive hyphens
+ * - Truncates to maxLength
+ */
+const slugify = (str: string, maxLength = 40): string => {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-')
+    .slice(0, maxLength)
+    .replace(/-+$/, '');
+};
+
 export type WorktreeCreateInput = {
   projectId: string;
+  agentId: string;
   taskId: string;
+  taskTitle: string;
   baseBranch?: string;
 };
 
@@ -127,7 +147,7 @@ export class WorktreeService {
     input: WorktreeCreateInput,
     options?: WorktreeSetupOptions
   ): WorktreeServiceResult<Worktree> {
-    const { projectId, taskId, baseBranch = 'main' } = input;
+    const { projectId, agentId, taskId, taskTitle, baseBranch = 'main' } = input;
 
     const project = await this.db.query.projects.findFirst({
       where: eq(projects.id, projectId),
@@ -137,10 +157,26 @@ export class WorktreeService {
       return err(WorktreeErrors.CREATION_FAILED('unknown', 'Project not found'));
     }
 
-    const branchId = createId();
-    const branch = `agent/${branchId}/${taskId}`;
+    const agent = await this.db.query.agents.findFirst({
+      where: eq(agents.id, agentId),
+    });
+
+    if (!agent) {
+      return err(WorktreeErrors.CREATION_FAILED('unknown', 'Agent not found'));
+    }
+
+    // Create short, meaningful identifier from task title + short ID for uniqueness
+    const taskSlug = slugify(taskTitle);
+    const shortId = taskId.slice(0, 6);
+
+    // Branch: {taskSlug}-{shortId}
+    // Example: fix-login-validation-abc123
+    const branch = `${taskSlug}-${shortId}`;
+
+    // Path: .worktrees/{taskSlug}-{shortId}
+    // Example: .worktrees/fix-login-validation-abc123
     const root = project.config?.worktreeRoot ?? '.worktrees';
-    const worktreePath = path.join(project.path, root, branch.replaceAll('/', '-'));
+    const worktreePath = path.join(project.path, root, branch);
 
     const escapedBranchForCheck = escapeShellString(branch);
     const branchCheck = await this.runner.exec(
@@ -168,6 +204,7 @@ export class WorktreeService {
       .insert(worktrees)
       .values({
         projectId,
+        agentId,
         taskId,
         branch,
         path: worktreePath,
@@ -569,8 +606,34 @@ export class WorktreeService {
       where: eq(worktrees.projectId, projectId),
     });
 
+    // Sync with filesystem - remove records for worktrees that no longer exist
+    const staleIds: string[] = [];
+    const validWorktrees: Worktree[] = [];
+
+    for (const wt of list) {
+      if (existsSync(wt.path)) {
+        validWorktrees.push(wt);
+      } else {
+        staleIds.push(wt.id);
+      }
+    }
+
+    // Clean up stale records in background (don't block the response)
+    if (staleIds.length > 0) {
+      console.log(`[WorktreeService] Cleaning up ${staleIds.length} stale worktree records`);
+      this.db
+        .delete(worktrees)
+        .where(inArray(worktrees.id, staleIds))
+        .then(() => {
+          console.log(`[WorktreeService] Removed ${staleIds.length} stale worktree records`);
+        })
+        .catch((err) => {
+          console.error('[WorktreeService] Failed to clean up stale worktree records:', err);
+        });
+    }
+
     return ok(
-      list.map((wt: Worktree) => ({
+      validWorktrees.map((wt: Worktree) => ({
         id: wt.id,
         branch: wt.branch,
         status: wt.status,

@@ -1,181 +1,195 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '@/db/schema/projects';
 import { DEFAULT_PROJECT_CONFIG } from '@/lib/config/types';
-import { ProjectErrors } from '@/lib/errors/project-errors';
-import { err, ok } from '@/lib/utils/result';
 
-const projectServiceMocks = vi.hoisted(() => ({
-  list: vi.fn(),
-  create: vi.fn(),
-  getById: vi.fn(),
-  update: vi.fn(),
-  updateConfig: vi.fn(),
-  delete: vi.fn(),
+// Hoisted mocks for file deletion tests
+const fsMocks = vi.hoisted(() => ({
+  stat: vi.fn(),
+  rm: vi.fn(),
 }));
 
-vi.mock('@/services/project.service', () => ({
-  ProjectService: class {
-    list = projectServiceMocks.list;
-    create = projectServiceMocks.create;
-    getById = projectServiceMocks.getById;
-    update = projectServiceMocks.update;
-    updateConfig = projectServiceMocks.updateConfig;
-    delete = projectServiceMocks.delete;
-  },
+vi.mock('node:fs/promises', () => ({
+  stat: fsMocks.stat,
+  rm: fsMocks.rm,
 }));
-vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
-import { Route as ProjectsRoute } from '@/app/routes/api/projects';
-import { Route as ProjectRoute } from '@/app/routes/api/projects/$id';
+// =============================================================================
+// File Deletion Security Tests (using Hono routes directly)
+// =============================================================================
 
-const sampleProject: Project = {
-  id: 'proj-1',
-  name: 'AgentPane',
-  path: '/tmp/agentpane',
-  description: null,
-  config: DEFAULT_PROJECT_CONFIG,
-  maxConcurrentAgents: 3,
-  githubOwner: null,
-  githubRepo: null,
-  createdAt: new Date('2026-01-01T00:00:00Z'),
-  updatedAt: new Date('2026-01-02T00:00:00Z'),
-};
+describe('DELETE /api/projects/:id - File Deletion Security', () => {
+  // Import the Hono route factory
+  let createProjectsRoutes: typeof import('@/server/routes/projects').createProjectsRoutes;
 
-const jsonRequest = (url: string, body: unknown, init?: RequestInit): Request =>
-  new Request(url, {
-    ...init,
-    method: init?.method ?? 'POST',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    body: JSON.stringify(body),
+  // Mock database
+  const mockDb = {
+    query: {
+      projects: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+      },
+      agents: {
+        findMany: vi.fn(),
+      },
+    },
+    delete: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    }),
+  };
+
+  const createTestProject = (overrides: Partial<Project> = {}): Project => ({
+    id: 'proj-test-1',
+    name: 'Test Project',
+    path: '/Users/testuser/projects/myproject',
+    description: null,
+    config: DEFAULT_PROJECT_CONFIG,
+    maxConcurrentAgents: 3,
+    githubOwner: null,
+    githubRepo: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-02T00:00:00Z'),
+    ...overrides,
   });
 
-const parseJson = async <T>(response: Response): Promise<T> => {
-  return (await response.json()) as T;
-};
-
-describe('Project API', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    vi.resetModules();
+
+    // Re-import after reset to get fresh module with mocks
+    const module = await import('@/server/routes/projects');
+    createProjectsRoutes = module.createProjectsRoutes;
+
+    // Reset mock database
+    mockDb.query.projects.findFirst.mockReset();
+    mockDb.query.agents.findMany.mockReset();
+    mockDb.delete.mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
-  it('lists projects with pagination metadata', async () => {
-    projectServiceMocks.list.mockResolvedValue(ok([sampleProject]));
+  it('returns filesDeleted: false with reason when path is too shallow', async () => {
+    const project = createTestProject({ path: '/home/user' }); // Only 2 components
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
 
-    const response = await ProjectsRoute.options.server?.handlers?.GET({
-      request: new Request('http://localhost/api/projects?limit=20'),
-      params: {},
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(200);
-    const data = await parseJson<{
-      ok: true;
-      data: { items: Project[]; nextCursor: string | null };
-    }>(response as Response);
-
+    expect(response.status).toBe(200);
+    const data = await response.json();
     expect(data.ok).toBe(true);
-    expect(data.data.items).toHaveLength(1);
-    expect(data.data.items[0].id).toBe(sampleProject.id);
-    expect(typeof data.data.nextCursor === 'string').toBe(true);
+    expect(data.data.deleted).toBe(true);
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.reason).toContain('too shallow');
   });
 
-  it('rejects invalid list query', async () => {
-    const response = await ProjectsRoute.options.server?.handlers?.GET({
-      request: new Request('http://localhost/api/projects?limit=0'),
-      params: {},
+  it('returns filesDeleted: false with reason when path matches system directory', async () => {
+    const project = createTestProject({ path: '/Users' }); // Exact match to dangerous prefix
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
+
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(400);
-    const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
-    expect(data.ok).toBe(false);
-    expect(data.error.code).toBe('VALIDATION_ERROR');
-  });
-
-  it('creates a project', async () => {
-    projectServiceMocks.create.mockResolvedValue(ok(sampleProject));
-
-    const response = await ProjectsRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/projects', {
-        name: sampleProject.name,
-        path: sampleProject.path,
-      }),
-      params: {},
-    });
-
-    expect(response?.status).toBe(201);
-    const data = await parseJson<{ ok: true; data: Project }>(response as Response);
+    expect(response.status).toBe(200);
+    const data = await response.json();
     expect(data.ok).toBe(true);
-    expect(data.data.id).toBe(sampleProject.id);
+    expect(data.data.deleted).toBe(true);
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.reason).toContain('system directory');
   });
 
-  it('validates create body', async () => {
-    const response = await ProjectsRoute.options.server?.handlers?.POST({
-      request: jsonRequest('http://localhost/api/projects', {}),
-      params: {},
+  it('returns filesDeleted: false with reason when path has insufficient depth under system prefix', async () => {
+    const project = createTestProject({ path: '/Users/testuser/projects' }); // 3 components, but under dangerous prefix needs 4
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
+
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(400);
-    const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
-    expect(data.ok).toBe(false);
-    expect(data.error.code).toBe('VALIDATION_ERROR');
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.ok).toBe(true);
+    expect(data.data.deleted).toBe(true);
+    expect(data.data.filesDeleted).toBe(false);
+    // The reason from path-safety.ts is: "Path under system directory must have at least 4 components"
+    expect(data.data.reason).toContain('at least 4 components');
   });
 
-  it('gets a project by id', async () => {
-    projectServiceMocks.getById.mockResolvedValue(ok(sampleProject));
+  it('returns filesDeleted: true when path is safe and deletion succeeds', async () => {
+    const project = createTestProject({ path: '/Users/testuser/projects/myproject' }); // 4 components - safe
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
 
-    const response = await ProjectRoute.options.server?.handlers?.GET({
-      request: new Request('http://localhost/api/projects/proj-1'),
-      params: { id: sampleProject.id },
+    // Mock fs.stat to return directory
+    fsMocks.stat.mockResolvedValue({ isDirectory: () => true });
+    // Mock fs.rm to succeed
+    fsMocks.rm.mockResolvedValue(undefined);
+
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(200);
-    const data = await parseJson<{ ok: true; data: Project }>(response as Response);
-    expect(data.data.id).toBe(sampleProject.id);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.ok).toBe(true);
+    expect(data.data.deleted).toBe(true);
+    expect(data.data.filesDeleted).toBe(true);
+    expect(fsMocks.rm).toHaveBeenCalledWith(project.path, { recursive: true, force: true });
   });
 
-  it('rejects invalid project id', async () => {
-    const response = await ProjectRoute.options.server?.handlers?.GET({
-      request: new Request('http://localhost/api/projects/'),
-      params: { id: '' },
+  it('returns filesDeleted: false with error when fs.rm fails', async () => {
+    const project = createTestProject({ path: '/Users/testuser/projects/myproject' });
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
+
+    // Mock fs.stat to return directory
+    fsMocks.stat.mockResolvedValue({ isDirectory: () => true });
+    // Mock fs.rm to fail
+    fsMocks.rm.mockRejectedValue(new Error('Permission denied'));
+
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(400);
-    const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
-    expect(data.error.code).toBe('INVALID_ID');
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.ok).toBe(true);
+    expect(data.data.deleted).toBe(true);
+    // When fs.rm fails, filesDeleted is false and fileDeletionError contains the error message
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.fileDeletionError).toBe('Permission denied');
   });
 
-  it('updates project config', async () => {
-    projectServiceMocks.update.mockResolvedValue(ok(sampleProject));
-    projectServiceMocks.updateConfig.mockResolvedValue(ok(sampleProject));
+  it('returns filesDeleted: false when path is not a directory', async () => {
+    const project = createTestProject({ path: '/Users/testuser/projects/myproject' });
+    mockDb.query.projects.findFirst.mockResolvedValue(project);
+    mockDb.query.agents.findMany.mockResolvedValue([]);
 
-    const response = await ProjectRoute.options.server?.handlers?.PATCH({
-      request: jsonRequest(
-        'http://localhost/api/projects/proj-1',
-        {
-          config: { maxTurns: 75 },
-        },
-        { method: 'PATCH' }
-      ),
-      params: { id: sampleProject.id },
+    // Mock fs.stat to return a file (not a directory)
+    fsMocks.stat.mockResolvedValue({ isDirectory: () => false });
+
+    const app = createProjectsRoutes({ db: mockDb as never });
+    const response = await app.request('/proj-test-1?deleteFiles=true', {
+      method: 'DELETE',
     });
 
-    expect(response?.status).toBe(200);
-    const data = await parseJson<{ ok: true; data: Project }>(response as Response);
-    expect(data.data.id).toBe(sampleProject.id);
-    expect(projectServiceMocks.update).toHaveBeenCalled();
-  });
-
-  it('returns conflict when deleting project with running agents', async () => {
-    projectServiceMocks.delete.mockResolvedValue(err(ProjectErrors.HAS_RUNNING_AGENTS(2)));
-
-    const response = await ProjectRoute.options.server?.handlers?.DELETE({
-      request: new Request('http://localhost/api/projects/proj-1', {
-        method: 'DELETE',
-      }),
-      params: { id: sampleProject.id },
-    });
-
-    expect(response?.status).toBe(409);
-    const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
-    expect(data.error.code).toBe('PROJECT_HAS_RUNNING_AGENTS');
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.ok).toBe(true);
+    expect(data.data.deleted).toBe(true);
+    // Path exists but is not a directory - files cannot be deleted
+    expect(data.data.filesDeleted).toBe(false);
+    expect(data.data.reason).toBe('Path is not a directory');
+    // fs.rm should not be called since it's not a directory
+    expect(fsMocks.rm).not.toHaveBeenCalled();
   });
 });

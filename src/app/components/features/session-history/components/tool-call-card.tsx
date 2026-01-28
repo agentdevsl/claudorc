@@ -4,7 +4,7 @@ import {
   CheckCircle,
   CircleNotch,
   Clock,
-  Gear,
+  Terminal,
   XCircle,
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
@@ -165,10 +165,20 @@ export function ToolCallCard({
 
         {/* Tool icon and name */}
         <span className="flex items-center gap-1.5">
-          <Gear
-            className={cn('h-3.5 w-3.5', TOOL_CALL_STATUS_COLORS[toolCall.status].text)}
-            weight="bold"
-          />
+          {toolCall.status === 'running' ? (
+            <CircleNotch
+              className={cn(
+                'h-3.5 w-3.5 animate-spin',
+                TOOL_CALL_STATUS_COLORS[toolCall.status].text
+              )}
+              weight="bold"
+            />
+          ) : (
+            <Terminal
+              className={cn('h-3.5 w-3.5', TOOL_CALL_STATUS_COLORS[toolCall.status].text)}
+              weight="bold"
+            />
+          )}
           <span className="font-mono text-sm font-medium text-fg">{toolCall.tool}</span>
         </span>
 

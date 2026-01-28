@@ -164,15 +164,29 @@ function createMockDatabase() {
 }
 
 function createMockStreamsService(): DurableStreamsService {
+  const publishMock = vi.fn().mockResolvedValue(1); // Returns offset
   return {
     createStream: vi.fn().mockResolvedValue(undefined),
-    publish: vi.fn().mockResolvedValue(1), // Returns offset
-    publishPlanStarted: vi.fn().mockResolvedValue(undefined),
-    publishPlanTurn: vi.fn().mockResolvedValue(undefined),
-    publishPlanToken: vi.fn().mockResolvedValue(undefined),
-    publishPlanInteraction: vi.fn().mockResolvedValue(undefined),
-    publishPlanCompleted: vi.fn().mockResolvedValue(undefined),
-    publishPlanError: vi.fn().mockResolvedValue(undefined),
+    publish: publishMock,
+    // Convenience methods that delegate to publish (matching DurableStreamsService)
+    publishPlanStarted: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:started', data)),
+    publishPlanTurn: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:turn', data)),
+    publishPlanToken: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:token', data)),
+    publishPlanInteraction: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:interaction', data)),
+    publishPlanCompleted: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:completed', data)),
+    publishPlanError: vi
+      .fn()
+      .mockImplementation((streamId, data) => publishMock(streamId, 'plan:error', data)),
   } as unknown as DurableStreamsService;
 }
 
@@ -280,7 +294,11 @@ describe('PlanModeService', () => {
         expect(result.value.taskId).toBe(task.id);
         expect(result.value.status).toBe('active');
       }
-      expect(streams.publishPlanStarted).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:started',
+        expect.any(Object)
+      );
     });
 
     it('should parse plan steps from Claude response', async () => {
@@ -571,7 +589,11 @@ describe('PlanModeService', () => {
       if (result.ok) {
         expect(result.value.status).toBe('waiting_user');
       }
-      expect(streams.publishPlanInteraction).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:interaction',
+        expect.any(Object)
+      );
     });
 
     it('should track step completion after user response', async () => {
@@ -605,7 +627,11 @@ describe('PlanModeService', () => {
       });
 
       expect(result.ok).toBe(true);
-      expect(streams.publishPlanTurn).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:turn',
+        expect.any(Object)
+      );
     });
 
     it('should handle step failures from Claude API', async () => {
@@ -636,7 +662,11 @@ describe('PlanModeService', () => {
       if (!result.ok) {
         expect(result.error.code).toBe('PLAN_API_ERROR');
       }
-      expect(streams.publishPlanError).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:error',
+        expect.any(Object)
+      );
     });
 
     it('should skip steps when session not waiting for user', async () => {
@@ -755,7 +785,11 @@ describe('PlanModeService', () => {
         expect(result.value.status).toBe('completed');
         expect(result.value.githubIssueUrl).toBe('https://github.com/test/repo/issues/1');
       }
-      expect(streams.publishPlanCompleted).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:completed',
+        expect.any(Object)
+      );
     });
 
     it('should handle GitHub issue creation failure gracefully', async () => {
@@ -811,7 +845,11 @@ describe('PlanModeService', () => {
         expect(result.value.status).toBe('completed');
         expect(result.value.githubIssueUrl).toBeUndefined();
       }
-      expect(streams.publishPlanError).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:error',
+        expect.any(Object)
+      );
     });
 
     it('should complete without GitHub issue when config missing', async () => {
@@ -865,8 +903,9 @@ describe('PlanModeService', () => {
       if (result.ok) {
         expect(result.value.status).toBe('completed');
       }
-      expect(streams.publishPlanError).toHaveBeenCalledWith(
+      expect(streams.publish).toHaveBeenCalledWith(
         expect.any(String),
+        'plan:error',
         expect.objectContaining({ code: 'GITHUB_CONFIG_MISSING' })
       );
     });
@@ -1287,8 +1326,13 @@ describe('PlanModeService', () => {
         } as GitHubIssueResult)
       );
 
-      // Make publishPlanTurn fail (this covers line 636)
-      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Stream publish failed'));
+      // Make publish fail for turn events (this covers line 636)
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:turn') {
+          return Promise.reject(new Error('Stream publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -1349,10 +1393,13 @@ describe('PlanModeService', () => {
         } as GitHubIssueResult)
       );
 
-      // Make publishPlanCompleted fail (this covers line 647)
-      vi.mocked(streams.publishPlanCompleted).mockRejectedValue(
-        new Error('Completion publish failed')
-      );
+      // Make publish fail for completed events (this covers line 647)
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:completed') {
+          return Promise.reject(new Error('Completion publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -1586,9 +1633,12 @@ describe('PlanModeService', () => {
       vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
 
       // Make interaction publish fail
-      vi.mocked(streams.publishPlanInteraction).mockRejectedValue(
-        new Error('Interaction publish failed')
-      );
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:interaction') {
+          return Promise.reject(new Error('Interaction publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -1647,7 +1697,12 @@ describe('PlanModeService', () => {
       vi.mocked(mockClaudeClient.parseAskUserQuestion).mockReturnValue(createMockInteraction());
 
       // Make turn publish fail
-      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:turn') {
+          return Promise.reject(new Error('Turn publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -1827,7 +1882,12 @@ describe('PlanModeService', () => {
       );
 
       // Make error publish fail
-      vi.mocked(streams.publishPlanError).mockRejectedValue(new Error('Error publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:error') {
+          return Promise.reject(new Error('Error publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await serviceWithoutGitHub.start({
         projectId: project.id,
@@ -1884,7 +1944,12 @@ describe('PlanModeService', () => {
       );
 
       // Make error publish fail
-      vi.mocked(streams.publishPlanError).mockRejectedValue(new Error('Error publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:error') {
+          return Promise.reject(new Error('Error publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -1957,7 +2022,12 @@ describe('PlanModeService', () => {
       );
 
       // Make turn publish fail
-      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:turn') {
+          return Promise.reject(new Error('Turn publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.respondToInteraction({
         sessionId,
@@ -2023,7 +2093,12 @@ describe('PlanModeService', () => {
       );
 
       // Make turn publish fail
-      vi.mocked(streams.publishPlanTurn).mockRejectedValue(new Error('Turn publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:turn') {
+          return Promise.reject(new Error('Turn publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       const result = await service.start({
         projectId: project.id,
@@ -2118,7 +2193,11 @@ describe('PlanModeService', () => {
       expect(result.ok).toBe(true);
       expect(tokenCallback).toHaveBeenCalledWith('Hello', 'Hello');
       expect(tokenCallback).toHaveBeenCalledWith(' World', 'Hello World');
-      expect(streams.publishPlanToken).toHaveBeenCalled();
+      expect(streams.publish).toHaveBeenCalledWith(
+        expect.any(String),
+        'plan:token',
+        expect.any(Object)
+      );
     });
 
     it('should handle token publish failure gracefully', async () => {
@@ -2145,7 +2224,12 @@ describe('PlanModeService', () => {
       });
 
       // Make token publish fail
-      vi.mocked(streams.publishPlanToken).mockRejectedValue(new Error('Token publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:token') {
+          return Promise.reject(new Error('Token publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       // Create a mock implementation that invokes the callback
       vi.mocked(mockClaudeClient.sendMessage).mockImplementation(async (_turns, callback) => {
@@ -2334,7 +2418,12 @@ describe('PlanModeService', () => {
       });
 
       // Make plan started publish fail
-      vi.mocked(streams.publishPlanStarted).mockRejectedValue(new Error('Publish failed'));
+      vi.mocked(streams.publish).mockImplementation((_streamId, eventType) => {
+        if (eventType === 'plan:started') {
+          return Promise.reject(new Error('Publish failed'));
+        }
+        return Promise.resolve(1);
+      });
 
       vi.mocked(mockClaudeClient.sendMessage).mockResolvedValue(
         ok({ type: 'text', text: 'Response' } as ClaudeResult)

@@ -140,39 +140,44 @@ Durable Streams provides a unified system for:
                                         │
                 ┌───────────────────────┴───────────────────┐
                 ▼                                           ▼
-┌───────────────────────────────────────┐   ┌───────────────────────────────────────┐
-│     DURABLE STREAMS LAYER             │   │           DATABASE LAYER              │
-├───────────────────────────────────────┤   ├───────────────────────────────────────┤
-│                                       │   │                                       │
-│  ┌─────────────────────────────────┐  │   │  ┌─────────────────────────────────┐ │
-│  │ InMemoryDurableStreamsServer    │  │   │  │         SQLite Database         │ │
-│  │                                 │  │   │  │                                 │ │
-│  │  Interface:                     │  │   │  │  ┌───────────────────────────┐  │ │
-│  │  ┌───────────────────────────┐  │  │   │  │  │     session_events        │  │ │
-│  │  │ createStream(id, schema)  │  │  │   │  │  │  ├─ id (PK)               │  │ │
-│  │  │ publish(id, type, data)   │──┼──┼───┼──┼──│  ├─ session_id (FK)       │  │ │
-│  │  │   → returns offset        │  │  │   │  │  │  ├─ offset (sequential)   │  │ │
-│  │  │ subscribe(id, options)    │  │  │   │  │  │  ├─ type                  │  │ │
-│  │  │   → AsyncIterable<Event>  │  │  │   │  │  │  ├─ channel              │  │ │
-│  │  │ getEvents(id, options)    │  │  │   │  │  │  ├─ data (JSON)          │  │ │
-│  │  │ deleteStream(id)          │  │  │   │  │  │  ├─ timestamp            │  │ │
-│  │  └───────────────────────────┘  │  │   │  │  │  └─ created_at           │  │ │
-│  │                                 │  │   │  │  └───────────────────────────┘  │ │
-│  │  In-Memory Storage:             │  │   │  │                                 │ │
-│  │  ┌───────────────────────────┐  │  │   │  │  ┌───────────────────────────┐  │ │
-│  │  │ Map<streamId, {           │  │  │   │  │  │    session_summaries      │  │ │
-│  │  │   events: StoredEvent[],  │  │  │   │  │  │  ├─ id (PK)               │  │ │
-│  │  │   subscribers: Set,       │  │  │   │  │  │  ├─ session_id (FK,UQ)    │  │ │
-│  │  │   schema                  │  │  │   │  │  │  ├─ duration_ms           │  │ │
-│  │  │ }>                        │  │  │   │  │  │  ├─ turns_count           │  │ │
-│  │  └───────────────────────────┘  │  │   │  │  │  ├─ tokens_used           │  │ │
-│  │                                 │  │   │  │  │  ├─ files_modified        │  │ │
-│  │  StoredEvent:                   │  │   │  │  │  ├─ lines_added           │  │ │
-│  │  { offset, type, data, ts }     │  │   │  │  │  ├─ lines_removed         │  │ │
-│  └─────────────────────────────────┘  │   │  │  │  └─ final_status          │  │ │
-│                                       │   │  │  └───────────────────────────┘  │ │
-└───────────────────────────────────────┘   │  └─────────────────────────────────┘ │
-                                            └───────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    DURABLE STREAMS + DATABASE LAYER                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │ DurableStreamsService (Persist-First Coordinator)                           ││
+│  │                                                                             ││
+│  │  publish(streamId, type, data):                                             ││
+│  │    1. Get next offset from session_events table                             ││
+│  │    2. INSERT into session_events (SQLite) ─────────────────┐                ││
+│  │    3. Publish to InMemoryServer for real-time SSE ────┐    │                ││
+│  │                                                       │    │                ││
+│  └───────────────────────────────────────────────────────┼────┼────────────────┘│
+│                                                          │    │                  │
+│  ┌───────────────────────────────────┐   ┌───────────────┼────┼───────────────┐ │
+│  │ InMemoryDurableStreamsServer      │   │         SQLite│Database           │ │
+│  │                                   │   │               │    │               │ │
+│  │  Interface:                       │   │  ┌────────────┼────▼─────────────┐ │ │
+│  │  ┌─────────────────────────────┐  │   │  │     session_events           │ │ │
+│  │  │ createStream(id, schema)    │  │   │  │  ├─ id (PK)                  │ │ │
+│  │  │ publish(id, type, data) ◄───┼──┼───┼──│  ├─ session_id (FK)          │ │ │
+│  │  │   → returns offset          │  │   │  │  ├─ offset (sequential)      │ │ │
+│  │  │ subscribe(id, options)      │  │   │  │  ├─ type                     │ │ │
+│  │  │   → AsyncIterable<Event>    │  │   │  │  ├─ channel                  │ │ │
+│  │  │ getEvents(id, options)      │  │   │  │  ├─ data (JSON)              │ │ │
+│  │  │ deleteStream(id)            │  │   │  │  ├─ timestamp                │ │ │
+│  │  └─────────────────────────────┘  │   │  │  └─ created_at               │ │ │
+│  │                                   │   │  └──────────────────────────────┘ │ │
+│  │  In-Memory (real-time only):      │   │                                   │ │
+│  │  ┌─────────────────────────────┐  │   │  ┌──────────────────────────────┐ │ │
+│  │  │ Map<streamId, {             │  │   │  │    session_summaries         │ │ │
+│  │  │   events: StoredEvent[],    │  │   │  │  ├─ id (PK)                  │ │ │
+│  │  │   subscribers: Set          │  │   │  │  ├─ session_id (FK,UQ)       │ │ │
+│  │  │ }>                          │  │   │  │  ├─ duration_ms              │ │ │
+│  │  └─────────────────────────────┘  │   │  │  ├─ turns_count, etc.        │ │ │
+│  └───────────────────────────────────┘   │  └──────────────────────────────┘ │ │
+│                                          └───────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Event Channels
@@ -243,23 +248,22 @@ Server event types map to client channels:
 ### Real-time Streaming (Active Sessions)
 
 ```
-┌─────────┐    ┌───────────────────┐    ┌───────────────┐    ┌────────────────┐
-│  Agent  │───►│  SessionStream    │───►│    Durable    │───►│   Subscriber   │
-│  SDK    │    │  Service.publish()│    │    Streams    │    │   (SSE)        │
-└─────────┘    └───────────────────┘    └───────────────┘    └────────────────┘
-     │               │                         │                    │
-     │  emit event   │  publish()              │  notify            │  yield event
-     │──────────────►│────────────────────────►│───────────────────►│
-     │               │                         │                    │
-     │               │  persistEvent() async   │                    │
-     │               │──────────┐              │                    │
-     │               │          ▼              │                    │
-     │               │    ┌──────────┐         │                    │
-     │               │    │ SQLite   │         │                    │
-     │               │    │ Events   │         │                    │
-     │               │    └──────────┘         │                    │
-     │               │                         │                    │
+┌─────────┐    ┌───────────────────┐    ┌──────────┐    ┌───────────────┐    ┌────────────────┐
+│  Agent  │───►│  DurableStreams   │───►│  SQLite  │───►│    In-Memory  │───►│   Subscriber   │
+│  SDK    │    │  Service.publish()│    │  Events  │    │    Stream     │    │   (SSE)        │
+└─────────┘    └───────────────────┘    └──────────┘    └───────────────┘    └────────────────┘
+     │               │                       │                 │                    │
+     │  emit event   │  1. persist to DB     │                 │                    │
+     │──────────────►│──────────────────────►│                 │                    │
+     │               │                       │                 │                    │
+     │               │  2. publish to memory │                 │  notify            │  yield event
+     │               │─────────────────────────────────────────►│───────────────────►│
+     │               │                       │                 │                    │
 ```
+
+**Persist-First Pattern**: Events are written to SQLite BEFORE being published to the in-memory
+stream. This ensures durability - events survive server restarts or crashes, and are always
+available via the `/api/sessions/:id/events` endpoint.
 
 ### Client Write Flow (Optimistic Updates)
 
@@ -391,8 +395,8 @@ Split into focused, single-responsibility services:
 
 **SessionStreamService**
 
-- Event publishing (non-blocking)
-- Async persistence to database
+- Event publishing via DurableStreamsService
+- Persist-first: DB write before in-memory publish
 - Historical event retrieval
 - Session summary management
 
@@ -522,17 +526,40 @@ src/
 
 ## Design Patterns
 
-### Fire-and-Forget Persistence
+### Persist-First Publishing
 
-Publishing returns immediately; database persistence happens asynchronously:
+Events are persisted to the database BEFORE being published to the in-memory stream.
+This ensures durability at the cost of slightly higher latency:
 
 ```typescript
-// Fast path: publish to in-memory stream
-const offset = await provider.publish(sessionId, type, data);
+// 1. Get next offset from database
+const lastEvent = await db.query.sessionEvents.findFirst({
+  where: eq(sessionEvents.sessionId, streamId),
+  orderBy: [desc(sessionEvents.offset)],
+});
+const offset = (lastEvent?.offset ?? -1) + 1;
 
-// Background: persist to database (non-blocking)
-this.persistEvent(sessionId, event).catch(logError);
+// 2. PERSIST TO DATABASE FIRST (ensures durability)
+await db.insert(sessionEvents).values({
+  id: eventId,
+  sessionId: streamId,
+  offset,
+  type,
+  channel: getChannelForType(type),
+  data,
+  timestamp,
+});
+
+// 3. THEN publish to in-memory stream for real-time delivery
+await server.publish(streamId, type, data);
 ```
+
+**Why persist-first?**
+
+- Events survive server restarts and crashes
+- `/api/sessions/:id/events` always returns complete history
+- Container agent errors (e.g., EPIPE) don't lose events
+- SSE reconnection can replay from database if in-memory stream is empty
 
 ### Channel Routing
 
@@ -569,18 +596,19 @@ this.presenceService.join(sessionId, userId);
 
 ## Production Considerations
 
-**Current implementation (in-memory):**
+**Current implementation (persist-first with in-memory real-time):**
 
-- Loses stream data on server restart
+- Events persisted to SQLite survive server restarts
+- In-memory stream provides real-time SSE delivery
 - Single-process only (no clustering)
-- Limited to available RAM
+- SQLite handles persistence; in-memory handles real-time fan-out
 
-**For production, consider:**
+**For production scaling, consider:**
 
-- Replace InMemoryDurableStreamsServer with persistent backing (Redis Streams, Kafka)
+- Replace InMemoryDurableStreamsServer with Redis pub/sub for real-time fan-out
+- Keep SQLite persistence or migrate to PostgreSQL for durability
 - Implement proper clustering via message broker
 - Add authentication validation against real auth service (Phase 2)
-- Persistent offset tracking in database
 - Load balancing with sticky sessions or pub/sub
 
 ## Future Enhancements

@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS "sessions" (
 CREATE TABLE IF NOT EXISTS "worktrees" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "project_id" TEXT NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+  "agent_id" TEXT REFERENCES "agents"("id") ON DELETE SET NULL,
   "task_id" TEXT,
   "branch" TEXT NOT NULL,
   "path" TEXT NOT NULL,
@@ -101,11 +102,10 @@ CREATE TABLE IF NOT EXISTS "tasks" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "project_id" TEXT NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
   "agent_id" TEXT REFERENCES "agents"("id") ON DELETE SET NULL,
-  "session_id" TEXT,
-  "worktree_id" TEXT,
+  "session_id" TEXT REFERENCES "sessions"("id") ON DELETE SET NULL,
+  "worktree_id" TEXT REFERENCES "worktrees"("id") ON DELETE SET NULL,
   "title" TEXT NOT NULL,
   "description" TEXT,
-  "mode" TEXT DEFAULT 'implement',
   "column" TEXT DEFAULT 'backlog' NOT NULL,
   "position" INTEGER DEFAULT 0 NOT NULL,
   "labels" TEXT DEFAULT '[]',
@@ -117,11 +117,13 @@ CREATE TABLE IF NOT EXISTS "tasks" (
   "approved_by" TEXT,
   "rejection_count" INTEGER DEFAULT 0,
   "rejection_reason" TEXT,
-  "queued_at" TEXT,
+  "plan_options" TEXT,
+  "plan" TEXT,
   "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL,
   "started_at" TEXT,
-  "completed_at" TEXT
+  "completed_at" TEXT,
+  "last_agent_status" TEXT
 );
 
 CREATE TABLE IF NOT EXISTS "agent_runs" (

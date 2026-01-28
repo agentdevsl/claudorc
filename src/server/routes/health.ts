@@ -7,12 +7,24 @@ import type { GitHubTokenService } from '../../services/github-token.service.js'
 import type { Database } from '../../types/database.js';
 import { json } from '../shared.js';
 
+interface SandboxInfo {
+  id: string;
+  projectId: string;
+  containerId: string;
+  status: string;
+}
+
+interface SandboxProvider {
+  list: () => Promise<SandboxInfo[]>;
+}
+
 interface HealthDeps {
   db: Database;
   githubService: GitHubTokenService;
+  sandboxProvider?: SandboxProvider | null;
 }
 
-export function createHealthRoutes({ db, githubService }: HealthDeps) {
+export function createHealthRoutes({ db, githubService, sandboxProvider }: HealthDeps) {
   const app = new Hono();
 
   app.get('/', async (_c) => {
@@ -20,9 +32,16 @@ export function createHealthRoutes({ db, githubService }: HealthDeps) {
     const checks: {
       database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
       github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
+      sandbox: {
+        status: 'ok' | 'error' | 'not_configured';
+        containerId?: string;
+        containerCount?: number;
+        error?: string;
+      };
     } = {
       database: { status: 'error' },
       github: { status: 'not_configured' },
+      sandbox: { status: 'not_configured' },
     };
 
     // Check database connectivity
@@ -59,6 +78,42 @@ export function createHealthRoutes({ db, githubService }: HealthDeps) {
         '[Health] GitHub token check failed:',
         error instanceof Error ? error.message : 'Unknown error'
       );
+    }
+
+    // Check sandbox availability
+    if (sandboxProvider) {
+      try {
+        const sandboxes = await sandboxProvider.list();
+        const runningSandboxes = sandboxes.filter((s) => s.status === 'running');
+
+        const firstRunning = runningSandboxes[0];
+        const firstSandbox = sandboxes[0];
+
+        if (firstRunning) {
+          checks.sandbox = {
+            status: 'ok',
+            containerId: firstRunning.containerId,
+            containerCount: runningSandboxes.length,
+          };
+        } else if (firstSandbox) {
+          checks.sandbox = {
+            status: 'error',
+            containerId: firstSandbox.containerId,
+            containerCount: sandboxes.length,
+            error: `No running containers (${sandboxes.length} total, status: ${firstSandbox.status})`,
+          };
+        } else {
+          checks.sandbox = {
+            status: 'ok', // No sandboxes is OK - they're created on demand
+            containerCount: 0,
+          };
+        }
+      } catch (error) {
+        checks.sandbox = {
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Sandbox check failed',
+        };
+      }
     }
 
     const allOk = checks.database.status === 'ok';

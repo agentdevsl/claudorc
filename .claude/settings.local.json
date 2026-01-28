@@ -69,7 +69,13 @@
       "Bash(git -C /Users/simon.lynch/git/claudorc status)",
       "Bash(git -C /Users/simon.lynch/git/claudorc diff --stat specs/wireframes/)",
       "Bash(git -C /Users/simon.lynch/git/claudorc log --oneline -3)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker ps:*)"
     ],
     "deny": [
       "Write(.gitignore)",

@@ -13,7 +13,8 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { ArrowsDownUp, CheckSquare, Trash } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useContainerAgentStatuses } from '@/app/hooks/use-container-agent-statuses';
 import type { Task, TaskColumn } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import { COLUMNS } from './kanban-board/constants';
@@ -39,6 +40,8 @@ interface KanbanBoardProps {
   onBulkMove?: (taskIds: string[], column: TaskColumn) => Promise<void>;
   onBulkDelete?: (taskIds: string[]) => Promise<void>;
   onAddTask?: (column: TaskColumn) => void;
+  /** Callback to run a task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: (taskId: string) => void;
   /** Custom header action for backlog column (e.g., AI create button) */
   backlogHeaderAction?: React.ReactNode;
   isLoading?: boolean;
@@ -51,12 +54,23 @@ export function KanbanBoard({
   onBulkMove,
   onBulkDelete,
   onAddTask,
+  onRunNow,
   backlogHeaderAction,
   isLoading,
 }: KanbanBoardProps): React.JSX.Element {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const [{ selectedIds }, boardActions] = useBoardState();
+
+  // Get sessions from in-progress tasks for real-time status tracking
+  const activeSessions = useMemo(() => {
+    return tasks
+      .filter((t) => t.column === 'in_progress' && t.sessionId)
+      .map((t) => ({ sessionId: t.sessionId as string, taskId: t.id }));
+  }, [tasks]);
+
+  // Track agent statuses for active sessions
+  const agentStatuses = useContainerAgentStatuses(activeSessions);
   const {
     toggleSelection,
     selectAll,
@@ -224,8 +238,10 @@ export function KanbanBoard({
               isCollapsed={isColumnCollapsed(column.id)}
               onToggleCollapse={() => toggleColumnCollapse(column.id)}
               onAddTask={onAddTask ? () => onAddTask(column.id) : undefined}
+              onRunNow={onRunNow}
               headerAction={column.id === 'backlog' ? backlogHeaderAction : undefined}
               config={column}
+              agentStatuses={agentStatuses}
             />
           ))}
         </div>

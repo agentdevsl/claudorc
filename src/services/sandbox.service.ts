@@ -440,6 +440,21 @@ export class SandboxService {
   }
 
   /**
+   * Check if a sandbox supports streaming exec (for container agent execution).
+   */
+  async supportsStreamingExec(sandboxId: string): Promise<boolean> {
+    const sandbox = await this.provider.getById(sandboxId);
+    return !!sandbox?.execStream;
+  }
+
+  /**
+   * Get the underlying provider for advanced operations (like container agent service).
+   */
+  getProvider(): SandboxProvider {
+    return this.provider;
+  }
+
+  /**
    * Check for idle sandboxes and stop them
    */
   private async checkIdleSandboxes(): Promise<void> {

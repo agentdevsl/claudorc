@@ -2,7 +2,7 @@
  * Workflow DSL Module
  *
  * Provides types, schemas, and utilities for defining and validating
- * workflow definitions that orchestrate skills, commands, and agents.
+ * workflow definitions that orchestrate skills and agents.
  */
 
 // AI prompts for workflow generation

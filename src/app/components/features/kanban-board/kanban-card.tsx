@@ -1,9 +1,17 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { CheckCircle, Lightning, Warning, WarningCircle, XCircle } from '@phosphor-icons/react';
+import type { AgentStatusInfo } from '@/app/hooks/use-container-agent-statuses';
 import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import { LABEL_TYPES, type Priority } from './constants';
-import { agentStatusVariants, cardVariants, labelVariants, priorityVariants } from './styles';
+import {
+  agentStatusVariants,
+  cardVariants,
+  labelVariants,
+  lastRunStatusVariants,
+  priorityVariants,
+} from './styles';
 
 interface KanbanCardProps {
   /** Task data */
@@ -16,6 +24,10 @@ interface KanbanCardProps {
   onSelect: (multiSelect: boolean) => void;
   /** Callback to open task detail */
   onOpen: () => void;
+  /** Callback to run the task immediately (moves to in_progress and triggers agent) */
+  onRunNow?: () => void;
+  /** Real-time agent status info */
+  agentStatus?: AgentStatusInfo;
 }
 
 /**
@@ -46,12 +58,46 @@ function formatTaskId(id: string): string {
   return `#TSK-${id.slice(-3).toUpperCase()}`;
 }
 
+/**
+ * Get icon and label for last agent run status
+ */
+function getLastRunStatusInfo(status: Task['lastAgentStatus']): {
+  icon: React.ReactNode;
+  label: string;
+} | null {
+  if (!status) return null;
+
+  switch (status) {
+    case 'completed':
+      return { icon: <CheckCircle className="w-3 h-3" weight="fill" />, label: 'Completed' };
+    case 'cancelled':
+      return { icon: <XCircle className="w-3 h-3" weight="fill" />, label: 'Cancelled' };
+    case 'error':
+      return { icon: <WarningCircle className="w-3 h-3" weight="fill" />, label: 'Error' };
+    case 'turn_limit':
+      return { icon: <Warning className="w-3 h-3" weight="fill" />, label: 'Turn limit' };
+    default:
+      return null;
+  }
+}
+
+/** Map stage to display label */
+const stageLabels: Record<string, string> = {
+  initializing: 'Initializing...',
+  validating: 'Validating...',
+  credentials: 'Auth...',
+  executing: 'Starting...',
+  running: 'Running',
+};
+
 export function KanbanCard({
   task,
   isSelected,
   isDragging,
   onSelect,
   onOpen,
+  onRunNow,
+  agentStatus,
 }: KanbanCardProps): React.JSX.Element {
   const {
     attributes,
@@ -103,7 +149,16 @@ export function KanbanCard({
 
   const priority = getPriority(task);
   const labels = task.labels ?? [];
-  const isAgentRunning = Boolean(task.agentId) && task.column === 'in_progress';
+  // Agent is running if task has an agentId OR a sessionId (container agents only have sessionId)
+  const isAgentRunning =
+    task.column === 'in_progress' && (Boolean(task.agentId) || Boolean(task.sessionId));
+  const canRunNow = task.column === 'backlog' && onRunNow;
+  const lastRunStatus = getLastRunStatusInfo(task.lastAgentStatus);
+
+  const handleRunNow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRunNow?.();
+  };
 
   return (
     <article
@@ -142,13 +197,59 @@ export function KanbanCard({
       {/* Footer */}
       <div className="flex items-center justify-between mt-2.5">
         <span className="font-mono text-xs text-fg-muted">{formatTaskId(task.id)}</span>
+
+        {/* Last run status badge (only show when not running) */}
+        {lastRunStatus && !isAgentRunning && (
+          <div className={lastRunStatusVariants({ status: task.lastAgentStatus })}>
+            {lastRunStatus.icon}
+            <span>{lastRunStatus.label}</span>
+          </div>
+        )}
+
+        {/* Run Now button for backlog tasks */}
+        {canRunNow && (
+          <button
+            type="button"
+            onClick={handleRunNow}
+            className={cn(
+              // Base layout - compact pill shape
+              'group/run relative inline-flex items-center gap-1.5',
+              'h-6 px-2.5 rounded-full',
+              // Typography
+              'text-[11px] font-medium tracking-wide',
+              // Colors - Claude brand accent
+              'bg-claude-subtle text-claude',
+              'border border-claude/20',
+              // Hover state - energetic glow
+              'hover:bg-claude-muted hover:border-claude/40',
+              'hover:shadow-[0_0_12px_rgba(217,119,87,0.25)]',
+              // Active state
+              'active:scale-[0.97] active:shadow-none',
+              // Focus ring
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-subtle',
+              // Smooth transitions
+              'transition-all duration-150 ease-out'
+            )}
+            aria-label="Run task now"
+          >
+            <Lightning
+              className="w-3 h-3 transition-transform duration-150 group-hover/run:scale-110"
+              weight="fill"
+            />
+            <span>Run</span>
+          </button>
+        )}
       </div>
 
-      {/* Agent Status Badge */}
+      {/* Agent Status Badge with real-time status */}
       {isAgentRunning && (
         <div className={agentStatusVariants({ status: 'running' })}>
           <div className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
-          <span>Agent running...</span>
+          <span>
+            {agentStatus?.currentStage
+              ? (stageLabels[agentStatus.currentStage] ?? 'Starting...')
+              : 'Agent running...'}
+          </span>
         </div>
       )}
     </article>

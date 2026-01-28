@@ -1,36 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const streamProviderMocks = vi.hoisted(() => ({
-  hasStreamProvider: vi.fn(),
-  getStreamProvider: vi.fn(),
-}));
+import type { Session } from '../../src/db/schema/sessions.js';
+import { SessionErrors } from '../../src/lib/errors/session-errors.js';
+import { err, ok } from '../../src/lib/utils/result.js';
+import { createSessionsRoutes } from '../../src/server/routes/sessions.js';
 
-vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
-vi.mock('@/lib/streams/provider', () => ({
-  hasStreamProvider: streamProviderMocks.hasStreamProvider,
-  getStreamProvider: streamProviderMocks.getStreamProvider,
+const sessionServiceMocks = vi.hoisted(() => ({
+  getById: vi.fn(),
 }));
-
-import { Route as SessionStreamRoute } from '@/app/routes/api/sessions/$id/stream';
 
 describe('Session stream API', () => {
+  let app: ReturnType<typeof createSessionsRoutes>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    app = createSessionsRoutes({
+      sessionService: sessionServiceMocks as never,
+    });
   });
 
-  it('returns 503 when streaming is not configured', async () => {
-    streamProviderMocks.hasStreamProvider.mockReturnValue(false);
+  it('returns 404 when session is missing', async () => {
+    sessionServiceMocks.getById.mockResolvedValue(err(SessionErrors.NOT_FOUND));
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const response = await app.request('http://localhost/session-1/stream');
 
-    const response = await SessionStreamRoute.options.server?.handlers?.GET({
-      params: { id: 'session-1' },
-    });
+    expect(response.status).toBe(404);
+    const body = (await response.json()) as { ok: false; error: { code: string } };
+    expect(body.error.code).toBe('SESSION_NOT_FOUND');
+  });
 
-    consoleSpy.mockRestore();
+  it('returns a stream when session exists', async () => {
+    const session = {
+      id: 'session-1',
+      projectId: 'proj-1',
+      taskId: null,
+      agentId: null,
+      status: 'active',
+      title: null,
+      url: 'http://localhost:5173/sessions/session-1',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-02T00:00:00Z',
+      closedAt: null,
+    } as Session;
+    sessionServiceMocks.getById.mockResolvedValue(ok(session));
 
-    expect(response?.status).toBe(503);
-    const body = (await response?.json()) as { error: string; code: string };
-    expect(body.code).toBe('STREAMING_NOT_CONFIGURED');
+    const response = await app.request('http://localhost/session-1/stream');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('text/event-stream');
   });
 });

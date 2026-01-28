@@ -110,16 +110,40 @@ export function parseToolCallsFromEvents(
   let droppedResultCount = 0;
 
   // Process all events and categorize them
+  // Support both standard (tool:start/result) and container-agent event types
   for (const event of events) {
-    if (event.type === 'tool:start') {
-      if (isToolStartData(event.data)) {
-        startEventsById.set(event.data.id, { event, data: event.data });
+    const isToolStart = event.type === 'tool:start' || event.type === 'container-agent:tool:start';
+    const isToolResult =
+      event.type === 'tool:result' || event.type === 'container-agent:tool:result';
+
+    if (isToolStart) {
+      // Normalize container-agent data: toolId -> id, toolName -> tool
+      const rawData = event.data as Record<string, unknown>;
+      const normalizedData: ToolStartData = {
+        id: (rawData.toolId as string) ?? (rawData.id as string) ?? '',
+        tool: (rawData.toolName as string) ?? (rawData.tool as string),
+        name: (rawData.name as string) ?? (rawData.toolName as string),
+        input: rawData.input as Record<string, unknown> | undefined,
+      };
+      if (isToolStartData(normalizedData)) {
+        startEventsById.set(normalizedData.id, { event, data: normalizedData });
       } else {
         droppedStartCount++;
       }
-    } else if (event.type === 'tool:result') {
-      if (isToolResultData(event.data)) {
-        resultEventsById.set(event.data.id, { event, data: event.data });
+    } else if (isToolResult) {
+      // Normalize container-agent data: toolId -> id, toolName -> tool, result -> output
+      const rawData = event.data as Record<string, unknown>;
+      const normalizedData: ToolResultData = {
+        id: (rawData.toolId as string) ?? (rawData.id as string) ?? '',
+        tool: (rawData.toolName as string) ?? (rawData.tool as string),
+        name: (rawData.name as string) ?? (rawData.toolName as string),
+        input: rawData.input as Record<string, unknown> | undefined,
+        output: rawData.output ?? rawData.result,
+        error: rawData.error as string | undefined,
+        isError: rawData.isError as boolean | undefined,
+      };
+      if (isToolResultData(normalizedData)) {
+        resultEventsById.set(normalizedData.id, { event, data: normalizedData });
       } else {
         droppedResultCount++;
       }

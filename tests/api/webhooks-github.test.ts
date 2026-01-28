@@ -1,41 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/task.service', () => ({ TaskService: class {} }));
-vi.mock('@/services/worktree.service', () => ({ WorktreeService: class {} }));
-vi.mock('@/services/session.service', () => ({ SessionService: class {} }));
-vi.mock('@/services/agent.service', () => ({ AgentService: class {} }));
-vi.mock('@/services/project.service', () => ({ ProjectService: class {} }));
-vi.mock('@/db/client', () => ({ pglite: {}, sqlite: {}, db: {} }));
+vi.mock('../../src/services/task.service.js', () => ({ TaskService: class {} }));
+vi.mock('../../src/services/worktree.service.js', () => ({ WorktreeService: class {} }));
+vi.mock('../../src/services/session.service.js', () => ({ SessionService: class {} }));
+vi.mock('../../src/services/agent.service.js', () => ({ AgentService: class {} }));
+vi.mock('../../src/services/project.service.js', () => ({ ProjectService: class {} }));
+vi.mock('../../src/db/client.js', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
-import { Route as GitHubWebhookRoute } from '@/app/routes/api/webhooks/github';
+import type { Template } from '../../src/db/schema/templates.js';
+import { ok } from '../../src/lib/utils/result.js';
+import { createWebhooksRoutes } from '../../src/server/routes/webhooks.js';
 
 const parseJson = async <T>(response: Response): Promise<T> => {
   return (await response.json()) as T;
 };
 
 describe('GitHub Webhook API', () => {
+  let app: ReturnType<typeof createWebhooksRoutes>;
+  const templateServiceMocks = {
+    findByRepo: vi.fn(),
+    sync: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Clear env var for tests that don't need signature verification
     delete process.env.GITHUB_WEBHOOK_SECRET;
+    app = createWebhooksRoutes({
+      templateService: templateServiceMocks as never,
+    });
   });
 
   describe('POST /api/webhooks/github', () => {
     it('handles ping event', async () => {
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'ping',
-            'x-github-delivery': 'delivery-123',
-          },
-          body: JSON.stringify({
-            zen: 'Design for failure.',
-            hook_id: 123456,
-          }),
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'ping',
+          'x-github-delivery': 'delivery-123',
+        },
+        body: JSON.stringify({
+          zen: 'Design for failure.',
+          hook_id: 123456,
         }),
-        params: {},
       });
 
       expect(response?.status).toBe(200);
@@ -49,26 +57,23 @@ describe('GitHub Webhook API', () => {
     });
 
     it('handles installation event', async () => {
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'installation',
-            'x-github-delivery': 'delivery-456',
-          },
-          body: JSON.stringify({
-            action: 'created',
-            installation: {
-              id: 12345,
-              account: {
-                login: 'test-org',
-                type: 'Organization',
-              },
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'installation',
+          'x-github-delivery': 'delivery-456',
+        },
+        body: JSON.stringify({
+          action: 'created',
+          installation: {
+            id: 12345,
+            account: {
+              login: 'test-org',
+              type: 'Organization',
             },
-          }),
+          },
         }),
-        params: {},
       });
 
       expect(response?.status).toBe(200);
@@ -82,24 +87,25 @@ describe('GitHub Webhook API', () => {
     });
 
     it('handles push event', async () => {
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'push',
-            'x-github-delivery': 'delivery-789',
+      const template = { id: 'template-1' } as Template;
+      templateServiceMocks.findByRepo.mockResolvedValue(ok([template]));
+      templateServiceMocks.sync.mockResolvedValue(ok({} as never));
+
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'push',
+          'x-github-delivery': 'delivery-789',
+        },
+        body: JSON.stringify({
+          ref: 'refs/heads/main',
+          repository: {
+            owner: { login: 'test-org' },
+            name: 'test-repo',
           },
-          body: JSON.stringify({
-            ref: 'refs/heads/main',
-            repository: {
-              owner: { login: 'test-org' },
-              name: 'test-repo',
-            },
-            commits: [{ message: 'Update config' }],
-          }),
+          commits: [{ message: 'Update config' }],
         }),
-        params: {},
       });
 
       expect(response?.status).toBe(200);
@@ -112,17 +118,14 @@ describe('GitHub Webhook API', () => {
     });
 
     it('handles unknown event gracefully', async () => {
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'unknown_event',
-            'x-github-delivery': 'delivery-abc',
-          },
-          body: JSON.stringify({ action: 'test' }),
-        }),
-        params: {},
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'unknown_event',
+          'x-github-delivery': 'delivery-abc',
+        },
+        body: JSON.stringify({ action: 'test' }),
       });
 
       expect(response?.status).toBe(200);
@@ -135,17 +138,14 @@ describe('GitHub Webhook API', () => {
     });
 
     it('rejects invalid JSON payload', async () => {
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'push',
-            'x-github-delivery': 'delivery-bad',
-          },
-          body: 'not valid json',
-        }),
-        params: {},
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'push',
+          'x-github-delivery': 'delivery-bad',
+        },
+        body: 'not valid json',
       });
 
       expect(response?.status).toBe(400);
@@ -156,18 +156,15 @@ describe('GitHub Webhook API', () => {
     it('rejects invalid signature when secret is configured', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
 
-      const response = await GitHubWebhookRoute.options.server?.handlers?.POST({
-        request: new Request('http://localhost/api/webhooks/github', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-github-event': 'push',
-            'x-github-delivery': 'delivery-sig',
-            'x-hub-signature-256': 'sha256=invalid-signature',
-          },
-          body: JSON.stringify({ action: 'test' }),
-        }),
-        params: {},
+      const response = await app.request('/github', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-github-event': 'push',
+          'x-github-delivery': 'delivery-sig',
+          'x-hub-signature-256': 'sha256=invalid-signature',
+        },
+        body: JSON.stringify({ action: 'test' }),
       });
 
       expect(response?.status).toBe(401);

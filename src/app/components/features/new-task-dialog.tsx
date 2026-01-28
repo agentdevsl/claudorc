@@ -22,12 +22,17 @@ import { getLabelColors, type Priority } from './kanban-board/constants';
 import { QuestionsPanel } from './new-task-dialog/questions-panel';
 
 // ============================================================================
-// RESIZE HOOK
+// RESIZE & DRAG HOOKS
 // ============================================================================
 
 interface DialogSize {
   width: number;
   height: number;
+}
+
+interface DialogPosition {
+  x: number;
+  y: number;
 }
 
 const MIN_WIDTH = 800;
@@ -97,6 +102,69 @@ function useResizableDialog() {
   }, []);
 
   return { size, isResizing, handleMouseDown, reset };
+}
+
+/**
+ * Hook for making the dialog draggable
+ */
+function useDraggableDialog() {
+  const [position, setPosition] = useState<DialogPosition | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const startOffset = useRef({ x: 0, y: 0 });
+
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      // Don't start drag if clicking on buttons or inputs
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('input') ||
+        target.closest('textarea') ||
+        target.closest('[role="slider"]')
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      setIsDragging(true);
+      startPos.current = { x: e.clientX, y: e.clientY };
+      startOffset.current = position ?? { x: 0, y: 0 };
+    },
+    [position]
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startPos.current.x;
+      const deltaY = e.clientY - startPos.current.y;
+
+      setPosition({
+        x: startOffset.current.x + deltaX,
+        y: startOffset.current.y + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const resetPosition = useCallback(() => {
+    setPosition(null);
+  }, []);
+
+  return { position, isDragging, handleDragStart, resetPosition };
 }
 
 // ============================================================================
@@ -583,17 +651,23 @@ function EditPanel({
   onSubmit,
   onBack,
   isSubmitting,
+  onDragStart,
 }: {
   suggestion: EditableSuggestion;
   onChange: (updates: Partial<EditableSuggestion>) => void;
   onSubmit: () => void;
   onBack: () => void;
   isSubmitting: boolean;
+  onDragStart?: (e: React.MouseEvent) => void;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-surface via-surface to-claude/[0.02]">
-      {/* Header - Claude branded */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-claude/20 bg-claude/5">
+      {/* Header - Claude branded, Draggable */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle for dialog positioning */}
+      <div
+        className="flex items-center justify-between px-5 py-3 border-b border-claude/20 bg-claude/5 cursor-move"
+        onMouseDown={onDragStart}
+      >
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -672,29 +746,27 @@ function EditPanel({
             />
           </div>
 
-          {/* Task details - scrollable */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4">
-              <label
-                htmlFor="task-details-input"
-                className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle mb-2 block"
-              >
-                Task Details
-              </label>
-              <textarea
-                id="task-details-input"
-                value={suggestion.description}
-                onChange={(e) => onChange({ description: e.target.value })}
-                placeholder="Describe what needs to be done..."
-                className={cn(
-                  'w-full min-h-[300px] p-3 rounded-lg resize-none',
-                  'bg-surface border border-border text-sm text-fg leading-relaxed',
-                  'placeholder:text-fg-subtle/50',
-                  'focus:outline-none focus:border-claude focus:ring-1 focus:ring-claude/30',
-                  'transition-colors'
-                )}
-              />
-            </div>
+          {/* Task details - fills remaining space */}
+          <div className="flex-1 flex flex-col min-h-0 p-4">
+            <label
+              htmlFor="task-details-input"
+              className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle mb-2 block shrink-0"
+            >
+              Task Details
+            </label>
+            <textarea
+              id="task-details-input"
+              value={suggestion.description}
+              onChange={(e) => onChange({ description: e.target.value })}
+              placeholder="Describe what needs to be done..."
+              className={cn(
+                'w-full flex-1 min-h-[200px] p-3 rounded-lg resize-none',
+                'bg-surface border border-border text-sm text-fg leading-relaxed',
+                'placeholder:text-fg-subtle/50',
+                'focus:outline-none focus:border-claude focus:ring-1 focus:ring-claude/30',
+                'transition-colors'
+              )}
+            />
           </div>
         </div>
 
@@ -838,8 +910,9 @@ export function NewTaskDialog({
     reset,
   } = useTaskCreation(projectId);
 
-  // Resizable dialog
+  // Resizable and draggable dialog
   const { size, isResizing, handleMouseDown } = useResizableDialog();
+  const { position, isDragging, handleDragStart, resetPosition } = useDraggableDialog();
 
   const [input, setInput] = useState('');
   const [editableSuggestion, setEditableSuggestion] = useState<EditableSuggestion | null>(null);
@@ -903,6 +976,7 @@ export function NewTaskDialog({
   useEffect(() => {
     if (!open) {
       reset();
+      resetPosition();
       setInput('');
       setEditableSuggestion(null);
       setShowEditPanel(false);
@@ -915,7 +989,7 @@ export function NewTaskDialog({
     } else {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [open, reset]);
+  }, [open, reset, resetPosition]);
 
   // Handle task creation completion
   useEffect(() => {
@@ -1132,18 +1206,22 @@ export function NewTaskDialog({
 
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
+            'fixed z-50',
             'bg-surface border border-border rounded-xl overflow-hidden',
             'shadow-xl flex flex-col',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
             'duration-200',
-            isResizing && 'select-none'
+            (isResizing || isDragging) && 'select-none'
           )}
           style={{
             width: `${size.width}px`,
             height: `${size.height}px`,
+            // Use position offset or center the dialog
+            left: position ? `calc(50% + ${position.x}px)` : '50%',
+            top: position ? `calc(50% + ${position.y}px)` : '50%',
+            transform: 'translate(-50%, -50%)',
           }}
           data-testid="new-task-dialog"
         >
@@ -1156,13 +1234,18 @@ export function NewTaskDialog({
               onSubmit={handleSubmit}
               onBack={() => setShowEditPanel(false)}
               isSubmitting={isSubmitting}
+              onDragStart={handleDragStart}
             />
           ) : (
             <div className="flex flex-1 overflow-hidden">
               {/* LEFT PANEL - Main content */}
               <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-                {/* Compact Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                {/* Compact Header - Draggable */}
+                {/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle for dialog positioning */}
+                <div
+                  className="flex items-center justify-between px-4 py-3 border-b border-border cursor-move"
+                  onMouseDown={handleDragStart}
+                >
                   <div className="flex items-center gap-2">
                     <div
                       className={cn(

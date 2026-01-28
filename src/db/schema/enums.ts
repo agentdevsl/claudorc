@@ -13,6 +13,7 @@ export type TaskColumn = (typeof TASK_COLUMNS)[number];
 export const AGENT_STATUS = [
   'idle',
   'starting',
+  'planning',
   'running',
   'paused',
   'error',

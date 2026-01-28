@@ -7,7 +7,10 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import type { EventEmittingSandboxProvider } from '../lib/sandbox/index.js';
+import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
+import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
 import type { SandboxConfigService } from '../services/sandbox-config.service.js';
@@ -18,6 +21,7 @@ import type { TemplateService } from '../services/template.service.js';
 import type { CommandRunner, WorktreeService } from '../services/worktree.service.js';
 // Types
 import type { Database } from '../types/database.js';
+import { createAgentsRoutes } from './routes/agents.js';
 import { createApiKeysRoutes } from './routes/api-keys.js';
 import { createFilesystemRoutes } from './routes/filesystem.js';
 import { createGitRoutes } from './routes/git.js';
@@ -27,11 +31,13 @@ import { createHealthRoutes } from './routes/health.js';
 import { createMarketplacesRoutes } from './routes/marketplaces.js';
 import { createProjectsRoutes } from './routes/projects.js';
 import { createK8sRoutes, createSandboxRoutes } from './routes/sandbox.js';
+import { createSandboxStatusRoutes } from './routes/sandbox-status.js';
 import { createSessionsRoutes } from './routes/sessions.js';
 import { createSettingsRoutes } from './routes/settings.js';
 import { createTaskCreationRoutes } from './routes/task-creation.js';
 import { createTasksRoutes } from './routes/tasks.js';
 import { createTemplatesRoutes } from './routes/templates.js';
+import { createWebhooksRoutes } from './routes/webhooks.js';
 import { createWorkflowDesignerRoutes } from './routes/workflow-designer.js';
 import { createWorkflowsRoutes } from './routes/workflows.js';
 import { createWorktreesRoutes } from './routes/worktrees.js';
@@ -47,7 +53,10 @@ export interface RouterDependencies {
   taskCreationService: TaskCreationService;
   worktreeService: WorktreeService;
   marketplaceService: MarketplaceService;
+  agentService: AgentService;
   commandRunner: CommandRunner;
+  durableStreamsService?: DurableStreamsService;
+  dockerProvider?: EventEmittingSandboxProvider | null;
 }
 
 /**
@@ -73,6 +82,7 @@ export function createRouter(deps: RouterDependencies) {
     createHealthRoutes({
       db: deps.db,
       githubService: deps.githubService,
+      sandboxProvider: deps.dockerProvider ?? null,
     })
   );
 
@@ -87,6 +97,13 @@ export function createRouter(deps: RouterDependencies) {
     '/api/projects',
     createProjectsRoutes({
       db: deps.db,
+    })
+  );
+
+  app.route(
+    '/api/agents',
+    createAgentsRoutes({
+      agentService: deps.agentService,
     })
   );
 
@@ -129,6 +146,7 @@ export function createRouter(deps: RouterDependencies) {
     '/api/sessions',
     createSessionsRoutes({
       sessionService: deps.sessionService,
+      durableStreamsService: deps.durableStreamsService,
     })
   );
 
@@ -161,6 +179,14 @@ export function createRouter(deps: RouterDependencies) {
     })
   );
 
+  app.route(
+    '/api/sandbox/status',
+    createSandboxStatusRoutes({
+      db: deps.db,
+      dockerProvider: deps.dockerProvider ?? null,
+    })
+  );
+
   app.route('/api/sandbox/k8s', createK8sRoutes());
 
   app.route(
@@ -175,6 +201,13 @@ export function createRouter(deps: RouterDependencies) {
   app.route(
     '/api/workflow-designer',
     createWorkflowDesignerRoutes({
+      templateService: deps.templateService,
+    })
+  );
+
+  app.route(
+    '/api/webhooks',
+    createWebhooksRoutes({
       templateService: deps.templateService,
     })
   );

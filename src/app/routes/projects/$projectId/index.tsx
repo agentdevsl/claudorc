@@ -1,13 +1,16 @@
 import { GearSix } from '@phosphor-icons/react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
 import { KanbanBoard } from '@/app/components/features/kanban-board';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 // Use separate dialogs: new-task-dialog for creation, task-detail-dialog for editing with mode toggle
 import { NewTaskDialog } from '@/app/components/features/new-task-dialog';
+import { SandboxIndicator } from '@/app/components/features/sandbox-indicator';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/index';
 import { AIActionButton } from '@/app/components/ui/ai-action-button';
+import { useSandboxStatus } from '@/app/hooks/use-sandbox-status';
+import { useToast } from '@/app/hooks/use-toast';
 import type { Task } from '@/db/schema/tasks';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { DiffSummary } from '@/lib/types/diff';
@@ -15,7 +18,16 @@ import type { DiffSummary } from '@/lib/types/diff';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'labels' | 'agentId'
+  | 'id'
+  | 'projectId'
+  | 'title'
+  | 'description'
+  | 'column'
+  | 'position'
+  | 'labels'
+  | 'agentId'
+  | 'sessionId'
+  | 'lastAgentStatus'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -27,6 +39,8 @@ export const Route = createFileRoute('/projects/$projectId/')({
 
 function ProjectKanban(): React.JSX.Element {
   const { projectId } = Route.useParams();
+  const { error: showError, warning: showWarning } = useToast();
+  const navigate = useNavigate();
   const [project, setProject] = useState<ProjectListItem | null>(null);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +48,9 @@ function ProjectKanban(): React.JSX.Element {
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
+
+  // Fetch sandbox status for the title bar indicator
+  const { data: sandboxStatus, isLoading: sandboxLoading } = useSandboxStatus(projectId);
 
   // Fetch project and tasks from API
   const fetchData = useCallback(async () => {
@@ -74,14 +91,60 @@ function ProjectKanban(): React.JSX.Element {
     fetchData();
   }, [fetchData]);
 
-  const handleTaskMove = async (
-    taskId: string,
-    column: ClientTask['column'],
-    _position: number
-  ) => {
+  const handleTaskMove = async (taskId: string, column: ClientTask['column'], position: number) => {
     // Optimistic update
     setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, column } : task)));
-    // TODO: Add API endpoint for moving tasks
+
+    // Persist to backend
+    const result = await apiClient.tasks.move(taskId, column, position);
+    if (!result.ok) {
+      console.error('[ProjectKanban] Failed to move task:', result.error);
+      showError('Failed to move task', result.error?.message || 'Unknown error');
+      // Revert optimistic update on error
+      fetchData();
+      return;
+    }
+
+    // Check for agent startup errors (task moved but agent failed to start)
+    const data = result.data as { task: Task; agentError?: string };
+    if (data.agentError) {
+      console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
+      showWarning('Agent failed to start', data.agentError);
+    }
+
+    // When moving to in_progress, navigate to the session view to show agent output
+    if (column === 'in_progress' && data.task?.sessionId) {
+      navigate({ to: '/sessions/$sessionId', params: { sessionId: data.task.sessionId } });
+    }
+  };
+
+  const handleRunNow = async (taskId: string) => {
+    // Optimistic update - move to in_progress
+    setTasks((prev) =>
+      prev.map((task) => (task.id === taskId ? { ...task, column: 'in_progress' as const } : task))
+    );
+
+    // Move task to in_progress which will auto-trigger the agent
+    const result = await apiClient.tasks.move(taskId, 'in_progress', 0);
+    if (!result.ok) {
+      console.error('[ProjectKanban] Failed to run task:', result.error);
+      showError('Failed to start task', result.error?.message || 'Unknown error');
+      // Revert optimistic update on error
+      fetchData();
+      return;
+    }
+
+    // Check for agent startup errors (task moved but agent failed to start)
+    const data = result.data as { task: Task; agentError?: string };
+    if (data.agentError) {
+      console.warn('[ProjectKanban] Agent failed to start:', data.agentError);
+      showWarning('Agent failed to start', data.agentError);
+    }
+
+    // Navigate to the session view to show agent output
+    if (data.task?.sessionId) {
+      navigate({ to: '/sessions/$sessionId', params: { sessionId: data.task.sessionId } });
+    }
   };
 
   const handleTaskClick = (task: ClientTask) => {
@@ -145,21 +208,32 @@ function ProjectKanban(): React.JSX.Element {
         <AIActionButton onClick={() => setShowNewTask(true)} data-testid="add-task-button" />
       }
       actions={
-        <Link
-          to="/projects/$projectId/settings"
-          params={{ projectId: project.id }}
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
-          data-testid="project-settings-link"
-        >
-          <GearSix className="h-4 w-4" />
-          <span className="sr-only">Project settings</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {sandboxStatus && (
+            <SandboxIndicator
+              mode={sandboxStatus.mode}
+              containerStatus={sandboxStatus.containerStatus}
+              dockerAvailable={sandboxStatus.dockerAvailable}
+              isLoading={sandboxLoading}
+            />
+          )}
+          <Link
+            to="/projects/$projectId/settings"
+            params={{ projectId: project.id }}
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-subtle text-fg-muted transition-colors hover:bg-surface hover:text-fg"
+            data-testid="project-settings-link"
+          >
+            <GearSix className="h-4 w-4" />
+            <span className="sr-only">Project settings</span>
+          </Link>
+        </div>
       }
     >
       <KanbanBoard
         tasks={tasks as Parameters<typeof KanbanBoard>[0]['tasks']}
         onTaskMove={handleTaskMove as Parameters<typeof KanbanBoard>[0]['onTaskMove']}
         onTaskClick={handleTaskClick as Parameters<typeof KanbanBoard>[0]['onTaskClick']}
+        onRunNow={handleRunNow}
       />
 
       {/* New Task Dialog - AI-powered task creation with streaming */}
@@ -199,6 +273,9 @@ function ProjectKanban(): React.JSX.Element {
           } else {
             console.error('[ProjectKanban] Failed to delete task:', result.error);
           }
+        }}
+        onViewSession={(sessionId) => {
+          navigate({ to: '/sessions/$sessionId', params: { sessionId } });
         }}
       />
 
