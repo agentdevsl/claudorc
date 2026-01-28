@@ -277,6 +277,32 @@ async function runPlanningPhase(): Promise<void> {
   // Track ExitPlanMode options - captured by canUseTool callback
   let exitPlanModeOptions: ExitPlanModeOptions | undefined;
 
+  // Track active tool executions for emitting toolResult events
+  const activeTools = new Map<string, { toolName: string; startTime: number }>();
+
+  // Helper to emit tool result for a completed tool
+  const emitToolResult = (toolId: string, isError = false, result = '') => {
+    const tool = activeTools.get(toolId);
+    if (tool) {
+      const durationMs = Date.now() - tool.startTime;
+      events.toolResult({
+        toolName: tool.toolName,
+        toolId,
+        result,
+        isError,
+        durationMs,
+      });
+      activeTools.delete(toolId);
+    }
+  };
+
+  // Helper to emit results for all active tools (called on completion/error)
+  const emitAllToolResults = () => {
+    for (const [toolId] of activeTools) {
+      emitToolResult(toolId, false, 'completed');
+    }
+  };
+
   // Create Claude Agent SDK session in PLAN mode
   let session: SDKSession | undefined;
   try {
@@ -286,6 +312,9 @@ async function runPlanningPhase(): Promise<void> {
     // This is the official SDK mechanism for intercepting tool calls
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       console.error(`[agent-runner] canUseTool: ${toolName}`);
+
+      // Track tool start
+      activeTools.set(options.toolUseID, { toolName, startTime: Date.now() });
 
       // Emit tool start event for all tools
       events.toolStart({
@@ -432,6 +461,9 @@ async function runPlanningPhase(): Promise<void> {
 
       // Handle assistant messages
       if (msg.type === 'assistant') {
+        // Assistant message means all previous tools have completed
+        emitAllToolResults();
+
         const text = getAssistantText(msg);
         if (text) {
           accumulatedText = text;
@@ -444,6 +476,8 @@ async function runPlanningPhase(): Promise<void> {
 
       // Handle result (planning session finished)
       if (msg.type === 'result') {
+        // Emit results for any remaining active tools
+        emitAllToolResults();
         session.close();
 
         // If ExitPlanMode was called, emit plan_ready
