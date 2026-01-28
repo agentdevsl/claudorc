@@ -1,6 +1,6 @@
 import { MagnifyingGlass, Plus } from '@phosphor-icons/react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { NewProjectDialog } from '@/app/components/features/new-project-dialog';
@@ -206,7 +206,10 @@ function Dashboard(): React.JSX.Element {
     fetchSandboxConfigs();
   }, []);
 
-  // Fetch projects from API on mount
+  // Polling interval ref for project updates
+  const pollingIntervalRef = useRef<number | null>(null);
+
+  // Fetch projects from API on mount and poll when agents are running
   useEffect(() => {
     const fetchProjects = async () => {
       try {
@@ -228,6 +231,15 @@ function Dashboard(): React.JSX.Element {
             })
           );
           setProjectSummaries(summaries);
+
+          // Start/stop polling based on running agents
+          const hasRunningAgents = summaries.some((s) => s.runningAgents.length > 0);
+          if (hasRunningAgents && !pollingIntervalRef.current) {
+            pollingIntervalRef.current = window.setInterval(fetchProjects, 5000);
+          } else if (!hasRunningAgents && pollingIntervalRef.current) {
+            window.clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
         } else {
           console.error('Failed to fetch projects:', result.error);
         }
@@ -238,6 +250,13 @@ function Dashboard(): React.JSX.Element {
       }
     };
     fetchProjects();
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        window.clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
   }, []);
 
   const handleCreateProject = async (data: {

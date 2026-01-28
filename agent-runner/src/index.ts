@@ -560,6 +560,48 @@ async function runExecutionPhase(): Promise<void> {
     console.error(`[agent-runner] Resuming SDK session: ${config.sdkSessionId}`);
   }
 
+  // Track active tool executions for emitting toolResult events
+  const activeTools = new Map<string, { toolName: string; startTime: number }>();
+
+  // Helper to emit tool result for a completed tool
+  const emitToolResult = (toolId: string, isError = false, result = '') => {
+    const tool = activeTools.get(toolId);
+    if (tool) {
+      const durationMs = Date.now() - tool.startTime;
+      events.toolResult({
+        toolName: tool.toolName,
+        toolId,
+        result,
+        isError,
+        durationMs,
+      });
+      activeTools.delete(toolId);
+    }
+  };
+
+  // Helper to emit results for all active tools (called on completion/error)
+  const emitAllToolResults = () => {
+    for (const [toolId] of activeTools) {
+      emitToolResult(toolId, false, 'completed');
+    }
+  };
+
+  // canUseTool callback to track tool executions (even in bypass mode)
+  const canUseTool: CanUseTool = async (toolName, input, options) => {
+    // Track tool start
+    activeTools.set(options.toolUseID, { toolName, startTime: Date.now() });
+
+    // Emit tool start event
+    events.toolStart({
+      toolName,
+      toolId: options.toolUseID,
+      input: (input as Record<string, unknown>) ?? {},
+    });
+
+    // Allow all tools in execution mode
+    return { behavior: 'allow' as const, toolUseID: options.toolUseID };
+  };
+
   // Create or resume Claude Agent SDK session
   let session: SDKSession | undefined;
   try {
@@ -573,6 +615,7 @@ async function runExecutionPhase(): Promise<void> {
         model: config.model,
         env: { ...process.env },
         permissionMode: 'bypassPermissions',
+        canUseTool, // Track tools even in bypass mode
       });
     } else {
       // Create new session
@@ -580,6 +623,7 @@ async function runExecutionPhase(): Promise<void> {
         model: config.model,
         env: { ...process.env },
         permissionMode: 'bypassPermissions',
+        canUseTool, // Track tools even in bypass mode
       });
     }
     console.error('[agent-runner] SDK session ready');
@@ -670,7 +714,7 @@ async function runExecutionPhase(): Promise<void> {
         }
       }
 
-      // Handle tool progress events
+      // Handle tool progress events (fallback for tools not caught by canUseTool)
       if (msg.type === 'tool_progress') {
         const toolMsg = msg as {
           tool_use_id: string;
@@ -680,15 +724,25 @@ async function runExecutionPhase(): Promise<void> {
         console.error(
           `[agent-runner] Tool progress: ${toolMsg.tool_name} (${toolMsg.elapsed_time_seconds}s)`
         );
-        events.toolStart({
-          toolName: toolMsg.tool_name,
-          toolId: toolMsg.tool_use_id,
-          input: {},
-        });
+        // Only emit toolStart if not already tracked via canUseTool
+        if (!activeTools.has(toolMsg.tool_use_id)) {
+          activeTools.set(toolMsg.tool_use_id, {
+            toolName: toolMsg.tool_name,
+            startTime: Date.now(),
+          });
+          events.toolStart({
+            toolName: toolMsg.tool_name,
+            toolId: toolMsg.tool_use_id,
+            input: {},
+          });
+        }
       }
 
       // Handle assistant messages (complete turns)
       if (msg.type === 'assistant') {
+        // Assistant message means all previous tools have completed
+        emitAllToolResults();
+
         const text = getAssistantText(msg);
         if (text) {
           console.error(`[agent-runner] Assistant message: ${text.slice(0, 100)}...`);
@@ -701,6 +755,8 @@ async function runExecutionPhase(): Promise<void> {
 
       // Handle result (completion)
       if (msg.type === 'result') {
+        // Emit results for any remaining active tools
+        emitAllToolResults();
         const result = msg as { text?: string; subtype?: string; is_error?: boolean };
         console.error(
           `[agent-runner] Result: subtype=${result.subtype}, is_error=${result.is_error}`
@@ -726,6 +782,9 @@ async function runExecutionPhase(): Promise<void> {
 
     console.error(`[agent-runner] Stream ended. Total messages: ${messageCount}, turns: ${turn}`);
 
+    // Emit results for any remaining active tools
+    emitAllToolResults();
+
     // Stream ended without explicit result
     events.complete({
       status: 'completed',
@@ -733,6 +792,9 @@ async function runExecutionPhase(): Promise<void> {
       result: accumulatedText || 'Task completed',
     });
   } catch (error) {
+    // Emit results for any remaining active tools before reporting error
+    emitAllToolResults();
+
     const message = error instanceof Error ? error.message : String(error);
     const errorCode = (error as { code?: string }).code;
     console.error('[agent-runner] Stream error:', message);
