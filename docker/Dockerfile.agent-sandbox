@@ -13,6 +13,9 @@ ARG BASE_IMAGE=docker/sandbox-templates:claude-code
 
 FROM ${BASE_IMAGE}
 
+# Switch to root for package installation
+USER root
+
 # Install additional tools needed by the agent runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
