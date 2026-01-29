@@ -118,6 +118,8 @@ export interface TaskCreationSession {
   questionsReadyResolver: (() => void) | null;
   /** Last activity timestamp for idle session cleanup */
   lastActivityAt: number;
+  /** Last processed questionsId for idempotency (prevents duplicate answer submissions) */
+  lastProcessedQuestionsId: string | null;
 }
 
 export interface TaskCreationError {
@@ -746,6 +748,7 @@ export class TaskCreationService {
       questionsReadyPromise: null,
       questionsReadyResolver: null,
       lastActivityAt: Date.now(),
+      lastProcessedQuestionsId: null,
     };
 
     // Store session BEFORE creating v2Session so canUseTool callback can access it
@@ -1957,6 +1960,15 @@ export class TaskCreationService {
     // Update activity timestamp
     this.touchSession(session);
 
+    // Idempotency: if this questionsId was already processed, return success
+    if (session.lastProcessedQuestionsId === questionsId) {
+      console.log(
+        '[TaskCreationService] Duplicate answer submission for questionsId:',
+        questionsId
+      );
+      return ok(session);
+    }
+
     if (!session.pendingQuestions || session.pendingQuestions.id !== questionsId) {
       console.error('[TaskCreationService] Questions ID mismatch:', {
         sessionId,
@@ -1989,11 +2001,34 @@ export class TaskCreationService {
       '\n'
     );
 
+    // Wait for the permission resolver if the background processor is active but
+    // canUseTool hasn't fired yet. This race happens when the user answers quickly
+    // before the SDK's canUseTool callback runs in the background processor.
+    if (!session.pendingPermissionResolver && session.streamProcessingPromise) {
+      console.log(
+        '[TaskCreationService] Waiting for permission resolver (canUseTool not yet called)...'
+      );
+      const maxWaitMs = 5000;
+      const pollIntervalMs = 50;
+      const start = Date.now();
+      while (!session.pendingPermissionResolver && Date.now() - start < maxWaitMs) {
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+      if (session.pendingPermissionResolver) {
+        console.log('[TaskCreationService] ✅ Permission resolver now available');
+      } else {
+        console.warn(
+          '[TaskCreationService] ⚠️ Permission resolver not available after waiting, falling back'
+        );
+      }
+    }
+
     // Check if we have a pending permission resolver (from canUseTool callback)
     const resolver = session.pendingPermissionResolver;
     const originalInput = session.pendingQuestionsInput;
 
-    // Clear pending state
+    // Clear pending state and track processed questionsId for idempotency
+    session.lastProcessedQuestionsId = questionsId;
     session.pendingQuestions = null;
     session.pendingToolUseId = null;
     session.pendingPermissionResolver = null;

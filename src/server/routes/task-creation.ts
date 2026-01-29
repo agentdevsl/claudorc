@@ -304,16 +304,6 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
 
       const controller = sseConnections.get(sessionId);
 
-      // Send processing event immediately to clear questions and show loading state
-      // This makes the UI more responsive before we wait for AI response
-      if (controller) {
-        const processingData = JSON.stringify({
-          type: 'task-creation:processing',
-          data: { sessionId, questionsId },
-        });
-        controller.enqueue(new TextEncoder().encode(`data: ${processingData}\n\n`));
-      }
-
       const result = await taskCreationService.answerQuestions(sessionId, questionsId, answers);
 
       if (!result.ok) {

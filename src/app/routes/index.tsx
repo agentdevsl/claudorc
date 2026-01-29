@@ -208,6 +208,7 @@ function Dashboard(): React.JSX.Element {
 
   // Polling interval ref for project updates
   const pollingIntervalRef = useRef<number | null>(null);
+  const currentIntervalMsRef = useRef<number | null>(null);
 
   // Fetch projects from API on mount and poll when agents are running
   useEffect(() => {
@@ -232,13 +233,16 @@ function Dashboard(): React.JSX.Element {
           );
           setProjectSummaries(summaries);
 
-          // Start/stop polling based on running agents
+          // Poll at 5s when agents are running, 15s when idle
           const hasRunningAgents = summaries.some((s) => s.runningAgents.length > 0);
-          if (hasRunningAgents && !pollingIntervalRef.current) {
-            pollingIntervalRef.current = window.setInterval(fetchProjects, 5000);
-          } else if (!hasRunningAgents && pollingIntervalRef.current) {
-            window.clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
+          const desiredInterval = hasRunningAgents ? 5000 : 15000;
+
+          if (currentIntervalMsRef.current !== desiredInterval) {
+            if (pollingIntervalRef.current !== null) {
+              window.clearInterval(pollingIntervalRef.current);
+            }
+            pollingIntervalRef.current = window.setInterval(fetchProjects, desiredInterval);
+            currentIntervalMsRef.current = desiredInterval;
           }
         } else {
           console.error('Failed to fetch projects:', result.error);
@@ -255,6 +259,7 @@ function Dashboard(): React.JSX.Element {
       if (pollingIntervalRef.current) {
         window.clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
+        currentIntervalMsRef.current = null;
       }
     };
   }, []);

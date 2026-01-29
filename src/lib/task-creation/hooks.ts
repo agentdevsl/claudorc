@@ -268,8 +268,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
         return;
       }
 
-      // Prevent double-submission
-      if (isAnsweringRef.current || isAnswering) {
+      // Prevent double-submission (ref check is synchronous - no race window)
+      if (isAnsweringRef.current) {
         console.log('[useTaskCreation] Answer already in progress, ignoring');
         return;
       }
@@ -329,7 +329,7 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
         setIsAnswering(false);
       }
     },
-    [sessionId, pendingQuestions, isAnswering]
+    [sessionId, pendingQuestions]
   );
 
   // Skip clarifying questions
