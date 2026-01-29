@@ -424,6 +424,20 @@ export class DockerProvider implements EventEmittingSandboxProvider {
     let recovered = 0;
     let removed = 0;
 
+    // Resolve the expected image digest for stale image detection
+    let expectedImageId: string | undefined;
+    try {
+      const imageInfo = await this.docker.getImage(SANDBOX_DEFAULTS.image).inspect();
+      expectedImageId = imageInfo.Id;
+      console.log(
+        `[DockerProvider] Expected image: ${SANDBOX_DEFAULTS.image} → ${expectedImageId.slice(0, 19)}`
+      );
+    } catch {
+      console.warn(
+        `[DockerProvider] Could not resolve expected image digest for ${SANDBOX_DEFAULTS.image} — skipping stale image check`
+      );
+    }
+
     try {
       // List all containers (including stopped ones) with agentpane prefix
       const containers = await this.docker.listContainers({
@@ -457,6 +471,32 @@ export class DockerProvider implements EventEmittingSandboxProvider {
           } catch (err) {
             console.warn(
               `[DockerProvider] Failed to remove stopped container ${containerName}:`,
+              err
+            );
+          }
+          continue;
+        }
+
+        // Check if the running container's image matches the current expected image.
+        // When the sandbox image is rebuilt (e.g. after code changes), existing containers
+        // become stale — they still run the old image. Remove them so a fresh container
+        // is created from the updated image on next use.
+        if (expectedImageId && containerInfo.ImageID !== expectedImageId) {
+          console.log(
+            `[DockerProvider] Stale image detected for ${containerName}: ` +
+              `container=${containerInfo.ImageID.slice(0, 19)} vs expected=${expectedImageId.slice(0, 19)} — removing`
+          );
+          try {
+            const container = this.docker.getContainer(containerId);
+            await container.stop();
+            await container.remove({ force: true });
+            removed++;
+            console.log(
+              `[DockerProvider] Removed stale container: ${containerName} (will be recreated with updated image)`
+            );
+          } catch (err) {
+            console.warn(
+              `[DockerProvider] Failed to remove stale container ${containerName}:`,
               err
             );
           }
