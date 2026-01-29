@@ -78,6 +78,7 @@ export function ContainerAgentPanel({
             result={state.result}
             error={state.error}
             status={state.status}
+            statusMessage={state.statusMessage}
           />
         </div>
 

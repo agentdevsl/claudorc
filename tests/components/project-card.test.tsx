@@ -9,6 +9,15 @@ import {
   type ProjectCardProps,
   type TaskCounts,
 } from '@/app/components/features/project-card';
+import { TooltipProvider } from '@/app/components/ui/tooltip';
+
+function renderCard(props: ProjectCardProps) {
+  return render(
+    <TooltipProvider>
+      <ProjectCard {...props} />
+    </TooltipProvider>
+  );
+}
 
 // Mock TanStack Router
 vi.mock('@tanstack/react-router', () => ({
@@ -131,61 +140,62 @@ describe('formatRelativeTime', () => {
 describe('ProjectCard', () => {
   describe('rendering', () => {
     it('renders project name', () => {
-      render(<ProjectCard {...defaultProps} />);
+      renderCard(defaultProps);
       expect(screen.getByText('Test Project')).toBeInTheDocument();
     });
 
     it('renders project path', () => {
-      render(<ProjectCard {...defaultProps} />);
+      renderCard(defaultProps);
       expect(screen.getByText('/path/to/project')).toBeInTheDocument();
     });
 
     it('renders project initials in avatar', () => {
-      render(<ProjectCard {...defaultProps} />);
+      renderCard(defaultProps);
       expect(screen.getByText('TP')).toBeInTheDocument();
     });
 
     it('renders Open button for idle status', () => {
-      render(<ProjectCard {...defaultProps} status="idle" />);
+      renderCard({ ...defaultProps, status: 'idle' });
       expect(screen.getByRole('link', { name: 'Open' })).toBeInTheDocument();
     });
 
     it('renders Review button for needs-approval status', () => {
-      render(<ProjectCard {...defaultProps} status="needs-approval" />);
+      renderCard({ ...defaultProps, status: 'needs-approval' });
       expect(screen.getByRole('link', { name: 'Review' })).toBeInTheDocument();
     });
   });
 
   describe('status variations', () => {
     it('displays Running status badge', () => {
-      render(<ProjectCard {...defaultProps} status="running" />);
+      renderCard({ ...defaultProps, status: 'running' });
       expect(screen.getByText('Running')).toBeInTheDocument();
     });
 
     it('displays Idle status badge', () => {
-      render(<ProjectCard {...defaultProps} status="idle" />);
+      renderCard({ ...defaultProps, status: 'idle' });
       expect(screen.getByText('Idle')).toBeInTheDocument();
     });
 
     it('displays Needs Approval status badge', () => {
-      render(<ProjectCard {...defaultProps} status="needs-approval" />);
+      renderCard({ ...defaultProps, status: 'needs-approval' });
       expect(screen.getByText('Needs Approval')).toBeInTheDocument();
     });
   });
 
   describe('MiniKanbanBar', () => {
-    it('renders all five column icons with tooltips', () => {
-      render(<ProjectCard {...defaultProps} />);
-      // Component uses icons with title attributes for tooltip accessibility
-      expect(screen.getByTitle('Backlog')).toBeInTheDocument();
-      expect(screen.getByTitle('Queued')).toBeInTheDocument();
-      expect(screen.getByTitle('In Progress')).toBeInTheDocument();
-      expect(screen.getByTitle('Waiting Approval')).toBeInTheDocument();
-      expect(screen.getByTitle('Done')).toBeInTheDocument();
+    it('renders all five column icons with counts', () => {
+      renderCard(defaultProps);
+      // Each MiniKanbanBar renders an icon and a count
+      // Verify all five counts are present (5 backlog, 0 queued, 3 inProgress, 2 approval, 10 done)
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('3')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
+      expect(screen.getByText('10')).toBeInTheDocument();
     });
 
     it('renders correct counts', () => {
-      render(<ProjectCard {...defaultProps} />);
+      renderCard(defaultProps);
       expect(screen.getByText('5')).toBeInTheDocument(); // backlog
       expect(screen.getByText('3')).toBeInTheDocument(); // inProgress
       expect(screen.getByText('2')).toBeInTheDocument(); // waitingApproval
@@ -201,15 +211,15 @@ describe('ProjectCard', () => {
         verified: 0,
         total: 0,
       };
-      render(<ProjectCard {...defaultProps} taskCounts={zeroTaskCounts} />);
-      // Should render without errors (icons still present via title)
-      expect(screen.getByTitle('Backlog')).toBeInTheDocument();
+      renderCard({ ...defaultProps, taskCounts: zeroTaskCounts });
+      // Should render without errors (all counts show 0)
+      expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(5);
     });
   });
 
   describe('agent activity section', () => {
     it('displays "No agents currently running" when no active agents', () => {
-      render(<ProjectCard {...defaultProps} activeAgents={[]} />);
+      renderCard({ ...defaultProps, activeAgents: [] });
       expect(screen.getByText('No agents currently running')).toBeInTheDocument();
     });
 
@@ -218,7 +228,7 @@ describe('ProjectCard', () => {
         { id: 'agent-1', name: 'Agent 1', taskId: 'task-1', taskTitle: 'Task 1', type: 'runner' },
         { id: 'agent-2', name: 'Agent 2', taskId: 'task-2', taskTitle: 'Task 2', type: 'runner' },
       ];
-      render(<ProjectCard {...defaultProps} status="running" activeAgents={activeAgents} />);
+      renderCard({ ...defaultProps, status: 'running', activeAgents });
       expect(screen.getByText('2 running')).toBeInTheDocument();
     });
 
@@ -226,17 +236,17 @@ describe('ProjectCard', () => {
       const activeAgents: ActiveAgent[] = [
         { id: 'agent-1', name: 'My Agent', taskId: 'task-1', taskTitle: 'Task 1', type: 'runner' },
       ];
-      render(<ProjectCard {...defaultProps} status="running" activeAgents={activeAgents} />);
+      renderCard({ ...defaultProps, status: 'running', activeAgents });
       expect(screen.getByText('My Agent')).toBeInTheDocument();
     });
 
     it('displays pending review message for needs-approval status', () => {
-      render(<ProjectCard {...defaultProps} status="needs-approval" />);
+      renderCard({ ...defaultProps, status: 'needs-approval' });
       expect(screen.getByText('Pending Review')).toBeInTheDocument();
     });
 
     it('displays tasks awaiting approval count', () => {
-      render(<ProjectCard {...defaultProps} status="needs-approval" />);
+      renderCard({ ...defaultProps, status: 'needs-approval' });
       // Verify the full message is present with correct count
       const text = screen.getByText(/awaiting approval/);
       expect(text).toBeInTheDocument();
@@ -246,7 +256,7 @@ describe('ProjectCard', () => {
 
   describe('footer', () => {
     it('renders success rate when provided', () => {
-      render(<ProjectCard {...defaultProps} successRate={85.5} />);
+      renderCard({ ...defaultProps, successRate: 85.5 });
       expect(screen.getByText('85.5% success')).toBeInTheDocument();
     });
 
@@ -255,19 +265,19 @@ describe('ProjectCard', () => {
       vi.setSystemTime(new Date('2024-01-15T12:00:00Z'));
 
       const lastRunAt = new Date('2024-01-15T10:00:00Z');
-      render(<ProjectCard {...defaultProps} lastRunAt={lastRunAt} />);
+      renderCard({ ...defaultProps, lastRunAt });
       expect(screen.getByText('Last run 2h ago')).toBeInTheDocument();
 
       vi.useRealTimers();
     });
 
     it('renders "No recent activity" when no success rate, last run, or active agents', () => {
-      render(<ProjectCard {...defaultProps} activeAgents={[]} />);
+      renderCard({ ...defaultProps, activeAgents: [] });
       expect(screen.getByText('No recent activity')).toBeInTheDocument();
     });
 
     it('links to project page', () => {
-      render(<ProjectCard {...defaultProps} />);
+      renderCard(defaultProps);
       const link = screen.getByRole('link', { name: 'Open' });
       expect(link).toHaveAttribute('href', '/projects/$projectId');
       expect(link).toHaveAttribute('data-params', JSON.stringify({ projectId: 'proj-123' }));

@@ -1,6 +1,5 @@
-import { CheckCircle, Terminal, Warning, XCircle } from '@phosphor-icons/react';
+import { CheckCircle, CircleNotch, Terminal, Warning, XCircle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EmptyState } from '@/app/components/features/empty-state';
 import type { ContainerAgentStatus } from './container-agent-header';
 
 interface Message {
@@ -16,6 +15,7 @@ interface ContainerAgentStreamProps {
   result?: string;
   error?: string;
   status: ContainerAgentStatus;
+  statusMessage?: string;
 }
 
 /**
@@ -34,6 +34,7 @@ export function ContainerAgentStream({
   result,
   error,
   status,
+  statusMessage,
 }: ContainerAgentStreamProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -98,14 +99,24 @@ export function ContainerAgentStream({
         className="flex-1 overflow-y-auto bg-canvas p-4 font-mono text-sm"
         data-testid="container-agent-output"
       >
-        {!hasContent && status === 'idle' ? (
-          <div className="flex h-full items-center justify-center">
-            <EmptyState
-              preset="empty-session"
-              size="sm"
-              title="Waiting for output"
-              subtitle="Agent messages will appear in real time."
-            />
+        {!hasContent && (status === 'idle' || status === 'starting') ? (
+          <div className="flex h-full flex-col items-center justify-center gap-4">
+            {/* Glowing spinner orb */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute h-16 w-16 animate-pulse rounded-full bg-accent/20 blur-xl" />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-full border border-accent/30 bg-accent/10">
+                <CircleNotch className="h-6 w-6 animate-spin text-accent" />
+              </div>
+            </div>
+            {/* Status text */}
+            <div className="text-center">
+              <p className="text-sm font-medium text-fg-muted">
+                {status === 'starting'
+                  ? statusMessage || 'Starting agent...'
+                  : 'Waiting for agent...'}
+              </p>
+              <p className="mt-1 text-xs text-fg-subtle">Output will stream here in real time</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

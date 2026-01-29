@@ -1,4 +1,4 @@
-import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import { type CanUseTool, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { SessionEvent } from '../../services/session.service.js';
 import { getToolHandler } from './tools/index.js';
@@ -95,6 +95,24 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
     data: { agentId, runId, model },
   });
 
+  // Create canUseTool callback to capture ExitPlanMode options.
+  // The SDK's tool_use_summary may not include tool_input in newer versions,
+  // so we intercept via canUseTool which always receives the full input.
+  const canUseTool: CanUseTool = async (toolName, input, toolOptions) => {
+    if (toolName === 'ExitPlanMode') {
+      const planOptions = input as ExitPlanModeOptions | undefined;
+      exitPlanModeOptions = planOptions;
+
+      console.log(
+        `[StreamHandler] Agent ${agentId} ExitPlanMode captured via canUseTool`,
+        planOptions?.launchSwarm
+          ? `(swarm: ${planOptions.teammateCount ?? 'default'} agents)`
+          : '(single agent)'
+      );
+    }
+    return { behavior: 'allow' as const, toolUseID: toolOptions.toolUseID };
+  };
+
   // Create Claude Agent SDK session in PLAN mode
   // In plan mode, the agent can read/explore but not execute changes
   // The agent will use ExitPlanMode tool when the plan is ready
@@ -103,6 +121,7 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
     env: { ...process.env },
     permissionMode: 'plan', // Planning mode - agent will use ExitPlanMode when done
     executableArgs: ['--add-dir', cwd],
+    canUseTool,
   });
 
   try {
@@ -182,14 +201,20 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
 
         // Check if this is ExitPlanMode - this means the plan is ready
         if (toolSummary.tool_name === 'ExitPlanMode') {
-          // Capture the ExitPlanMode options including swarm settings
-          const input = toolSummary.tool_input as ExitPlanModeOptions | undefined;
-          exitPlanModeOptions = input;
+          // Prefer options already captured by canUseTool callback (reliable).
+          // Fall back to tool_use_summary.tool_input if canUseTool didn't fire.
+          if (
+            !exitPlanModeOptions &&
+            toolSummary.tool_input &&
+            Object.keys(toolSummary.tool_input).length > 0
+          ) {
+            exitPlanModeOptions = toolSummary.tool_input as ExitPlanModeOptions;
+          }
 
           console.log(
-            `[StreamHandler] Agent ${agentId} called ExitPlanMode - plan is ready`,
-            input?.launchSwarm
-              ? `(swarm: ${input.teammateCount ?? 'default'} agents)`
+            `[StreamHandler] Agent ${agentId} ExitPlanMode completed - plan is ready`,
+            exitPlanModeOptions?.launchSwarm
+              ? `(swarm: ${exitPlanModeOptions.teammateCount ?? 'default'} agents)`
               : '(single agent)'
           );
 

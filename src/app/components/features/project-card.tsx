@@ -2,15 +2,16 @@ import {
   CheckCircle,
   Clock,
   Desktop,
-  Eye,
   GearSix,
   Lightning,
-  Queue,
   Stack,
+  Stamp,
+  Timer,
   Warning,
 } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 
 export type ProjectStatus = 'running' | 'idle' | 'needs-approval';
 
@@ -101,18 +102,23 @@ function MiniKanbanBar({
 }: MiniKanbanBarProps): React.JSX.Element {
   const percentage = total > 0 ? (count / total) * 100 : 0;
   return (
-    <div className="flex-1 min-w-0 overflow-hidden" title={title}>
-      <div className="flex flex-col items-center gap-0.5 mb-1.5">
-        <span className={colorClass}>{icon}</span>
-        <span className={`font-semibold font-mono text-[10px] ${colorClass}`}>{count}</span>
-      </div>
-      <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${colorClass.replace('text-', 'bg-')}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex flex-col items-center gap-0.5 mb-1.5">
+            <span className={colorClass}>{icon}</span>
+            <span className={`font-semibold font-mono text-[10px] ${colorClass}`}>{count}</span>
+          </div>
+          <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${colorClass.replace('text-', 'bg-')}`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -181,7 +187,7 @@ export function ProjectCard({
             colorClass="text-fg-muted"
           />
           <MiniKanbanBar
-            icon={<Queue size={14} />}
+            icon={<Timer size={14} />}
             title="Queued"
             count={taskCounts.queued}
             total={taskCounts.total}
@@ -195,7 +201,7 @@ export function ProjectCard({
             colorClass="text-attention"
           />
           <MiniKanbanBar
-            icon={<Eye size={14} />}
+            icon={<Stamp size={14} />}
             title="Waiting Approval"
             count={taskCounts.waitingApproval}
             total={taskCounts.total}
