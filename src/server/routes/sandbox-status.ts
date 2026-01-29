@@ -2,18 +2,97 @@
  * Sandbox Status routes
  *
  * Provides API endpoint for getting sandbox mode and container status.
+ * Includes self-healing: auto-creates the default sandbox when Docker
+ * is available but no container exists.
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { settings } from '../../db/schema/settings.js';
 import type { EventEmittingSandboxProvider } from '../../lib/sandbox/index.js';
+import { SANDBOX_DEFAULTS } from '../../lib/sandbox/types.js';
 import type { Database } from '../../types/database.js';
 import { isValidId, json } from '../shared.js';
 
 interface SandboxStatusDeps {
   db: Database;
   dockerProvider: EventEmittingSandboxProvider | null;
+}
+
+// Track in-flight auto-heal to prevent concurrent attempts
+let autoHealInProgress = false;
+
+/**
+ * Load sandbox defaults from settings or use built-in defaults.
+ */
+async function loadSandboxDefaults(db: Database) {
+  try {
+    const globalDefaults = await db.query.settings.findFirst({
+      where: eq(settings.key, 'sandbox.defaults'),
+    });
+    if (globalDefaults?.value) {
+      return JSON.parse(globalDefaults.value) as {
+        image?: string;
+        memoryMb?: number;
+        cpuCores?: number;
+        idleTimeoutMinutes?: number;
+      };
+    }
+  } catch {
+    // Use built-in defaults
+  }
+  return null;
+}
+
+/**
+ * Auto-heal: create the default sandbox container when Docker is available
+ * but no container exists. Runs at most once at a time.
+ */
+async function autoHealSandbox(
+  db: Database,
+  dockerProvider: EventEmittingSandboxProvider,
+  lookupId: string
+): Promise<boolean> {
+  if (autoHealInProgress) return false;
+
+  autoHealInProgress = true;
+  try {
+    const defaults = await loadSandboxDefaults(db);
+    const image = defaults?.image ?? SANDBOX_DEFAULTS.image;
+
+    // Check if image is available before attempting to create
+    const imageAvailable = await dockerProvider.isImageAvailable(image);
+    if (!imageAvailable) {
+      console.log(`[SandboxStatus] Auto-heal skipped: image '${image}' not available`);
+      return false;
+    }
+
+    const workspacePath = path.join(process.cwd(), 'data', 'sandbox-workspaces', lookupId);
+    await fs.mkdir(workspacePath, { recursive: true });
+
+    await dockerProvider.create({
+      projectId: lookupId,
+      projectPath: workspacePath,
+      image,
+      memoryMb: defaults?.memoryMb ?? SANDBOX_DEFAULTS.memoryMb,
+      cpuCores: defaults?.cpuCores ?? SANDBOX_DEFAULTS.cpuCores,
+      idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? SANDBOX_DEFAULTS.idleTimeoutMinutes,
+      volumeMounts: [],
+    });
+
+    console.log(`[SandboxStatus] Auto-heal: created sandbox for '${lookupId}'`);
+    return true;
+  } catch (error) {
+    console.error(
+      '[SandboxStatus] Auto-heal failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return false;
+  } finally {
+    autoHealInProgress = false;
+  }
 }
 
 export function createSandboxStatusRoutes({ db, dockerProvider }: SandboxStatusDeps) {
@@ -41,10 +120,28 @@ export function createSandboxStatusRoutes({ db, dockerProvider }: SandboxStatusD
 
       if (dockerProvider) {
         try {
-          // In shared mode, check the default sandbox
-          // In per-project mode, check the project-specific sandbox
           const lookupId = sandboxMode === 'shared' ? 'default' : projectId;
-          const sandbox = await dockerProvider.get(lookupId);
+
+          // Validate cached containers are still alive in Docker before checking status
+          if (
+            typeof (dockerProvider as unknown as { validateContainers: () => Promise<void> })
+              .validateContainers === 'function'
+          ) {
+            await (
+              dockerProvider as unknown as { validateContainers: () => Promise<void> }
+            ).validateContainers();
+          }
+
+          let sandbox = await dockerProvider.get(lookupId);
+
+          // Self-healing: auto-create sandbox if Docker is available but container is missing
+          if (!sandbox) {
+            const healed = await autoHealSandbox(db, dockerProvider, lookupId);
+            if (healed) {
+              sandbox = await dockerProvider.get(lookupId);
+            }
+          }
+
           if (sandbox) {
             containerStatus = sandbox.status as typeof containerStatus;
             containerId = sandbox.containerId ?? null;
