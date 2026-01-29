@@ -275,6 +275,8 @@ async function runPlanningPhase(): Promise<void> {
 
   // Track ExitPlanMode options - captured by canUseTool callback
   let exitPlanModeOptions: ExitPlanModeOptions | undefined;
+  // Flag set when ExitPlanMode is detected via canUseTool - checked in stream loop
+  let exitPlanModeDetected = false;
 
   // Track active tool executions for emitting toolResult events
   const activeTools = new Map<string, { toolName: string; startTime: number }>();
@@ -326,8 +328,11 @@ async function runPlanningPhase(): Promise<void> {
       if (toolName === 'ExitPlanMode') {
         const planOptions = input as ExitPlanModeOptions | undefined;
         exitPlanModeOptions = planOptions;
+        exitPlanModeDetected = true;
 
-        console.error('[agent-runner] ExitPlanMode captured via canUseTool');
+        console.error(
+          '[agent-runner] ExitPlanMode captured via canUseTool — will exit after tool completes'
+        );
       }
 
       // Allow all tools to proceed (we're in plan mode)
@@ -464,7 +469,7 @@ async function runPlanningPhase(): Promise<void> {
         };
 
         console.error(
-          `[agent-runner] Tool summary: ${toolSummary.tool_name} (error: ${toolSummary.is_error})`
+          `[agent-runner] Tool summary: ${toolSummary.tool_name} (id: ${toolSummary.tool_use_id ?? 'none'}, error: ${toolSummary.is_error})`
         );
 
         if (toolSummary.tool_use_id) {
@@ -481,19 +486,20 @@ async function runPlanningPhase(): Promise<void> {
             isError: toolSummary.is_error ?? false,
             durationMs: Date.now() - startTime,
           });
+        }
 
-          // If ExitPlanMode completed successfully, end the planning session
-          if (toolSummary.tool_name === 'ExitPlanMode' && !toolSummary.is_error) {
-            console.error('[agent-runner] ExitPlanMode completed - ending planning session');
-            session.close();
-            events.planReady({
-              plan: accumulatedText,
-              turnCount: turn,
-              sdkSessionId: sdkSessionId ?? '',
-              allowedPrompts: exitPlanModeOptions?.allowedPrompts,
-            });
-            return;
-          }
+        // Check for ExitPlanMode OUTSIDE the tool_use_id guard
+        // SDK 0.2.23+ may omit tool_use_id from tool_use_summary events
+        if (toolSummary.tool_name === 'ExitPlanMode' && !toolSummary.is_error) {
+          console.error('[agent-runner] ExitPlanMode completed - ending planning session');
+          session.close();
+          events.planReady({
+            plan: accumulatedText,
+            turnCount: turn,
+            sdkSessionId: sdkSessionId ?? '',
+            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+          });
+          return;
         }
       }
 
@@ -501,6 +507,23 @@ async function runPlanningPhase(): Promise<void> {
       if (msg.type === 'assistant') {
         // Assistant message means all previous tools have completed
         emitAllToolResults();
+
+        // If ExitPlanMode was detected via canUseTool but tool_use_summary
+        // didn't trigger the exit (SDK 0.2.23+ may not include tool_name/id),
+        // exit now before the next turn starts
+        if (exitPlanModeDetected) {
+          console.error(
+            '[agent-runner] ExitPlanMode was detected — ending planning session on next assistant message'
+          );
+          session.close();
+          events.planReady({
+            plan: accumulatedText,
+            turnCount: turn,
+            sdkSessionId: sdkSessionId ?? '',
+            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+          });
+          return;
+        }
 
         const text = getAssistantText(msg);
         if (text) {
