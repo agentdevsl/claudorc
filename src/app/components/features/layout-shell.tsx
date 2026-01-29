@@ -28,7 +28,7 @@ export function LayoutShell({
       <div className="hidden md:block">
         <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
-      <div className="flex flex-1 flex-col min-h-0">
+      <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {breadcrumbs ? (
           <header
             className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 sm:py-4"

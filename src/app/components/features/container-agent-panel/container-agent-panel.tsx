@@ -31,7 +31,7 @@ export function ContainerAgentPanel({
   const isActive = state.status === 'running' || state.status === 'starting';
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col rounded-lg border border-border bg-surface">
+    <div className="flex flex-1 min-h-0 min-w-0 flex-col rounded-lg border border-border bg-surface">
       {/* Header with status and controls */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-4 py-3">
         <ContainerAgentHeader
@@ -70,7 +70,7 @@ export function ContainerAgentPanel({
       {/* Main content area */}
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Stream output */}
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col">
           <ContainerAgentStream
             streamedText={state.streamedText}
             messages={state.messages}

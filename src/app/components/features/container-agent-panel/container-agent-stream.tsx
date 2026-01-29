@@ -77,7 +77,7 @@ export function ContainerAgentStream({
   const hasContent = messages.length > 0 || streamedText.length > 0;
 
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col">
+    <div className="relative flex flex-1 min-h-0 min-w-0 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-4 py-2">
         <div className="flex items-center gap-2 text-sm text-fg-muted">
@@ -96,7 +96,7 @@ export function ContainerAgentStream({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto bg-canvas p-4 font-mono text-sm"
+        className="flex-1 overflow-y-auto overflow-x-hidden bg-canvas p-4 font-mono text-sm"
         data-testid="container-agent-output"
       >
         {!hasContent && (status === 'idle' || status === 'starting') ? (
