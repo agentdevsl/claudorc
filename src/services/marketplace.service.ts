@@ -4,7 +4,11 @@ import type { CachedPlugin, Marketplace, NewMarketplace } from '../db/schema/mar
 import { marketplaces } from '../db/schema/marketplaces.js';
 import type { MarketplaceError } from '../lib/errors/marketplace-errors.js';
 import { MarketplaceErrors } from '../lib/errors/marketplace-errors.js';
-import { createOctokitFromToken, getInstallationOctokit } from '../lib/github/client.js';
+import {
+  createOctokitFromToken,
+  formatGitHubError,
+  getInstallationOctokit,
+} from '../lib/github/client.js';
 import {
   parseGitHubMarketplaceUrl,
   syncMarketplaceFromGitHub,
@@ -301,8 +305,35 @@ export class MarketplaceService {
           return err(MarketplaceErrors.SYNC_FAILED('No GitHub authentication found'));
         }
 
-        const { decryptToken } = await import('../server/crypto.js');
-        const token = await decryptToken(tokenRecord.encryptedToken);
+        const { decryptToken } = await import('../lib/crypto/server-encryption.js');
+        let token: string;
+        try {
+          token = await decryptToken(tokenRecord.encryptedToken);
+        } catch (decryptError) {
+          // Token can't be decrypted - keyfile may have changed since token was stored
+          console.error(
+            '[MarketplaceService] Failed to decrypt GitHub token, marking as invalid:',
+            decryptError
+          );
+          await this.db
+            .update(githubTokens)
+            .set({ isValid: false })
+            .where(eq(githubTokens.id, tokenRecord.id));
+          await this.db
+            .update(marketplaces)
+            .set({
+              status: 'error',
+              syncError:
+                'GitHub token could not be decrypted. The encryption key may have changed. Please re-add your GitHub token in Settings.',
+              updatedAt: this.updateTimestamp(),
+            })
+            .where(eq(marketplaces.id, id));
+          return err(
+            MarketplaceErrors.SYNC_FAILED(
+              'GitHub token could not be decrypted. The encryption key may have changed. Please re-add your GitHub token in Settings.'
+            )
+          );
+        }
         octokit = createOctokitFromToken(token);
       }
 
@@ -356,17 +387,27 @@ export class MarketplaceService {
         syncedAt: now,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[MarketplaceService] Sync error for ${id}:`, errorMessage);
+      const ghError = formatGitHubError(error);
+      console.error(`[MarketplaceService] Sync error for ${id}:`, ghError.message);
+
+      // Invalidate the token if GitHub returned 401 (expired/revoked)
+      if (ghError.status === 401) {
+        await this.db
+          .update(githubTokens)
+          .set({ isValid: false })
+          .where(eq(githubTokens.isValid, true));
+        console.warn('[MarketplaceService] Marked GitHub token as invalid due to 401 response');
+      }
+
       await this.db
         .update(marketplaces)
         .set({
           status: 'error',
-          syncError: errorMessage,
+          syncError: ghError.message,
           updatedAt: this.updateTimestamp(),
         })
         .where(eq(marketplaces.id, id));
-      return err(MarketplaceErrors.SYNC_FAILED(errorMessage));
+      return err(MarketplaceErrors.SYNC_FAILED(ghError.message));
     }
   }
 

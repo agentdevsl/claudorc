@@ -8,7 +8,11 @@ import { mergeTemplates } from '../lib/config/template-merge.js';
 // Note: decryptToken is imported dynamically in sync() to avoid bundling node:path for browser
 import type { TemplateError } from '../lib/errors/template-errors.js';
 import { TemplateErrors } from '../lib/errors/template-errors.js';
-import { createOctokitFromToken, getInstallationOctokit } from '../lib/github/client.js';
+import {
+  createOctokitFromToken,
+  formatGitHubError,
+  getInstallationOctokit,
+} from '../lib/github/client.js';
 import { parseGitHubUrl, syncTemplateFromGitHub } from '../lib/github/template-sync.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
@@ -372,8 +376,35 @@ export class TemplateService {
         }
 
         // Dynamic import to avoid bundling node:path for browser
-        const { decryptToken } = await import('../server/crypto.js');
-        const token = await decryptToken(tokenRecord.encryptedToken);
+        const { decryptToken } = await import('../lib/crypto/server-encryption.js');
+        let token: string;
+        try {
+          token = await decryptToken(tokenRecord.encryptedToken);
+        } catch (decryptError) {
+          // Token can't be decrypted - keyfile may have changed since token was stored
+          console.error(
+            '[TemplateService] Failed to decrypt GitHub token, marking as invalid:',
+            decryptError
+          );
+          await this.db
+            .update(githubTokens)
+            .set({ isValid: false })
+            .where(eq(githubTokens.id, tokenRecord.id));
+          await this.db
+            .update(templates)
+            .set({
+              status: 'error',
+              syncError:
+                'GitHub token could not be decrypted. The encryption key may have changed. Please re-add your GitHub token in Settings.',
+              updatedAt: this.updateTimestamp(),
+            })
+            .where(eq(templates.id, id));
+          return err(
+            TemplateErrors.SYNC_FAILED(
+              'GitHub token could not be decrypted. The encryption key may have changed. Please re-add your GitHub token in Settings.'
+            )
+          );
+        }
         octokit = createOctokitFromToken(token);
       }
 
@@ -423,16 +454,27 @@ export class TemplateService {
         syncedAt: now,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const ghError = formatGitHubError(error);
+      console.error(`[TemplateService] Sync error for ${id}:`, ghError.message);
+
+      // Invalidate the token if GitHub returned 401 (expired/revoked)
+      if (ghError.status === 401) {
+        await this.db
+          .update(githubTokens)
+          .set({ isValid: false })
+          .where(eq(githubTokens.isValid, true));
+        console.warn('[TemplateService] Marked GitHub token as invalid due to 401 response');
+      }
+
       await this.db
         .update(templates)
         .set({
           status: 'error',
-          syncError: errorMessage,
+          syncError: ghError.message,
           updatedAt: this.updateTimestamp(),
         })
         .where(eq(templates.id, id));
-      return err(TemplateErrors.SYNC_FAILED(errorMessage));
+      return err(TemplateErrors.SYNC_FAILED(ghError.message));
     }
   }
 

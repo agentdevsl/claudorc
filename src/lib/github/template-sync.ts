@@ -4,6 +4,7 @@ import type { TemplateError } from '../errors/template-errors.js';
 import { TemplateErrors } from '../errors/template-errors.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
+import { formatGitHubError } from './client.js';
 
 export interface TemplateSyncOptions {
   octokit: Octokit;
@@ -115,7 +116,7 @@ async function fetchDirectoryContents(
     if (statusCode === 404) {
       return ok([]); // Directory doesn't exist, return empty
     }
-    return err(TemplateErrors.FETCH_FAILED(path, String(error)));
+    return err(TemplateErrors.FETCH_FAILED(path, formatGitHubError(error).message));
   }
 }
 
@@ -148,7 +149,7 @@ async function fetchFileContent(
     if (statusCode === 404) {
       return err(TemplateErrors.FETCH_FAILED(path, 'File not found'));
     }
-    return err(TemplateErrors.FETCH_FAILED(path, String(error)));
+    return err(TemplateErrors.FETCH_FAILED(path, formatGitHubError(error).message));
   }
 }
 
@@ -305,7 +306,7 @@ async function getLatestSha(
     });
     return ok(data.sha);
   } catch (error) {
-    return err(TemplateErrors.FETCH_FAILED('commit', String(error)));
+    return err(TemplateErrors.FETCH_FAILED('commit', formatGitHubError(error).message));
   }
 }
 

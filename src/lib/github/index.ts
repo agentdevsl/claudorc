@@ -3,6 +3,7 @@
 export type { GitHubClientOptions, Octokit } from './client.js';
 export {
   createOctokitFromToken,
+  formatGitHubError,
   getAppOctokit,
   getInstallationOctokit,
 } from './client.js';

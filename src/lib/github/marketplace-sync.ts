@@ -1,6 +1,7 @@
 import type { Octokit } from 'octokit';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
+import { formatGitHubError } from './client.js';
 
 // Concurrency limiter for GitHub API calls to avoid rate limiting
 const MAX_CONCURRENT_REQUESTS = 5;
@@ -141,8 +142,11 @@ export async function syncMarketplaceFromGitHub(
 
     return ok({ plugins, sha });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return err({ message: `Failed to sync marketplace: ${message}` });
+    const ghError = formatGitHubError(error);
+    return err({
+      message: `Failed to sync marketplace: ${ghError.message}`,
+      status: ghError.status,
+    });
   }
 }
 
