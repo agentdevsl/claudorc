@@ -118,7 +118,7 @@ export interface TaskCreationSession {
   questionsReadyResolver: (() => void) | null;
   /** Last activity timestamp for idle session cleanup */
   lastActivityAt: number;
-  /** Last processed questionsId for idempotency (prevents duplicate answer submissions) */
+  /** Most recently processed questionsId -- used to deduplicate retried answer submissions for the same question round */
   lastProcessedQuestionsId: string | null;
 }
 
@@ -286,6 +286,31 @@ export class TaskCreationService {
   /** Update session activity timestamp */
   private touchSession(session: TaskCreationSession): void {
     session.lastActivityAt = Date.now();
+  }
+
+  /**
+   * Wait for the pendingPermissionResolver to become available on a session.
+   * This handles the race where the user answers before canUseTool fires.
+   */
+  private async waitForPermissionResolver(
+    session: TaskCreationSession,
+    maxWaitMs = 5000,
+    pollIntervalMs = 50
+  ): Promise<void> {
+    console.log(
+      '[TaskCreationService] Waiting for permission resolver (canUseTool not yet called)...'
+    );
+    const deadline = Date.now() + maxWaitMs;
+    while (!session.pendingPermissionResolver && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+    if (session.pendingPermissionResolver) {
+      console.log('[TaskCreationService] Permission resolver now available');
+    } else {
+      console.warn(
+        '[TaskCreationService] Permission resolver not available after waiting, falling back'
+      );
+    }
   }
 
   /**
@@ -1960,13 +1985,17 @@ export class TaskCreationService {
     // Update activity timestamp
     this.touchSession(session);
 
-    // Idempotency: if this questionsId was already processed, return success
+    // Idempotency: if this questionsId was already processed, return success without
+    // re-processing. The route handler checks `alreadyProcessed` to skip the SSE update.
     if (session.lastProcessedQuestionsId === questionsId) {
       console.log(
         '[TaskCreationService] Duplicate answer submission for questionsId:',
         questionsId
       );
-      return ok(session);
+      const duplicate = { ...session, alreadyProcessed: true } as TaskCreationSession & {
+        alreadyProcessed: boolean;
+      };
+      return ok(duplicate);
     }
 
     if (!session.pendingQuestions || session.pendingQuestions.id !== questionsId) {
@@ -2001,44 +2030,16 @@ export class TaskCreationService {
       '\n'
     );
 
-    // Wait for the permission resolver if the background processor is active but
-    // canUseTool hasn't fired yet. This race happens when the user answers quickly
-    // before the SDK's canUseTool callback runs in the background processor.
-    if (!session.pendingPermissionResolver && session.streamProcessingPromise) {
-      console.log(
-        '[TaskCreationService] Waiting for permission resolver (canUseTool not yet called)...'
-      );
-      const maxWaitMs = 5000;
-      const pollIntervalMs = 50;
-      const start = Date.now();
-      while (!session.pendingPermissionResolver && Date.now() - start < maxWaitMs) {
-        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      }
-      if (session.pendingPermissionResolver) {
-        console.log('[TaskCreationService] ✅ Permission resolver now available');
-      } else {
-        console.warn(
-          '[TaskCreationService] ⚠️ Permission resolver not available after waiting, falling back'
-        );
-      }
-    }
-
-    // Check if we have a pending permission resolver (from canUseTool callback)
-    const resolver = session.pendingPermissionResolver;
-    const originalInput = session.pendingQuestionsInput;
-
     // Clear pending state and track processed questionsId for idempotency
     session.lastProcessedQuestionsId = questionsId;
     session.pendingQuestions = null;
     session.pendingToolUseId = null;
-    session.pendingPermissionResolver = null;
-    session.pendingQuestionsInput = null;
     session.questionsReadyPromise = null;
     session.questionsReadyResolver = null;
     session.status = 'active';
 
-    // Publish processing event to notify frontend that answers were accepted
-    // This clears pendingQuestions and sets isStreaming on the client
+    // Publish processing event immediately so the frontend clears questions and shows loading.
+    // This must happen BEFORE the polling loop to avoid a UI dead time gap.
     try {
       await this.streams.publishTaskCreationProcessing(sessionId, {
         sessionId,
@@ -2048,10 +2049,27 @@ export class TaskCreationService {
       console.error('[TaskCreationService] Failed to publish processing event:', error);
     }
 
+    // Wait for the permission resolver if the background processor is active but
+    // canUseTool hasn't fired yet. This race happens when the user answers quickly
+    // before the SDK's canUseTool callback runs in the background processor.
+    // If the resolver doesn't appear within 5s, we fall through to the legacy
+    // tool-result fallback path which sends answers via sendToolResult instead.
+    if (!session.pendingPermissionResolver && session.streamProcessingPromise) {
+      await this.waitForPermissionResolver(session);
+    }
+
+    // Check if we have a pending permission resolver (from canUseTool callback)
+    const resolver = session.pendingPermissionResolver;
+    const originalInput = session.pendingQuestionsInput;
+
+    // Clear permission-related pending state after the polling loop
+    session.pendingPermissionResolver = null;
+    session.pendingQuestionsInput = null;
+
     // If we have a permission resolver, resolve it with the answers
     // This continues the SDK's permission flow with the user's answers
     if (resolver && originalInput) {
-      console.log('[TaskCreationService] 🔓 Resolving permission with answers:', {
+      console.log('[TaskCreationService] Resolving permission with answers:', {
         sessionId,
         questionCount: questions.length,
         answerCount: Object.keys(answers).length,
@@ -2102,19 +2120,13 @@ export class TaskCreationService {
       // canUseTool Promise. Now that we've resolved it, the processor will resume
       // automatically and continue consuming messages from the SAME stream iterator.
       // We don't need to call continueStreamProcessing - it's handled in the background.
-      console.log(
-        '[TaskCreationService] ✅ Permission resolved - background processor will continue'
-      );
-
-      // If there's a stream processing promise, the background processor is handling it
-      if (session.streamProcessingPromise) {
-        console.log('[TaskCreationService] Background stream processor is active');
-      }
+      console.log('[TaskCreationService] Permission resolved - background processor will continue');
 
       return ok(session);
     }
 
-    // Fallback for sessions without permission resolver (shouldn't happen with new flow)
+    // Fallback: if the permission resolver wasn't available (e.g., canUseTool poll timed out),
+    // send answers via the tool result approach instead.
     if (pendingToolUseId && session.v2Session && session.sdkSessionId) {
       console.warn(
         '[TaskCreationService] No permission resolver found, falling back to tool result approach:',
@@ -2161,8 +2173,8 @@ export class TaskCreationService {
       return this.sendToolResultAndStream(session, toolResultMessage);
     }
 
-    // Fallback: Send as regular message if no tool context
-    console.log('[TaskCreationService] No pending tool_use_id, sending as regular message');
+    // Fallback: Send as regular message if no tool context (unexpected -- indicates session state issue)
+    console.warn('[TaskCreationService] No pending tool_use_id, sending as regular message');
     return this.sendMessage(sessionId, answerMessage);
   }
 

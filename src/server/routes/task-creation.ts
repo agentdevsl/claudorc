@@ -304,6 +304,7 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
 
       const controller = sseConnections.get(sessionId);
 
+      // The service publishes SSE processing/update events internally
       const result = await taskCreationService.answerQuestions(sessionId, questionsId, answers);
 
       if (!result.ok) {
@@ -317,12 +318,17 @@ export function createTaskCreationRoutes({ taskCreationService }: TaskCreationDe
         return json({ ok: false, error: result.error }, 400);
       }
 
-      // Send events to SSE based on session state
-      if (controller) {
+      // Send SSE update based on session state, but skip for duplicate submissions
+      // since the session has already advanced past this question round
+      const alreadyProcessed = 'alreadyProcessed' in result.value && result.value.alreadyProcessed;
+      if (controller && !alreadyProcessed) {
         sendTaskCreationSSEUpdate(controller, sessionId, result.value);
       }
 
-      return json({ ok: true, data: { sessionId, status: result.value.status } });
+      return json({
+        ok: true,
+        data: { sessionId, status: result.value.status, duplicate: !!alreadyProcessed },
+      });
     } catch (error) {
       console.error('[TaskCreation] Answer error:', error);
       return json(

@@ -78,7 +78,7 @@ describe('TaskDetailDialog', () => {
       expect(screen.getByText('Task description text')).toBeInTheDocument();
     });
 
-    it('renders task metadata', () => {
+    it('renders collapsible details section', () => {
       render(
         <TaskDetailDialog
           task={createTask()}
@@ -89,9 +89,10 @@ describe('TaskDetailDialog', () => {
         />
       );
 
-      // Check for metadata section labels
-      expect(screen.getByText(/branch/i)).toBeInTheDocument();
-      expect(screen.getByText(/created/i)).toBeInTheDocument();
+      // Check for collapsible details header
+      expect(screen.getByText('Details')).toBeInTheDocument();
+      // Metadata is inside the collapsible (collapsed by default, but present in DOM)
+      expect(screen.getAllByText(/created/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -244,21 +245,7 @@ describe('TaskDetailDialog', () => {
   });
 
   describe('labels', () => {
-    it('renders labels section', () => {
-      render(
-        <TaskDetailDialog
-          task={createTask()}
-          open
-          onOpenChange={vi.fn()}
-          onSave={vi.fn()}
-          onDelete={vi.fn()}
-        />
-      );
-
-      expect(screen.getByText('Labels')).toBeInTheDocument();
-    });
-
-    it('displays task labels', () => {
+    it('renders labels in collapsible details', () => {
       render(
         <TaskDetailDialog
           task={createTask({ labels: ['bug', 'feature'] })}
@@ -269,6 +256,7 @@ describe('TaskDetailDialog', () => {
         />
       );
 
+      // Labels are rendered inside the collapsible details section
       expect(screen.getByText('bug')).toBeInTheDocument();
       expect(screen.getByText('feature')).toBeInTheDocument();
     });

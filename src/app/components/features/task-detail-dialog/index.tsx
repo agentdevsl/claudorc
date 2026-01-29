@@ -9,10 +9,8 @@ import { cn } from '@/lib/utils/cn';
 import { TaskActions } from './task-actions';
 import { TaskActivity } from './task-activity';
 import { TaskDescription } from './task-description';
+import { TaskDetailsCollapsible } from './task-details-collapsible';
 import { TaskHeader } from './task-header';
-import { TaskLabels } from './task-labels';
-import { TaskMetadata } from './task-metadata';
-import { TaskWorktree } from './task-worktree';
 
 /**
  * Custom hook for drag functionality
@@ -93,7 +91,6 @@ export interface ActivityEntry {
 export interface TaskDetailDialogProps {
   task: Task | null;
   worktree?: Worktree | null;
-  activityLog?: ActivityEntry[];
   availableLabels?: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -153,8 +150,6 @@ const initialState: DialogState = {
 export function TaskDetailDialog({
   task,
   worktree,
-  activityLog = [],
-  availableLabels = ['bug', 'feature', 'enhancement', 'docs'],
   open,
   onOpenChange,
   onSave,
@@ -207,8 +202,6 @@ export function TaskDetailDialog({
     } catch (error) {
       console.error('[TaskDetailDialog] Failed to save task:', error);
       dispatch({ type: 'SAVE_ERROR' });
-      // TODO: Show toast notification to user
-      // toast.error('Failed to save changes. Please try again.');
     }
   }, [pendingChanges, onSave]);
 
@@ -220,8 +213,6 @@ export function TaskDetailDialog({
       onOpenChange(false);
     } catch (error) {
       console.error('[TaskDetailDialog] Failed to delete task:', error);
-      // TODO: Show toast notification to user
-      // toast.error('Failed to delete task. Please try again.');
     }
   }, [task, onDelete, onOpenChange]);
 
@@ -359,26 +350,12 @@ export function TaskDetailDialog({
                   onCancel={() => dispatch({ type: 'CANCEL_EDIT' })}
                 />
 
-                {/* Metadata grid */}
-                <TaskMetadata
-                  task={task}
-                  onModelChange={(modelId) => handleFieldChange('modelOverride', modelId)}
-                  onViewSession={onViewSession}
-                />
-
-                {/* Labels */}
-                <TaskLabels
-                  labels={(displayTask.labels as string[]) ?? []}
-                  availableLabels={availableLabels}
-                  onChange={(labels) => handleFieldChange('labels', labels)}
-                />
-
-                {/* Worktree info (if exists) */}
-                {worktree && <TaskWorktree worktree={worktree} />}
+                {/* Collapsible details: metadata, labels, worktree */}
+                <TaskDetailsCollapsible task={task} worktree={worktree} />
 
                 {/* Activity timeline */}
                 <TaskActivity
-                  activities={activityLog}
+                  task={task}
                   activeTab={state.activityTab}
                   onTabChange={(tab) => dispatch({ type: 'SET_ACTIVITY_TAB', tab })}
                 />

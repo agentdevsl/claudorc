@@ -1,10 +1,18 @@
-import { ChatText, Check, Clock, File, Play, X } from '@phosphor-icons/react';
+import { Brain, ChatText, Check, Clock, File, Play, Terminal, X } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import type { Task } from '@/db/schema/tasks';
 import { cn } from '@/lib/utils/cn';
 import type { ActivityEntry } from './index';
+import { useTaskActivity } from './use-task-activity';
+
+const BOLD_ACTIVITY_TYPES = new Set<ActivityEntry['type']>([
+  'status_change',
+  'approval',
+  'rejection',
+]);
 
 interface TaskActivityProps {
-  activities: ActivityEntry[];
+  task: Task;
   activeTab: 'timeline' | 'comments' | 'history';
   onTabChange: (tab: 'timeline' | 'comments' | 'history') => void;
 }
@@ -26,12 +34,12 @@ function formatRelativeTime(timestamp: number): string {
   });
 }
 
-function getActivityIcon(type: ActivityEntry['type']): React.ElementType {
+function getActivityIcon(type: ActivityEntry['type'], message?: string): React.ElementType {
   switch (type) {
     case 'status_change':
-      return Play;
+      return message?.includes('planning') ? Brain : Play;
     case 'tool_call':
-      return File;
+      return message?.startsWith('Running') ? Terminal : File;
     case 'comment':
       return ChatText;
     case 'rejection':
@@ -66,8 +74,9 @@ interface ActivityItemProps {
 }
 
 function ActivityItem({ activity, isLast }: ActivityItemProps): React.JSX.Element {
-  const Icon = getActivityIcon(activity.type);
+  const Icon = getActivityIcon(activity.type, activity.message);
   const color = getActivityColor(activity.type);
+  const isBold = BOLD_ACTIVITY_TYPES.has(activity.type);
 
   return (
     <div className="flex gap-3">
@@ -86,7 +95,7 @@ function ActivityItem({ activity, isLast }: ActivityItemProps): React.JSX.Elemen
 
       {/* Content */}
       <div className={cn('flex-1 pb-4', isLast && 'pb-0')}>
-        <p className="text-sm text-fg">{activity.message}</p>
+        <p className={cn('text-sm text-fg', isBold && 'font-medium')}>{activity.message}</p>
         <span className="text-xs text-fg-subtle">{formatRelativeTime(activity.timestamp)}</span>
       </div>
     </div>
@@ -102,15 +111,47 @@ function EmptyState({ message }: { message: string }): React.JSX.Element {
   );
 }
 
+function LoadingSkeleton(): React.JSX.Element {
+  return (
+    <div className="space-y-3 p-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex gap-3 animate-pulse">
+          <div className="h-6 w-6 rounded-full bg-surface-muted" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3.5 w-3/4 rounded bg-surface-muted" />
+            <div className="h-2.5 w-1/4 rounded bg-surface-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActivityList({ activities }: { activities: ActivityEntry[] }): React.JSX.Element {
+  return (
+    <div className="space-y-0">
+      {activities.map((activity, index) => (
+        <ActivityItem
+          key={activity.id}
+          activity={activity}
+          isLast={index === activities.length - 1}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function TaskActivity({
-  activities,
+  task,
   activeTab,
   onTabChange,
 }: TaskActivityProps): React.JSX.Element {
+  const { activities, isLoading, error } = useTaskActivity(task);
+
   // Filter activities by type for each tab
   const timelineActivities = activities;
   const commentActivities = activities.filter((a) => a.type === 'comment');
-  const historyActivities = activities.filter((a) => a.type === 'status_change');
+  const historyActivities = activities.filter((a) => BOLD_ACTIVITY_TYPES.has(a.type));
 
   return (
     <div className="space-y-3">
@@ -125,16 +166,12 @@ export function TaskActivity({
 
         <TabsContent value="timeline">
           <div className="rounded-md border border-border bg-surface-subtle p-4">
-            {timelineActivities.length > 0 ? (
-              <div className="space-y-0">
-                {timelineActivities.map((activity, index) => (
-                  <ActivityItem
-                    key={activity.id}
-                    activity={activity}
-                    isLast={index === timelineActivities.length - 1}
-                  />
-                ))}
-              </div>
+            {isLoading ? (
+              <LoadingSkeleton />
+            ) : error ? (
+              <EmptyState message={error} />
+            ) : timelineActivities.length > 0 ? (
+              <ActivityList activities={timelineActivities} />
             ) : (
               <EmptyState message="No activity yet" />
             )}
@@ -143,16 +180,12 @@ export function TaskActivity({
 
         <TabsContent value="comments">
           <div className="rounded-md border border-border bg-surface-subtle p-4">
-            {commentActivities.length > 0 ? (
-              <div className="space-y-0">
-                {commentActivities.map((activity, index) => (
-                  <ActivityItem
-                    key={activity.id}
-                    activity={activity}
-                    isLast={index === commentActivities.length - 1}
-                  />
-                ))}
-              </div>
+            {isLoading ? (
+              <LoadingSkeleton />
+            ) : error ? (
+              <EmptyState message={error} />
+            ) : commentActivities.length > 0 ? (
+              <ActivityList activities={commentActivities} />
             ) : (
               <EmptyState message="No comments yet" />
             )}
@@ -161,16 +194,12 @@ export function TaskActivity({
 
         <TabsContent value="history">
           <div className="rounded-md border border-border bg-surface-subtle p-4">
-            {historyActivities.length > 0 ? (
-              <div className="space-y-0">
-                {historyActivities.map((activity, index) => (
-                  <ActivityItem
-                    key={activity.id}
-                    activity={activity}
-                    isLast={index === historyActivities.length - 1}
-                  />
-                ))}
-              </div>
+            {isLoading ? (
+              <LoadingSkeleton />
+            ) : error ? (
+              <EmptyState message={error} />
+            ) : historyActivities.length > 0 ? (
+              <ActivityList activities={historyActivities} />
             ) : (
               <EmptyState message="No state changes yet" />
             )}

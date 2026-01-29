@@ -1036,16 +1036,37 @@ export class ContainerAgentService {
 
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
-      // Use infoLog (not debugLog) because missing agent during error handling
-      // indicates a potential race condition or cleanup issue worth investigating
-      infoLog(
-        'handleAgentError',
-        'Agent not found in running agents map - possible race condition',
-        {
-          taskId,
-          runningAgents: Array.from(this.runningAgents.keys()),
-        }
-      );
+      // Agent not in memory map (server restart or race condition).
+      // Still update the database so the agent doesn't stay stuck as 'running'.
+      infoLog('handleAgentError', 'Agent not found in running agents map - updating DB directly', {
+        taskId,
+        runningAgents: Array.from(this.runningAgents.keys()),
+      });
+
+      const agentId = `agent-${taskId}`;
+      try {
+        await this.db
+          .update(agents)
+          .set({
+            status: 'error',
+            currentTaskId: null,
+            currentSessionId: null,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agents.id, agentId));
+        await this.db
+          .update(tasks)
+          .set({
+            agentId: null,
+            sessionId: null,
+            lastAgentStatus: 'error',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, taskId));
+        infoLog('handleAgentError', 'DB updated for orphaned agent', { agentId, taskId });
+      } catch (dbErr) {
+        console.error('[ContainerAgentService] Failed to update orphaned agent status:', dbErr);
+      }
       return;
     }
 

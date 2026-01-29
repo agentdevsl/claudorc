@@ -233,7 +233,8 @@ function Dashboard(): React.JSX.Element {
           );
           setProjectSummaries(summaries);
 
-          // Poll at 5s when agents are running, 15s when idle
+          // Poll at 5s when agents are running for near-real-time updates,
+          // 15s when idle to detect newly started agents without stopping entirely
           const hasRunningAgents = summaries.some((s) => s.runningAgents.length > 0);
           const desiredInterval = hasRunningAgents ? 5000 : 15000;
 

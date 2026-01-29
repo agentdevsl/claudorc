@@ -268,7 +268,8 @@ export function useTaskCreation(projectId: string): UseTaskCreationReturn {
         return;
       }
 
-      // Prevent double-submission (ref check is synchronous - no race window)
+      // Prevent double-submission using a ref (not state) to avoid the async render
+      // gap where React state hasn't updated yet between rapid calls
       if (isAnsweringRef.current) {
         console.log('[useTaskCreation] Answer already in progress, ignoring');
         return;

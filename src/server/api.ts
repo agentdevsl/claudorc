@@ -17,8 +17,9 @@ process.on('unhandledRejection', (reason, promise) => {
 import { Database as BunSQLite } from 'bun:sqlite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
 import { settings } from '../db/schema/settings.js';
 import {
@@ -98,6 +99,32 @@ try {
 }
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
+
+// Reset stale agent statuses from previous server runs
+// Agents stuck in active states ('starting', 'planning', 'running') cannot be
+// legitimately running after a server restart — reset them to 'idle'.
+try {
+  const staleStatuses = ['starting', 'planning', 'running'] as const;
+  const result = db
+    .update(agents)
+    .set({
+      status: 'idle',
+      currentTaskId: null,
+      currentSessionId: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(inArray(agents.status, [...staleStatuses]))
+    .run();
+  const changes = (result as { changes?: number }).changes ?? 0;
+  if (changes > 0) {
+    console.log(`[API Server] Reset ${changes} stale agent(s) to idle`);
+  }
+} catch (error) {
+  console.error(
+    '[API Server] Failed to reset stale agents:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
 
 // Initialize services
 const githubService = new GitHubTokenService(db);
