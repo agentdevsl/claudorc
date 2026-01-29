@@ -15,4 +15,4 @@ export {
 
 export { type SandboxStatus, sandboxStatusSchema } from './schema.js';
 
-export { startSandboxStatusSync, stopSandboxStatusSync } from './sync.js';
+export { refreshSandboxStatus, startSandboxStatusSync, stopSandboxStatusSync } from './sync.js';

@@ -2,6 +2,7 @@ import { eq } from '@tanstack/db';
 import { useLiveQuery } from '@tanstack/react-db';
 import { useEffect } from 'react';
 import {
+  refreshSandboxStatus,
   type SandboxStatus,
   sandboxStatusCollection,
   startSandboxStatusSync,
@@ -18,6 +19,7 @@ export type { SandboxStatus };
 export function useSandboxStatus(projectId: string): {
   data: SandboxStatus | null;
   isLoading: boolean;
+  refetch: () => void;
 } {
   // Subscribe to collection changes using TanStack DB live query
   const { data } = useLiveQuery(
@@ -42,5 +44,6 @@ export function useSandboxStatus(projectId: string): {
   return {
     data: data?.[0] ?? null,
     isLoading: !sandboxStatusCollection.isReady(),
+    refetch: () => refreshSandboxStatus(projectId),
   };
 }

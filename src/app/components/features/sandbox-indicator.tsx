@@ -1,4 +1,4 @@
-import { Cube, CubeTransparent, Info, Spinner } from '@phosphor-icons/react';
+import { ArrowClockwise, Cube, CubeTransparent, Spinner } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import {
   Tooltip,
@@ -76,6 +76,8 @@ export interface SandboxIndicatorProps {
   containerStatus: ContainerStatus;
   dockerAvailable: boolean;
   isLoading?: boolean;
+  isRestarting?: boolean;
+  onRestart?: () => void;
   className?: string;
 }
 
@@ -88,9 +90,11 @@ export function SandboxIndicator({
   containerStatus,
   dockerAvailable,
   isLoading = false,
+  isRestarting = false,
+  onRestart,
   className,
 }: SandboxIndicatorProps): React.JSX.Element {
-  const isTransitioning = containerStatus === 'creating';
+  const isTransitioning = containerStatus === 'creating' || isRestarting;
   const modeLabel = mode === 'shared' ? 'Shared' : 'Per-Project';
 
   if (!dockerAvailable) {
@@ -167,8 +171,31 @@ export function SandboxIndicator({
               </span>
             </div>
 
-            {/* Info icon hint */}
-            <Info className="h-3.5 w-3.5 text-fg-muted opacity-50" />
+            {/* Restart button */}
+            {onRestart && dockerAvailable && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestart();
+                  }}
+                  disabled={isRestarting}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded transition-colors',
+                    'text-fg-muted hover:bg-surface hover:text-fg',
+                    'disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                  title="Restart container"
+                >
+                  <ArrowClockwise
+                    className={cn('h-3.5 w-3.5', isRestarting && 'animate-spin')}
+                    weight="bold"
+                  />
+                </button>
+              </>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[300px]">

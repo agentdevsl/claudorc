@@ -737,6 +737,57 @@ export class DockerProvider implements EventEmittingSandboxProvider {
     return cleaned;
   }
 
+  /**
+   * Restart a sandbox container by project ID.
+   * Stops the container if running and starts it again.
+   */
+  async restart(projectId: string): Promise<Sandbox | null> {
+    const sandboxId = this.projectToSandbox.get(projectId);
+    if (!sandboxId) {
+      console.log(`[DockerProvider] No sandbox found for project ${projectId}`);
+      return null;
+    }
+
+    const sandbox = this.sandboxes.get(sandboxId);
+    if (!sandbox) {
+      console.log(`[DockerProvider] Sandbox ${sandboxId} not in cache`);
+      return null;
+    }
+
+    try {
+      const container = this.docker.getContainer(sandbox.containerId);
+
+      // Stop if running
+      const info = await container.inspect();
+      if (info.State.Running) {
+        console.log(`[DockerProvider] Stopping container ${sandbox.containerId.slice(0, 12)}`);
+        await container.stop({ t: 5 });
+      }
+
+      // Start again
+      console.log(`[DockerProvider] Starting container ${sandbox.containerId.slice(0, 12)}`);
+      await container.start();
+
+      // Update sandbox status
+      (sandbox as { status: string }).status = 'running';
+      sandbox.touch();
+
+      this.emit({ type: 'sandbox:started', sandboxId });
+
+      console.log(`[DockerProvider] Container restarted successfully for project ${projectId}`);
+      return sandbox;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[DockerProvider] Failed to restart container:`, message);
+      this.emit({
+        type: 'sandbox:error',
+        sandboxId,
+        error: error instanceof Error ? error : new Error(message),
+      });
+      throw error;
+    }
+  }
+
   on(listener: SandboxProviderEventListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

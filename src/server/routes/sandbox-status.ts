@@ -74,5 +74,53 @@ export function createSandboxStatusRoutes({ db, dockerProvider }: SandboxStatusD
     }
   });
 
+  // POST /api/sandbox/status/:projectId/restart - Restart the sandbox container
+  app.post('/:projectId/restart', async (c) => {
+    const projectId = c.req.param('projectId');
+
+    if (!isValidId(projectId)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid project ID' } }, 400);
+    }
+
+    if (!dockerProvider) {
+      return json(
+        { ok: false, error: { code: 'DOCKER_UNAVAILABLE', message: 'Docker is not available' } },
+        503
+      );
+    }
+
+    try {
+      // Get sandbox mode to determine which container to restart
+      const modeSetting = await db.query.settings.findFirst({
+        where: eq(settings.key, 'sandbox.mode'),
+      });
+      const sandboxMode = modeSetting?.value ? JSON.parse(modeSetting.value) : 'shared';
+      const lookupId = sandboxMode === 'shared' ? 'default' : projectId;
+
+      // Cast to access restart method (it's on DockerProvider but not the interface)
+      const provider = dockerProvider as unknown as {
+        restart: (id: string) => Promise<unknown>;
+      };
+
+      if (typeof provider.restart !== 'function') {
+        return json(
+          { ok: false, error: { code: 'NOT_SUPPORTED', message: 'Restart not supported' } },
+          501
+        );
+      }
+
+      await provider.restart(lookupId);
+
+      return json({
+        ok: true,
+        data: { message: 'Container restarted successfully' },
+      });
+    } catch (error) {
+      console.error('[SandboxStatus] Restart error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to restart container';
+      return json({ ok: false, error: { code: 'RESTART_FAILED', message } }, 500);
+    }
+  });
+
   return app;
 }

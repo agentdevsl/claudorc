@@ -82,3 +82,13 @@ export function stopSandboxStatusSync(projectId: string): void {
     activeSyncs.delete(projectId);
   }
 }
+
+/**
+ * Force refresh sandbox status for a project
+ */
+export async function refreshSandboxStatus(projectId: string): Promise<void> {
+  const status = await fetchSandboxStatus(projectId);
+  if (status) {
+    updateSandboxStatus(status);
+  }
+}

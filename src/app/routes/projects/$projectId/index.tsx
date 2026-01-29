@@ -48,9 +48,36 @@ function ProjectKanban(): React.JSX.Element {
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [approvalTask, setApprovalTask] = useState<ClientTask | null>(null);
+  const [isRestartingSandbox, setIsRestartingSandbox] = useState(false);
 
   // Fetch sandbox status for the title bar indicator
-  const { data: sandboxStatus, isLoading: sandboxLoading } = useSandboxStatus(projectId);
+  const {
+    data: sandboxStatus,
+    isLoading: sandboxLoading,
+    refetch: refetchSandboxStatus,
+  } = useSandboxStatus(projectId);
+
+  // Handler to restart the sandbox container
+  const handleRestartSandbox = async () => {
+    setIsRestartingSandbox(true);
+    try {
+      const response = await fetch(`/api/sandbox/status/${projectId}/restart`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        showError('Failed to restart sandbox', error.error?.message || 'Unknown error');
+        return;
+      }
+      // Refetch sandbox status after restart
+      refetchSandboxStatus();
+    } catch (err) {
+      console.error('[ProjectKanban] Failed to restart sandbox:', err);
+      showError('Failed to restart sandbox', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsRestartingSandbox(false);
+    }
+  };
 
   // Fetch project and tasks from API
   const fetchData = useCallback(async () => {
@@ -233,6 +260,8 @@ function ProjectKanban(): React.JSX.Element {
               containerStatus={sandboxStatus.containerStatus}
               dockerAvailable={sandboxStatus.dockerAvailable}
               isLoading={sandboxLoading}
+              isRestarting={isRestartingSandbox}
+              onRestart={handleRestartSandbox}
             />
           )}
           <Link
