@@ -4,7 +4,6 @@ import { agentRuns } from '../../db/schema/agent-runs.js';
 import { agents } from '../../db/schema/agents.js';
 import { projects } from '../../db/schema/projects.js';
 import { sessions } from '../../db/schema/sessions.js';
-import { settings } from '../../db/schema/settings.js';
 import { tasks } from '../../db/schema/tasks.js';
 import { worktrees } from '../../db/schema/worktrees.js';
 import { createAgentHooks } from '../../lib/agents/hooks/index.js';
@@ -18,6 +17,7 @@ import { resolveModel } from '../../lib/utils/resolve-model.js';
 import type { Result } from '../../lib/utils/result.js';
 import { err, ok } from '../../lib/utils/result.js';
 import type { Database } from '../../types/database.js';
+import { getGlobalDefaultModel } from '../settings.service.js';
 import type {
   AgentRunResult,
   AgentStartResult,
@@ -190,18 +190,7 @@ export class AgentExecutionService {
       .modelOverride;
     const projectConfig = project?.config as { model?: string } | null;
 
-    // Read global default model from database settings
-    let globalDefault: string | undefined;
-    try {
-      const globalModelSetting = await this.db.query.settings.findFirst({
-        where: eq(settings.key, 'default_model'),
-      });
-      if (globalModelSetting?.value) {
-        globalDefault = JSON.parse(globalModelSetting.value) as string;
-      }
-    } catch {
-      // Fall through to hardcoded default
-    }
+    const globalDefault = await getGlobalDefaultModel(this.db);
 
     const resolvedModel = resolveModel({
       taskModelOverride: taskModelOverride,

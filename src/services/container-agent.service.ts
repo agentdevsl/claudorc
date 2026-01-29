@@ -29,9 +29,9 @@ function infoLog(context: string, message: string, data?: Record<string, unknown
 import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
 import { sessions } from '../db/schema/sessions.js';
-import { settings } from '../db/schema/settings.js';
 import { tasks } from '../db/schema/tasks.js';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
+import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { SandboxError } from '../lib/errors/sandbox-errors.js';
 import { SandboxErrors } from '../lib/errors/sandbox-errors.js';
 import type {
@@ -43,6 +43,7 @@ import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
 import type { ApiKeyService } from './api-key.service.js';
 import type { DurableStreamsService } from './durable-streams.service.js';
+import { getGlobalDefaultModel } from './settings.service.js';
 
 /**
  * Agent execution phase.
@@ -394,24 +395,14 @@ export class ContainerAgentService {
 
     // Resolve agent configuration
     // Model cascade: explicit param → project config → global default_model setting → hardcoded default
-    let resolvedModel = model ?? (project.config?.model as string | undefined);
-    if (!resolvedModel) {
-      try {
-        const globalModelSetting = await this.db.query.settings.findFirst({
-          where: eq(settings.key, 'default_model'),
-        });
-        if (globalModelSetting?.value) {
-          resolvedModel = JSON.parse(globalModelSetting.value) as string;
-          infoLog('startAgent', 'Using global default model setting', { model: resolvedModel });
-        }
-      } catch (settingsErr) {
-        infoLog('startAgent', 'Failed to load global model setting, using hardcoded default', {
-          error: settingsErr instanceof Error ? settingsErr.message : String(settingsErr),
-        });
-      }
-    }
+    // All values are expanded to full API model IDs (e.g. 'claude-opus-4-5-20251101')
+    const projectModel = project.config?.model as string | undefined;
+    const resolvedModel =
+      (model ? getFullModelId(model) : undefined) ??
+      (projectModel ? getFullModelId(projectModel) : undefined) ??
+      (await getGlobalDefaultModel(this.db));
     const agentConfig: AgentConfig = {
-      model: resolvedModel ?? 'claude-opus-4-5-20251101',
+      model: resolvedModel ?? getFullModelId(DEFAULT_AGENT_MODEL),
       maxTurns: maxTurns ?? project.config?.maxTurns ?? 50,
     };
     infoLog('startAgent', 'Resolved agent config', {
@@ -445,7 +436,7 @@ export class ContainerAgentService {
     try {
       await sandbox.exec('rm', ['-f', stopFilePath]);
     } catch {
-      // Best effort — file may not exist
+      // Best effort — exec itself may fail if container is not ready
     }
 
     // Stage: Credentials - get OAuth token
@@ -1192,7 +1183,7 @@ export class ContainerAgentService {
       sdkSessionId: planData.sdkSessionId,
     });
 
-    // Store plan data for later execution
+    // Store plan data for later execution (in-memory for fast access)
     this.pendingPlans.set(taskId, {
       taskId,
       sessionId,
@@ -1204,10 +1195,25 @@ export class ContainerAgentService {
       createdAt: new Date(),
     });
 
+    // Persist plan to the task record so it survives server restarts
+    this.db
+      .update(tasks)
+      .set({
+        plan: planData.plan,
+        planOptions: {
+          sdkSessionId: planData.sdkSessionId,
+          allowedPrompts: planData.allowedPrompts,
+        },
+        lastAgentStatus: 'planning',
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(tasks.id, taskId))
+      .run();
+
     // Clean up running agent (planning phase completed)
     this.runningAgents.delete(taskId);
 
-    infoLog('handlePlanReady', 'Plan stored, waiting for approval', {
+    infoLog('handlePlanReady', 'Plan persisted and stored, waiting for approval', {
       taskId,
       pendingPlans: this.pendingPlans.size,
       remainingAgents: this.runningAgents.size,
@@ -1216,16 +1222,59 @@ export class ContainerAgentService {
 
   /**
    * Get pending plan data for a task.
+   * Checks in-memory cache first, then falls back to the database
+   * (plan survives server restarts via the task record).
    */
   getPendingPlan(taskId: string): PlanData | undefined {
-    return this.pendingPlans.get(taskId);
+    const cached = this.pendingPlans.get(taskId);
+    if (cached) return cached;
+
+    // Recover from database if not in memory (e.g., after server restart)
+    // better-sqlite3 driver executes synchronously despite the Promise return type
+    const task = this.db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    }) as unknown as
+      | {
+          id: string;
+          projectId: string;
+          sessionId: string | null;
+          plan: string | null;
+          planOptions: {
+            sdkSessionId?: string;
+            allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+          } | null;
+          lastAgentStatus: string | null;
+        }
+      | undefined;
+
+    if (task?.plan && task.lastAgentStatus === 'planning') {
+      const planOptions = task.planOptions ?? {};
+
+      const recovered: PlanData = {
+        taskId,
+        sessionId: task.sessionId ?? '',
+        projectId: task.projectId,
+        plan: task.plan,
+        turnCount: 0,
+        sdkSessionId: planOptions.sdkSessionId ?? '',
+        allowedPrompts: planOptions.allowedPrompts,
+        createdAt: new Date(),
+      };
+
+      // Re-cache for subsequent calls
+      this.pendingPlans.set(taskId, recovered);
+      infoLog('getPendingPlan', 'Recovered plan from database', { taskId });
+      return recovered;
+    }
+
+    return undefined;
   }
 
   /**
    * Approve a plan and start execution phase.
    */
   async approvePlan(taskId: string): Promise<Result<void, SandboxError>> {
-    const planData = this.pendingPlans.get(taskId);
+    const planData = this.getPendingPlan(taskId);
     if (!planData) {
       infoLog('approvePlan', 'No pending plan found', { taskId });
       return err(SandboxErrors.PLAN_NOT_FOUND(taskId));

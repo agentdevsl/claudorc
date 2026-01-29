@@ -1,11 +1,36 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { Setting } from '../db/schema/settings.js';
 import { settings } from '../db/schema/settings.js';
+import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { AppError } from '../lib/errors/base.js';
 import { createError } from '../lib/errors/base.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+
+/** Settings key for the global default agent model */
+const DEFAULT_MODEL_KEY = 'default_model';
+
+/**
+ * Read the global default model from the database settings table.
+ * Returns the full API model ID (e.g. 'claude-opus-4-5-20251101'),
+ * or undefined if the setting is not found or cannot be parsed,
+ * allowing callers to fall through to a hardcoded default.
+ */
+export async function getGlobalDefaultModel(db: Database): Promise<string | undefined> {
+  try {
+    const row = await db.query.settings.findFirst({
+      where: eq(settings.key, DEFAULT_MODEL_KEY),
+    });
+    if (row?.value) {
+      const raw = JSON.parse(row.value) as string;
+      return getFullModelId(raw);
+    }
+  } catch {
+    // Fall through to undefined — callers apply their own default
+  }
+  return undefined;
+}
 
 export type SettingsError = AppError;
 
@@ -197,7 +222,7 @@ export class SettingsService {
 
   private static readonly TASK_CREATION_MODEL_KEY = 'taskCreation.model';
   private static readonly TASK_CREATION_TOOLS_KEY = 'taskCreation.tools';
-  private static readonly DEFAULT_MODEL = 'claude-opus-4-5-20251101';
+  private static readonly DEFAULT_MODEL = getFullModelId(DEFAULT_AGENT_MODEL);
   private static readonly DEFAULT_TOOLS = ['Read', 'Glob', 'Grep', 'AskUserQuestion'];
 
   /**

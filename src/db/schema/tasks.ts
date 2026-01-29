@@ -4,6 +4,12 @@ import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { ExitPlanModeOptions } from '../../lib/agents/stream-handler';
 import type { DiffSummary } from '../../lib/types/diff';
+
+/** Plan options stored on the task record, extending ExitPlanModeOptions with session context */
+export interface StoredPlanOptions extends ExitPlanModeOptions {
+  sdkSessionId?: string;
+}
+
 import { agents } from './agents';
 import type { TaskColumn, TaskPriority } from './enums';
 
@@ -41,17 +47,17 @@ export const tasks = sqliteTable('tasks', {
   rejectionReason: text('rejection_reason'),
   /** Model override for this task (short ID like 'claude-opus-4') */
   modelOverride: text('model_override'),
-  /** Plan options from ExitPlanMode (includes swarm settings) */
-  planOptions: text('plan_options', { mode: 'json' }).$type<ExitPlanModeOptions>(),
+  /** Plan options from ExitPlanMode plus SDK session context */
+  planOptions: text('plan_options', { mode: 'json' }).$type<StoredPlanOptions>(),
   /** The generated plan content */
   plan: text('plan'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
   startedAt: text('started_at'),
   completedAt: text('completed_at'),
-  /** Status of the last agent run: completed, cancelled, error, turn_limit */
+  /** Status of the last agent run: completed, cancelled, error, turn_limit, planning */
   lastAgentStatus: text('last_agent_status').$type<
-    'completed' | 'cancelled' | 'error' | 'turn_limit'
+    'completed' | 'cancelled' | 'error' | 'turn_limit' | 'planning'
   >(),
 });
 

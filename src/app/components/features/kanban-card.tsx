@@ -73,6 +73,11 @@ const LAST_RUN_STATUS_CONFIG: Record<
     label: 'Turn limit',
     className: 'bg-[var(--attention-muted)] text-[var(--attention-fg)]',
   },
+  planning: {
+    icon: <Lightning className="h-3 w-3" weight="fill" />,
+    label: 'Plan ready',
+    className: 'bg-[var(--secondary-muted)] text-[var(--secondary-fg)]',
+  },
 };
 
 /** Stage labels for status display */

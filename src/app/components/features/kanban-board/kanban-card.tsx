@@ -76,6 +76,8 @@ function getLastRunStatusInfo(status: Task['lastAgentStatus']): {
       return { icon: <WarningCircle className="w-3 h-3" weight="fill" />, label: 'Error' };
     case 'turn_limit':
       return { icon: <Warning className="w-3 h-3" weight="fill" />, label: 'Turn limit' };
+    case 'planning':
+      return { icon: <Lightning className="w-3 h-3" weight="fill" />, label: 'Plan ready' };
     default:
       return null;
   }

@@ -5,6 +5,7 @@ import { sessions } from '../db/schema/sessions.js';
 import { settings } from '../db/schema/settings.js';
 import type { Task, TaskColumn } from '../db/schema/tasks.js';
 import { tasks } from '../db/schema/tasks.js';
+import { getFullModelId } from '../lib/constants/models.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
 import type { TaskError } from '../lib/errors/task-errors.js';
 import { TaskErrors } from '../lib/errors/task-errors.js';
@@ -14,6 +15,7 @@ import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
 import type { StartAgentInput } from './container-agent.service.js';
+import { getGlobalDefaultModel } from './settings.service.js';
 import { canTransition } from './task-transitions.js';
 import type { GitDiff } from './worktree.service.js';
 
@@ -424,23 +426,12 @@ export class TaskService {
     const prompt = this.buildTaskPrompt(task);
 
     // Resolve model: project config → global default_model setting → hardcoded default
-    let resolvedModel = project.config?.model as string | undefined;
-    if (!resolvedModel) {
-      try {
-        const globalModelSetting = await this.db.query.settings.findFirst({
-          where: eq(settings.key, 'default_model'),
-        });
-        if (globalModelSetting?.value) {
-          resolvedModel = JSON.parse(globalModelSetting.value) as string;
-          console.log(`[TaskService] Using global default model: ${resolvedModel}`);
-        }
-      } catch (settingsErr) {
-        console.warn(
-          '[TaskService] Failed to load global model setting:',
-          settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
-        );
-      }
-    }
+    // getGlobalDefaultModel already returns a full API model ID; apply getFullModelId
+    // to the project config value too since it may store a short ID
+    const projectModel = project.config?.model as string | undefined;
+    const resolvedModel =
+      (projectModel ? getFullModelId(projectModel) : undefined) ??
+      (await getGlobalDefaultModel(this.db));
 
     // Trigger agent execution asynchronously - results flow through the stream
     // We don't await the full result; the client subscribes to the sessionId stream

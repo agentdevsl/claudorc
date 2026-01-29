@@ -134,6 +134,7 @@ export const lastRunStatusVariants = cva(
         cancelled: 'bg-surface-muted text-fg-muted',
         error: 'bg-danger-muted text-danger',
         turn_limit: 'bg-attention-muted text-attention',
+        planning: 'bg-secondary-muted text-secondary',
       },
     },
     defaultVariants: {
