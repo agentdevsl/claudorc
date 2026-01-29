@@ -362,11 +362,8 @@ export class AgentExecutionService {
           })
           .where(eq(tasks.id, taskId));
 
-        const swarmInfo = result.planOptions?.launchSwarm
-          ? ` (swarm: ${result.planOptions.teammateCount ?? 'default'} agents)`
-          : '';
         console.log(
-          `[AgentExecutionService] Agent ${agentId} planning complete${swarmInfo}, awaiting approval`
+          `[AgentExecutionService] Agent ${agentId} planning complete, awaiting approval`
         );
       } else if (result.status === 'completed') {
         await this.db

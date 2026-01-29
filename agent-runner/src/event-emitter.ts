@@ -83,12 +83,11 @@ export interface AgentPlanReadyData {
   plan: string;
   turnCount: number;
   sdkSessionId: string;
-  /** If true, agent requested swarm mode for execution */
-  launchSwarm?: boolean;
-  /** Number of parallel agents for swarm mode */
-  teammateCount?: number;
   /** Allowed bash prompts from ExitPlanMode */
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  // TODO: Pending GA — swarm features
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
 }
 
 // File descriptor for stdout (used for synchronous writes)

@@ -20,12 +20,13 @@ export interface StreamHandlerOptions {
 
 export interface ExitPlanModeOptions {
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
-  pushToRemote?: boolean;
-  remoteSessionId?: string;
-  remoteSessionUrl?: string;
-  remoteSessionTitle?: string;
-  launchSwarm?: boolean;
-  teammateCount?: number;
+  // TODO: Pending GA — swarm and remote session features
+  // pushToRemote?: boolean;
+  // remoteSessionId?: string;
+  // remoteSessionUrl?: string;
+  // remoteSessionTitle?: string;
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
 }
 
 export interface AgentRunResult {
@@ -103,12 +104,7 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
       const planOptions = input as ExitPlanModeOptions | undefined;
       exitPlanModeOptions = planOptions;
 
-      console.log(
-        `[StreamHandler] Agent ${agentId} ExitPlanMode captured via canUseTool`,
-        planOptions?.launchSwarm
-          ? `(swarm: ${planOptions.teammateCount ?? 'default'} agents)`
-          : '(single agent)'
-      );
+      console.log(`[StreamHandler] Agent ${agentId} ExitPlanMode captured via canUseTool`);
     }
     return { behavior: 'allow' as const, toolUseID: toolOptions.toolUseID };
   };
@@ -211,12 +207,7 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
             exitPlanModeOptions = toolSummary.tool_input as ExitPlanModeOptions;
           }
 
-          console.log(
-            `[StreamHandler] Agent ${agentId} ExitPlanMode completed - plan is ready`,
-            exitPlanModeOptions?.launchSwarm
-              ? `(swarm: ${exitPlanModeOptions.teammateCount ?? 'default'} agents)`
-              : '(single agent)'
-          );
+          console.log(`[StreamHandler] Agent ${agentId} ExitPlanMode completed - plan is ready`);
 
           // The plan content is in the accumulated text
           planContent = accumulated;
@@ -236,8 +227,6 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
             agentId,
             runId,
             plan: planContent || accumulated,
-            launchSwarm: exitPlanModeOptions?.launchSwarm,
-            teammateCount: exitPlanModeOptions?.teammateCount,
             allowedPrompts: exitPlanModeOptions?.allowedPrompts,
           },
         });
@@ -263,8 +252,6 @@ export async function runAgentPlanning(options: StreamHandlerOptions): Promise<A
         agentId,
         runId,
         plan: planContent || accumulated,
-        launchSwarm: exitPlanModeOptions?.launchSwarm,
-        teammateCount: exitPlanModeOptions?.teammateCount,
         allowedPrompts: exitPlanModeOptions?.allowedPrompts,
       },
     });

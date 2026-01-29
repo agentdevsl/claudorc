@@ -192,9 +192,10 @@ export interface ContainerAgentPlanReadyEvent {
   plan: string;
   turnCount: number;
   sdkSessionId: string;
-  launchSwarm?: boolean;
-  teammateCount?: number;
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  // TODO: Pending GA — swarm features
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
 }
 
 export interface ContainerAgentTaskUpdateFailedEvent {

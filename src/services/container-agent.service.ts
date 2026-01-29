@@ -100,10 +100,11 @@ export interface PlanData {
   plan: string;
   turnCount: number;
   sdkSessionId: string;
-  launchSwarm?: boolean;
-  teammateCount?: number;
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
   createdAt: Date;
+  // TODO: Pending GA — swarm features
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
 }
 
 /** TTL for pending plans in milliseconds (1 hour) */
@@ -588,7 +589,6 @@ export class ContainerAgentService {
           taskId,
           planLength: planData.plan.length,
           sdkSessionId: planData.sdkSessionId,
-          launchSwarm: planData.launchSwarm,
         });
         this.handlePlanReady(taskId, sessionId, projectId, planData);
       },
@@ -1182,8 +1182,6 @@ export class ContainerAgentService {
       plan: string;
       turnCount: number;
       sdkSessionId: string;
-      launchSwarm?: boolean;
-      teammateCount?: number;
       allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
     }
   ): void {
@@ -1192,8 +1190,6 @@ export class ContainerAgentService {
       sessionId,
       planLength: planData.plan.length,
       sdkSessionId: planData.sdkSessionId,
-      launchSwarm: planData.launchSwarm,
-      teammateCount: planData.teammateCount,
     });
 
     // Store plan data for later execution
@@ -1204,8 +1200,6 @@ export class ContainerAgentService {
       plan: planData.plan,
       turnCount: planData.turnCount,
       sdkSessionId: planData.sdkSessionId,
-      launchSwarm: planData.launchSwarm,
-      teammateCount: planData.teammateCount,
       allowedPrompts: planData.allowedPrompts,
       createdAt: new Date(),
     });
@@ -1240,7 +1234,6 @@ export class ContainerAgentService {
     infoLog('approvePlan', 'Approving plan and starting execution', {
       taskId,
       sdkSessionId: planData.sdkSessionId,
-      launchSwarm: planData.launchSwarm,
     });
 
     // Remove from pending plans

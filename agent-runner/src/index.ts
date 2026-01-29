@@ -248,12 +248,13 @@ async function shouldStop(): Promise<boolean> {
  */
 interface ExitPlanModeOptions {
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
-  launchSwarm?: boolean;
-  teammateCount?: number;
-  pushToRemote?: boolean;
-  remoteSessionId?: string;
-  remoteSessionUrl?: string;
-  remoteSessionTitle?: string;
+  // TODO: Pending GA — swarm and remote session features
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
+  // pushToRemote?: boolean;
+  // remoteSessionId?: string;
+  // remoteSessionUrl?: string;
+  // remoteSessionTitle?: string;
 }
 
 /**
@@ -326,12 +327,7 @@ async function runPlanningPhase(): Promise<void> {
         const planOptions = input as ExitPlanModeOptions | undefined;
         exitPlanModeOptions = planOptions;
 
-        console.error(
-          `[agent-runner] ExitPlanMode captured via canUseTool`,
-          planOptions?.launchSwarm
-            ? `(swarm: ${planOptions.teammateCount ?? 'default'} agents)`
-            : '(single agent)'
-        );
+        console.error('[agent-runner] ExitPlanMode captured via canUseTool');
       }
 
       // Allow all tools to proceed (we're in plan mode)
@@ -342,7 +338,7 @@ async function runPlanningPhase(): Promise<void> {
     // The SDK/CLI handles directory access via cwd and environment
     session = unstable_v2_createSession({
       model: config.model,
-      env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
+      env: { ...process.env }, // TODO: Pending GA — CLAUDE_CODE_AGENT_SWARMS env removed
       permissionMode: 'plan', // Planning mode - read-only exploration
       canUseTool, // Use official SDK callback for tool interception
     });
@@ -494,8 +490,6 @@ async function runPlanningPhase(): Promise<void> {
               plan: accumulatedText,
               turnCount: turn,
               sdkSessionId: sdkSessionId ?? '',
-              launchSwarm: exitPlanModeOptions?.launchSwarm,
-              teammateCount: exitPlanModeOptions?.teammateCount,
               allowedPrompts: exitPlanModeOptions?.allowedPrompts,
             });
             return;
@@ -531,8 +525,6 @@ async function runPlanningPhase(): Promise<void> {
             plan: accumulatedText,
             turnCount: turn,
             sdkSessionId: sdkSessionId ?? '',
-            launchSwarm: exitPlanModeOptions?.launchSwarm,
-            teammateCount: exitPlanModeOptions?.teammateCount,
             allowedPrompts: exitPlanModeOptions?.allowedPrompts,
           });
         } else {
@@ -561,8 +553,6 @@ async function runPlanningPhase(): Promise<void> {
         plan: accumulatedText,
         turnCount: turn,
         sdkSessionId: sdkSessionId ?? '',
-        launchSwarm: exitPlanModeOptions?.launchSwarm,
-        teammateCount: exitPlanModeOptions?.teammateCount,
         allowedPrompts: exitPlanModeOptions?.allowedPrompts,
       });
     } else {
@@ -660,7 +650,7 @@ async function runExecutionPhase(): Promise<void> {
       // Resume existing session
       session = unstable_v2_resumeSession(config.sdkSessionId, {
         model: config.model,
-        env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
+        env: { ...process.env }, // TODO: Pending GA — CLAUDE_CODE_AGENT_SWARMS env removed
         permissionMode: 'bypassPermissions',
         canUseTool, // Track tools even in bypass mode
       });
@@ -668,7 +658,7 @@ async function runExecutionPhase(): Promise<void> {
       // Create new session
       session = unstable_v2_createSession({
         model: config.model,
-        env: { ...process.env, CLAUDE_CODE_AGENT_SWARMS: 'true' },
+        env: { ...process.env }, // TODO: Pending GA — CLAUDE_CODE_AGENT_SWARMS env removed
         permissionMode: 'bypassPermissions',
         canUseTool, // Track tools even in bypass mode
       });

@@ -81,9 +81,10 @@ export interface PlanReadyData {
   plan: string;
   turnCount: number;
   sdkSessionId: string;
-  launchSwarm?: boolean;
-  teammateCount?: number;
   allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  // TODO: Pending GA — swarm features
+  // launchSwarm?: boolean;
+  // teammateCount?: number;
 }
 
 export interface ContainerBridgeOptions {
@@ -331,8 +332,6 @@ export function createContainerBridge(options: ContainerBridgeOptions): Containe
       taskId,
       turnCount: data.turnCount,
       sdkSessionId: data.sdkSessionId,
-      launchSwarm: data.launchSwarm,
-      teammateCount: data.teammateCount,
       planLength: data.plan.length,
     });
 
