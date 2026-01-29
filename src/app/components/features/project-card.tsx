@@ -1,4 +1,14 @@
-import { CheckCircle, Clock, Desktop, GearSix, Warning } from '@phosphor-icons/react';
+import {
+  CheckCircle,
+  Clock,
+  Desktop,
+  Eye,
+  GearSix,
+  Lightning,
+  Queue,
+  Stack,
+  Warning,
+} from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/app/components/ui/button';
 
@@ -75,19 +85,26 @@ export function getInitials(name: string): string {
 }
 
 interface MiniKanbanBarProps {
-  label: string;
+  icon: React.ReactNode;
+  title: string;
   count: number;
   total: number;
   colorClass: string;
 }
 
-function MiniKanbanBar({ label, count, total, colorClass }: MiniKanbanBarProps): React.JSX.Element {
+function MiniKanbanBar({
+  icon,
+  title,
+  count,
+  total,
+  colorClass,
+}: MiniKanbanBarProps): React.JSX.Element {
   const percentage = total > 0 ? (count / total) * 100 : 0;
   return (
-    <div className="flex-1 min-w-0 overflow-hidden">
-      <div className="flex flex-col items-center gap-0.5 mb-1.5 text-[10px] uppercase tracking-wide">
-        <span className={`truncate max-w-full ${colorClass}`}>{label}</span>
-        <span className={`font-semibold font-mono ${colorClass}`}>{count}</span>
+    <div className="flex-1 min-w-0 overflow-hidden" title={title}>
+      <div className="flex flex-col items-center gap-0.5 mb-1.5">
+        <span className={colorClass}>{icon}</span>
+        <span className={`font-semibold font-mono text-[10px] ${colorClass}`}>{count}</span>
       </div>
       <div className="h-1 bg-surface-muted rounded-full overflow-hidden">
         <div
@@ -157,31 +174,36 @@ export function ProjectCard({
         {/* Mini Kanban */}
         <div className="flex gap-1 mb-4">
           <MiniKanbanBar
-            label="Back"
+            icon={<Stack size={14} />}
+            title="Backlog"
             count={taskCounts.backlog}
             total={taskCounts.total}
             colorClass="text-fg-muted"
           />
           <MiniKanbanBar
-            label="Queue"
+            icon={<Queue size={14} />}
+            title="Queued"
             count={taskCounts.queued}
             total={taskCounts.total}
             colorClass="text-[var(--secondary-fg)]"
           />
           <MiniKanbanBar
-            label="Prog"
+            icon={<Lightning size={14} />}
+            title="In Progress"
             count={taskCounts.inProgress}
             total={taskCounts.total}
             colorClass="text-attention"
           />
           <MiniKanbanBar
-            label="Appr"
+            icon={<Eye size={14} />}
+            title="Waiting Approval"
             count={taskCounts.waitingApproval}
             total={taskCounts.total}
             colorClass="text-accent"
           />
           <MiniKanbanBar
-            label="Done"
+            icon={<CheckCircle size={14} />}
+            title="Done"
             count={taskCounts.verified}
             total={taskCounts.total}
             colorClass="text-success"

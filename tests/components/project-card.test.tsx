@@ -174,14 +174,14 @@ describe('ProjectCard', () => {
   });
 
   describe('MiniKanbanBar', () => {
-    it('renders all five column labels', () => {
+    it('renders all five column icons with tooltips', () => {
       render(<ProjectCard {...defaultProps} />);
-      // Component uses abbreviated labels for compact display
-      expect(screen.getByText('Back')).toBeInTheDocument();
-      expect(screen.getByText('Queue')).toBeInTheDocument();
-      expect(screen.getByText('Prog')).toBeInTheDocument();
-      expect(screen.getByText('Appr')).toBeInTheDocument();
-      expect(screen.getByText('Done')).toBeInTheDocument();
+      // Component uses icons with title attributes for tooltip accessibility
+      expect(screen.getByTitle('Backlog')).toBeInTheDocument();
+      expect(screen.getByTitle('Queued')).toBeInTheDocument();
+      expect(screen.getByTitle('In Progress')).toBeInTheDocument();
+      expect(screen.getByTitle('Waiting Approval')).toBeInTheDocument();
+      expect(screen.getByTitle('Done')).toBeInTheDocument();
     });
 
     it('renders correct counts', () => {
@@ -202,8 +202,8 @@ describe('ProjectCard', () => {
         total: 0,
       };
       render(<ProjectCard {...defaultProps} taskCounts={zeroTaskCounts} />);
-      // Should render without errors (using abbreviated label)
-      expect(screen.getByText('Back')).toBeInTheDocument();
+      // Should render without errors (icons still present via title)
+      expect(screen.getByTitle('Backlog')).toBeInTheDocument();
     });
   });
 
