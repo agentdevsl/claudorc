@@ -24,6 +24,12 @@ export const DEFAULT_API_ENDPOINT = DEFAULT_ANTHROPIC_BASE_URL;
  */
 export const AVAILABLE_MODELS = [
   {
+    id: 'claude-opus-4-5',
+    name: 'Claude Opus 4.5',
+    fullId: 'claude-opus-4-5-20251101',
+    description: 'Most capable, best for complex tasks',
+  },
+  {
     id: 'claude-sonnet-4',
     name: 'Claude Sonnet 4',
     fullId: 'claude-sonnet-4-20250514',
@@ -33,7 +39,7 @@ export const AVAILABLE_MODELS = [
     id: 'claude-opus-4',
     name: 'Claude Opus 4',
     fullId: 'claude-opus-4-20250514',
-    description: 'Most capable for complex tasks',
+    description: 'Strong reasoning and analysis',
   },
   {
     id: 'claude-haiku-4',
@@ -44,7 +50,7 @@ export const AVAILABLE_MODELS = [
 ] as const;
 
 /** Default model for agent execution */
-export const DEFAULT_AGENT_MODEL = 'claude-sonnet-4';
+export const DEFAULT_AGENT_MODEL = 'claude-opus-4-5';
 
 /** Default model for workflow designer AI */
 export const DEFAULT_WORKFLOW_MODEL = 'claude-haiku-4';

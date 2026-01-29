@@ -14,7 +14,7 @@
  * - AGENT_PHASE: Optional. 'plan' or 'execute' (default: 'execute' for backwards compatibility).
  * - AGENT_SDK_SESSION_ID: Optional. SDK session ID to resume (for execute phase after plan approval).
  * - AGENT_MAX_TURNS: Optional. Maximum turns (default: 50).
- * - AGENT_MODEL: Optional. Model to use (default: claude-sonnet-4-20250514).
+ * - AGENT_MODEL: Optional. Model to use (default: claude-opus-4-5-20251101).
  * - AGENT_CWD: Optional. Working directory (default: /workspace).
  * - AGENT_STOP_FILE: Optional. Sentinel file path for cancellation.
  *
@@ -44,7 +44,7 @@ const config = {
   phase: (process.env.AGENT_PHASE ?? 'execute') as AgentPhase,
   sdkSessionId: process.env.AGENT_SDK_SESSION_ID, // For resuming after plan approval
   maxTurns: parseInt(process.env.AGENT_MAX_TURNS ?? '50', 10),
-  model: process.env.AGENT_MODEL ?? 'claude-sonnet-4-20250514',
+  model: process.env.AGENT_MODEL ?? 'claude-opus-4-5-20251101',
   cwd: process.env.AGENT_CWD ?? '/workspace',
   stopFile: process.env.AGENT_STOP_FILE,
 };

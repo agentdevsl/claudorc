@@ -197,7 +197,7 @@ export class SettingsService {
 
   private static readonly TASK_CREATION_MODEL_KEY = 'taskCreation.model';
   private static readonly TASK_CREATION_TOOLS_KEY = 'taskCreation.tools';
-  private static readonly DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+  private static readonly DEFAULT_MODEL = 'claude-opus-4-5-20251101';
   private static readonly DEFAULT_TOOLS = ['Read', 'Glob', 'Grep', 'AskUserQuestion'];
 
   /**

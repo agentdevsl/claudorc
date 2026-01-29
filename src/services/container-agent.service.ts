@@ -29,6 +29,7 @@ function infoLog(context: string, message: string, data?: Record<string, unknown
 import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
 import { sessions } from '../db/schema/sessions.js';
+import { settings } from '../db/schema/settings.js';
 import { tasks } from '../db/schema/tasks.js';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
 import type { SandboxError } from '../lib/errors/sandbox-errors.js';
@@ -391,8 +392,25 @@ export class ContainerAgentService {
     infoLog('startAgent', 'Validating project configuration', { projectId, taskId });
 
     // Resolve agent configuration
+    // Model cascade: explicit param → project config → global default_model setting → hardcoded default
+    let resolvedModel = model ?? (project.config?.model as string | undefined);
+    if (!resolvedModel) {
+      try {
+        const globalModelSetting = await this.db.query.settings.findFirst({
+          where: eq(settings.key, 'default_model'),
+        });
+        if (globalModelSetting?.value) {
+          resolvedModel = JSON.parse(globalModelSetting.value) as string;
+          infoLog('startAgent', 'Using global default model setting', { model: resolvedModel });
+        }
+      } catch (settingsErr) {
+        infoLog('startAgent', 'Failed to load global model setting, using hardcoded default', {
+          error: settingsErr instanceof Error ? settingsErr.message : String(settingsErr),
+        });
+      }
+    }
     const agentConfig: AgentConfig = {
-      model: model ?? project.config?.model ?? 'claude-sonnet-4-20250514',
+      model: resolvedModel ?? 'claude-opus-4-5-20251101',
       maxTurns: maxTurns ?? project.config?.maxTurns ?? 50,
     };
     infoLog('startAgent', 'Resolved agent config', {
@@ -419,6 +437,15 @@ export class ContainerAgentService {
 
     // Create sentinel file path for cancellation
     const stopFilePath = `/tmp/.agent-stop-${taskId}`;
+
+    // Clear any stale stop file from a previous run of the same task
+    // Without this, re-running a task (e.g. after plan approval) can immediately
+    // self-cancel if the previous run's stop file wasn't cleaned up in time
+    try {
+      await sandbox.exec('rm', ['-f', stopFilePath]);
+    } catch {
+      // Best effort — file may not exist
+    }
 
     // Stage: Credentials - get OAuth token
     await this.streams.publish(sessionId, 'container-agent:status', {

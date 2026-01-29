@@ -423,11 +423,30 @@ export class TaskService {
     // Build task prompt
     const prompt = this.buildTaskPrompt(task);
 
+    // Resolve model: project config → global default_model setting → hardcoded default
+    let resolvedModel = project.config?.model as string | undefined;
+    if (!resolvedModel) {
+      try {
+        const globalModelSetting = await this.db.query.settings.findFirst({
+          where: eq(settings.key, 'default_model'),
+        });
+        if (globalModelSetting?.value) {
+          resolvedModel = JSON.parse(globalModelSetting.value) as string;
+          console.log(`[TaskService] Using global default model: ${resolvedModel}`);
+        }
+      } catch (settingsErr) {
+        console.warn(
+          '[TaskService] Failed to load global model setting:',
+          settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
+        );
+      }
+    }
+
     // Trigger agent execution asynchronously - results flow through the stream
     // We don't await the full result; the client subscribes to the sessionId stream
     // The sessionId was already set on the task in moveColumn() before this call
     console.log(
-      `[TaskService] Triggering container agent for task ${task.id}, sessionId: ${sessionId}`
+      `[TaskService] Triggering container agent for task ${task.id}, sessionId: ${sessionId}, model: ${resolvedModel ?? 'default'}`
     );
     this.containerAgentService
       .startAgent({
@@ -435,7 +454,7 @@ export class TaskService {
         taskId: task.id,
         sessionId,
         prompt,
-        model: project.config?.model,
+        model: resolvedModel,
         maxTurns: project.config?.maxTurns,
       })
       .then((result) => {

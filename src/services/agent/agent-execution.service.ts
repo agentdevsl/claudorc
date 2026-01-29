@@ -4,6 +4,7 @@ import { agentRuns } from '../../db/schema/agent-runs.js';
 import { agents } from '../../db/schema/agents.js';
 import { projects } from '../../db/schema/projects.js';
 import { sessions } from '../../db/schema/sessions.js';
+import { settings } from '../../db/schema/settings.js';
 import { tasks } from '../../db/schema/tasks.js';
 import { worktrees } from '../../db/schema/worktrees.js';
 import { createAgentHooks } from '../../lib/agents/hooks/index.js';
@@ -184,16 +185,29 @@ export class AgentExecutionService {
     });
 
     // Resolve model using cascade priority:
-    // Task.modelOverride → Agent.config.model → Project.config.model → Default
+    // Task.modelOverride → Agent.config.model → Project.config.model → Global setting → Default
     const taskModelOverride = (task as typeof task & { modelOverride?: string | null })
       .modelOverride;
     const projectConfig = project?.config as { model?: string } | null;
+
+    // Read global default model from database settings
+    let globalDefault: string | undefined;
+    try {
+      const globalModelSetting = await this.db.query.settings.findFirst({
+        where: eq(settings.key, 'default_model'),
+      });
+      if (globalModelSetting?.value) {
+        globalDefault = JSON.parse(globalModelSetting.value) as string;
+      }
+    } catch {
+      // Fall through to hardcoded default
+    }
+
     const resolvedModel = resolveModel({
       taskModelOverride: taskModelOverride,
       agentModel: agent.config?.model,
       projectModel: projectConfig?.model,
-      // Note: globalDefault is read from localStorage on client-side
-      // and passed through the agent config or API call
+      globalDefault,
     });
 
     // Build task prompt
