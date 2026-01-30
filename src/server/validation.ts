@@ -35,12 +35,16 @@ export const createTaskSchema = z.object({
   priority: taskPrioritySchema.optional(),
 });
 
-export const updateTaskSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
-  description: z.string().max(10000).optional(),
-  labels: z.array(z.string().max(50)).max(20).optional(),
-  priority: taskPrioritySchema.optional(),
-});
+export const updateTaskSchema = z
+  .object({
+    title: z.string().min(1).max(500).optional(),
+    description: z.string().max(10000).optional(),
+    labels: z.array(z.string().max(50)).max(20).optional(),
+    priority: taskPrioritySchema.optional(),
+  })
+  .refine((data) => Object.values(data).some((v) => v !== undefined), {
+    message: 'At least one field must be provided',
+  });
 
 export const moveTaskSchema = z.object({
   column: taskColumnSchema,

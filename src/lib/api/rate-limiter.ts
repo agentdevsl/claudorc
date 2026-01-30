@@ -12,18 +12,6 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
-const store = new Map<string, RateLimitEntry>();
-
-// Cleanup stale entries every 60s
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of store) {
-    if (entry.resetAt <= now) {
-      store.delete(key);
-    }
-  }
-}, 60_000);
-
 export interface RateLimitOptions {
   /** Max requests per window (default: 100) */
   max?: number;
@@ -40,6 +28,19 @@ export interface RateLimitOptions {
 export function rateLimiter(opts?: RateLimitOptions) {
   const max = opts?.max ?? 100;
   const windowMs = opts?.windowMs ?? 60_000;
+
+  const store = new Map<string, RateLimitEntry>();
+
+  // Cleanup stale entries every 60s
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of store) {
+      if (entry.resetAt <= now) {
+        store.delete(key);
+      }
+    }
+  }, 60_000);
+  cleanupInterval.unref();
 
   return async (c: Context, next: Next) => {
     // Use forwarded IP or remote address
