@@ -26,6 +26,12 @@ function infoLog(context: string, message: string, data?: Record<string, unknown
   console.log(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
 }
 
+function warnLog(context: string, message: string, data?: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  console.warn(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
+}
+
 import { agents } from '../db/schema/agents.js';
 import { projects } from '../db/schema/projects.js';
 import { sessions } from '../db/schema/sessions.js';
@@ -109,6 +115,7 @@ interface RunningAgent {
   stopRequested: boolean;
   phase: AgentPhase;
   worktreeId?: string;
+  timeoutHandle?: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -668,7 +675,7 @@ export class ContainerAgentService {
 
         const publishWorktreeFallback = async (error: unknown): Promise<void> => {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          infoLog('startAgent', 'Worktree creation failed, continuing without isolation', {
+          warnLog('startAgent', 'Worktree creation failed, continuing without isolation', {
             taskId,
             error: errorMessage,
           });
@@ -677,6 +684,12 @@ export class ContainerAgentService {
             sessionId,
             role: 'system',
             content: '⚠️ Could not create worktree — agent will work in main workspace',
+          });
+          await this.streams.publish(sessionId, 'container-agent:status', {
+            taskId,
+            sessionId,
+            stage: 'creating_sandbox',
+            message: 'Worktree creation failed — falling back to main workspace',
           });
         };
 
@@ -853,6 +866,18 @@ export class ContainerAgentService {
         };
 
         this.runningAgents.set(taskId, runningAgent);
+
+        // Set a maximum runtime timeout to prevent runaway agents
+        const maxRuntimeMs = Number(process.env.AGENT_MAX_RUNTIME_MS) || 2 * 60 * 60 * 1000;
+        runningAgent.timeoutHandle = setTimeout(() => {
+          infoLog('startAgent', 'Agent exceeded max runtime, stopping', {
+            taskId,
+            maxRuntimeMs,
+          });
+          this.stopAgent(taskId);
+        }, maxRuntimeMs);
+        runningAgent.timeoutHandle.unref();
+
         infoLog('startAgent', 'Agent registered as running', {
           taskId,
           totalRunning: this.runningAgents.size,
@@ -1322,7 +1347,8 @@ export class ContainerAgentService {
       });
     }
 
-    // Remove from running agents
+    // Clear runtime timeout and remove from running agents
+    clearTimeout(agent.timeoutHandle);
     this.runningAgents.delete(taskId);
     infoLog('handleAgentComplete', 'Agent completion handling finished', {
       taskId,
@@ -1487,7 +1513,8 @@ export class ContainerAgentService {
       });
     }
 
-    // Remove from running agents
+    // Clear runtime timeout and remove from running agents
+    clearTimeout(agent.timeoutHandle);
     this.runningAgents.delete(taskId);
     infoLog('handleAgentError', 'Agent error handling finished', {
       taskId,

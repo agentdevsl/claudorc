@@ -63,7 +63,8 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   if (options.background) {
     const childArgs = ['start', '--port', String(options.port)];
     if (options.watchPath) childArgs.push('--path', options.watchPath);
-    const child = spawn(process.execPath, [process.argv[1]!, ...childArgs], {
+    const scriptPath = process.argv[1] ?? '';
+    const child = spawn(process.execPath, [scriptPath, ...childArgs], {
       detached: true,
       stdio: 'ignore',
     });
