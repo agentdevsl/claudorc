@@ -106,7 +106,9 @@ export async function getAuthContext(
   }
 
   // 3. Development mode: Allow unauthenticated requests
-  if (process.env.NODE_ENV === 'development') {
+  // Treat unset NODE_ENV as development (matches api.ts convention)
+  const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+  if (isDev) {
     // Check for explicit skip or default dev user
     const skipAuth = process.env.SKIP_AUTH === 'true';
     if (skipAuth) {
