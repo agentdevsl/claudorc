@@ -288,7 +288,7 @@ export class ContainerAgentService {
         taskId,
         sessionId,
         role: 'system',
-        content: `🌿 Creating isolated git worktree` + ` for task "${task.title}"...`,
+        content: `🌿 Creating isolated git worktree for task "${task.title}"...`,
       });
 
       const publishFallback = async (error: unknown): Promise<void> => {
@@ -366,7 +366,7 @@ export class ContainerAgentService {
             taskId,
             sessionId,
             role: 'system',
-            content: '✅ Worktree created: branch' + ` "${worktreeResult.value.branch}"`,
+            content: `✅ Worktree created: branch "${worktreeResult.value.branch}"`,
           });
         } else {
           await publishFallback(worktreeResult.error);
