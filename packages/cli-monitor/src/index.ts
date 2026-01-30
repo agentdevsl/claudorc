@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 
-import { startDaemon } from './daemon.js';
+import fsp from 'node:fs/promises';
+import { isProcessRunning, LOCK_FILE, releaseLock, startDaemon } from './daemon.js';
+import { VERSION } from './version.js';
 
 const args = process.argv.slice(2);
 const command = args[0] || 'start';
@@ -27,7 +29,7 @@ if (flags.help || command === 'help') {
 }
 
 if (flags.version) {
-  console.log('0.1.0');
+  console.log(VERSION);
   process.exit(0);
 }
 
@@ -77,12 +79,27 @@ async function stopDaemon(serverPort: number) {
         body: JSON.stringify({ daemonId: data.data.daemon.daemonId }),
       });
       console.log('Daemon stopped.');
-    } else {
-      console.log('No daemon is running.');
+      return;
     }
   } catch {
-    console.log('Could not connect to AgentPane server.');
+    // Server unreachable — try PID lock file fallback
   }
+
+  // Fallback: read PID from lock file and send SIGTERM
+  try {
+    const content = await fsp.readFile(LOCK_FILE, 'utf-8');
+    const pid = parseInt(content, 10);
+    if (pid && isProcessRunning(pid)) {
+      process.kill(pid, 'SIGTERM');
+      await releaseLock();
+      console.log(`Daemon stopped (PID ${pid}).`);
+      return;
+    }
+  } catch {
+    // No lock file
+  }
+
+  console.log('No daemon is running.');
 }
 
 async function showStatus(serverPort: number) {

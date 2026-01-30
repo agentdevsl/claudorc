@@ -39,6 +39,8 @@ interface ContentBlock {
 
 type SessionStatus = 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
 
+const MAX_LINE_BYTES = 1_000_000; // 1MB per line
+
 export function parseJsonlFile(
   filePath: string,
   newContent: string,
@@ -53,6 +55,13 @@ export function parseJsonlFile(
     // Last element from split has no trailing \n
     const isLast = i === lines.length - 1;
     const lineBytes = Buffer.byteLength(isLast ? line : `${line}\n`, 'utf-8');
+
+    if (lineBytes > MAX_LINE_BYTES) {
+      console.warn(`[Parser] Skipping oversized line (${lineBytes} bytes) in ${filePath}`);
+      bytesConsumed += lineBytes;
+      continue;
+    }
+
     const trimmed = line.trim();
     if (!trimmed) {
       bytesConsumed += lineBytes;

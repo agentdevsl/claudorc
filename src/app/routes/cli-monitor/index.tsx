@@ -51,6 +51,19 @@ export const Route = createFileRoute('/cli-monitor/')({
   component: CliMonitorPage,
 });
 
+// -- Utilities --
+
+function getSessionTokenTotal(s: CliSession): number {
+  const t = s.tokenUsage;
+  if (!t) return 0;
+  return (
+    (t.inputTokens ?? 0) +
+    (t.outputTokens ?? 0) +
+    (t.cacheCreationTokens ?? 0) +
+    (t.cacheReadTokens ?? 0)
+  );
+}
+
 // -- Status Derivation --
 
 function deriveAggregateStatus(sessions: CliSession[]): AggregateStatus {
@@ -71,10 +84,18 @@ function useCliMonitorState() {
   const [sessions, setSessions] = useState<CliSession[]>([]);
   const [daemonConnected, setDaemonConnected] = useState(false);
   const [alerts, setAlerts] = useState<AlertToast[]>([]);
+  const [connectionError, setConnectionError] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const alertTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const reconnectCountRef = useRef(0);
 
   // Dismiss alert
   const dismissAlert = useCallback((id: string) => {
+    const timer = alertTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      alertTimersRef.current.delete(id);
+    }
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
@@ -90,10 +111,22 @@ function useCliMonitorState() {
     // Auto-dismiss
     if (alert.autoDismiss) {
       const timeout = alert.type === 'new-session' ? 3000 : 5000;
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        alertTimersRef.current.delete(id);
         setAlerts((prev) => prev.filter((a) => a.id !== id));
       }, timeout);
+      alertTimersRef.current.set(id, timer);
     }
+  }, []);
+
+  // Cleanup alert timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of alertTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      alertTimersRef.current.clear();
+    };
   }, []);
 
   // Poll for daemon on install page
@@ -122,6 +155,11 @@ function useCliMonitorState() {
     const streamUrl = apiClient.cliMonitor.getStreamUrl();
     const source = new EventSource(streamUrl);
     eventSourceRef.current = source;
+
+    source.onopen = () => {
+      reconnectCountRef.current = 0;
+      setConnectionError(false);
+    };
 
     source.onmessage = (event) => {
       try {
@@ -208,7 +246,10 @@ function useCliMonitorState() {
     };
 
     source.onerror = () => {
-      // Reconnection is handled automatically by EventSource
+      reconnectCountRef.current++;
+      if (reconnectCountRef.current >= 5) {
+        setConnectionError(true);
+      }
     };
 
     return () => {
@@ -219,14 +260,29 @@ function useCliMonitorState() {
 
   const aggregateStatus = deriveAggregateStatus(sessions);
 
-  return { pageState, sessions, daemonConnected, aggregateStatus, alerts, dismissAlert };
+  return {
+    pageState,
+    sessions,
+    daemonConnected,
+    aggregateStatus,
+    alerts,
+    dismissAlert,
+    connectionError,
+  };
 }
 
 // -- Main Page Component --
 
 function CliMonitorPage(): React.JSX.Element {
-  const { pageState, sessions, daemonConnected, aggregateStatus, alerts, dismissAlert } =
-    useCliMonitorState();
+  const {
+    pageState,
+    sessions,
+    daemonConnected,
+    aggregateStatus,
+    alerts,
+    dismissAlert,
+    connectionError,
+  } = useCliMonitorState();
 
   return (
     <LayoutShell
@@ -239,6 +295,14 @@ function CliMonitorPage(): React.JSX.Element {
       }
     >
       <div className="flex flex-1 flex-col overflow-hidden">
+        {connectionError && (
+          <div
+            className="flex items-center gap-2 bg-danger/10 px-4 py-2 text-sm text-danger"
+            role="alert"
+          >
+            Connection lost — retrying...
+          </div>
+        )}
         {pageState === 'install' && <InstallState />}
         {pageState === 'waiting' && <WaitingState />}
         {pageState === 'active' && (
@@ -305,11 +369,19 @@ function DaemonToggle({ connected }: { connected: boolean }) {
 
 function InstallState() {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText('npx @agentpane/cli-monitor');
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   }, []);
 
   return (
@@ -337,7 +409,8 @@ function InstallState() {
         <button
           type="button"
           onClick={handleCopy}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-accent bg-[#0a0e14] px-5 py-4 font-mono text-[15px] text-success shadow-[0_0_20px_rgba(88,166,255,0.1)] transition-all hover:-translate-y-0.5 hover:border-[#79b8ff] hover:shadow-[0_0_30px_rgba(88,166,255,0.2)]"
+          aria-label={copied ? 'Copied!' : 'Copy install command'}
+          className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-accent bg-default dark:bg-[#0a0e14] px-5 py-4 font-mono text-[15px] text-success shadow-[0_0_20px_rgba(88,166,255,0.1)] transition-all hover:-translate-y-0.5 hover:border-[#79b8ff] hover:shadow-[0_0_30px_rgba(88,166,255,0.2)]"
         >
           <span className="text-fg-subtle">$</span>
           <span className="flex-1 text-left">npx @agentpane/cli-monitor</span>
@@ -356,7 +429,7 @@ function InstallState() {
       {/* Info Strip */}
       <div className="flex w-full max-w-[480px] flex-col gap-2 text-left text-sm text-fg-muted">
         <div className="flex items-center gap-2">
-          <span className="text-fg-subtle">\uD83D\uDC41</span>
+          <span className="text-fg-subtle">{'\uD83D\uDC41'}</span>
           Watches{' '}
           <code className="rounded bg-accent/15 px-1 py-0.5 font-mono text-xs text-accent">
             ~/.claude/projects/
@@ -364,11 +437,11 @@ function InstallState() {
           for session logs
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-fg-subtle">\uD83D\uDD12</span>
+          <span className="text-fg-subtle">{'\uD83D\uDD12'}</span>
           Runs locally — no data leaves your machine
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-fg-subtle">\u23FB</span>
+          <span className="text-fg-subtle">{'\u23FB'}</span>
           Stop anytime:{' '}
           <code className="rounded bg-accent/15 px-1 py-0.5 font-mono text-xs text-accent">
             cli-monitor stop
@@ -440,7 +513,7 @@ function WaitingState() {
       <div className="text-[11px] font-bold uppercase tracking-wider text-fg-subtle">
         Try running
       </div>
-      <div className="inline-flex items-center gap-2 rounded-md border border-border bg-[#0a0e14] px-4 py-3 font-mono text-sm text-success">
+      <div className="inline-flex items-center gap-2 rounded-md border border-border bg-default dark:bg-[#0a0e14] px-4 py-3 font-mono text-sm text-success">
         <span className="text-fg-subtle">$</span>
         claude &quot;fix the auth bug&quot;
         <span className="inline-block h-3.5 w-2 animate-pulse bg-accent" />
@@ -469,18 +542,20 @@ function ActiveState({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const selectedSession = sessions.find((s) => s.sessionId === selectedSessionId);
 
+  // Escape key to close session detail
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedSessionId(null);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [selectedSessionId]);
+
   // Summary stats
   // Exclude subagents from summary stats to match visible card count
   const visibleSessions = sessions.filter((s) => !s.isSubagent);
-  const totalTokens = visibleSessions.reduce(
-    (sum, s) =>
-      sum +
-      s.tokenUsage.inputTokens +
-      s.tokenUsage.outputTokens +
-      s.tokenUsage.cacheCreationTokens +
-      s.tokenUsage.cacheReadTokens,
-    0
-  );
+  const totalTokens = visibleSessions.reduce((sum, s) => sum + getSessionTokenTotal(s), 0);
   const workingCount = visibleSessions.filter((s) => s.status === 'working').length;
   const waitingCount = visibleSessions.filter(
     (s) => s.status === 'waiting_for_approval' || s.status === 'waiting_for_input'
@@ -504,7 +579,7 @@ function ActiveState({
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Alert Toasts */}
       {alerts.length > 0 && (
-        <div className="flex flex-col items-center gap-2 px-6 py-2">
+        <output className="flex flex-col items-center gap-2 px-6 py-2" aria-live="polite">
           {alerts.slice(0, 3).map((alert) => (
             <AlertToastItem
               key={alert.id}
@@ -515,11 +590,11 @@ function ActiveState({
           {alerts.length > 3 && (
             <span className="text-xs text-fg-subtle">+{alerts.length - 3} more</span>
           )}
-        </div>
+        </output>
       )}
 
       {/* Summary Strip */}
-      <div className="grid grid-cols-4 gap-px border-b border-border bg-border">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px border-b border-border bg-border">
         <SummaryCard
           label="Active Sessions"
           value={visibleSessions.length}
@@ -599,9 +674,10 @@ function AlertToastItem({ alert, onDismiss }: { alert: AlertToast; onDismiss: ()
       <button
         type="button"
         onClick={onDismiss}
+        aria-label="Dismiss alert"
         className="flex h-6 w-6 items-center justify-center rounded text-fg-subtle hover:bg-emphasis hover:text-fg"
       >
-        \u2715
+        {'\u2715'}
       </button>
     </div>
   );
@@ -655,16 +731,13 @@ function SessionCard({
     idle: { dot: 'bg-fg-subtle', text: 'Idle', badge: 'bg-emphasis text-fg-muted' },
   }[session.status];
 
-  const totalTokens =
-    session.tokenUsage.inputTokens +
-    session.tokenUsage.outputTokens +
-    session.tokenUsage.cacheCreationTokens +
-    session.tokenUsage.cacheReadTokens;
+  const totalTokens = getSessionTokenTotal(session);
 
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={`Session: ${session.goal || session.sessionId.slice(0, 8)}`}
       className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
         selected
           ? 'border-accent bg-accent/5 shadow-md'
@@ -677,7 +750,7 @@ function SessionCard({
           {session.goal || session.sessionId.slice(0, 8)}
         </span>
         <span className="truncate font-mono text-xs text-fg-subtle">
-          {session.sessionId.slice(0, 7)} \u00B7 {session.projectName}
+          {session.sessionId.slice(0, 7)} {'\u00B7'} {session.projectName}
           {session.gitBranch && ` \u00B7 ${session.gitBranch}`}
         </span>
       </div>
@@ -692,13 +765,11 @@ function SessionCard({
 // -- Session Detail Panel --
 
 function SessionDetail({ session, onClose }: { session: CliSession; onClose: () => void }) {
-  const totalTokens =
-    session.tokenUsage.inputTokens +
-    session.tokenUsage.outputTokens +
-    session.tokenUsage.cacheCreationTokens +
-    session.tokenUsage.cacheReadTokens;
+  const totalTokens = getSessionTokenTotal(session);
   const durationMs = Date.now() - session.startedAt;
   const durationMin = Math.floor(durationMs / 60000);
+
+  const t = session.tokenUsage;
 
   return (
     <div className="flex h-[280px] shrink-0 border-t border-border bg-default animate-in slide-in-from-bottom-2">
@@ -711,7 +782,7 @@ function SessionDetail({ session, onClose }: { session: CliSession; onClose: () 
           </div>
           <span className="font-mono text-[11px] text-fg-subtle">{session.gitBranch}</span>
         </div>
-        <div className="flex-1 overflow-y-auto bg-[#0a0e14] p-3 font-mono text-xs leading-relaxed text-fg-muted">
+        <div className="flex-1 overflow-y-auto bg-default dark:bg-[#0a0e14] p-3 font-mono text-xs leading-relaxed text-fg-muted">
           {session.recentOutput ? (
             <div className="whitespace-pre-wrap">{session.recentOutput}</div>
           ) : (
@@ -730,19 +801,19 @@ function SessionDetail({ session, onClose }: { session: CliSession; onClose: () 
             <div className="flex justify-between">
               <span className="text-fg-muted">Input</span>
               <span className="font-mono font-medium">
-                {session.tokenUsage.inputTokens.toLocaleString()}
+                {(t?.inputTokens ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-fg-muted">Output</span>
               <span className="font-mono font-medium">
-                {session.tokenUsage.outputTokens.toLocaleString()}
+                {(t?.outputTokens ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-fg-muted">Cache</span>
               <span className="font-mono font-medium">
-                {session.tokenUsage.cacheReadTokens.toLocaleString()}
+                {(t?.cacheReadTokens ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between border-t border-border pt-1">
@@ -796,6 +867,7 @@ function SessionDetail({ session, onClose }: { session: CliSession; onClose: () 
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close session detail"
             className="flex-1 rounded border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10"
           >
             Close

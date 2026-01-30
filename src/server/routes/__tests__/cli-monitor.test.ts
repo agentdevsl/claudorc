@@ -33,9 +33,9 @@ function createTestApp() {
 
 async function request(app: Hono, method: string, path: string, body?: unknown) {
   const init: RequestInit = { method };
-  if (body) {
+  if (body !== undefined) {
     init.headers = { 'Content-Type': 'application/json' };
-    init.body = JSON.stringify(body);
+    init.body = typeof body === 'string' ? body : JSON.stringify(body);
   }
   return app.request(path, init);
 }
@@ -84,6 +84,82 @@ describe('CLI Monitor API Routes', () => {
       expect(res.status).toBe(200);
       expect(service.getDaemon()!.daemonId).toBe('daemon-2');
     });
+
+    it('returns 400 when daemonId is missing', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        pid: 123,
+        version: '0.1.0',
+        watchPath: '/tmp',
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 when pid is negative', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'daemon-1',
+        pid: -5,
+        version: '0.1.0',
+        watchPath: '/tmp',
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 when pid is a string', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'daemon-1',
+        pid: 'not-a-number',
+        version: '0.1.0',
+        watchPath: '/tmp',
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for non-JSON body', async () => {
+      ({ app, service } = createTestApp());
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json at all',
+      };
+      const res = await app.request('/api/cli-monitor/register', init);
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('INVALID_JSON');
+    });
+
+    it('returns 200 with valid minimal payload', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'd',
+        pid: 1,
+        version: 'v',
+        watchPath: '/',
+      });
+
+      expect(res.status).toBe(200);
+    });
   });
 
   // ── POST /heartbeat ──
@@ -122,6 +198,32 @@ describe('CLI Monitor API Routes', () => {
       const json = await res.json();
       expect(json.ok).toBe(false);
       expect(json.error.code).toBe('UNKNOWN_DAEMON');
+    });
+
+    it('returns 400 when daemonId is missing', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/heartbeat', {});
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for non-JSON body', async () => {
+      ({ app, service } = createTestApp());
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{broken',
+      };
+      const res = await app.request('/api/cli-monitor/heartbeat', init);
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe('INVALID_JSON');
     });
   });
 
@@ -208,6 +310,64 @@ describe('CLI Monitor API Routes', () => {
       const json = await res.json();
       expect(json).toEqual({ ok: true });
     });
+
+    it('returns 400 for malformed session object', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/ingest', {
+        daemonId: 'daemon-1',
+        sessions: [{ invalid: true }],
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for oversized sessions array (>500)', async () => {
+      ({ app, service } = createTestApp());
+
+      const sessions = Array.from({ length: 501 }, (_, i) => ({
+        sessionId: `sess-${i}`,
+        filePath: `/test/sess-${i}.jsonl`,
+        cwd: '/project',
+        projectName: 'project',
+        status: 'working',
+        messageCount: 0,
+        turnCount: 0,
+        tokenUsage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+        startedAt: Date.now(),
+        lastActivityAt: Date.now(),
+        lastReadOffset: 0,
+        isSubagent: false,
+      }));
+
+      const res = await request(app, 'POST', '/api/cli-monitor/ingest', {
+        daemonId: 'daemon-1',
+        sessions,
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for non-JSON body', async () => {
+      ({ app, service } = createTestApp());
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json',
+      };
+      const res = await app.request('/api/cli-monitor/ingest', init);
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe('INVALID_JSON');
+    });
   });
 
   // ── POST /deregister ──
@@ -245,6 +405,32 @@ describe('CLI Monitor API Routes', () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json).toEqual({ ok: true });
+    });
+
+    it('returns 400 when daemonId is missing', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/deregister', {});
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for non-JSON body', async () => {
+      ({ app, service } = createTestApp());
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '!!!',
+      };
+      const res = await app.request('/api/cli-monitor/deregister', init);
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe('INVALID_JSON');
     });
   });
 

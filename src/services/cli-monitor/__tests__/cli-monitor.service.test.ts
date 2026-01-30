@@ -357,6 +357,83 @@ describe('CliMonitorService', () => {
     });
   });
 
+  // ── Session Memory Limit ──
+
+  describe('session memory limit', () => {
+    it('evicts oldest sessions when exceeding MAX_SESSIONS limit', () => {
+      service.registerDaemon(makeDaemonPayload());
+
+      // Ingest exactly MAX_SESSIONS (10,000) sessions
+      const batchSize = 500;
+      for (let batch = 0; batch < 20; batch++) {
+        const sessions = Array.from({ length: batchSize }, (_, i) => {
+          const idx = batch * batchSize + i;
+          return makeSession({
+            sessionId: `sess-${idx}`,
+            lastActivityAt: Date.now() - (10000 - idx) * 1000, // Oldest first
+          });
+        });
+        service.ingestSessions('daemon-1', sessions, []);
+      }
+
+      expect(service.getSessionCount()).toBe(10_000);
+
+      // Ingest one more session — should evict the oldest
+      streamsServer.publish.mockClear();
+      service.ingestSessions(
+        'daemon-1',
+        [makeSession({ sessionId: 'sess-new', lastActivityAt: Date.now() })],
+        []
+      );
+
+      expect(service.getSessionCount()).toBe(10_000);
+
+      // Verify eviction published session-removed
+      const removedCalls = streamsServer.publish.mock.calls.filter(
+        (call) => call[1] === 'cli-monitor:session-removed'
+      );
+      expect(removedCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('publishes session-removed events for evicted sessions', () => {
+      service.registerDaemon(makeDaemonPayload());
+
+      // Fill to near capacity (9,999)
+      const sessions = Array.from({ length: 9_999 }, (_, i) =>
+        makeSession({
+          sessionId: `sess-${i}`,
+          lastActivityAt: Date.now() - (10000 - i) * 1000,
+        })
+      );
+
+      // Ingest in batches
+      for (let i = 0; i < sessions.length; i += 500) {
+        service.ingestSessions('daemon-1', sessions.slice(i, i + 500), []);
+      }
+
+      expect(service.getSessionCount()).toBe(9_999);
+
+      streamsServer.publish.mockClear();
+
+      // Add 2 new sessions, pushing over limit by 1
+      service.ingestSessions(
+        'daemon-1',
+        [
+          makeSession({ sessionId: 'new-1', lastActivityAt: Date.now() }),
+          makeSession({ sessionId: 'new-2', lastActivityAt: Date.now() }),
+        ],
+        []
+      );
+
+      // Should have evicted 1 session
+      const removedCalls = streamsServer.publish.mock.calls.filter(
+        (call) => call[1] === 'cli-monitor:session-removed'
+      );
+      expect(removedCalls.length).toBe(1);
+      expect(service.getSessionCount()).toBe(10_000);
+    });
+  });
+
   // ── Deregistration ──
 
   describe('deregisterDaemon', () => {

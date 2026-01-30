@@ -1,10 +1,54 @@
+import fsp from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { AgentPaneClient } from './agentpane-client.js';
 import { printError, printStatusBox } from './display.js';
 import { SessionStore } from './session-store.js';
 import { createId } from './utils.js';
+import { VERSION } from './version.js';
 import { FileWatcher } from './watcher.js';
+
+// ── PID Lock ──
+
+const LOCK_FILE = path.join(homedir(), '.claude', '.cli-monitor.lock');
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function acquireLock(): Promise<boolean> {
+  try {
+    try {
+      const content = await fsp.readFile(LOCK_FILE, 'utf-8');
+      const pid = parseInt(content, 10);
+      if (pid && isProcessRunning(pid)) {
+        return false; // Another daemon is running
+      }
+    } catch {
+      // No lock file exists
+    }
+    await fsp.mkdir(path.dirname(LOCK_FILE), { recursive: true });
+    await fsp.writeFile(LOCK_FILE, String(process.pid));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function releaseLock(): Promise<void> {
+  try {
+    await fsp.unlink(LOCK_FILE);
+  } catch {
+    /* ok */
+  }
+}
+
+export { LOCK_FILE, acquireLock, releaseLock, isProcessRunning };
 
 export interface DaemonOptions {
   port: number;
@@ -40,11 +84,28 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
         err instanceof Error ? err.message : err
       );
     }
+    await releaseLock();
     process.exit(0);
   };
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  process.on('uncaughtException', (error) => {
+    console.error('[Daemon] Uncaught exception:', error);
+    shutdown();
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Daemon] Unhandled rejection:', reason);
+  });
+
+  // Acquire PID lock
+  const lockAcquired = await acquireLock();
+  if (!lockAcquired) {
+    console.error('[Daemon] Another daemon instance is already running. Exiting.');
+    process.exit(1);
+  }
 
   // Connect to AgentPane with retry
   let connected = false;
@@ -56,7 +117,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
       await client.register({
         daemonId,
         pid: process.pid,
-        version: '0.1.0',
+        version: VERSION,
         watchPath: watchDir,
         capabilities: ['watch', 'parse', 'subagents'],
         startedAt: Date.now(),
@@ -81,7 +142,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   // Print status
   const fileCount = store.getSessionCount();
   printStatusBox({
-    version: '0.1.0',
+    version: VERSION,
     serverUrl: `http://localhost:${options.port}`,
     watchPath: watchDir,
     sessionCount: fileCount,
@@ -98,7 +159,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
         await client.register({
           daemonId,
           pid: process.pid,
-          version: '0.1.0',
+          version: VERSION,
           watchPath: watchDir,
           capabilities: ['watch', 'parse', 'subagents'],
           startedAt: Date.now(),

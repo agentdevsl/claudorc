@@ -165,6 +165,13 @@ export class FileWatcher {
   }
 
   private async processFile(filePath: string): Promise<void> {
+    // Validate path is within watch directory
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(this.watchDir))) {
+      console.warn('[Watcher] Skipping file outside watch directory:', filePath);
+      return;
+    }
+
     try {
       const stat = await fsp.stat(filePath);
       const existingOffset = this.store.getReadOffset(filePath);

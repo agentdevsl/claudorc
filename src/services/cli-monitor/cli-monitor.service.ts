@@ -14,6 +14,8 @@ interface StreamsServer {
 const CLI_MONITOR_STREAM_ID = 'cli-monitor';
 
 export class CliMonitorService {
+  private static readonly MAX_SESSIONS = 10_000;
+
   private sessions = new Map<string, CliSession>();
   private daemon: DaemonInfo | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -72,6 +74,22 @@ export class CliMonitorService {
   ingestSessions(daemonId: string, sessions: CliSession[], removedIds: string[]): boolean {
     if (this.daemon?.daemonId !== daemonId) {
       return false;
+    }
+
+    // Evict oldest sessions if adding would exceed limit
+    const newSessionCount = sessions.filter((s) => !this.sessions.has(s.sessionId)).length;
+    if (this.sessions.size + newSessionCount > CliMonitorService.MAX_SESSIONS) {
+      const sorted = Array.from(this.sessions.entries()).sort(
+        (a, b) => a[1].lastActivityAt - b[1].lastActivityAt
+      );
+      const toEvict = this.sessions.size + newSessionCount - CliMonitorService.MAX_SESSIONS;
+      for (let i = 0; i < toEvict && i < sorted.length; i++) {
+        const entry = sorted[i];
+        if (!entry) continue;
+        const [id] = entry;
+        this.sessions.delete(id);
+        this.publish('cli-monitor:session-removed', { sessionId: id });
+      }
     }
 
     for (const session of sessions) {

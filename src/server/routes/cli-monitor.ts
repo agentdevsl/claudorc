@@ -6,7 +6,90 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { CliMonitorService } from '../../services/cli-monitor/cli-monitor.service.js';
+
+// ── Zod Schemas ──
+
+const registerSchema = z.object({
+  daemonId: z.string().min(1).max(200),
+  pid: z.number().int().positive(),
+  version: z.string().min(1).max(50),
+  watchPath: z.string().min(1).max(1000),
+  capabilities: z.array(z.string()).default([]),
+  startedAt: z.number().optional(),
+});
+
+const heartbeatSchema = z.object({
+  daemonId: z.string().min(1).max(200),
+  sessionCount: z.number().int().nonnegative().default(0),
+});
+
+const ingestSchema = z.object({
+  daemonId: z.string().min(1).max(200),
+  sessions: z
+    .array(
+      z.object({
+        sessionId: z.string().min(1),
+        filePath: z.string(),
+        cwd: z.string(),
+        projectName: z.string(),
+        projectHash: z.string().optional().default(''),
+        status: z.enum(['working', 'waiting_for_approval', 'waiting_for_input', 'idle']),
+        messageCount: z.number().int().nonnegative(),
+        turnCount: z.number().int().nonnegative(),
+        tokenUsage: z.object({
+          inputTokens: z.number().nonnegative().default(0),
+          outputTokens: z.number().nonnegative().default(0),
+          cacheCreationTokens: z.number().nonnegative().default(0),
+          cacheReadTokens: z.number().nonnegative().default(0),
+        }),
+        startedAt: z.number(),
+        lastActivityAt: z.number(),
+        lastReadOffset: z.number().nonnegative().default(0),
+        isSubagent: z.boolean().default(false),
+        gitBranch: z.string().optional(),
+        goal: z.string().max(500).optional(),
+        recentOutput: z.string().max(1000).optional(),
+        pendingToolUse: z
+          .object({
+            toolName: z.string(),
+            toolId: z.string(),
+          })
+          .optional(),
+        model: z.string().optional(),
+        parentSessionId: z.string().optional(),
+      })
+    )
+    .max(500)
+    .default([]),
+  removedSessionIds: z.array(z.string()).max(500).default([]),
+});
+
+const deregisterSchema = z.object({
+  daemonId: z.string().min(1).max(200),
+});
+
+// ── Helpers ──
+
+function validationError(
+  c: { json: (data: unknown, status: number) => Response },
+  issues: z.ZodIssue[]
+) {
+  return c.json(
+    {
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: issues[0]?.message ?? 'Invalid payload' },
+    },
+    400
+  );
+}
+
+function invalidJsonError(c: { json: (data: unknown, status: number) => Response }) {
+  return c.json({ ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } }, 400);
+}
+
+// ── Route Factory ──
 
 interface CliMonitorDeps {
   cliMonitorService: CliMonitorService;
@@ -19,22 +102,43 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /register — Daemon announces itself
   app.post('/register', async (c) => {
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return invalidJsonError(c);
+    }
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(c, parsed.error.issues);
+    }
     cliMonitorService.registerDaemon({
-      daemonId: body.daemonId,
-      pid: body.pid,
-      version: body.version,
-      watchPath: body.watchPath,
-      capabilities: body.capabilities || [],
-      startedAt: body.startedAt || Date.now(),
+      daemonId: parsed.data.daemonId,
+      pid: parsed.data.pid,
+      version: parsed.data.version,
+      watchPath: parsed.data.watchPath,
+      capabilities: parsed.data.capabilities,
+      startedAt: parsed.data.startedAt || Date.now(),
     });
     return c.json({ ok: true });
   });
 
   // POST /heartbeat — Daemon keepalive
   app.post('/heartbeat', async (c) => {
-    const body = await c.req.json();
-    const accepted = cliMonitorService.handleHeartbeat(body.daemonId, body.sessionCount || 0);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return invalidJsonError(c);
+    }
+    const parsed = heartbeatSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(c, parsed.error.issues);
+    }
+    const accepted = cliMonitorService.handleHeartbeat(
+      parsed.data.daemonId,
+      parsed.data.sessionCount
+    );
     if (!accepted) {
       return c.json(
         { ok: false, error: { code: 'UNKNOWN_DAEMON', message: 'Daemon not registered' } },
@@ -46,11 +150,20 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /ingest — Daemon pushes session updates
   app.post('/ingest', async (c) => {
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return invalidJsonError(c);
+    }
+    const parsed = ingestSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(c, parsed.error.issues);
+    }
     const accepted = cliMonitorService.ingestSessions(
-      body.daemonId,
-      body.sessions || [],
-      body.removedSessionIds || []
+      parsed.data.daemonId,
+      parsed.data.sessions as never[],
+      parsed.data.removedSessionIds
     );
     if (!accepted) {
       return c.json(
@@ -63,8 +176,17 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /deregister — Daemon shutting down
   app.post('/deregister', async (c) => {
-    const body = await c.req.json();
-    cliMonitorService.deregisterDaemon(body.daemonId);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return invalidJsonError(c);
+    }
+    const parsed = deregisterSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(c, parsed.error.issues);
+    }
+    cliMonitorService.deregisterDaemon(parsed.data.daemonId);
     return c.json({ ok: true });
   });
 
