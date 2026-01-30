@@ -1147,7 +1147,7 @@ export class ContainerAgentService {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[ContainerAgentService] Failed to update task status:', {
+      infoLog('handleAgentComplete', 'Failed to update task status', {
         taskId,
         status,
         error: errorMessage,
@@ -1161,11 +1161,10 @@ export class ContainerAgentService {
           attemptedStatus: status,
         });
       } catch (publishErr) {
-        // If we can't even publish the error, just log it
-        console.error(
-          '[ContainerAgentService] Failed to publish task update error event:',
-          publishErr
-        );
+        infoLog('handleAgentComplete', 'Failed to publish task update error event', {
+          taskId,
+          error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+        });
       }
     }
 
@@ -1332,7 +1331,7 @@ export class ContainerAgentService {
       debugLog('handleAgentError', 'Task agent refs cleared, status set to error', { taskId });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('[ContainerAgentService] Failed to update task status:', {
+      infoLog('handleAgentError', 'Failed to update task status', {
         taskId,
         status: 'error',
         error: errorMessage,
@@ -1346,11 +1345,10 @@ export class ContainerAgentService {
           attemptedStatus: 'error',
         });
       } catch (publishErr) {
-        // If we can't even publish the error, just log it
-        console.error(
-          '[ContainerAgentService] Failed to publish task update error event:',
-          publishErr
-        );
+        infoLog('handleAgentError', 'Failed to publish task update error event', {
+          taskId,
+          error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+        });
       }
     }
 
@@ -1436,7 +1434,7 @@ export class ContainerAgentService {
         .run();
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      console.error('[ContainerAgentService] CRITICAL: Failed to persist plan to database:', {
+      infoLog('handlePlanReady', 'CRITICAL: Failed to persist plan to database', {
         taskId,
         error: errorMessage,
       });
@@ -1452,10 +1450,10 @@ export class ContainerAgentService {
           turnCount: planData.turnCount,
         })
         .catch((publishErr) => {
-          console.error(
-            '[ContainerAgentService] Failed to publish plan DB error event:',
-            publishErr
-          );
+          infoLog('handlePlanReady', 'Failed to publish plan DB error event', {
+            taskId,
+            error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+          });
         });
       // Clean up running agent and return early
       this.runningAgents.delete(taskId);
@@ -1538,7 +1536,7 @@ export class ContainerAgentService {
         .run();
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      console.error('[ContainerAgentService] Failed to move task to in_progress for execution:', {
+      infoLog('approvePlan', 'Failed to move task to in_progress for execution', {
         taskId,
         error: errorMessage,
       });
@@ -1598,7 +1596,7 @@ export class ContainerAgentService {
       infoLog('rejectPlan', 'Task moved to backlog and plan cleared', { taskId, reason });
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      console.error('[ContainerAgentService] Failed to update task on plan rejection:', {
+      infoLog('rejectPlan', 'Failed to update task on plan rejection', {
         taskId,
         error: errorMessage,
       });
