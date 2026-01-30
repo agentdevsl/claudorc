@@ -423,7 +423,8 @@ export function parseEventsToStreamEntries(
       content = toolName;
       toolCall = {
         name: toolName,
-        input: resultData.input ?? {},
+        input:
+          (toolId ? toolStartEvents.get(toolId)?.data.input : undefined) ?? resultData.input ?? {},
         output: resultData.output,
         status: hasError ? 'error' : 'complete',
         startTimeOffset,
@@ -618,7 +619,10 @@ export function parseEventsToStreamEntries(
         content = toolName;
         toolCall = {
           name: toolName,
-          input: resultData.input ?? {},
+          input:
+            (toolId ? toolStartEvents.get(toolId)?.data.input : undefined) ??
+            resultData.input ??
+            {},
           output: resultData.output,
           status: hasError ? 'error' : 'complete',
           startTimeOffset,

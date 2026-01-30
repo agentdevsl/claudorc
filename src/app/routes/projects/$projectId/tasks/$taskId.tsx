@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
@@ -8,7 +8,7 @@ import { apiClient, type ProjectListItem } from '@/lib/api/client';
 // Client task type - subset of Task for client-side display
 type ClientTask = Pick<
   Task,
-  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position'
+  'id' | 'projectId' | 'title' | 'description' | 'column' | 'position' | 'sessionId'
 > & {
   priority?: 'low' | 'medium' | 'high' | 'critical';
 };
@@ -18,6 +18,7 @@ export const Route = createFileRoute('/projects/$projectId/tasks/$taskId')({
 });
 
 function TaskDetailRoute(): React.JSX.Element {
+  const router = useRouter();
   const { projectId, taskId } = Route.useParams();
   const [task, setTask] = useState<ClientTask | null>(null);
   const [project, setProject] = useState<ProjectListItem | null>(null);
@@ -73,13 +74,20 @@ function TaskDetailRoute(): React.JSX.Element {
       <TaskDetailDialog
         task={task as Parameters<typeof TaskDetailDialog>[0]['task']}
         open
-        onOpenChange={() => {}}
+        onOpenChange={(open) => {
+          if (!open) {
+            router.navigate({ to: '/projects/$projectId', params: { projectId } });
+          }
+        }}
         onSave={async (data) => {
           // TODO: Add API endpoint for updating tasks
           setTask((prev) => (prev ? { ...prev, ...data } : null));
         }}
         onDelete={async (_id) => {
           // TODO: Add API endpoint for deleting tasks
+        }}
+        onViewSession={(sessionId) => {
+          window.location.href = `/projects/${projectId}/sessions/${sessionId}`;
         }}
       />
     </LayoutShell>
