@@ -2,6 +2,25 @@
 
 This directory contains type-safe mock builders for testing AgentPane services and infrastructure.
 
+## Quick Start
+
+For most tests, use **pre-configured scenarios** instead of building mocks manually:
+
+```typescript
+import { createTaskServiceScenario } from '../mocks/mock-scenarios';
+
+it('creates a task', async () => {
+  const scenario = createTaskServiceScenario();
+  const result = await scenario.service.create({
+    projectId: 'proj-1',
+    title: 'Build feature',
+  });
+  expect(result.ok).toBe(true);
+});
+```
+
+See the **Mock Scenarios** section below for complete documentation.
+
 ## Available Mocks
 
 ### Database Mocks (`mock-builders.ts`) ⭐ NEW
@@ -32,7 +51,45 @@ Type-safe database mocking that eliminates the need for `as never` casts.
 
 See `MIGRATION_GUIDE.md` for migration instructions and `mock-builders.example.test.ts` for working examples.
 
-### Service Mocks (`services.ts`)
+### Mock Scenarios (`mock-scenarios.ts`) ⭐ RECOMMENDED
+
+**Pre-configured complete test scenarios** that wire together all mocks. Use these instead of building mocks piecemeal.
+
+#### Available Scenarios
+
+1. **`createTaskServiceScenario(overrides?)`** - TaskService with db, worktree, and container agent
+2. **`createAgentServiceScenario(overrides?)`** - AgentExecutionService with all dependencies
+3. **`createProjectServiceScenario(overrides?)`** - ProjectService with db, worktree, and runner
+4. **`createSessionServiceScenario(overrides?)`** - SessionService with db and streams
+5. **`createContainerAgentScenario(overrides?)`** - ContainerAgentService with sandbox, API key, etc.
+6. **`createFullStackScenario()`** - ALL services wired together with shared data
+7. **`createErrorScenario(service, errorType)`** - Scenarios with specific failures injected
+8. **`createConcurrencyScenario(taskCount)`** - Race condition testing with multiple tasks
+
+#### Example
+
+```typescript
+import { createTaskServiceScenario, createErrorScenario } from '../mocks/mock-scenarios';
+
+it('creates a task', async () => {
+  const scenario = createTaskServiceScenario();
+  const result = await scenario.service.create({
+    projectId: 'proj-1',
+    title: 'Build feature',
+  });
+  expect(result.ok).toBe(true);
+});
+
+it('handles API key missing', async () => {
+  const scenario = createErrorScenario('containerAgent', 'api_key_missing');
+  const apiKey = await scenario.apiKeyService.getDecryptedKey('anthropic');
+  expect(apiKey).toBeNull();
+});
+```
+
+See `mock-scenarios.example.test.ts` for complete examples.
+
+### Service Mocks (`mock-services.ts`)
 
 - `createMockProjectService()` - Project CRUD and configuration
 - `createMockTaskService()` - Task management and workflow
@@ -197,6 +254,260 @@ it('creates sandbox for project', async () => {
   expect(result.ok).toBe(true);
   expect(result.value?.projectId).toBe('project-123');
 });
+```
+
+## Mock Scenarios - Complete Documentation
+
+### Overview
+
+Mock scenarios provide **pre-configured, fully-wired service setups** that eliminate the need to build mocks from scratch in every test. Each scenario returns all dependencies properly typed and connected, with sensible defaults that can be overridden.
+
+### Benefits
+
+1. **Reduces Duplication** - No more building mocks from scratch in every test
+2. **Consistency** - All tests use the same well-tested mock configurations
+3. **Type Safety** - No `as never` casts needed
+4. **Maintainability** - Change mock defaults in one place
+5. **Readability** - Tests focus on behavior, not mock setup
+6. **Coverage** - Error scenarios ensure edge cases are tested
+
+### Scenario Reference
+
+#### 1. TaskService Scenario
+
+```typescript
+const scenario = createTaskServiceScenario(overrides?);
+// Returns: { db, worktreeService, containerAgentService, service }
+```
+
+Pre-configured with:
+
+- Mock database with default project and task
+- Mock worktree service (getDiff, merge, remove)
+- Mock container agent service (optional)
+
+#### 2. AgentService Scenario
+
+```typescript
+const scenario = createAgentServiceScenario(overrides?);
+// Returns: { db, worktreeService, taskService, sessionService, service }
+```
+
+Pre-configured with:
+
+- Mock database with project, agent, task, session, worktree
+- All sub-services mocked and wired together
+
+#### 3. ProjectService Scenario
+
+```typescript
+const scenario = createProjectServiceScenario(overrides?);
+// Returns: { db, worktreeService, runner, service }
+```
+
+Pre-configured with:
+
+- Mock database with default project
+- Mock worktree service (prune)
+- Mock command runner with git support
+
+#### 4. SessionService Scenario
+
+```typescript
+const scenario = createSessionServiceScenario(overrides?);
+// Returns: { db, streams, service }
+```
+
+Pre-configured with:
+
+- Mock database with default project and session
+- Mock streams server with in-memory event storage
+- Base URL configuration
+
+#### 5. ContainerAgentService Scenario
+
+```typescript
+const scenario = createContainerAgentScenario(overrides?);
+// Returns: { db, provider, streams, apiKeyService, worktreeService, service }
+```
+
+**Most complex scenario** - includes:
+
+- Mock database with project, task, session, agent, worktree
+- Mock sandbox provider with running sandbox
+- Mock streams service for event publishing
+- Mock API key service returning test token
+- Mock worktree service with create/remove support
+
+#### 6. Full Stack Scenario
+
+```typescript
+const stack = createFullStackScenario();
+```
+
+Returns:
+
+- **Shared data**: project, task, agent, session, worktree
+- **Shared mocks**: db, streams, provider, apiKeyService, runner
+- **Services**: worktreeService, sessionService, taskService, agentService, projectService, containerAgentService
+
+All services share the same mock database and cross-reference the same entities.
+
+#### 7. Error Scenarios
+
+```typescript
+const scenario = createErrorScenario(service, errorType);
+```
+
+| Error Type | Behavior |
+|------------|----------|
+| `db_insert_fail` | DB insert throws |
+| `db_update_fail` | DB update throws |
+| `worktree_create_fail` | Worktree creation returns error Result |
+| `sandbox_not_running` | Sandbox status is 'stopped' |
+| `api_key_missing` | API key returns null |
+| `exec_stream_fail` | execStream rejects |
+
+Services: `'task'`, `'agent'`, `'project'`, `'session'`, `'containerAgent'`
+
+#### 8. Concurrency Scenario
+
+```typescript
+const scenario = createConcurrencyScenario(taskCount?);
+// Returns: { db, service, tasks, agent, startAll }
+```
+
+Creates:
+
+- Multiple tasks (default: 3)
+- Helper to fire concurrent `startAgent` calls
+- Useful for testing race conditions and concurrency limits
+
+### Usage Patterns
+
+#### Basic Test
+
+```typescript
+import { createTaskServiceScenario } from '../mocks/mock-scenarios';
+
+it('creates a task', async () => {
+  const scenario = createTaskServiceScenario();
+
+  const result = await scenario.service.create({
+    projectId: 'proj-1',
+    title: 'Build feature',
+  });
+
+  expect(result.ok).toBe(true);
+});
+```
+
+#### Overriding Defaults
+
+```typescript
+import { createTaskServiceScenario } from '../mocks/mock-scenarios';
+import { createMockWorktreeServiceForTask } from '../mocks/mock-services';
+
+it('handles custom worktree behavior', async () => {
+  const scenario = createTaskServiceScenario({
+    worktreeService: createMockWorktreeServiceForTask({
+      getDiff: vi.fn().mockResolvedValue(ok({
+        files: [{ path: 'src/app.ts', status: 'modified' }],
+        stats: { filesChanged: 1, additions: 10, deletions: 5 },
+      }))
+    })
+  });
+
+  // Test with custom worktree behavior
+});
+```
+
+#### Error Testing
+
+```typescript
+import { createErrorScenario } from '../mocks/mock-scenarios';
+
+it('handles missing API key', async () => {
+  const scenario = createErrorScenario('containerAgent', 'api_key_missing');
+
+  const result = await scenario.service.startAgent({
+    projectId: 'proj-1',
+    taskId: 'task-1',
+    sessionId: 'session-1',
+    prompt: 'Build feature',
+  });
+
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error.code).toBe('API_KEY_NOT_CONFIGURED');
+  }
+});
+```
+
+#### Integration Testing
+
+```typescript
+import { createFullStackScenario } from '../mocks/mock-scenarios';
+
+it('exercises multiple services', async () => {
+  const stack = createFullStackScenario();
+
+  // All services share the same data
+  expect(stack.project.id).toBe('proj-1');
+  expect(stack.task.projectId).toBe('proj-1');
+
+  // Test cross-service interactions
+  const taskResult = await stack.taskService.create({
+    projectId: stack.project.id,
+    title: 'New task',
+  });
+
+  expect(taskResult.ok).toBe(true);
+});
+```
+
+#### Concurrency Testing
+
+```typescript
+import { createConcurrencyScenario } from '../mocks/mock-scenarios';
+
+it('respects concurrency limits', async () => {
+  const scenario = createConcurrencyScenario(5);
+
+  // Fire 5 concurrent starts
+  const results = await scenario.startAll();
+
+  // Verify limits respected
+  const successCount = results.filter(r => r.ok).length;
+  expect(successCount).toBeLessThanOrEqual(3); // maxConcurrentAgents = 3
+});
+```
+
+### Migration Guide
+
+**Before:**
+
+```typescript
+const mockDb = createMockDatabase();
+const mockWorktreeService = {
+  getDiff: vi.fn().mockResolvedValue(ok({ files: [], stats: {} })),
+  merge: vi.fn().mockResolvedValue(ok(undefined)),
+  remove: vi.fn().mockResolvedValue(ok(undefined)),
+};
+const mockContainerAgent = {
+  startAgent: vi.fn().mockResolvedValue(ok(undefined)),
+  stopAgent: vi.fn().mockResolvedValue(ok(undefined)),
+  // ... more methods
+};
+const service = new TaskService(mockDb as never, mockWorktreeService);
+service.setContainerAgentService(mockContainerAgent);
+```
+
+**After:**
+
+```typescript
+const scenario = createTaskServiceScenario();
+// Everything is already wired and typed correctly
 ```
 
 ## Design Principles
