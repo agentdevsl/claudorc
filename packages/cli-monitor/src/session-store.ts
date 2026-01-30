@@ -27,6 +27,8 @@ export interface StoredSession {
   parentSessionId?: string;
 }
 
+const MAX_SESSIONS = 1000;
+
 export class SessionStore {
   private sessions = new Map<string, StoredSession>();
   private readOffsets = new Map<string, number>(); // filePath -> byte offset
@@ -41,6 +43,25 @@ export class SessionStore {
     this.sessions.set(id, session);
     this.changedSessionIds.add(id);
     this.removedSessionIds.delete(id);
+
+    // Evict oldest session if over limit (only when adding new sessions)
+    if (this.sessions.size > MAX_SESSIONS) {
+      this.evictOldest();
+    }
+  }
+
+  private evictOldest(): void {
+    let oldestId: string | null = null;
+    let oldestTime = Infinity;
+    for (const [id, s] of this.sessions) {
+      if (s.lastActivityAt < oldestTime) {
+        oldestTime = s.lastActivityAt;
+        oldestId = id;
+      }
+    }
+    if (oldestId) {
+      this.removeSession(oldestId);
+    }
   }
 
   removeSession(id: string): void {
@@ -93,6 +114,20 @@ export class SessionStore {
     for (const id of removedIds) {
       this.removedSessionIds.add(id);
     }
+  }
+
+  /** Evict sessions that have been idle longer than maxIdleMs. Returns eviction count. */
+  evictIdleSessions(maxIdleMs: number): number {
+    const cutoff = Date.now() - maxIdleMs;
+    let evicted = 0;
+    for (const [id, session] of this.sessions) {
+      if (session.status === 'idle' && session.lastActivityAt < cutoff) {
+        this.removeSession(id);
+        this.readOffsets.delete(session.filePath);
+        evicted++;
+      }
+    }
+    return evicted;
   }
 
   markIdleSessions(timeoutMs: number): void {

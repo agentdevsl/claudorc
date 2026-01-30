@@ -315,6 +315,118 @@ describe('SessionStore', () => {
     });
   });
 
+  // ── evictIdleSessions ──
+
+  describe('evictIdleSessions', () => {
+    it('removes sessions idle longer than threshold', () => {
+      const store = new SessionStore();
+      const oldTime = Date.now() - 60 * 60 * 1000; // 1 hour ago
+      store.setSession(
+        'sess-1',
+        makeSession({ sessionId: 'sess-1', status: 'idle', lastActivityAt: oldTime })
+      );
+      store.setSession(
+        'sess-2',
+        makeSession({ sessionId: 'sess-2', status: 'idle', lastActivityAt: oldTime })
+      );
+      store.flushChanges(); // clear
+
+      const evicted = store.evictIdleSessions(30 * 60 * 1000); // 30 min threshold
+
+      expect(evicted).toBe(2);
+      expect(store.getSession('sess-1')).toBeUndefined();
+      expect(store.getSession('sess-2')).toBeUndefined();
+      expect(store.getSessionCount()).toBe(0);
+    });
+
+    it('does not evict non-idle sessions', () => {
+      const store = new SessionStore();
+      const oldTime = Date.now() - 60 * 60 * 1000;
+      store.setSession(
+        'sess-1',
+        makeSession({ sessionId: 'sess-1', status: 'working', lastActivityAt: oldTime })
+      );
+      store.flushChanges();
+
+      const evicted = store.evictIdleSessions(30 * 60 * 1000);
+
+      expect(evicted).toBe(0);
+      expect(store.getSession('sess-1')).toBeDefined();
+    });
+
+    it('does not evict recently idle sessions', () => {
+      const store = new SessionStore();
+      store.setSession(
+        'sess-1',
+        makeSession({ sessionId: 'sess-1', status: 'idle', lastActivityAt: Date.now() })
+      );
+      store.flushChanges();
+
+      const evicted = store.evictIdleSessions(30 * 60 * 1000);
+
+      expect(evicted).toBe(0);
+      expect(store.getSession('sess-1')).toBeDefined();
+    });
+
+    it('tracks evicted sessions as removed for flushing', () => {
+      const store = new SessionStore();
+      const oldTime = Date.now() - 60 * 60 * 1000;
+      store.setSession(
+        'sess-1',
+        makeSession({ sessionId: 'sess-1', status: 'idle', lastActivityAt: oldTime })
+      );
+      store.flushChanges(); // clear
+
+      store.evictIdleSessions(30 * 60 * 1000);
+
+      const { removed } = store.flushChanges();
+      expect(removed).toContain('sess-1');
+    });
+  });
+
+  // ── session count limit ──
+
+  describe('session count limit', () => {
+    it('evicts oldest session when exceeding MAX_SESSIONS (1000)', () => {
+      const store = new SessionStore();
+      const now = Date.now();
+
+      // Add 1001 sessions — oldest should be evicted
+      for (let i = 0; i < 1001; i++) {
+        store.setSession(
+          `sess-${i}`,
+          makeSession({
+            sessionId: `sess-${i}`,
+            lastActivityAt: now + i, // each newer than the last
+          })
+        );
+      }
+
+      // Should be capped at 1000
+      expect(store.getSessionCount()).toBe(1000);
+      // Oldest (sess-0) should have been evicted
+      expect(store.getSession('sess-0')).toBeUndefined();
+      // Newest should still exist
+      expect(store.getSession('sess-1000')).toBeDefined();
+    });
+
+    it('does not evict when at or below limit', () => {
+      const store = new SessionStore();
+
+      for (let i = 0; i < 1000; i++) {
+        store.setSession(
+          `sess-${i}`,
+          makeSession({ sessionId: `sess-${i}`, lastActivityAt: Date.now() + i })
+        );
+      }
+
+      expect(store.getSessionCount()).toBe(1000);
+      // All should still exist
+      expect(store.getSession('sess-0')).toBeDefined();
+      expect(store.getSession('sess-999')).toBeDefined();
+    });
+  });
+
   // ── markPendingRetry ──
 
   describe('markPendingRetry', () => {

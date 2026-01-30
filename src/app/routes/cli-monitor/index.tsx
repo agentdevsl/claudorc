@@ -1,6 +1,16 @@
 import { Terminal } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Component,
+  type ErrorInfo,
+  forwardRef,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { apiClient } from '@/lib/api/client';
 
@@ -45,6 +55,50 @@ interface AlertToast {
   createdAt: number;
 }
 
+// -- Error Boundary --
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class CliMonitorErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[CliMonitor] Error boundary caught:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="text-3xl text-danger">Something went wrong</div>
+          <p className="max-w-[400px] text-sm text-fg-muted">
+            {this.state.error?.message || 'An unexpected error occurred in the CLI Monitor.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// -- Constants --
+
+const VISIBLE_SESSION_LIMIT = 50;
+
 // -- Route --
 
 export const Route = createFileRoute('/cli-monitor/')({
@@ -85,6 +139,7 @@ function useCliMonitorState() {
   const [daemonConnected, setDaemonConnected] = useState(false);
   const [alerts, setAlerts] = useState<AlertToast[]>([]);
   const [connectionError, setConnectionError] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const eventSourceRef = useRef<EventSource | null>(null);
   const alertTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const reconnectCountRef = useRef(0);
@@ -126,6 +181,18 @@ function useCliMonitorState() {
         clearTimeout(timer);
       }
       alertTimersRef.current.clear();
+    };
+  }, []);
+
+  // Browser offline/online detection
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
@@ -268,6 +335,7 @@ function useCliMonitorState() {
     alerts,
     dismissAlert,
     connectionError,
+    isOffline,
   };
 }
 
@@ -282,6 +350,7 @@ function CliMonitorPage(): React.JSX.Element {
     alerts,
     dismissAlert,
     connectionError,
+    isOffline,
   } = useCliMonitorState();
 
   return (
@@ -294,26 +363,36 @@ function CliMonitorPage(): React.JSX.Element {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {connectionError && (
-          <div
-            className="flex items-center gap-2 bg-danger/10 px-4 py-2 text-sm text-danger"
-            role="alert"
-          >
-            Connection lost — retrying...
-          </div>
-        )}
-        {pageState === 'install' && <InstallState />}
-        {pageState === 'waiting' && <WaitingState />}
-        {pageState === 'active' && (
-          <ActiveState
-            sessions={sessions}
-            aggregateStatus={aggregateStatus}
-            alerts={alerts}
-            onDismissAlert={dismissAlert}
-          />
-        )}
-      </div>
+      <CliMonitorErrorBoundary>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {isOffline && (
+            <div
+              className="flex items-center gap-2 bg-attention/10 px-4 py-2 text-sm text-attention"
+              role="alert"
+            >
+              You are offline — updates will resume when connected
+            </div>
+          )}
+          {connectionError && (
+            <div
+              className="flex items-center gap-2 bg-danger/10 px-4 py-2 text-sm text-danger"
+              role="alert"
+            >
+              Connection lost — retrying...
+            </div>
+          )}
+          {pageState === 'install' && <InstallState />}
+          {pageState === 'waiting' && <WaitingState />}
+          {pageState === 'active' && (
+            <ActiveState
+              sessions={sessions}
+              aggregateStatus={aggregateStatus}
+              alerts={alerts}
+              onDismissAlert={dismissAlert}
+            />
+          )}
+        </div>
+      </CliMonitorErrorBoundary>
     </LayoutShell>
   );
 }
@@ -540,7 +619,19 @@ function ActiveState({
   onDismissAlert: (id: string) => void;
 }) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_SESSION_LIMIT);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
+  const sessionListRef = useRef<HTMLDivElement | null>(null);
   const selectedSession = sessions.find((s) => s.sessionId === selectedSessionId);
+
+  // Auto-close detail panel when selected session disappears (stale session)
+  useEffect(() => {
+    if (selectedSessionId && !sessions.some((s) => s.sessionId === selectedSessionId)) {
+      setSelectedSessionId(null);
+    }
+  }, [selectedSessionId, sessions]);
 
   // Escape key to close session detail
   useEffect(() => {
@@ -552,9 +643,67 @@ function ActiveState({
     return () => document.removeEventListener('keydown', handler);
   }, [selectedSessionId]);
 
+  // Intersection observer for loading more sessions
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisibleCount((prev) => prev + VISIBLE_SESSION_LIMIT);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Flatten visible sessions for keyboard navigation
+  const flatSessions = useMemo(() => sessions.filter((s) => !s.isSubagent), [sessions]);
+
+  // Keyboard navigation for session list
+  useEffect(() => {
+    const el = sessionListRef.current;
+    if (!el) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.min(prev + 1, flatSessions.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < flatSessions.length) {
+        e.preventDefault();
+        const session = flatSessions[focusedIndex];
+        if (session) {
+          setSelectedSessionId(session.sessionId === selectedSessionId ? null : session.sessionId);
+        }
+      }
+    };
+    el.addEventListener('keydown', handler);
+    return () => el.removeEventListener('keydown', handler);
+  }, [flatSessions, focusedIndex, selectedSessionId]);
+
+  // Scroll focused session into view
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    const el = sessionListRef.current?.querySelector(`[data-session-index="${focusedIndex}"]`);
+    if (el) {
+      (el as HTMLElement).scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedIndex]);
+
+  // Move focus to detail panel when it opens
+  useEffect(() => {
+    if (selectedSession && detailPanelRef.current) {
+      detailPanelRef.current.focus();
+    }
+  }, [selectedSession]);
+
   // Summary stats
   // Exclude subagents from summary stats to match visible card count
-  const visibleSessions = sessions.filter((s) => !s.isSubagent);
+  const visibleSessions = flatSessions;
   const totalTokens = visibleSessions.reduce((sum, s) => sum + getSessionTokenTotal(s), 0);
   const workingCount = visibleSessions.filter((s) => s.status === 'working').length;
   const waitingCount = visibleSessions.filter(
@@ -618,35 +767,63 @@ function ActiveState({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div
+        ref={sessionListRef}
+        className="flex-1 overflow-y-auto p-4"
+        role="listbox"
+        aria-label="CLI sessions"
+        tabIndex={0}
+      >
         <div className="space-y-3">
-          {Array.from(projectGroups.entries()).map(([projectName, projectSessions]) => (
-            <div key={projectName}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-                {projectName}
-              </h3>
-              <div className="space-y-2">
-                {projectSessions.map((session) => (
-                  <SessionCard
-                    key={session.sessionId}
-                    session={session}
-                    selected={session.sessionId === selectedSessionId}
-                    onClick={() =>
-                      setSelectedSessionId(
-                        session.sessionId === selectedSessionId ? null : session.sessionId
-                      )
-                    }
-                  />
-                ))}
-              </div>
+          {(() => {
+            let rendered = 0;
+            const groups = Array.from(projectGroups.entries());
+            return groups.map(([projectName, projectSessions]) => {
+              if (rendered >= visibleCount) return null;
+              const remainingSlots = visibleCount - rendered;
+              const visibleProjectSessions = projectSessions.slice(0, remainingSlots);
+              const startIdx = rendered;
+              rendered += visibleProjectSessions.length;
+              return (
+                <div key={projectName}>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+                    {projectName}
+                  </h3>
+                  <div className="space-y-2">
+                    {visibleProjectSessions.map((session, i) => (
+                      <SessionCard
+                        key={session.sessionId}
+                        session={session}
+                        selected={session.sessionId === selectedSessionId}
+                        focused={startIdx + i === focusedIndex}
+                        dataIndex={startIdx + i}
+                        onClick={() =>
+                          setSelectedSessionId(
+                            session.sessionId === selectedSessionId ? null : session.sessionId
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+          {visibleSessions.length > visibleCount && (
+            <div ref={loadMoreRef} className="py-2 text-center text-xs text-fg-subtle">
+              Showing {visibleCount} of {visibleSessions.length} sessions — scroll to load more
             </div>
-          ))}
+          )}
         </div>
       </div>
 
       {/* Selected Session Detail */}
       {selectedSession && (
-        <SessionDetail session={selectedSession} onClose={() => setSelectedSessionId(null)} />
+        <SessionDetail
+          ref={detailPanelRef}
+          session={selectedSession}
+          onClose={() => setSelectedSessionId(null)}
+        />
       )}
     </div>
   );
@@ -710,10 +887,14 @@ function SummaryCard({
 function SessionCard({
   session,
   selected,
+  focused,
+  dataIndex,
   onClick,
 }: {
   session: CliSession;
   selected: boolean;
+  focused?: boolean;
+  dataIndex?: number;
   onClick: () => void;
 }) {
   const statusConfig = {
@@ -737,11 +918,16 @@ function SessionCard({
     <button
       type="button"
       onClick={onClick}
+      role="option"
+      aria-selected={selected}
       aria-label={`Session: ${session.goal || session.sessionId.slice(0, 8)}`}
+      data-session-index={dataIndex}
       className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
         selected
           ? 'border-accent bg-accent/5 shadow-md'
-          : 'border-border bg-default hover:border-fg-subtle hover:bg-subtle'
+          : focused
+            ? 'border-accent bg-subtle ring-2 ring-accent/30'
+            : 'border-border bg-default hover:border-fg-subtle hover:bg-subtle'
       }`}
     >
       <span className={`h-2 w-2 flex-shrink-0 rounded-full ${statusConfig.dot}`} />
@@ -764,119 +950,126 @@ function SessionCard({
 
 // -- Session Detail Panel --
 
-function SessionDetail({ session, onClose }: { session: CliSession; onClose: () => void }) {
-  const totalTokens = getSessionTokenTotal(session);
-  const durationMs = Date.now() - session.startedAt;
-  const durationMin = Math.floor(durationMs / 60000);
+const SessionDetail = forwardRef<HTMLDivElement, { session: CliSession; onClose: () => void }>(
+  function SessionDetail({ session, onClose }, ref) {
+    const totalTokens = getSessionTokenTotal(session);
+    const durationMs = Date.now() - session.startedAt;
+    const durationMin = Math.floor(durationMs / 60000);
 
-  const t = session.tokenUsage;
+    const t = session.tokenUsage;
 
-  return (
-    <div className="flex h-[280px] shrink-0 border-t border-border bg-default animate-in slide-in-from-bottom-2">
-      {/* Stream output */}
-      <div className="flex flex-1 flex-col border-r border-border min-w-0">
-        <div className="flex items-center justify-between border-b border-border bg-subtle px-4 py-2">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-accent">{session.sessionId.slice(0, 7)}</span>
-            <span className="text-[11px] font-semibold text-success">{'\u25CF'} Live</span>
+    return (
+      <section
+        ref={ref}
+        tabIndex={-1}
+        aria-label="Session details"
+        className="flex h-[280px] shrink-0 border-t border-border bg-default animate-in slide-in-from-bottom-2 max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-full max-md:flex-col"
+      >
+        {/* Stream output */}
+        <div className="flex flex-1 flex-col border-r border-border min-w-0">
+          <div className="flex items-center justify-between border-b border-border bg-subtle px-4 py-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-accent">{session.sessionId.slice(0, 7)}</span>
+              <span className="text-[11px] font-semibold text-success">{'\u25CF'} Live</span>
+            </div>
+            <span className="font-mono text-[11px] text-fg-subtle">{session.gitBranch}</span>
           </div>
-          <span className="font-mono text-[11px] text-fg-subtle">{session.gitBranch}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto bg-default dark:bg-[#0a0e14] p-3 font-mono text-xs leading-relaxed text-fg-muted">
-          {session.recentOutput ? (
-            <div className="whitespace-pre-wrap">{session.recentOutput}</div>
-          ) : (
-            <div className="text-fg-subtle italic">No output yet...</div>
-          )}
-        </div>
-      </div>
-
-      {/* Detail sidebar */}
-      <div className="flex w-[320px] flex-col overflow-y-auto">
-        <div className="border-b border-border p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Token Usage
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Input</span>
-              <span className="font-mono font-medium">
-                {(t?.inputTokens ?? 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Output</span>
-              <span className="font-mono font-medium">
-                {(t?.outputTokens ?? 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Cache</span>
-              <span className="font-mono font-medium">
-                {(t?.cacheReadTokens ?? 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-border pt-1">
-              <span className="font-semibold text-fg-muted">Total</span>
-              <span className="font-mono font-medium">{totalTokens.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-        <div className="border-b border-border p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Session Info
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Messages</span>
-              <span className="font-mono font-medium">{session.messageCount}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Turns</span>
-              <span className="font-mono font-medium">{session.turnCount}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-fg-muted">Duration</span>
-              <span className="font-mono font-medium">{durationMin}m</span>
-            </div>
-            {session.model && (
-              <div className="flex justify-between">
-                <span className="text-fg-muted">Model</span>
-                <span className="font-mono font-medium text-[11px]">{session.model}</span>
-              </div>
+          <div className="flex-1 overflow-y-auto bg-default dark:bg-[#0a0e14] p-3 font-mono text-xs leading-relaxed text-fg-muted">
+            {session.recentOutput ? (
+              <div className="whitespace-pre-wrap">{session.recentOutput}</div>
+            ) : (
+              <div className="text-fg-subtle italic">No output yet...</div>
             )}
           </div>
         </div>
-        <div className="mt-auto flex gap-2 border-t border-border bg-subtle p-3">
-          <button
-            type="button"
-            disabled
-            title="Actions not yet connected to daemon"
-            className="flex-1 rounded bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Approve
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Actions not yet connected to daemon"
-            className="flex-1 rounded border border-border bg-subtle px-3 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Input
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close session detail"
-            className="flex-1 rounded border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10"
-          >
-            Close
-          </button>
+
+        {/* Detail sidebar */}
+        <div className="flex w-[320px] max-md:w-full flex-col overflow-y-auto">
+          <div className="border-b border-border p-3">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              Token Usage
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Input</span>
+                <span className="font-mono font-medium">
+                  {(t?.inputTokens ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Output</span>
+                <span className="font-mono font-medium">
+                  {(t?.outputTokens ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Cache</span>
+                <span className="font-mono font-medium">
+                  {(t?.cacheReadTokens ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1">
+                <span className="font-semibold text-fg-muted">Total</span>
+                <span className="font-mono font-medium">{totalTokens.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+          <div className="border-b border-border p-3">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              Session Info
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Messages</span>
+                <span className="font-mono font-medium">{session.messageCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Turns</span>
+                <span className="font-mono font-medium">{session.turnCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Duration</span>
+                <span className="font-mono font-medium">{durationMin}m</span>
+              </div>
+              {session.model && (
+                <div className="flex justify-between">
+                  <span className="text-fg-muted">Model</span>
+                  <span className="font-mono font-medium text-[11px]">{session.model}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mt-auto flex gap-2 border-t border-border bg-subtle p-3">
+            <button
+              type="button"
+              disabled
+              title="Actions not yet connected to daemon"
+              className="flex-1 rounded bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Actions not yet connected to daemon"
+              className="flex-1 rounded border border-border bg-subtle px-3 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Input
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close session detail"
+              className="flex-1 rounded border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      </section>
+    );
+  }
+);
 
 // -- Utilities --
 

@@ -7,22 +7,71 @@ export interface RegisterPayload {
   startedAt: number;
 }
 
+// ── Circuit Breaker ──
+
+type CircuitState = 'closed' | 'open' | 'half-open';
+
+const CIRCUIT_FAILURE_THRESHOLD = 5;
+const CIRCUIT_RESET_TIMEOUT_MS = 60_000;
+
 export class AgentPaneClient {
   private baseUrl: string;
+
+  // Circuit breaker state
+  private circuitState: CircuitState = 'closed';
+  private consecutiveFailures = 0;
+  private circuitOpenedAt = 0;
 
   constructor(port: number) {
     this.baseUrl = `http://localhost:${port}`;
   }
 
+  /** Exposed for testing */
+  getCircuitState(): CircuitState {
+    return this.circuitState;
+  }
+
+  private checkCircuit(): void {
+    if (this.circuitState === 'open') {
+      if (Date.now() - this.circuitOpenedAt >= CIRCUIT_RESET_TIMEOUT_MS) {
+        this.circuitState = 'half-open';
+      } else {
+        throw new Error('Circuit breaker is open — requests blocked');
+      }
+    }
+  }
+
+  private recordSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.circuitState = 'closed';
+  }
+
+  private recordFailure(): void {
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+      this.circuitState = 'open';
+      this.circuitOpenedAt = Date.now();
+      console.error(
+        `[AgentPaneClient] Circuit breaker opened after ${CIRCUIT_FAILURE_THRESHOLD} consecutive failures`
+      );
+    }
+  }
+
   private async fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeoutMs = 5000
+    timeoutMs = 10_000
   ): Promise<Response> {
+    this.checkCircuit();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      return await fetch(url, { ...options, signal: controller.signal });
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      this.recordSuccess();
+      return res;
+    } catch (err) {
+      this.recordFailure();
+      throw err;
     } finally {
       clearTimeout(timer);
     }

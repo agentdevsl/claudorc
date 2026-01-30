@@ -592,4 +592,125 @@ describe('CLI Monitor API Routes', () => {
       reader.cancel();
     });
   });
+
+  // ── GET /sessions with pagination ──
+
+  describe('GET /api/cli-monitor/sessions (pagination)', () => {
+    it('returns total count alongside sessions', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'GET', '/api/cli-monitor/sessions');
+      const json = await res.json();
+
+      expect(json.data.total).toBe(0);
+      expect(json.data.sessions).toEqual([]);
+    });
+
+    it('paginates with limit and offset', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      // Ingest 5 sessions
+      const sessions = Array.from({ length: 5 }, (_, i) => ({
+        sessionId: `sess-${i}`,
+        filePath: `/test/sess-${i}.jsonl`,
+        cwd: '/project',
+        projectName: 'project',
+        projectHash: `h${i}`,
+        status: 'working' as const,
+        messageCount: 0,
+        turnCount: 0,
+        tokenUsage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+        startedAt: Date.now(),
+        lastActivityAt: Date.now(),
+        lastReadOffset: 0,
+        isSubagent: false,
+      }));
+      service.ingestSessions('daemon-1', sessions, []);
+
+      // Get first 2
+      const res = await request(app, 'GET', '/api/cli-monitor/sessions?limit=2&offset=0');
+      const json = await res.json();
+
+      expect(json.data.sessions).toHaveLength(2);
+      expect(json.data.total).toBe(5);
+    });
+
+    it('returns all sessions when no pagination params', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      const sessions = Array.from({ length: 3 }, (_, i) => ({
+        sessionId: `sess-${i}`,
+        filePath: `/test/sess-${i}.jsonl`,
+        cwd: '/project',
+        projectName: 'project',
+        projectHash: `h${i}`,
+        status: 'working' as const,
+        messageCount: 0,
+        turnCount: 0,
+        tokenUsage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+        startedAt: Date.now(),
+        lastActivityAt: Date.now(),
+        lastReadOffset: 0,
+        isSubagent: false,
+      }));
+      service.ingestSessions('daemon-1', sessions, []);
+
+      const res = await request(app, 'GET', '/api/cli-monitor/sessions');
+      const json = await res.json();
+
+      expect(json.data.sessions).toHaveLength(3);
+      expect(json.data.total).toBe(3);
+    });
+  });
+
+  // ── Body size limit ──
+
+  describe('POST body size limit', () => {
+    it('returns 413 when content-length exceeds 5MB', async () => {
+      ({ app, service } = createTestApp());
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': String(6 * 1024 * 1024), // 6MB
+        },
+        body: JSON.stringify({ daemonId: 'test' }),
+      };
+      const res = await app.request('/api/cli-monitor/register', init);
+
+      expect(res.status).toBe(413);
+      const json = await res.json();
+      expect(json.error.code).toBe('PAYLOAD_TOO_LARGE');
+    });
+
+    it('allows requests within 5MB limit', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+      });
+
+      expect(res.status).toBe(200);
+    });
+  });
 });

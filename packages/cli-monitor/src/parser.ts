@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { logger } from './logger.js';
 import type { SessionStore } from './session-store.js';
 
 // Minimal types for JSONL events (no dependency on main repo types)
@@ -57,7 +58,7 @@ export function parseJsonlFile(
     const lineBytes = Buffer.byteLength(isLast ? line : `${line}\n`, 'utf-8');
 
     if (lineBytes > MAX_LINE_BYTES) {
-      console.warn(`[Parser] Skipping oversized line (${lineBytes} bytes) in ${filePath}`);
+      logger.warn('Skipping oversized line', { bytes: lineBytes, filePath });
       bytesConsumed += lineBytes;
       continue;
     }

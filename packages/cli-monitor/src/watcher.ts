@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { logger } from './logger.js';
 import { parseJsonlFile } from './parser.js';
 import type { SessionStore } from './session-store.js';
 
@@ -20,8 +21,7 @@ export class FileWatcher {
     try {
       await fsp.access(this.watchDir);
     } catch {
-      console.log(`Watch directory does not exist yet: ${this.watchDir}`);
-      console.log('Will start watching when it appears...');
+      logger.info('Watch directory does not exist yet, waiting...', { path: this.watchDir });
       // Poll for directory creation
       await this.waitForDirectory();
     }
@@ -45,10 +45,10 @@ export class FileWatcher {
         this.debouncedProcess(fullPath);
       });
       this.watcher.on('error', (err) => {
-        console.error('[Watcher] fs.watch error:', err);
+        logger.error('fs.watch error', { error: String(err) });
       });
     } catch (err) {
-      console.error('Failed to start file watcher:', err);
+      logger.error('Failed to start file watcher', { error: String(err) });
     }
   }
 
@@ -141,7 +141,7 @@ export class FileWatcher {
         await this.processFile(filePath);
       }
     } catch (err) {
-      console.error('Error scanning existing files:', err);
+      logger.error('Error scanning existing files', { error: String(err) });
     }
   }
 
@@ -165,10 +165,18 @@ export class FileWatcher {
   }
 
   private async processFile(filePath: string): Promise<void> {
-    // Validate path is within watch directory
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(this.watchDir))) {
-      console.warn('[Watcher] Skipping file outside watch directory:', filePath);
+    // Validate path is within watch directory, resolving symlinks
+    let realFile: string;
+    let realWatchDir: string;
+    try {
+      realFile = await fsp.realpath(filePath);
+      realWatchDir = await fsp.realpath(this.watchDir);
+    } catch {
+      // File or directory may not exist
+      return;
+    }
+    if (!realFile.startsWith(realWatchDir + path.sep) && realFile !== realWatchDir) {
+      logger.warn('Skipping file outside watch directory (symlink resolved)', { filePath });
       return;
     }
 
@@ -184,8 +192,19 @@ export class FileWatcher {
       // Read only new bytes
       const fd = await fsp.open(filePath, 'r');
       try {
-        const buffer = Buffer.alloc(stat.size - offset);
+        let buffer = Buffer.alloc(stat.size - offset);
         await fd.read(buffer, 0, buffer.length, offset);
+
+        // Skip leading UTF-8 continuation bytes (0x80-0xBF) that result from
+        // reading mid-character when the offset splits a multi-byte sequence
+        let skip = 0;
+        while (skip < buffer.length && ((buffer[skip] ?? 0) & 0xc0) === 0x80) {
+          skip++;
+        }
+        if (skip > 0) {
+          buffer = buffer.subarray(skip);
+        }
+
         const newContent = buffer.toString('utf-8');
 
         const bytesConsumed = parseJsonlFile(filePath, newContent, offset, this.store);

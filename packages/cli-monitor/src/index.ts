@@ -46,6 +46,9 @@ switch (command) {
   case 'status':
     await showStatus(port);
     break;
+  case 'version':
+    console.log(VERSION);
+    break;
   default:
     console.error(`Unknown command: ${command}`);
     printUsage();
@@ -60,6 +63,7 @@ function printUsage() {
     start          Start the monitor daemon (default)
     stop           Stop a running daemon
     status         Show daemon status
+    version        Print version and exit
 
   Options:
     --port <n>     AgentPane server port (default: 3001)

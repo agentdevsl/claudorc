@@ -4,6 +4,14 @@ CLI monitor daemon for [AgentPane](https://github.com/agentpane/agentpane) — w
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install agentpane/tap/cli-monitor
+```
+
+### npm
+
 ```bash
 npm install -g @agentpane/cli-monitor
 ```

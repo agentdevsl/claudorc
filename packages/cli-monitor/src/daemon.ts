@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { AgentPaneClient } from './agentpane-client.js';
 import { printError, printStatusBox } from './display.js';
+import { logger } from './logger.js';
 import { SessionStore } from './session-store.js';
 import { createId } from './utils.js';
 import { VERSION } from './version.js';
@@ -70,7 +71,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   const shutdown = async () => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    console.log('\nShutting down...');
+    logger.info('Shutting down...');
 
     if (ingestTimer) clearInterval(ingestTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -79,31 +80,44 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     try {
       await client.deregister(daemonId);
     } catch (err) {
-      console.error(
-        '[Daemon] Deregister on shutdown failed:',
-        err instanceof Error ? err.message : err
-      );
+      logger.error('Deregister on shutdown failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
     await releaseLock();
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  // Signal handlers must handle the async shutdown properly.
+  // Use a forced exit timeout to prevent hanging if cleanup stalls.
+  const handleSignal = () => {
+    shutdown().finally(() => {
+      // shutdown() calls process.exit(0) on success,
+      // but if it somehow doesn't exit, force it after 5s
+    });
+    setTimeout(() => {
+      logger.error('Forced exit after shutdown timeout');
+      process.exit(1);
+    }, 5000).unref();
+  };
+
+  process.on('SIGINT', handleSignal);
+  process.on('SIGTERM', handleSignal);
 
   process.on('uncaughtException', (error) => {
-    console.error('[Daemon] Uncaught exception:', error);
-    shutdown();
+    logger.error('Uncaught exception', { error: String(error) });
+    handleSignal();
   });
 
   process.on('unhandledRejection', (reason) => {
-    console.error('[Daemon] Unhandled rejection:', reason);
+    logger.error('Unhandled rejection', { error: String(reason) });
+    handleSignal();
   });
 
   // Acquire PID lock
   const lockAcquired = await acquireLock();
   if (!lockAcquired) {
-    console.error('[Daemon] Another daemon instance is already running. Exiting.');
+    logger.error('Another daemon instance is already running. Exiting.');
     process.exit(1);
   }
 
@@ -153,7 +167,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     try {
       await client.heartbeat(daemonId, store.getSessionCount());
     } catch (err) {
-      console.error('[Daemon] Heartbeat failed:', err instanceof Error ? err.message : err);
+      logger.error('Heartbeat failed', { error: err instanceof Error ? err.message : String(err) });
       // Server may have restarted — try to re-register
       try {
         await client.register({
@@ -165,10 +179,9 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
           startedAt: Date.now(),
         });
       } catch (retryErr) {
-        console.error(
-          '[Daemon] Re-register failed:',
-          retryErr instanceof Error ? retryErr.message : retryErr
-        );
+        logger.error('Re-register failed', {
+          error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+        });
       }
     }
   }, 10_000);
@@ -183,6 +196,8 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     if (idleCheckCounter >= 60) {
       idleCheckCounter = 0;
       store.markIdleSessions(5 * 60 * 1000);
+      const evicted = store.evictIdleSessions(30 * 60 * 1000);
+      if (evicted > 0) logger.info('Evicted idle sessions', { count: evicted });
     }
 
     if (ingestInFlight) return;
@@ -193,7 +208,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     try {
       await client.ingest(daemonId, updated, removed);
     } catch (err) {
-      console.error('[Daemon] Ingest failed:', err instanceof Error ? err.message : err);
+      logger.error('Ingest failed', { error: err instanceof Error ? err.message : String(err) });
       store.markPendingRetry(updated, removed);
     } finally {
       ingestInFlight = false;

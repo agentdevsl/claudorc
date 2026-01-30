@@ -70,6 +70,13 @@ const deregisterSchema = z.object({
   daemonId: z.string().min(1).max(200),
 });
 
+// ── Constants ──
+
+const MAX_SSE_CONNECTIONS = 50;
+const MAX_BODY_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+let activeSSEConnections = 0;
+
 // ── Helpers ──
 
 function validationError(
@@ -89,6 +96,23 @@ function invalidJsonError(c: { json: (data: unknown, status: number) => Response
   return c.json({ ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } }, 400);
 }
 
+function checkBodySize(c: {
+  req: { header: (name: string) => string | undefined };
+  json: (data: unknown, status: number) => Response;
+}): Response | null {
+  const contentLength = c.req.header('content-length');
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE_BYTES) {
+    return c.json(
+      {
+        ok: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 5MB limit' },
+      },
+      413
+    );
+  }
+  return null;
+}
+
 // ── Route Factory ──
 
 interface CliMonitorDeps {
@@ -102,6 +126,8 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /register — Daemon announces itself
   app.post('/register', async (c) => {
+    const sizeError = checkBodySize(c);
+    if (sizeError) return sizeError;
     let body: unknown;
     try {
       body = await c.req.json();
@@ -125,6 +151,8 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /heartbeat — Daemon keepalive
   app.post('/heartbeat', async (c) => {
+    const sizeError = checkBodySize(c);
+    if (sizeError) return sizeError;
     let body: unknown;
     try {
       body = await c.req.json();
@@ -150,6 +178,8 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /ingest — Daemon pushes session updates
   app.post('/ingest', async (c) => {
+    const sizeError = checkBodySize(c);
+    if (sizeError) return sizeError;
     let body: unknown;
     try {
       body = await c.req.json();
@@ -176,6 +206,8 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /deregister — Daemon shutting down
   app.post('/deregister', async (c) => {
+    const sizeError = checkBodySize(c);
+    if (sizeError) return sizeError;
     let body: unknown;
     try {
       body = await c.req.json();
@@ -197,19 +229,44 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
     return c.json({ ok: true, data: cliMonitorService.getStatus() });
   });
 
-  // GET /sessions — List all sessions
+  // GET /sessions — List sessions with optional pagination
   app.get('/sessions', (c) => {
+    const limitParam = c.req.query('limit');
+    const offsetParam = c.req.query('offset');
+
+    const allSessions = cliMonitorService.getSessions();
+    const total = allSessions.length;
+
+    let sessions = allSessions;
+    if (limitParam !== undefined || offsetParam !== undefined) {
+      const limit = Math.min(Math.max(parseInt(limitParam || '100', 10) || 100, 1), 500);
+      const offset = Math.max(parseInt(offsetParam || '0', 10) || 0, 0);
+      sessions = allSessions.slice(offset, offset + limit);
+    }
+
     return c.json({
       ok: true,
       data: {
-        sessions: cliMonitorService.getSessions(),
+        sessions,
+        total,
         connected: cliMonitorService.isDaemonConnected(),
       },
     });
   });
 
   // GET /stream — SSE endpoint for live updates
-  app.get('/stream', (_c) => {
+  app.get('/stream', (c) => {
+    if (activeSSEConnections >= MAX_SSE_CONNECTIONS) {
+      return c.json(
+        {
+          ok: false,
+          error: { code: 'TOO_MANY_CONNECTIONS', message: 'SSE connection limit reached' },
+        },
+        429
+      );
+    }
+    activeSSEConnections++;
+
     let unsubscribe: (() => void) | null = null;
     let pingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -247,6 +304,7 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
         }, 15_000);
       },
       cancel() {
+        activeSSEConnections = Math.max(0, activeSSEConnections - 1);
         if (pingInterval) clearInterval(pingInterval);
         if (unsubscribe) unsubscribe();
       },
