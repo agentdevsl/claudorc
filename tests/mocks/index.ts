@@ -25,16 +25,13 @@ export {
 } from '../factories/index.js';
 // ── External Mocks ──
 export { mockClaudeSDK, mockDurableStreams, mockOctokit } from './external.js';
-// ── Git Operations ──
+// ── Git Operations (legacy) ──
 export {
   type GitCommandResult,
   type MockGitCommands,
   mockGitCommands,
 } from './git.js';
 // ── Agent Lifecycle ──
-// ── Scenarios ──
-// Note: Scenario builders are exported from mock-agent-lifecycle.js
-// Re-export for convenience:
 export {
   type AgentLifecycleScenario,
   createMockAgent,
@@ -113,6 +110,20 @@ export {
   createPlanningAgentSession,
   createTurnLimitAgentSession,
 } from './mock-container-bridge.js';
+// ── Git Operations (architecture-aware) ──
+export {
+  type CommandResponseMap,
+  createMockCommandRunner as createMockGitCommandRunner,
+  createMockGitDiff,
+  createMockGitDiffOutput,
+  createMockGitRunner,
+  createMockGitRunnerWithBranch,
+  createMockGitRunnerWithConflict,
+  createMockGitRunnerWithWorktrees,
+  createMockWorktreeListOutput,
+  type DiffFileChange,
+  type WorktreeEntry,
+} from './mock-git.js';
 // ── Sandbox ──
 export {
   createMockExecResult,
@@ -124,6 +135,18 @@ export {
   createMockSandboxProvider,
   createMockSandboxWithEvents,
 } from './mock-sandbox.js';
+// ── Scenarios (fully-wired service configurations) ──
+export {
+  createAgentServiceScenario,
+  createConcurrencyScenario,
+  createContainerAgentScenario,
+  createErrorScenario,
+  createFullStackScenario,
+  createProjectServiceScenario,
+  createSessionServiceScenario,
+  createTaskServiceScenario,
+  type ErrorType,
+} from './mock-scenarios.js';
 // ── Services ──
 export {
   type ApiKeyService,
