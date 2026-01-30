@@ -243,6 +243,6 @@ describe('Task API', () => {
 
     expect(response?.status).toBe(400);
     const data = await parseJson<{ ok: false; error: { code: string } }>(response as Response);
-    expect(data.error.code).toBe('MISSING_PARAMS');
+    expect(data.error.code).toBe('VALIDATION_ERROR');
   });
 });

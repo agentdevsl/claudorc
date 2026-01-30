@@ -107,7 +107,7 @@ describe('Worktree API', () => {
       expect(response.status).toBe(400);
       const data = await response.json();
       expect(data.ok).toBe(false);
-      expect(data.error.code).toBe('MISSING_PARAMS');
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -224,7 +224,7 @@ describe('Worktree API', () => {
       expect(response.status).toBe(400);
       const data = await response.json();
       expect(data.ok).toBe(false);
-      expect(data.error.code).toBe('MISSING_PARAMS');
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
