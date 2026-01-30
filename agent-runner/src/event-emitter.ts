@@ -80,6 +80,10 @@ export interface AgentErrorData {
   turnCount: number;
 }
 
+/**
+ * Matching type exists in src/types/agent-events.ts (canonical).
+ * Keep in sync — build boundary prevents shared import.
+ */
 export interface AgentFileChangedData {
   path: string;
   action: 'create' | 'modify' | 'delete';

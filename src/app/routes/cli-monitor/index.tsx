@@ -18,7 +18,7 @@ import { apiClient } from '@/lib/api/client';
 
 type CliSessionStatus = 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
 type PageState = 'install' | 'waiting' | 'active';
-type AggregateStatus = 'nominal' | 'attention' | 'danger' | 'idle';
+type AggregateStatus = 'nominal' | 'attention' | 'idle';
 
 interface CliSession {
   sessionId: string;
@@ -406,7 +406,6 @@ function StatusIndicator({ status }: { status: AggregateStatus }) {
       dotClass: 'bg-attention',
       bgClass: 'bg-attention/15 text-attention',
     },
-    danger: { label: 'ALERT', dotClass: 'bg-danger', bgClass: 'bg-danger/15 text-danger' },
     idle: { label: 'IDLE', dotClass: 'bg-fg-subtle', bgClass: 'bg-muted text-fg-muted' },
   }[status];
 

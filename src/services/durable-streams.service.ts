@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { desc, eq } from 'drizzle-orm';
 import { sessionEvents } from '../db/schema/session-events.js';
+import type { AgentFileChangedData } from '../types/agent-events.js';
 import type { Database } from '../types/database.js';
 import type { SessionEvent, SessionEventType } from './session.service.js';
 
@@ -218,14 +219,9 @@ export interface ContainerAgentStatusEvent {
   message: string;
 }
 
-export interface ContainerAgentFileChangedEvent {
+export interface ContainerAgentFileChangedEvent extends AgentFileChangedData {
   taskId: string;
   sessionId: string;
-  path: string;
-  action: 'create' | 'modify' | 'delete';
-  toolName: string;
-  additions?: number;
-  deletions?: number;
 }
 
 /**

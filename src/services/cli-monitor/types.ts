@@ -6,7 +6,7 @@ export type CliSessionStatus =
   | 'idle'; // No activity for IDLE_TIMEOUT_MS
 
 // ── Aggregate Status (for ambient UI) ──
-export type AggregateStatus = 'nominal' | 'attention' | 'danger' | 'idle';
+export type AggregateStatus = 'nominal' | 'attention' | 'idle';
 
 // ── Session State ──
 export interface CliSession {

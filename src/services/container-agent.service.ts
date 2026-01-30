@@ -232,6 +232,236 @@ export class ContainerAgentService {
   }
 
   /**
+   * Resolve the worktree path for the agent, creating a new one
+   * for planning or recovering an existing one for execution.
+   */
+  private async resolveWorktree(params: {
+    phase: AgentPhase;
+    taskId: string;
+    sessionId: string;
+    projectId: string;
+    project: { path: string; name: string };
+    task: { title: string; worktreeId: string | null };
+    agentId: string;
+    sandbox: { id: string };
+  }): Promise<{ worktreeId?: string; worktreePath: string }> {
+    const { phase, taskId, sessionId, projectId, project, task, agentId } = params;
+    let worktreeId: string | undefined;
+    let worktreePath = CONTAINER_WORKSPACE_PATH;
+
+    if (this.worktreeService && phase === 'execute' && task.worktreeId) {
+      try {
+        const wts = await this.worktreeService.getStatus(task.worktreeId);
+        if (wts.ok) {
+          worktreeId = wts.value.id;
+          worktreePath = this.translatePathForContainer(wts.value.path, project.path);
+          infoLog('resolveWorktree', 'Recovered worktree for execution', {
+            worktreeId,
+            branch: wts.value.branch,
+            hostPath: wts.value.path,
+            containerPath: worktreePath,
+          });
+        } else {
+          infoLog('resolveWorktree', 'Failed to recover worktree, using main workspace', {
+            taskId,
+            worktreeId: task.worktreeId,
+            error: String(wts.error),
+          });
+        }
+      } catch (wtErr) {
+        const msg = wtErr instanceof Error ? wtErr.message : String(wtErr);
+        infoLog('resolveWorktree', 'Error recovering worktree, using main workspace', {
+          taskId,
+          error: msg,
+        });
+      }
+    }
+
+    if (this.worktreeService && phase === 'plan') {
+      await this.streams.publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'creating_sandbox',
+        message: 'Creating worktree...',
+      });
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'system',
+        content: `🌿 Creating isolated git worktree` + ` for task "${task.title}"...`,
+      });
+
+      const publishFallback = async (error: unknown): Promise<void> => {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        warnLog('resolveWorktree', 'Worktree creation failed, continuing without isolation', {
+          taskId,
+          error: errorMsg,
+        });
+        await this.streams.publish(sessionId, 'container-agent:message', {
+          taskId,
+          sessionId,
+          role: 'system',
+          content: '⚠️ Could not create worktree' + ' — agent will work in main workspace',
+        });
+        await this.streams.publish(sessionId, 'container-agent:status', {
+          taskId,
+          sessionId,
+          stage: 'creating_sandbox',
+          message: 'Worktree creation failed' + ' — falling back to main workspace',
+        });
+      };
+
+      try {
+        const worktreeResult = await this.worktreeService.create(
+          {
+            projectId,
+            agentId,
+            taskId,
+            taskTitle: task.title,
+          },
+          {
+            skipEnvCopy: true,
+            skipDepsInstall: true,
+            skipInitScript: true,
+          }
+        );
+
+        if (worktreeResult.ok) {
+          worktreeId = worktreeResult.value.id;
+          worktreePath = this.translatePathForContainer(worktreeResult.value.path, project.path);
+          infoLog('resolveWorktree', 'Worktree created', {
+            worktreeId,
+            branch: worktreeResult.value.branch,
+            hostPath: worktreeResult.value.path,
+            containerPath: worktreePath,
+          });
+
+          try {
+            await this.db
+              .update(tasks)
+              .set({
+                worktreeId,
+                branch: worktreeResult.value.branch,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(tasks.id, taskId));
+          } catch (dbErr) {
+            const eMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+            infoLog('resolveWorktree', 'Failed to link worktree to task (non-critical)', {
+              taskId,
+              worktreeId,
+              error: eMsg,
+            });
+          }
+
+          await this.streams.publish(sessionId, 'container-agent:worktree', {
+            taskId,
+            sessionId,
+            worktreeId,
+            branch: worktreeResult.value.branch,
+            containerPath: worktreePath,
+          });
+
+          await this.streams.publish(sessionId, 'container-agent:message', {
+            taskId,
+            sessionId,
+            role: 'system',
+            content: '✅ Worktree created: branch' + ` "${worktreeResult.value.branch}"`,
+          });
+        } else {
+          await publishFallback(worktreeResult.error);
+        }
+      } catch (wtErr) {
+        await publishFallback(wtErr);
+      }
+    }
+
+    return { worktreeId, worktreePath };
+  }
+
+  /**
+   * Build environment variables and create the container bridge
+   * for agent execution.
+   */
+  private prepareContainerExec(params: {
+    taskId: string;
+    sessionId: string;
+    projectId: string;
+    phase: AgentPhase;
+    sdkSessionId?: string;
+    prompt: string;
+    agentConfig: AgentConfig;
+    worktreePath: string;
+    stopFilePath: string;
+    oauthToken: string;
+  }): { env: Record<string, string>; bridge: ContainerBridge } {
+    const {
+      taskId,
+      sessionId,
+      projectId,
+      phase,
+      sdkSessionId,
+      prompt,
+      agentConfig,
+      worktreePath,
+      stopFilePath,
+    } = params;
+
+    const env: Record<string, string> = {
+      CLAUDE_OAUTH_TOKEN: '[REDACTED]',
+      AGENT_TASK_ID: taskId,
+      AGENT_SESSION_ID: sessionId,
+      AGENT_PROMPT: prompt,
+      AGENT_MAX_TURNS: String(agentConfig.maxTurns),
+      AGENT_MODEL: agentConfig.model,
+      AGENT_CWD: worktreePath,
+      AGENT_STOP_FILE: stopFilePath,
+      AGENT_PHASE: phase,
+      ...(sdkSessionId ? { AGENT_SDK_SESSION_ID: sdkSessionId } : {}),
+    };
+    debugLog('prepareContainerExec', 'Env vars prepared', {
+      ...env,
+      AGENT_PROMPT: `[${prompt.length} chars]`,
+      AGENT_PHASE: phase,
+    });
+
+    debugLog('prepareContainerExec', 'Creating container bridge', {
+      taskId,
+      sessionId,
+      projectId,
+      phase,
+    });
+    const bridge = createContainerBridge({
+      taskId,
+      sessionId,
+      projectId,
+      streams: this.streams,
+      onComplete: (status, turnCount) => {
+        infoLog('bridge:onComplete', 'Agent completed via bridge callback', {
+          taskId,
+          status,
+          turnCount,
+        });
+        this.handleAgentComplete(taskId, status, turnCount);
+      },
+      onError: (error, turnCount) => {
+        infoLog('bridge:onError', 'Agent error via bridge callback', { taskId, error, turnCount });
+        this.handleAgentError(taskId, error, turnCount);
+      },
+      onPlanReady: (planData) => {
+        infoLog('bridge:onPlanReady', 'Plan ready via bridge callback', {
+          taskId,
+          planLength: planData.plan.length,
+          sdkSessionId: planData.sdkSessionId,
+        });
+        this.handlePlanReady(taskId, sessionId, projectId, planData);
+      },
+    });
+
+    return { env, bridge };
+  }
+
+  /**
    * Clean up expired pending plans to prevent memory leaks.
    */
   private cleanupExpiredPlans(): void {
@@ -621,197 +851,30 @@ export class ContainerAgentService {
         content: '✅ Sandbox container ready',
       });
 
-      // Stage: Worktree - create or recover isolated git worktree for the agent
-      let worktreeId: string | undefined;
-      let worktreePath = CONTAINER_WORKSPACE_PATH; // default when worktreeService unavailable or creation fails
-
-      // For execution phase, recover worktree from the task record (created during planning)
-      if (this.worktreeService && phase === 'execute' && task.worktreeId) {
-        try {
-          const worktreeStatus = await this.worktreeService.getStatus(task.worktreeId);
-          if (worktreeStatus.ok) {
-            worktreeId = worktreeStatus.value.id;
-            worktreePath = this.translatePathForContainer(worktreeStatus.value.path, project.path);
-            infoLog('startAgent', 'Recovered worktree from task record for execution', {
-              worktreeId,
-              branch: worktreeStatus.value.branch,
-              hostPath: worktreeStatus.value.path,
-              containerPath: worktreePath,
-            });
-          } else {
-            infoLog(
-              'startAgent',
-              'Failed to recover worktree for execution, using main workspace',
-              {
-                taskId,
-                worktreeId: task.worktreeId,
-                error: String(worktreeStatus.error),
-              }
-            );
-          }
-        } catch (wtErr) {
-          const errorMessage = wtErr instanceof Error ? wtErr.message : String(wtErr);
-          infoLog('startAgent', 'Error recovering worktree for execution, using main workspace', {
-            taskId,
-            error: errorMessage,
-          });
-        }
-      }
-
-      if (this.worktreeService && phase === 'plan') {
-        // Create worktree for the initial planning phase; execution phase reuses it via the task record
-        await this.streams.publish(sessionId, 'container-agent:status', {
-          taskId,
-          sessionId,
-          stage: 'creating_sandbox',
-          message: 'Creating worktree...',
-        });
-        await this.streams.publish(sessionId, 'container-agent:message', {
-          taskId,
-          sessionId,
-          role: 'system',
-          content: `🌿 Creating isolated git worktree for task "${task.title}"...`,
-        });
-
-        const publishWorktreeFallback = async (error: unknown): Promise<void> => {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          warnLog('startAgent', 'Worktree creation failed, continuing without isolation', {
-            taskId,
-            error: errorMessage,
-          });
-          await this.streams.publish(sessionId, 'container-agent:message', {
-            taskId,
-            sessionId,
-            role: 'system',
-            content: '⚠️ Could not create worktree — agent will work in main workspace',
-          });
-          await this.streams.publish(sessionId, 'container-agent:status', {
-            taskId,
-            sessionId,
-            stage: 'creating_sandbox',
-            message: 'Worktree creation failed — falling back to main workspace',
-          });
-        };
-
-        try {
-          const worktreeResult = await this.worktreeService.create(
-            {
-              projectId,
-              agentId,
-              taskId,
-              taskTitle: task.title,
-            },
-            {
-              // Skip host-side setup ops — container has its own filesystem
-              skipEnvCopy: true,
-              skipDepsInstall: true,
-              skipInitScript: true,
-            }
-          );
-
-          if (worktreeResult.ok) {
-            worktreeId = worktreeResult.value.id;
-            worktreePath = this.translatePathForContainer(worktreeResult.value.path, project.path);
-            infoLog('startAgent', 'Worktree created', {
-              worktreeId,
-              branch: worktreeResult.value.branch,
-              hostPath: worktreeResult.value.path,
-              containerPath: worktreePath,
-            });
-
-            // Link worktree to task (non-critical)
-            try {
-              await this.db
-                .update(tasks)
-                .set({
-                  worktreeId,
-                  branch: worktreeResult.value.branch,
-                  updatedAt: new Date().toISOString(),
-                })
-                .where(eq(tasks.id, taskId));
-            } catch (dbErr) {
-              const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-              infoLog('startAgent', 'Failed to link worktree to task (non-critical)', {
-                taskId,
-                worktreeId,
-                error: errorMessage,
-              });
-            }
-
-            await this.streams.publish(sessionId, 'container-agent:worktree', {
-              taskId,
-              sessionId,
-              worktreeId,
-              branch: worktreeResult.value.branch,
-              containerPath: worktreePath,
-            });
-
-            await this.streams.publish(sessionId, 'container-agent:message', {
-              taskId,
-              sessionId,
-              role: 'system',
-              content: `✅ Worktree created: branch "${worktreeResult.value.branch}"`,
-            });
-          } else {
-            await publishWorktreeFallback(worktreeResult.error);
-          }
-        } catch (wtErr) {
-          await publishWorktreeFallback(wtErr);
-        }
-      }
-
-      // Build environment variables for agent-runner
-      // CLAUDE_OAUTH_TOKEN is used by agent-runner to write credentials file
-      // (OAuth tokens can't be passed via ANTHROPIC_API_KEY - they're blocked by API)
-      const env: Record<string, string> = {
-        CLAUDE_OAUTH_TOKEN: '[REDACTED]',
-        AGENT_TASK_ID: taskId,
-        AGENT_SESSION_ID: sessionId,
-        AGENT_PROMPT: prompt,
-        AGENT_MAX_TURNS: String(agentConfig.maxTurns),
-        AGENT_MODEL: agentConfig.model,
-        AGENT_CWD: worktreePath,
-        AGENT_STOP_FILE: stopFilePath,
-        AGENT_PHASE: phase,
-        ...(sdkSessionId ? { AGENT_SDK_SESSION_ID: sdkSessionId } : {}),
-      };
-      debugLog('startAgent', 'Environment variables prepared', {
-        ...env,
-        AGENT_PROMPT: `[${prompt.length} chars]`,
-        AGENT_PHASE: phase,
-      });
-
-      // Create the container bridge to process stdout events
-      debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId, phase });
-      const bridge = createContainerBridge({
+      // Stage: Worktree - create or recover isolated worktree
+      const { worktreeId, worktreePath } = await this.resolveWorktree({
+        phase,
         taskId,
         sessionId,
         projectId,
-        streams: this.streams,
-        onComplete: (status, turnCount) => {
-          infoLog('bridge:onComplete', 'Agent completed via bridge callback', {
-            taskId,
-            status,
-            turnCount,
-          });
-          this.handleAgentComplete(taskId, status, turnCount);
-        },
-        onError: (error, turnCount) => {
-          infoLog('bridge:onError', 'Agent error via bridge callback', {
-            taskId,
-            error,
-            turnCount,
-          });
-          this.handleAgentError(taskId, error, turnCount);
-        },
-        onPlanReady: (planData) => {
-          infoLog('bridge:onPlanReady', 'Plan ready via bridge callback', {
-            taskId,
-            planLength: planData.plan.length,
-            sdkSessionId: planData.sdkSessionId,
-          });
-          this.handlePlanReady(taskId, sessionId, projectId, planData);
-        },
+        project,
+        task,
+        agentId,
+        sandbox,
+      });
+
+      // Build env vars and create container bridge
+      const { env, bridge } = this.prepareContainerExec({
+        taskId,
+        sessionId,
+        projectId,
+        phase,
+        sdkSessionId,
+        prompt,
+        agentConfig,
+        worktreePath,
+        stopFilePath,
+        oauthToken,
       });
 
       // Await status event for persistence (critical for UI breadcrumbs)
