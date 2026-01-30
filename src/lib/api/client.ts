@@ -385,6 +385,23 @@ export const apiClient = {
       }),
 
     /**
+     * Approve a pending plan for a task and start execution
+     */
+    approvePlan: (id: string) =>
+      apiServerFetch<{ approved: boolean }>(`/api/tasks/${id}/approve-plan`, {
+        method: 'POST',
+      }),
+
+    /**
+     * Reject a pending plan for a task
+     */
+    rejectPlan: (id: string, reason?: string) =>
+      apiServerFetch<{ rejected: boolean }>(`/api/tasks/${id}/reject-plan`, {
+        method: 'POST',
+        body: reason ? { reason } : undefined,
+      }),
+
+    /**
      * Get diff for a task (file changes made by the agent)
      */
     getDiff: (id: string) =>

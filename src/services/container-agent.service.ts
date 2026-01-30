@@ -41,6 +41,23 @@ import type {
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
+
+/**
+ * Shape of task row fields used by plan-related queries.
+ * Avoids duplicating inline type casts across methods.
+ */
+interface TaskPlanRow {
+  id: string;
+  projectId: string;
+  sessionId: string | null;
+  plan: string | null;
+  planOptions: {
+    sdkSessionId?: string;
+    allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
+  } | null;
+  lastAgentStatus: string | null;
+}
+
 import type { ApiKeyService } from './api-key.service.js';
 import type { DurableStreamsService } from './durable-streams.service.js';
 import { getGlobalDefaultModel } from './settings.service.js';
@@ -1054,13 +1071,51 @@ export class ContainerAgentService {
 
     const agent = this.runningAgents.get(taskId);
     if (!agent) {
-      // Agent not in memory map (server restart or race condition).
-      // Still update the database so the agent doesn't stay stuck as 'running'.
-      infoLog('handleAgentError', 'Agent not found in running agents map - updating DB directly', {
+      // Agent not in memory map — could be a post-plan error (session.close() abort)
+      // or a genuine orphan from a server restart / race condition.
+      // Check if the plan was already captured before overwriting status.
+      infoLog('handleAgentError', 'Agent not found in running agents map', {
         taskId,
         runningAgents: Array.from(this.runningAgents.keys()),
       });
 
+      // Query the task to check if a plan was already captured
+      const existingTask = (await this.db.query.tasks.findFirst({
+        where: eq(tasks.id, taskId),
+      })) as unknown as TaskPlanRow | undefined;
+
+      if (existingTask?.lastAgentStatus === 'planning' && existingTask.plan) {
+        // Plan was already captured — only suppress expected post-plan errors
+        // (e.g. stream closure after ExitPlanMode). Log unexpected errors as warnings.
+        const POST_PLAN_ERROR_PATTERNS = [
+          'Operation aborted',
+          'session closed',
+          'EPIPE',
+          'stream ended',
+        ];
+        const isExpectedPostPlanError = POST_PLAN_ERROR_PATTERNS.some((pattern) =>
+          error.includes(pattern)
+        );
+
+        if (isExpectedPostPlanError) {
+          infoLog('handleAgentError', 'Suppressing expected post-plan error', {
+            taskId,
+            lastAgentStatus: existingTask.lastAgentStatus,
+            error,
+          });
+          return;
+        }
+
+        // Unexpected error after plan capture — log at WARN and proceed to update DB
+        console.warn('[ContainerAgentService] Unexpected error after plan capture:', {
+          taskId,
+          error,
+          lastAgentStatus: existingTask.lastAgentStatus,
+          planLength: existingTask.plan.length,
+        });
+      }
+
+      // Genuine error for an orphaned agent — update DB so it doesn't stay stuck
       const agentId = `agent-${taskId}`;
       try {
         await this.db
@@ -1196,19 +1251,49 @@ export class ContainerAgentService {
     });
 
     // Persist plan to the task record so it survives server restarts
-    this.db
-      .update(tasks)
-      .set({
-        plan: planData.plan,
-        planOptions: {
-          sdkSessionId: planData.sdkSessionId,
-          allowedPrompts: planData.allowedPrompts,
-        },
-        lastAgentStatus: 'planning',
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(tasks.id, taskId))
-      .run();
+    // Move card to waiting_approval so the user sees it on the Kanban board
+    try {
+      this.db
+        .update(tasks)
+        .set({
+          plan: planData.plan,
+          planOptions: {
+            sdkSessionId: planData.sdkSessionId,
+            allowedPrompts: planData.allowedPrompts,
+          },
+          lastAgentStatus: 'planning',
+          column: 'waiting_approval',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tasks.id, taskId))
+        .run();
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      console.error('[ContainerAgentService] CRITICAL: Failed to persist plan to database:', {
+        taskId,
+        error: errorMessage,
+      });
+      // DB failed — card won't move to waiting_approval, so remove from pendingPlans
+      // to avoid stale in-memory state that can't be approved properly
+      this.pendingPlans.delete(taskId);
+      // Publish error event so UI shows the failure
+      this.streams
+        .publish(sessionId, 'container-agent:error', {
+          taskId,
+          sessionId,
+          error: `Failed to persist plan: ${errorMessage}`,
+          turnCount: planData.turnCount,
+        })
+        .catch((publishErr) => {
+          console.error(
+            '[ContainerAgentService] Failed to publish plan DB error event:',
+            publishErr
+          );
+        });
+      // Clean up running agent and return early
+      this.runningAgents.delete(taskId);
+      return;
+    }
 
     // Clean up running agent (planning phase completed)
     this.runningAgents.delete(taskId);
@@ -1233,19 +1318,7 @@ export class ContainerAgentService {
     // better-sqlite3 driver executes synchronously despite the Promise return type
     const task = this.db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
-    }) as unknown as
-      | {
-          id: string;
-          projectId: string;
-          sessionId: string | null;
-          plan: string | null;
-          planOptions: {
-            sdkSessionId?: string;
-            allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
-          } | null;
-          lastAgentStatus: string | null;
-        }
-      | undefined;
+    }) as unknown as TaskPlanRow | undefined;
 
     if (task?.plan && task.lastAgentStatus === 'planning') {
       const planOptions = task.planOptions ?? {};
@@ -1285,7 +1358,27 @@ export class ContainerAgentService {
       sdkSessionId: planData.sdkSessionId,
     });
 
-    // Remove from pending plans
+    // Move task back to in_progress for execution phase
+    // lastAgentStatus stays as 'planning' until execution completes or errors (handleAgentComplete / handleAgentError sets it)
+    try {
+      this.db
+        .update(tasks)
+        .set({
+          column: 'in_progress',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tasks.id, taskId))
+        .run();
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      console.error('[ContainerAgentService] Failed to move task to in_progress for execution:', {
+        taskId,
+        error: errorMessage,
+      });
+      return err(SandboxErrors.AGENT_START_FAILED(`DB update failed: ${errorMessage}`));
+    }
+
+    // Only remove from pending plans AFTER DB write succeeds
     this.pendingPlans.delete(taskId);
 
     // Start execution phase with the SDK session ID to resume
@@ -1303,12 +1396,53 @@ export class ContainerAgentService {
 
   /**
    * Reject a plan and clean up.
+   * Moves the task back to backlog and clears plan-related fields.
+   * DB write happens FIRST; pendingPlans is only cleared on success.
    */
-  rejectPlan(taskId: string): boolean {
+  rejectPlan(taskId: string, reason?: string): Result<void, SandboxError> {
     const existed = this.pendingPlans.has(taskId);
+
+    if (!existed) {
+      // Also check DB (plan may have been recovered from restart)
+      const task = this.db.query.tasks.findFirst({
+        where: eq(tasks.id, taskId),
+      }) as unknown as TaskPlanRow | undefined;
+
+      if (!task?.plan || task.lastAgentStatus !== 'planning') {
+        infoLog('rejectPlan', 'No plan to reject', { taskId });
+        return err(SandboxErrors.PLAN_NOT_FOUND(taskId));
+      }
+    }
+
+    // DB write FIRST — only clear in-memory on success
+    try {
+      this.db
+        .update(tasks)
+        .set({
+          column: 'backlog',
+          plan: null,
+          planOptions: null,
+          lastAgentStatus: null,
+          rejectionReason: reason ?? null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tasks.id, taskId))
+        .run();
+      infoLog('rejectPlan', 'Task moved to backlog and plan cleared', { taskId, reason });
+    } catch (dbErr) {
+      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+      console.error('[ContainerAgentService] Failed to update task on plan rejection:', {
+        taskId,
+        error: errorMessage,
+      });
+      // Do NOT delete from pendingPlans — DB write failed, data must be preserved
+      return err(SandboxErrors.PLAN_REJECTION_FAILED(taskId, errorMessage));
+    }
+
+    // DB succeeded — safe to clear in-memory cache
     this.pendingPlans.delete(taskId);
-    infoLog('rejectPlan', existed ? 'Plan rejected' : 'No plan to reject', { taskId });
-    return existed;
+    infoLog('rejectPlan', 'Plan rejected successfully', { taskId });
+    return ok(undefined);
   }
 }
 

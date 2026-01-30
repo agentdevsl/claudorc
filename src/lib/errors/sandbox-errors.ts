@@ -216,4 +216,10 @@ export const SandboxErrors = {
     createError('SANDBOX_PLAN_NOT_FOUND', `No pending plan found for task: ${taskId}`, 404, {
       taskId,
     }),
+
+  PLAN_REJECTION_FAILED: (taskId: string, message: string): SandboxError => ({
+    code: 'SANDBOX_PLAN_REJECTION_FAILED',
+    message: `Failed to reject plan for task ${taskId}: ${message}`,
+    status: 500,
+  }),
 };

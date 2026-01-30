@@ -767,7 +767,7 @@ describe('API Client', () => {
       await apiClient.sessions.export('session-1', 'markdown');
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/sessions/session-1/export',
+        'http://localhost:3001/api/sessions/session-1/export',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ format: 'markdown' }),

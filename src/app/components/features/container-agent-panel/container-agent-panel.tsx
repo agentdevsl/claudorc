@@ -11,6 +11,12 @@ export interface ContainerAgentPanelProps {
   sessionId: string | null;
   /** Callback when stop is requested */
   onStop?: () => Promise<void>;
+  /** Callback when plan is approved */
+  onApprovePlan?: () => void;
+  /** Callback when plan is rejected */
+  onRejectPlan?: () => void;
+  /** Whether a plan action is in progress */
+  isPlanActionPending?: boolean;
 }
 
 /**
@@ -25,6 +31,9 @@ export interface ContainerAgentPanelProps {
 export function ContainerAgentPanel({
   sessionId,
   onStop,
+  onApprovePlan,
+  onRejectPlan,
+  isPlanActionPending,
 }: ContainerAgentPanelProps): React.JSX.Element {
   const { state, connectionState, isStreaming } = useContainerAgent(sessionId);
 
@@ -79,6 +88,10 @@ export function ContainerAgentPanel({
             error={state.error}
             status={state.status}
             statusMessage={state.statusMessage}
+            plan={state.plan}
+            onApprovePlan={state.status === 'plan_ready' ? onApprovePlan : undefined}
+            onRejectPlan={state.status === 'plan_ready' ? onRejectPlan : undefined}
+            isPlanActionPending={isPlanActionPending}
           />
         </div>
 

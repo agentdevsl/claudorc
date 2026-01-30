@@ -50,7 +50,10 @@ const createMockContainerAgentService = (
       }
       return err(errorResult ?? { message: 'Agent failed to start' });
     }),
+    stopAgent: vi.fn().mockResolvedValue(ok(undefined)),
     isAgentRunning: vi.fn().mockReturnValue(false),
+    approvePlan: vi.fn().mockResolvedValue(ok(undefined)),
+    rejectPlan: vi.fn().mockReturnValue(ok(undefined)),
   };
 };
 
@@ -343,7 +346,10 @@ describe('TaskService Container Agent Trigger', () => {
       const errorMessage = 'Network timeout';
       const throwingMock: ContainerAgentTrigger = {
         startAgent: vi.fn().mockRejectedValue(new Error(errorMessage)),
+        stopAgent: vi.fn().mockResolvedValue(ok(undefined)),
         isAgentRunning: vi.fn().mockReturnValue(false),
+        approvePlan: vi.fn().mockResolvedValue(ok(undefined)),
+        rejectPlan: vi.fn().mockReturnValue(ok(undefined)),
       };
       taskService.setContainerAgentService(throwingMock);
 
@@ -449,7 +455,10 @@ describe('TaskService Container Agent Trigger', () => {
       // Set up mock to throw
       const throwingMock: ContainerAgentTrigger = {
         startAgent: vi.fn().mockRejectedValue(new Error('Connection refused')),
+        stopAgent: vi.fn().mockResolvedValue(ok(undefined)),
         isAgentRunning: vi.fn().mockReturnValue(false),
+        approvePlan: vi.fn().mockResolvedValue(ok(undefined)),
+        rejectPlan: vi.fn().mockReturnValue(ok(undefined)),
       };
       taskService.setContainerAgentService(throwingMock);
 

@@ -15,6 +15,7 @@ export type ContainerAgentStatus =
   | 'starting'
   | 'running'
   | 'completed'
+  | 'plan_ready'
   | 'error'
   | 'cancelled';
 
@@ -37,6 +38,7 @@ const statusBadgeVariants = cva(
         starting: 'bg-accent/15 text-accent',
         running: 'bg-success/15 text-success',
         completed: 'bg-accent/15 text-accent',
+        plan_ready: 'bg-attention/15 text-attention',
         error: 'bg-danger/15 text-danger',
         cancelled: 'bg-warning/15 text-warning',
       },
@@ -54,6 +56,7 @@ const statusDotVariants = cva('h-1.5 w-1.5 rounded-full', {
       starting: 'bg-accent animate-pulse',
       running: 'bg-success animate-pulse',
       completed: 'bg-accent',
+      plan_ready: 'bg-attention',
       error: 'bg-danger',
       cancelled: 'bg-warning',
     },
@@ -68,6 +71,7 @@ const statusLabels: Record<ContainerAgentStatus, string> = {
   starting: 'Starting',
   running: 'Running',
   completed: 'Completed',
+  plan_ready: 'Plan Ready',
   error: 'Error',
   cancelled: 'Cancelled',
 };

@@ -79,6 +79,8 @@ export interface ContainerAgentTrigger {
   startAgent: (input: StartAgentInput) => Promise<Result<void, unknown>>;
   stopAgent: (taskId: string) => Promise<Result<void, unknown>>;
   isAgentRunning: (taskId: string) => boolean;
+  approvePlan: (taskId: string) => Promise<Result<void, unknown>>;
+  rejectPlan: (taskId: string, reason?: string) => Result<void, unknown>;
 }
 
 export class TaskService {
@@ -134,6 +136,62 @@ export class TaskService {
           })
           .where(eq(tasks.id, taskId));
       }
+    }
+
+    return ok(undefined);
+  }
+
+  /**
+   * Approve a pending plan for a task and start execution.
+   */
+  async approvePlan(taskId: string): Promise<Result<void, TaskError>> {
+    if (!this.containerAgentService) {
+      return err({
+        code: 'CONTAINER_AGENT_SERVICE_UNAVAILABLE',
+        message: 'Container agent service is not configured',
+        status: 503,
+      });
+    }
+
+    const result = await this.containerAgentService.approvePlan(taskId);
+    if (!result.ok) {
+      // Propagate the actual error from containerAgentService
+      const errorObj = result.error as
+        | { code?: string; message?: string; status?: number }
+        | undefined;
+      return err({
+        code: errorObj?.code ?? 'PLAN_APPROVAL_FAILED',
+        message: errorObj?.message ?? `Failed to approve plan for task ${taskId}`,
+        status: errorObj?.status ?? 500,
+      });
+    }
+
+    return ok(undefined);
+  }
+
+  /**
+   * Reject a pending plan for a task and move it back to backlog.
+   */
+  rejectPlan(taskId: string, reason?: string): Result<void, TaskError> {
+    if (!this.containerAgentService) {
+      return err({
+        code: 'CONTAINER_AGENT_SERVICE_UNAVAILABLE',
+        message: 'Container agent service is not configured',
+        status: 503,
+      });
+    }
+
+    const result = this.containerAgentService.rejectPlan(taskId, reason);
+    if (!result.ok) {
+      // Propagate the actual error — distinguish PLAN_NOT_FOUND from PLAN_REJECTION_FAILED
+      const errorObj = result.error as
+        | { code?: string; message?: string; status?: number }
+        | undefined;
+      return err({
+        code: errorObj?.code ?? 'PLAN_REJECTION_FAILED',
+        message: errorObj?.message ?? `Failed to reject plan for task ${taskId}`,
+        status: errorObj?.status ?? 500,
+      });
     }
 
     return ok(undefined);
@@ -433,47 +491,42 @@ export class TaskService {
       (projectModel ? getFullModelId(projectModel) : undefined) ??
       (await getGlobalDefaultModel(this.db));
 
-    // Trigger agent execution asynchronously - results flow through the stream
-    // We don't await the full result; the client subscribes to the sessionId stream
+    // Trigger agent execution and capture startup errors
     // The sessionId was already set on the task in moveColumn() before this call
     console.log(
       `[TaskService] Triggering container agent for task ${task.id}, sessionId: ${sessionId}, model: ${resolvedModel ?? 'default'}`
     );
-    this.containerAgentService
-      .startAgent({
+    try {
+      const result = await this.containerAgentService.startAgent({
         projectId: task.projectId,
         taskId: task.id,
         sessionId,
         prompt,
         model: resolvedModel,
         maxTurns: project.config?.maxTurns,
-      })
-      .then((result) => {
-        if (!result.ok) {
-          // Extract error message
-          const errorResult = result as { ok: false; error: unknown };
-          const errorObj = errorResult.error;
-          let errorMsg: string;
-          if (typeof errorObj === 'object' && errorObj !== null && 'message' in errorObj) {
-            errorMsg = (errorObj as { message: string }).message;
-          } else if (typeof errorObj === 'string') {
-            errorMsg = errorObj;
-          } else {
-            errorMsg = 'Failed to start agent';
-          }
-          console.error(`[TaskService] Container agent failed for task ${task.id}:`, errorMsg);
-          // Error is already published to stream by containerAgentService
-        } else {
-          console.log(`[TaskService] Container agent started for task ${task.id}`);
-        }
-      })
-      .catch((error) => {
-        console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
-        // Errors are published to stream
       });
 
-    // Return immediately - client subscribes to sessionId stream for results
-    return undefined;
+      if (!result.ok) {
+        const errorObj = result.error;
+        let errorMsg: string;
+        if (typeof errorObj === 'object' && errorObj !== null && 'message' in errorObj) {
+          errorMsg = (errorObj as { message: string }).message;
+        } else if (typeof errorObj === 'string') {
+          errorMsg = errorObj;
+        } else {
+          errorMsg = 'Failed to start agent';
+        }
+        console.error(`[TaskService] Container agent failed for task ${task.id}:`, errorMsg);
+        return errorMsg;
+      }
+
+      console.log(`[TaskService] Container agent started for task ${task.id}`);
+      return undefined;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to start agent';
+      console.error(`[TaskService] Error starting container agent for task ${task.id}:`, error);
+      return errorMsg;
+    }
   }
 
   /**

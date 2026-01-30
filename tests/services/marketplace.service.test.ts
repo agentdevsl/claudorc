@@ -5,10 +5,14 @@ import { MarketplaceService } from '../../src/services/marketplace.service';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
 
 // Mock the GitHub modules
-vi.mock('../../src/lib/github/client', () => ({
-  getInstallationOctokit: vi.fn(),
-  createOctokitFromToken: vi.fn(),
-}));
+vi.mock('../../src/lib/github/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/github/client')>();
+  return {
+    ...actual,
+    getInstallationOctokit: vi.fn(),
+    createOctokitFromToken: vi.fn(),
+  };
+});
 
 vi.mock('../../src/lib/github/marketplace-sync', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/lib/github/marketplace-sync')>();
@@ -18,7 +22,7 @@ vi.mock('../../src/lib/github/marketplace-sync', async (importOriginal) => {
   };
 });
 
-vi.mock('../../src/server/crypto', () => ({
+vi.mock('../../src/lib/crypto/server-encryption', () => ({
   decryptToken: vi.fn().mockResolvedValue('decrypted-token'),
 }));
 

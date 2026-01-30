@@ -3,6 +3,7 @@ import {
   type ConnectionState,
   type ContainerAgentComplete,
   type ContainerAgentError,
+  type ContainerAgentPlanReady,
   type ContainerAgentStarted,
   type ContainerAgentStatus,
   type ContainerAgentToken,
@@ -54,7 +55,7 @@ export interface ContainerAgentToolExecution {
  */
 export interface ContainerAgentState {
   /** Agent execution status */
-  status: 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'cancelled';
+  status: 'idle' | 'starting' | 'running' | 'completed' | 'plan_ready' | 'error' | 'cancelled';
   /** Current startup stage (breadcrumb progress) */
   currentStage?: ContainerAgentStage;
   /** Current status message */
@@ -81,6 +82,8 @@ export interface ContainerAgentState {
   error?: string;
   /** Error code if failed */
   errorCode?: string;
+  /** Plan content if plan_ready */
+  plan?: string;
   /** Started timestamp */
   startedAt?: number;
   /** Completed timestamp */
@@ -260,6 +263,18 @@ export function useContainerAgent(sessionId: string | null): {
     }));
   }, []);
 
+  // Handle plan ready
+  const handlePlanReady = useCallback((data: ContainerAgentPlanReady) => {
+    setIsStreaming(false);
+    setState((prev) => ({
+      ...prev,
+      status: 'plan_ready',
+      plan: data.plan,
+      result: 'Plan ready for review',
+      completedAt: data.timestamp,
+    }));
+  }, []);
+
   // Subscribe to session events
   useEffect(() => {
     if (!sessionId) {
@@ -281,6 +296,7 @@ export function useContainerAgent(sessionId: string | null): {
       onContainerAgentComplete: (event) => handleComplete(event.data),
       onContainerAgentError: (event) => handleError(event.data),
       onContainerAgentCancelled: (event) => handleCancelled(event.data),
+      onContainerAgentPlanReady: (event) => handlePlanReady(event.data),
       onError: (error) => {
         console.error('[useContainerAgent] Stream error:', error);
         setConnectionState('disconnected');
@@ -315,6 +331,7 @@ export function useContainerAgent(sessionId: string | null): {
     handleComplete,
     handleError,
     handleCancelled,
+    handlePlanReady,
   ]);
 
   return { state, connectionState, isStreaming };

@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AgentSessionView } from '@/app/components/features/agent-session-view';
 import { ContainerAgentPanel } from '@/app/components/features/container-agent-panel';
 import { EmptyState } from '@/app/components/features/empty-state';
@@ -29,11 +29,73 @@ export const Route = createFileRoute('/sessions/$sessionId')({
 
 function SessionPage(): React.JSX.Element {
   const { sessionId } = Route.useParams();
+  const navigate = useNavigate();
   const [session, setSession] = useState<ClientSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{ message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isPlanActionPending, setIsPlanActionPending] = useState(false);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userId = 'current-user';
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showTemporaryError = useCallback((message: string) => {
+    // Clear any existing timeout to avoid stale clears
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
+    setActionError(message);
+    errorTimeoutRef.current = setTimeout(() => {
+      setActionError(null);
+      errorTimeoutRef.current = null;
+    }, 5000);
+  }, []);
+
+  const handleApprovePlan = useCallback(async () => {
+    if (!session?.taskId) return;
+    setIsPlanActionPending(true);
+    try {
+      const result = await apiClient.tasks.approvePlan(session.taskId);
+      if (!result.ok) {
+        showTemporaryError('Failed to approve plan');
+      }
+      // Execution phase starts -- session stream will update automatically
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SessionPage] Failed to approve plan:', error);
+      showTemporaryError(`Failed to approve plan: ${message}`);
+    } finally {
+      setIsPlanActionPending(false);
+    }
+  }, [session?.taskId, showTemporaryError]);
+
+  const handleRejectPlan = useCallback(async () => {
+    if (!session?.taskId) return;
+    setIsPlanActionPending(true);
+    try {
+      const result = await apiClient.tasks.rejectPlan(session.taskId);
+      if (!result.ok) {
+        showTemporaryError('Failed to reject plan');
+        return;
+      }
+      // Navigate back to projects list since task is now in backlog
+      navigate({ to: '/' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SessionPage] Failed to reject plan:', error);
+      showTemporaryError(`Failed to reject plan: ${message}`);
+    } finally {
+      setIsPlanActionPending(false);
+    }
+  }, [session?.taskId, navigate, showTemporaryError]);
 
   // Fetch session from API on mount
   useEffect(() => {
@@ -100,7 +162,7 @@ function SessionPage(): React.JSX.Element {
           { label: session.title ?? session.id },
         ]}
       >
-        <div className="relative h-full">
+        <div className="relative flex flex-col h-full min-h-0">
           {actionError && (
             <div className="absolute left-1/2 top-4 z-50 -translate-x-1/2 rounded-md border border-danger bg-danger/10 px-4 py-2 text-sm text-danger">
               {actionError}
@@ -113,11 +175,13 @@ function SessionPage(): React.JSX.Element {
                 try {
                   await fetch(`/api/tasks/${session.taskId}/stop-agent`, { method: 'POST' });
                 } catch {
-                  setActionError('Failed to stop agent');
-                  setTimeout(() => setActionError(null), 5000);
+                  showTemporaryError('Failed to stop agent');
                 }
               }
             }}
+            onApprovePlan={() => void handleApprovePlan()}
+            onRejectPlan={() => void handleRejectPlan()}
+            isPlanActionPending={isPlanActionPending}
           />
         </div>
       </LayoutShell>
@@ -145,8 +209,7 @@ function SessionPage(): React.JSX.Element {
               try {
                 await fetch(`/api/agents/${session.agentId}/pause`, { method: 'POST' });
               } catch {
-                setActionError('Failed to pause agent');
-                setTimeout(() => setActionError(null), 5000);
+                showTemporaryError('Failed to pause agent');
               }
             }
           }}
@@ -156,8 +219,7 @@ function SessionPage(): React.JSX.Element {
               try {
                 await fetch(`/api/agents/${session.agentId}/resume`, { method: 'POST' });
               } catch {
-                setActionError('Failed to resume agent');
-                setTimeout(() => setActionError(null), 5000);
+                showTemporaryError('Failed to resume agent');
               }
             }
           }}
@@ -167,8 +229,7 @@ function SessionPage(): React.JSX.Element {
               try {
                 await fetch(`/api/agents/${session.agentId}/stop`, { method: 'POST' });
               } catch {
-                setActionError('Failed to stop agent');
-                setTimeout(() => setActionError(null), 5000);
+                showTemporaryError('Failed to stop agent');
               }
             }
           }}

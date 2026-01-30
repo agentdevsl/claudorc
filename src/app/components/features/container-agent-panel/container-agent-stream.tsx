@@ -1,5 +1,14 @@
-import { CheckCircle, CircleNotch, Terminal, Warning, XCircle } from '@phosphor-icons/react';
+import {
+  CheckCircle,
+  CircleNotch,
+  Lightning,
+  Terminal,
+  Warning,
+  XCircle,
+} from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/app/components/ui/button';
+import { MarkdownContent } from '@/app/components/ui/markdown-content';
 import type { ContainerAgentStatus } from './container-agent-header';
 
 interface Message {
@@ -16,6 +25,14 @@ interface ContainerAgentStreamProps {
   error?: string;
   status: ContainerAgentStatus;
   statusMessage?: string;
+  /** Plan content when plan_ready */
+  plan?: string;
+  /** Callback to approve the plan */
+  onApprovePlan?: () => void;
+  /** Callback to reject the plan */
+  onRejectPlan?: () => void;
+  /** Whether an approve/reject action is in progress */
+  isPlanActionPending?: boolean;
 }
 
 /**
@@ -35,6 +52,10 @@ export function ContainerAgentStream({
   error,
   status,
   statusMessage,
+  plan,
+  onApprovePlan,
+  onRejectPlan,
+  isPlanActionPending,
 }: ContainerAgentStreamProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -152,8 +173,61 @@ export function ContainerAgentStream({
               </div>
             )}
 
-            {/* Final result */}
-            {status === 'completed' && result && (
+            {/* Plan review */}
+            {status === 'plan_ready' && plan && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-attention/30 bg-attention/5 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-attention">
+                    <Lightning className="h-4 w-4" weight="fill" />
+                    <span className="text-sm font-semibold">Implementation Plan</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-bg-default p-4">
+                    <MarkdownContent
+                      content={plan}
+                      className="prose prose-sm dark:prose-invert max-w-none text-fg"
+                    />
+                  </div>
+                </div>
+
+                {/* Approve/Reject buttons */}
+                {(onApprovePlan || onRejectPlan) && (
+                  <div className="flex items-center justify-end gap-3">
+                    {onRejectPlan && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={onRejectPlan}
+                        disabled={isPlanActionPending}
+                        className="gap-1.5 bg-danger/10 text-danger ring-1 ring-danger/20 hover:bg-danger/20 hover:ring-danger/40"
+                        data-testid="reject-plan-button"
+                      >
+                        <XCircle className="h-4 w-4" weight="bold" />
+                        Reject Plan
+                      </Button>
+                    )}
+                    {onApprovePlan && (
+                      <Button
+                        size="sm"
+                        onClick={onApprovePlan}
+                        disabled={isPlanActionPending}
+                        className="gap-1.5 bg-success text-white shadow-lg shadow-success/25 hover:bg-success/90"
+                        data-testid="approve-plan-button"
+                      >
+                        {isPlanActionPending ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" weight="bold" />
+                        )}
+                        Approve Plan
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Final result (non-plan) */}
+            {status === 'completed' && result && !plan && (
               <div className="rounded-lg border border-success/30 bg-success/10 p-3">
                 <div className="mb-2 flex items-center gap-2 text-success">
                   <CheckCircle className="h-4 w-4" weight="fill" />

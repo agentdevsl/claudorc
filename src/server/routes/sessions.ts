@@ -381,7 +381,7 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
     };
 
     const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
+      async start(controller) {
         streamController = controller;
         // Store controller for this session
         const controllers = sseConnections.get(sessionId) ?? new Set();
@@ -404,6 +404,7 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
         // Subscribe to durable streams if available
         if (durableStreamsService) {
           // First, send any existing events from the stream (for replay)
+          let replayedCount = 0;
           const server = durableStreamsService.getServer();
           if ('getEvents' in server && typeof server.getEvents === 'function') {
             const existingEvents = (
@@ -431,13 +432,56 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
               });
               controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
             }
+            replayedCount = eventsToReplay.length;
           } else {
             console.log(
               `[SSE] Server does not have getEvents method for session ${sessionId}, no replay available`
             );
           }
 
-          // Then subscribe to new events
+          // Fallback: if in-memory store had no events, replay from database
+          // This handles server restarts where in-memory events are lost
+          if (replayedCount === 0) {
+            try {
+              const dbResult = await sessionService.getEventsBySession(sessionId, {
+                limit: 10000,
+                offset: 0,
+              });
+              if (dbResult.ok && dbResult.value.length > 0) {
+                // Assign synthetic offsets and filter by fromOffset (same as in-memory path)
+                let syntheticOffset = 1;
+                const dbEventsWithOffsets = dbResult.value.map((dbEvent) => {
+                  const eventOffset =
+                    typeof (dbEvent as Record<string, unknown>).offset === 'number'
+                      ? ((dbEvent as Record<string, unknown>).offset as number)
+                      : syntheticOffset++;
+                  return { dbEvent, eventOffset };
+                });
+                const filteredDbEvents = dbEventsWithOffsets.filter(
+                  ({ eventOffset }) => eventOffset >= fromOffset
+                );
+                console.log(
+                  `[SSE] Replaying ${filteredDbEvents.length} events from database for session ${sessionId} (total stored: ${dbResult.value.length}, fromOffset: ${fromOffset})`
+                );
+                for (const { dbEvent, eventOffset } of filteredDbEvents) {
+                  const eventData = JSON.stringify({
+                    type: dbEvent.type,
+                    data: dbEvent.data,
+                    timestamp: dbEvent.timestamp,
+                    offset: eventOffset,
+                  });
+                  controller.enqueue(new TextEncoder().encode(`data: ${eventData}\n\n`));
+                }
+              }
+            } catch (err) {
+              console.error(
+                `[SSE] Failed to replay events from database for session ${sessionId}:`,
+                err
+              );
+            }
+          }
+
+          // Then subscribe to new events (after replay is complete to avoid race conditions)
           unsubscribe = durableStreamsService.addSubscriber(sessionId, (event) => {
             try {
               if (typeof event.offset === 'number' && event.offset < fromOffset) {

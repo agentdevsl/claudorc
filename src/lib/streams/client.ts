@@ -135,6 +135,14 @@ const rawContainerAgentCancelledSchema = z.object({
   turnCount: z.number(),
 });
 
+const rawContainerAgentPlanReadySchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  plan: z.string().min(1),
+  turnCount: z.number().optional(),
+  sdkSessionId: z.string().optional(),
+});
+
 const rawContainerAgentStatusSchema = z.object({
   taskId: z.string(),
   sessionId: z.string(),
@@ -199,7 +207,8 @@ export type SessionEventType =
   | 'container-agent:message'
   | 'container-agent:complete'
   | 'container-agent:error'
-  | 'container-agent:cancelled';
+  | 'container-agent:cancelled'
+  | 'container-agent:plan_ready';
 
 /**
  * Raw event from the server
@@ -306,6 +315,15 @@ export interface ContainerAgentCancelled {
   timestamp: number;
 }
 
+export interface ContainerAgentPlanReady {
+  taskId: string;
+  sessionId: string;
+  plan: string;
+  turnCount?: number;
+  sdkSessionId?: string;
+  timestamp: number;
+}
+
 /**
  * Typed session event for callback routing
  */
@@ -324,7 +342,8 @@ export type TypedSessionEvent =
   | { channel: 'containerAgent:message'; data: ContainerAgentMessage; offset?: number }
   | { channel: 'containerAgent:complete'; data: ContainerAgentComplete; offset?: number }
   | { channel: 'containerAgent:error'; data: ContainerAgentError; offset?: number }
-  | { channel: 'containerAgent:cancelled'; data: ContainerAgentCancelled; offset?: number };
+  | { channel: 'containerAgent:cancelled'; data: ContainerAgentCancelled; offset?: number }
+  | { channel: 'containerAgent:planReady'; data: ContainerAgentPlanReady; offset?: number };
 
 /**
  * Callbacks for session subscription
@@ -388,6 +407,11 @@ export interface SessionCallbacks {
   onContainerAgentCancelled?: (event: {
     channel: 'containerAgent:cancelled';
     data: ContainerAgentCancelled;
+    offset?: number;
+  }) => void;
+  onContainerAgentPlanReady?: (event: {
+    channel: 'containerAgent:planReady';
+    data: ContainerAgentPlanReady;
     offset?: number;
   }) => void;
   onError?: (error: Error) => void;
@@ -865,6 +889,22 @@ function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
       };
     }
 
+    case 'container-agent:plan_ready': {
+      const parsed = rawContainerAgentPlanReadySchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:plan_ready:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:planReady',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
     default:
       console.warn(
         '[DurableStreamsClient] Unknown event type received:',
@@ -926,6 +966,9 @@ function routeEventToCallback(event: TypedSessionEvent, callbacks: SessionCallba
       break;
     case 'containerAgent:cancelled':
       callbacks.onContainerAgentCancelled?.(event);
+      break;
+    case 'containerAgent:planReady':
+      callbacks.onContainerAgentPlanReady?.(event);
       break;
   }
 }

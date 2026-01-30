@@ -258,6 +258,13 @@ interface ExitPlanModeOptions {
 }
 
 /**
+ * Typed input from ExitPlanMode tool call, extending options with plan content.
+ */
+interface ExitPlanModeInput extends ExitPlanModeOptions {
+  plan?: string;
+}
+
+/**
  * Run the agent in planning mode.
  * The agent explores the codebase and creates a plan.
  * When ExitPlanMode is called, emits plan_ready event and exits.
@@ -277,6 +284,11 @@ async function runPlanningPhase(): Promise<void> {
   let exitPlanModeOptions: ExitPlanModeOptions | undefined;
   // Flag set when ExitPlanMode is detected via canUseTool - checked in stream loop
   let exitPlanModeDetected = false;
+  // Plan content captured from canUseTool input (ExitPlanModeInput.plan)
+  let exitPlanModePlan: string | undefined;
+  // Timestamp when ExitPlanMode was detected (for timeout handling)
+  let exitPlanModeTimestamp: number | undefined;
+  const EXIT_PLAN_MODE_TIMEOUT_MS = 60_000;
 
   // Track active tool executions for emitting toolResult events
   const activeTools = new Map<string, { toolName: string; startTime: number }>();
@@ -326,12 +338,14 @@ async function runPlanningPhase(): Promise<void> {
 
       // Capture ExitPlanMode options when the tool is called
       if (toolName === 'ExitPlanMode') {
-        const planOptions = input as ExitPlanModeOptions | undefined;
-        exitPlanModeOptions = planOptions;
+        const planInput = input as ExitPlanModeInput | undefined;
+        exitPlanModeOptions = planInput;
         exitPlanModeDetected = true;
+        exitPlanModeTimestamp = Date.now();
+        exitPlanModePlan = typeof planInput?.plan === 'string' ? planInput.plan : undefined;
 
         console.error(
-          '[agent-runner] ExitPlanMode captured via canUseTool — will exit after tool completes'
+          `[agent-runner] ExitPlanMode captured via canUseTool — plan from input: ${exitPlanModePlan ? `${exitPlanModePlan.length} chars` : 'none'}`
         );
       }
 
@@ -384,6 +398,24 @@ async function runPlanningPhase(): Promise<void> {
         events.cancelled(turn);
         session.close();
         return;
+      }
+
+      // Check for ExitPlanMode timeout — if stream hangs after ExitPlanMode, force emit planReady
+      if (exitPlanModeDetected && exitPlanModeTimestamp) {
+        const elapsed = Date.now() - exitPlanModeTimestamp;
+        if (elapsed > EXIT_PLAN_MODE_TIMEOUT_MS) {
+          console.error(`[agent-runner] ExitPlanMode timeout (${elapsed}ms) — forcing plan_ready`);
+          emitAllToolResults();
+          session.close();
+          const planContent = exitPlanModePlan || accumulatedText;
+          events.planReady({
+            plan: planContent,
+            turnCount: turn,
+            sdkSessionId: sdkSessionId ?? '',
+            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
+          });
+          return;
+        }
       }
 
       // Capture SDK session ID from init message
@@ -488,18 +520,11 @@ async function runPlanningPhase(): Promise<void> {
           });
         }
 
-        // Check for ExitPlanMode OUTSIDE the tool_use_id guard
-        // SDK 0.2.23+ may omit tool_use_id from tool_use_summary events
+        // ExitPlanMode tool completed — do NOT close session here.
+        // The stream will naturally flow to a 'result' message, which is the safe exit point.
+        // Closing mid-iteration causes "Operation aborted" unhandled rejections.
         if (toolSummary.tool_name === 'ExitPlanMode' && !toolSummary.is_error) {
-          console.error('[agent-runner] ExitPlanMode completed - ending planning session');
-          session.close();
-          events.planReady({
-            plan: accumulatedText,
-            turnCount: turn,
-            sdkSessionId: sdkSessionId ?? '',
-            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
-          });
-          return;
+          console.error('[agent-runner] ExitPlanMode tool completed — waiting for result message');
         }
       }
 
@@ -508,21 +533,10 @@ async function runPlanningPhase(): Promise<void> {
         // Assistant message means all previous tools have completed
         emitAllToolResults();
 
-        // If ExitPlanMode was detected via canUseTool but tool_use_summary
-        // didn't trigger the exit (SDK 0.2.23+ may not include tool_name/id),
-        // exit now before the next turn starts
+        // ExitPlanMode was detected — do NOT close session here.
+        // Continue consuming messages until the stream naturally yields 'result'.
         if (exitPlanModeDetected) {
-          console.error(
-            '[agent-runner] ExitPlanMode was detected — ending planning session on next assistant message'
-          );
-          session.close();
-          events.planReady({
-            plan: accumulatedText,
-            turnCount: turn,
-            sdkSessionId: sdkSessionId ?? '',
-            allowedPrompts: exitPlanModeOptions?.allowedPrompts,
-          });
-          return;
+          console.error('[agent-runner] ExitPlanMode detected — continuing to result message');
         }
 
         const text = getAssistantText(msg);
@@ -536,16 +550,21 @@ async function runPlanningPhase(): Promise<void> {
       }
 
       // Handle result (planning session finished)
+      // This is the ONLY safe place to close the session — the stream iterator is done.
       if (msg.type === 'result') {
         // Emit results for any remaining active tools
         emitAllToolResults();
-        session.close();
+        session.close(); // Clean close — stream is done, iterator complete
 
         // If ExitPlanMode was called, emit plan_ready
-        if (exitPlanModeOptions !== undefined || accumulatedText) {
-          console.error('[agent-runner] Emitting plan_ready event');
+        if (exitPlanModeDetected || exitPlanModeOptions !== undefined || accumulatedText) {
+          // Prefer plan from canUseTool input (ExitPlanModeInput.plan), fall back to accumulated text
+          const planContent = exitPlanModePlan || accumulatedText;
+          console.error(
+            `[agent-runner] Emitting plan_ready (source: ${exitPlanModePlan ? 'ExitPlanModeInput.plan' : 'accumulated text'}, length: ${planContent.length})`
+          );
           events.planReady({
-            plan: accumulatedText,
+            plan: planContent,
             turnCount: turn,
             sdkSessionId: sdkSessionId ?? '',
             allowedPrompts: exitPlanModeOptions?.allowedPrompts,

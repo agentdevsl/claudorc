@@ -7,10 +7,14 @@ import { createTestProject } from '../factories/project.factory';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
 
 // Mock GitHub modules
-vi.mock('../../src/lib/github/client.js', () => ({
-  getInstallationOctokit: vi.fn(),
-  createOctokitFromToken: vi.fn(),
-}));
+vi.mock('../../src/lib/github/client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/github/client.js')>();
+  return {
+    ...actual,
+    getInstallationOctokit: vi.fn(),
+    createOctokitFromToken: vi.fn(),
+  };
+});
 
 vi.mock('../../src/lib/github/template-sync.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../src/lib/github/template-sync.js')>();
@@ -20,7 +24,7 @@ vi.mock('../../src/lib/github/template-sync.js', async (importOriginal) => {
   };
 });
 
-vi.mock('../../src/server/crypto.js', () => ({
+vi.mock('../../src/lib/crypto/server-encryption.js', () => ({
   decryptToken: vi.fn().mockResolvedValue('decrypted-token'),
 }));
 

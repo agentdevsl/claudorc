@@ -292,6 +292,65 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
   });
 
+  // POST /api/tasks/:id/approve-plan - Approve a pending plan and start execution
+  app.post('/:id/approve-plan', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      const result = await taskService.approvePlan(id);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: { approved: true } });
+    } catch (error) {
+      console.error('[Tasks] ApprovePlan error:', error);
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to approve plan' } },
+        500
+      );
+    }
+  });
+
+  // POST /api/tasks/:id/reject-plan - Reject a pending plan
+  app.post('/:id/reject-plan', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json({ ok: false, error: { code: 'INVALID_ID', message: 'Invalid ID format' } }, 400);
+    }
+
+    try {
+      // Parse optional rejection reason from body
+      let reason: string | undefined;
+      try {
+        const body = (await c.req.json()) as { reason?: string };
+        reason = typeof body.reason === 'string' ? body.reason : undefined;
+      } catch {
+        // No body or invalid JSON — reason is optional
+      }
+
+      const result = taskService.rejectPlan(id, reason);
+
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: { rejected: true } });
+    } catch (error) {
+      console.error('[Tasks] RejectPlan error:', error);
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to reject plan' } },
+        500
+      );
+    }
+  });
+
   // POST /api/tasks/:id/stop-agent - Stop a running container agent for a task
   app.post('/:id/stop-agent', async (c) => {
     const id = c.req.param('id');

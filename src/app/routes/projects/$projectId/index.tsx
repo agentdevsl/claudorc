@@ -28,6 +28,8 @@ type ClientTask = Pick<
   | 'agentId'
   | 'sessionId'
   | 'lastAgentStatus'
+  | 'plan'
+  | 'branch'
 > & {
   priority?: 'low' | 'medium' | 'high';
   diffSummary?: DiffSummary | null;
@@ -200,16 +202,75 @@ function ProjectKanban(): React.JSX.Element {
     }
   };
 
-  const handleApprove = async (_commitMessage?: string) => {
+  const isTaskPlanReview = (task: ClientTask): boolean =>
+    task.lastAgentStatus === 'planning' && !!task.plan;
+
+  /**
+   * Shared helper for plan approval/rejection actions.
+   * Handles error display, dialog cleanup, and data refresh.
+   */
+  const withPlanAction = async (
+    action: () => Promise<{ ok: boolean; error?: { message?: string } }>,
+    errorLabel: string,
+    onSuccess?: () => Promise<void>
+  ) => {
     if (!approvalTask) return;
-    // TODO: Add API endpoint for approving tasks
-    setApprovalTask(null);
+
+    try {
+      const result = await action();
+      if (!result.ok) {
+        showError(errorLabel, (result.error as { message?: string })?.message || 'Unknown error');
+        setApprovalTask(null);
+        return;
+      }
+      if (onSuccess) {
+        await onSuccess();
+      }
+      setApprovalTask(null);
+      await fetchData();
+    } catch (error) {
+      showError(errorLabel, error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
-  const handleReject = async (_reason: string) => {
+  const handleApprove = async (_commitMessage?: string) => {
     if (!approvalTask) return;
-    // TODO: Add API endpoint for rejecting tasks
-    setApprovalTask(null);
+
+    if (isTaskPlanReview(approvalTask)) {
+      await withPlanAction(
+        () => apiClient.tasks.approvePlan(approvalTask.id),
+        'Failed to approve plan',
+        async () => {
+          // Navigate to session view if available
+          const taskResult = await apiClient.tasks.get(approvalTask.id);
+          if (taskResult.ok) {
+            const task = taskResult.data as ClientTask;
+            if (task.sessionId) {
+              navigate({ to: '/sessions/$sessionId', params: { sessionId: task.sessionId } });
+            }
+          }
+        }
+      );
+    } else {
+      // TODO: Implement code review approval/rejection API calls for non-plan tasks
+      setApprovalTask(null);
+      await fetchData();
+    }
+  };
+
+  const handleReject = async (reason: string) => {
+    if (!approvalTask) return;
+
+    if (isTaskPlanReview(approvalTask)) {
+      await withPlanAction(
+        () => apiClient.tasks.rejectPlan(approvalTask.id, reason),
+        'Failed to reject plan'
+      );
+    } else {
+      // TODO: Implement code review approval/rejection API calls for non-plan tasks
+      setApprovalTask(null);
+      await fetchData();
+    }
   };
 
   if (isLoading) {
@@ -339,6 +400,16 @@ function ProjectKanban(): React.JSX.Element {
           }}
           onApprove={handleApprove}
           onReject={handleReject}
+          onViewSession={
+            approvalTask.sessionId
+              ? () => {
+                  navigate({
+                    to: '/sessions/$sessionId',
+                    params: { sessionId: approvalTask.sessionId as string },
+                  });
+                }
+              : undefined
+          }
         />
       )}
     </LayoutShell>
