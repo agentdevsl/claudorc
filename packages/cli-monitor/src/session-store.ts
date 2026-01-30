@@ -28,6 +28,7 @@ export interface StoredSession {
 }
 
 const MAX_SESSIONS = 1000;
+const MAX_PENDING_CHANGES = 5000;
 
 export class SessionStore {
   private sessions = new Map<string, StoredSession>();
@@ -60,6 +61,8 @@ export class SessionStore {
       }
     }
     if (oldestId) {
+      const session = this.sessions.get(oldestId);
+      if (session) this.readOffsets.delete(session.filePath);
       this.removeSession(oldestId);
     }
   }
@@ -106,12 +109,15 @@ export class SessionStore {
     return { updated, removed };
   }
 
-  /** Re-add changes that failed to send (for retry on next cycle) */
+  /** Re-add changes that failed to send (for retry on next cycle).
+   *  Capped at MAX_PENDING_CHANGES to prevent memory exhaustion when server is down. */
   markPendingRetry(sessions: StoredSession[], removedIds: string[]): void {
     for (const s of sessions) {
+      if (this.changedSessionIds.size >= MAX_PENDING_CHANGES) break;
       this.changedSessionIds.add(s.sessionId);
     }
     for (const id of removedIds) {
+      if (this.removedSessionIds.size >= MAX_PENDING_CHANGES) break;
       this.removedSessionIds.add(id);
     }
   }

@@ -138,6 +138,19 @@ export type CommandRunner = {
 };
 
 /**
+ * Validates that a shell command string does not contain injection metacharacters.
+ * Throws if dangerous characters are detected.
+ */
+function validateShellCommand(command: string): void {
+  const DANGEROUS_PATTERN = /[;|`]|\$\(|&&|\|\||[\n\r]/;
+  if (DANGEROUS_PATTERN.test(command)) {
+    throw new Error(
+      `Command rejected: contains shell metacharacters that could enable injection. Command: ${command.slice(0, 80)}`
+    );
+  }
+}
+
+/**
  * Creates a CommandRunner that executes commands inside a sandbox container.
  * This allows WorktreeService to run git commands inside Docker containers
  * for isolated agent execution.
@@ -150,7 +163,8 @@ export function createSandboxCommandRunner(sandbox: {
 }): CommandRunner {
   return {
     exec: async (command: string, cwd: string): Promise<CommandResult> => {
-      // Prepend cd to ensure git commands run in the correct directory inside the container
+      validateShellCommand(command);
+
       const escapedCwd = cwd.replace(/'/g, "'\\''");
       const result = await sandbox.exec('sh', ['-c', `cd '${escapedCwd}' && ${command}`]);
       if (result.exitCode !== 0) {

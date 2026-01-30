@@ -1,3 +1,5 @@
+import { logger } from './logger.js';
+
 export interface RegisterPayload {
   daemonId: string;
   pid: number;
@@ -51,9 +53,9 @@ export class AgentPaneClient {
     if (this.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
       this.circuitState = 'open';
       this.circuitOpenedAt = Date.now();
-      console.error(
-        `[AgentPaneClient] Circuit breaker opened after ${CIRCUIT_FAILURE_THRESHOLD} consecutive failures`
-      );
+      logger.error('Circuit breaker opened', {
+        consecutiveFailures: CIRCUIT_FAILURE_THRESHOLD,
+      });
     }
   }
 

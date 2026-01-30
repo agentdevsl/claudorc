@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import fsp from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -58,6 +59,19 @@ export interface DaemonOptions {
 }
 
 export async function startDaemon(options: DaemonOptions): Promise<void> {
+  // Fork to background if --daemon flag is set
+  if (options.background) {
+    const childArgs = ['start', '--port', String(options.port)];
+    if (options.watchPath) childArgs.push('--path', options.watchPath);
+    const child = spawn(process.execPath, [process.argv[1]!, ...childArgs], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    console.log(`Daemon started in background (PID ${child.pid}).`);
+    return;
+  }
+
   const daemonId = `dm_${createId()}`;
   const watchDir = options.watchPath || path.join(homedir(), '.claude', 'projects');
   const client = new AgentPaneClient(options.port);
@@ -103,6 +117,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
 
   process.on('SIGINT', handleSignal);
   process.on('SIGTERM', handleSignal);
+  process.on('SIGHUP', handleSignal);
 
   process.on('uncaughtException', (error) => {
     logger.error('Uncaught exception', { error: String(error) });
@@ -162,7 +177,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     sessionCount: fileCount,
   });
 
-  // Heartbeat every 10s
+  // Heartbeat every 10s (unref to not block exit)
   heartbeatTimer = setInterval(async () => {
     try {
       await client.heartbeat(daemonId, store.getSessionCount());
@@ -185,6 +200,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
       }
     }
   }, 10_000);
+  if (heartbeatTimer.unref) heartbeatTimer.unref();
 
   // Ingest batch every 500ms
   let ingestInFlight = false;
@@ -214,4 +230,5 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
       ingestInFlight = false;
     }
   }, 500);
+  if (ingestTimer.unref) ingestTimer.unref();
 }

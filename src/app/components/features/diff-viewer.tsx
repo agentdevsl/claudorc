@@ -55,9 +55,10 @@ function parseHunkContent(content: string, oldStart: number, newStart: number): 
   let oldLine = oldStart;
   let newLine = newStart;
 
-  for (const raw of rawLines) {
+  for (let i = 0; i < rawLines.length; i++) {
+    const raw = rawLines[i]!;
     if (raw.startsWith('@@')) continue; // Skip hunk header if present in content
-    if (raw === '' && rawLines.indexOf(raw) === rawLines.length - 1) continue; // Skip trailing empty
+    if (raw === '' && i === rawLines.length - 1) continue; // Skip trailing empty
 
     if (raw.startsWith('+')) {
       lines.push({

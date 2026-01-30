@@ -21,14 +21,19 @@ process.on('unhandledRejection', (reason, _promise) => {
 // Validate required environment variables at startup
 function validateEnv() {
   const warnings: string[] = [];
+  const isProduction = process.env.NODE_ENV === 'production';
 
   if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_OAUTH_TOKEN) {
-    warnings.push(
-      'Neither ANTHROPIC_API_KEY nor CLAUDE_OAUTH_TOKEN is set — agent execution will fail'
-    );
+    const msg =
+      'Neither ANTHROPIC_API_KEY nor CLAUDE_OAUTH_TOKEN is set — agent execution will fail';
+    if (isProduction) {
+      log.error(msg);
+      process.exit(1);
+    }
+    warnings.push(msg);
   }
 
-  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+  if (isProduction && !process.env.CORS_ORIGIN) {
     warnings.push('CORS_ORIGIN not set — defaulting to http://localhost:3000');
   }
 
@@ -104,6 +109,7 @@ const sqlite = new BunSQLite(DB_PATH);
 // Enable WAL mode for better concurrent read performance and crash recovery
 sqlite.exec('PRAGMA journal_mode=WAL');
 sqlite.exec('PRAGMA busy_timeout=5000');
+sqlite.exec('PRAGMA foreign_keys=ON');
 log.info('SQLite WAL mode enabled', { data: { dbPath: DB_PATH } });
 
 // Run migrations to ensure schema is up to date
@@ -585,12 +591,49 @@ console.log(`[API Server] Running on http://localhost:${PORT}`);
 startSyncScheduler(db, templateService);
 log.info('[API Server] Template sync scheduler started');
 
-// Graceful shutdown: clean up services
-function shutdownServer() {
-  log.info('[API Server] Shutting down...');
+// Graceful shutdown: stop accepting requests, clean up services, close DB
+let isShuttingDown = false;
+
+function shutdownServer(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  log.info(`[API Server] Received ${signal}, shutting down gracefully...`);
+
+  // Force-exit safety net after 30 seconds
+  const forceExitTimer = setTimeout(() => {
+    log.error('[API Server] Graceful shutdown timed out after 30s, forcing exit');
+    process.exit(1);
+  }, 30_000);
+  forceExitTimer.unref();
+
+  // Stop running agents
+  if (containerAgentService) {
+    const runningAgents = containerAgentService.getRunningAgents();
+    for (const agent of runningAgents) {
+      containerAgentService.stopAgent(agent.taskId).catch((stopErr) => {
+        log.warn('[API Server] Failed to stop agent during shutdown', {
+          data: { taskId: agent.taskId, error: String(stopErr) },
+        });
+      });
+    }
+    containerAgentService.dispose();
+  }
+
+  // Clean up services
   cliMonitorService.destroy();
+
+  // Close database
+  try {
+    sqlite.close();
+    log.info('[API Server] Database closed');
+  } catch (dbErr) {
+    log.warn('[API Server] Failed to close database', { error: dbErr });
+  }
+
+  log.info('[API Server] Shutdown complete');
   process.exit(0);
 }
 
-process.on('SIGINT', shutdownServer);
-process.on('SIGTERM', shutdownServer);
+process.on('SIGINT', () => shutdownServer('SIGINT'));
+process.on('SIGTERM', () => shutdownServer('SIGTERM'));

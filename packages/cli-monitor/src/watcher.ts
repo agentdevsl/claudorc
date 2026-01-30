@@ -5,6 +5,9 @@ import { logger } from './logger.js';
 import { parseJsonlFile } from './parser.js';
 import type { SessionStore } from './session-store.js';
 
+/** Max bytes to read from a single file in one pass (100MB) */
+const MAX_FILE_READ_BYTES = 100 * 1024 * 1024;
+
 export class FileWatcher {
   private watcher: fs.FSWatcher | null = null;
   private linuxWatchers = new Map<string, fs.FSWatcher>();
@@ -60,7 +63,8 @@ export class FileWatcher {
         if (filename.endsWith('.jsonl')) {
           this.debouncedProcess(fullPath);
         }
-        // Check if a new directory was created and watch it recursively
+        // Check if a new directory was created and watch it recursively,
+        // or if a directory was deleted and we should clean up its watcher.
         fsp
           .stat(fullPath)
           .then((stat) => {
@@ -69,7 +73,12 @@ export class FileWatcher {
             }
           })
           .catch(() => {
-            // File/dir may have been deleted
+            // File/dir may have been deleted — clean up its watcher if tracked
+            const existingWatcher = this.linuxWatchers.get(fullPath);
+            if (existingWatcher) {
+              existingWatcher.close();
+              this.linuxWatchers.delete(fullPath);
+            }
           });
       });
       this.linuxWatchers.set(dir, watcher);
@@ -189,11 +198,23 @@ export class FileWatcher {
 
       if (stat.size <= offset) return; // No new data
 
+      const bytesToRead = stat.size - offset;
+      if (bytesToRead > MAX_FILE_READ_BYTES) {
+        logger.warn('File exceeds max read size, reading last chunk only', {
+          filePath,
+          fileSize: stat.size,
+          maxBytes: MAX_FILE_READ_BYTES,
+        });
+      }
+      const readSize = Math.min(bytesToRead, MAX_FILE_READ_BYTES);
+      const readOffset =
+        bytesToRead > MAX_FILE_READ_BYTES ? stat.size - MAX_FILE_READ_BYTES : offset;
+
       // Read only new bytes
       const fd = await fsp.open(filePath, 'r');
       try {
-        let buffer = Buffer.alloc(stat.size - offset);
-        await fd.read(buffer, 0, buffer.length, offset);
+        let buffer = Buffer.alloc(readSize);
+        await fd.read(buffer, 0, buffer.length, readOffset);
 
         // Skip leading UTF-8 continuation bytes (0x80-0xBF) that result from
         // reading mid-character when the offset splits a multi-byte sequence
@@ -207,15 +228,18 @@ export class FileWatcher {
 
         const newContent = buffer.toString('utf-8');
 
-        const bytesConsumed = parseJsonlFile(filePath, newContent, offset, this.store);
-        this.store.setReadOffset(filePath, offset + bytesConsumed);
+        const bytesConsumed = parseJsonlFile(filePath, newContent, readOffset, this.store);
+        this.store.setReadOffset(filePath, readOffset + bytesConsumed);
       } finally {
         await fd.close();
       }
     } catch (err) {
-      // File may have been deleted between detection and read
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') {
+        // File deleted between detection and read
         this.store.removeByFilePath(filePath);
+      } else if (code === 'EACCES' || code === 'EPERM') {
+        logger.warn('Permission denied reading file, skipping', { filePath, code });
       }
     }
   }

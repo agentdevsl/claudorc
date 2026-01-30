@@ -173,7 +173,12 @@ export class CliMonitorService {
   // ── Internal ──
 
   private publish(type: string, data: unknown): void {
-    this.streamsServer.publish(CLI_MONITOR_STREAM_ID, type, data);
+    this.streamsServer.publish(CLI_MONITOR_STREAM_ID, type, data).catch((publishErr) => {
+      console.error(
+        `[CliMonitor] Failed to publish ${type}:`,
+        publishErr instanceof Error ? publishErr.message : String(publishErr)
+      );
+    });
   }
 
   private startHeartbeatCheck(): void {

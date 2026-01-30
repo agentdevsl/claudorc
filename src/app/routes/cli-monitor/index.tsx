@@ -384,12 +384,7 @@ function CliMonitorPage(): React.JSX.Element {
           {pageState === 'install' && <InstallState />}
           {pageState === 'waiting' && <WaitingState />}
           {pageState === 'active' && (
-            <ActiveState
-              sessions={sessions}
-              aggregateStatus={aggregateStatus}
-              alerts={alerts}
-              onDismissAlert={dismissAlert}
-            />
+            <ActiveState sessions={sessions} alerts={alerts} onDismissAlert={dismissAlert} />
           )}
         </div>
       </CliMonitorErrorBoundary>
@@ -614,7 +609,6 @@ function ActiveState({
   onDismissAlert,
 }: {
   sessions: CliSession[];
-  aggregateStatus: AggregateStatus;
   alerts: AlertToast[];
   onDismissAlert: (id: string) => void;
 }) {

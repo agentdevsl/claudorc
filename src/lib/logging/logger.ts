@@ -28,8 +28,20 @@ interface LogEntry {
   };
 }
 
-const minLevel: LogLevel =
-  (process.env.LOG_LEVEL as LogLevel) ?? (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
+const VALID_LOG_LEVELS = new Set<string>(['debug', 'info', 'warn', 'error']);
+
+const minLevel: LogLevel = (() => {
+  const envLevel = process.env.LOG_LEVEL;
+  if (envLevel) {
+    if (VALID_LOG_LEVELS.has(envLevel)) {
+      return envLevel as LogLevel;
+    }
+    console.warn(
+      `[Logger] Invalid LOG_LEVEL="${envLevel}", expected one of: debug, info, warn, error. Falling back to default.`
+    );
+  }
+  return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+})();
 
 const isProduction = process.env.NODE_ENV === 'production';
 

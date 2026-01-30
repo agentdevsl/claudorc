@@ -17,6 +17,15 @@
     "test": "vitest run",
     "prepublishOnly": "bun run test && bun run build:js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentpane/agentpane.git",
+    "directory": "packages/cli-monitor"
+  },
+  "bugs": {
+    "url": "https://github.com/agentpane/agentpane/issues"
+  },
+  "homepage": "https://github.com/agentpane/agentpane/tree/main/packages/cli-monitor#readme",
   "author": "AgentPane",
   "license": "MIT",
   "keywords": [

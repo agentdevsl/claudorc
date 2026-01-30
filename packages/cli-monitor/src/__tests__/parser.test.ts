@@ -397,7 +397,7 @@ describe('parseJsonlFile', () => {
   // ── Error Handling ──
 
   describe('error handling', () => {
-    it('stops at invalid JSON lines (treats as incomplete)', () => {
+    it('skips malformed non-last lines and continues parsing', () => {
       const content =
         'not valid json\n' +
         toJsonl(
@@ -409,8 +409,9 @@ describe('parseJsonlFile', () => {
 
       const store = parseEvents(content);
       const session = store.getSession('sess-1');
-      // Parser breaks on first unparseable line to preserve partial data
-      expect(session).toBeUndefined();
+      // Malformed non-last lines are skipped; valid lines after them are processed
+      expect(session).toBeDefined();
+      expect(session!.messageCount).toBe(1);
     });
 
     it('skips empty lines', () => {

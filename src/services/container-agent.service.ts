@@ -1167,7 +1167,7 @@ export class ContainerAgentService {
             sha: sha || '(no changes)',
           });
         } else {
-          console.error('[ContainerAgentService] Worktree commit returned error:', {
+          infoLog('handleAgentComplete', 'Worktree commit returned error', {
             taskId,
             error: String(commitResult.error),
           });
@@ -1182,7 +1182,7 @@ export class ContainerAgentService {
         }
       } catch (commitErr) {
         const errorMessage = commitErr instanceof Error ? commitErr.message : String(commitErr);
-        console.error('[ContainerAgentService] Failed to commit worktree changes:', {
+        infoLog('handleAgentComplete', 'Failed to commit worktree changes', {
           taskId,
           worktreeId: agent.worktreeId,
           error: errorMessage,

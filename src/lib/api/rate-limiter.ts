@@ -1,7 +1,7 @@
 /**
  * Simple in-memory rate limiter middleware for Hono.
  *
- * Uses a sliding window counter per IP address.
+ * Uses a fixed window counter per IP address.
  * For production with multiple instances, replace with Redis-backed limiter.
  */
 

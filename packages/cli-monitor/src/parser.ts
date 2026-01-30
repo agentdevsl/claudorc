@@ -73,8 +73,12 @@ export function parseJsonlFile(
     try {
       event = JSON.parse(trimmed);
     } catch {
-      // Partial line — preserve for next read
-      break;
+      // If this is the last line it's likely a partial/incomplete line — preserve for next read.
+      // If it's a middle line, log and skip it (corrupted data).
+      if (isLast) break;
+      logger.warn('Skipping malformed JSON line', { filePath, lineIndex: i });
+      bytesConsumed += lineBytes;
+      continue;
     }
 
     if (!event.sessionId || !event.type) continue;
