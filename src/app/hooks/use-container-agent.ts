@@ -111,6 +111,7 @@ export interface ContainerAgentState {
 const initialState: ContainerAgentState = {
   status: 'idle',
   statusHistory: [],
+  branch: undefined,
   currentTurn: 0,
   remainingTurns: 0,
   streamedText: '',

@@ -300,4 +300,136 @@ describe('ContainerAgentService — worktree integration', () => {
       '/workspace/.worktrees/foo'
     );
   });
+
+  // --- Gap 1: Early error path worktree cleanup ---
+
+  it('cleans up worktree when execStream fails after worktree creation', async () => {
+    // Make execStream throw to simulate container exec failure
+    provider.sandbox.execStream.mockRejectedValue(new Error('Container exec failed'));
+
+    const result = await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    // Agent start should fail
+    expect(result.ok).toBe(false);
+
+    // Worktree should have been cleaned up
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  // --- Gap 3: stopAgent worktree cleanup ---
+
+  it('cleans up worktree as safety net during stopAgent', async () => {
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    const result = await service.stopAgent('t1');
+    expect(result.ok).toBe(true);
+
+    // Worktree should have been cleaned up directly in stopAgent
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  // --- Gap 4: handlePlanReady DB failure worktree cleanup ---
+
+  it('cleans up worktree when plan DB persistence fails in handlePlanReady', async () => {
+    // Start agent to populate running agents with a worktree
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    // Make db.update throw to simulate DB failure during plan persistence
+    db.update.mockImplementation(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          run: vi.fn(() => {
+            throw new Error('DB write failed');
+          }),
+          returning: vi.fn(),
+        })),
+        run: vi.fn(() => {
+          throw new Error('DB write failed');
+        }),
+      })),
+    }));
+
+    // Trigger handlePlanReady
+    const handlePlanReady = (service as any).handlePlanReady.bind(service);
+    handlePlanReady('t1', 's1', 'p1', {
+      plan: 'Test plan',
+      turnCount: 3,
+      sdkSessionId: 'sdk-1',
+    });
+
+    // Worktree should have been cleaned up
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  // --- Gap 7: cleanupWorktree treats NOT_FOUND as success ---
+
+  it('treats NOT_FOUND error as success in cleanupWorktree', async () => {
+    worktreeService.remove.mockResolvedValue({
+      ok: false,
+      error: { code: 'WORKTREE_NOT_FOUND', message: 'Worktree not found' },
+    });
+
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    // Trigger error handler which calls cleanupWorktree
+    const handleError = (service as any).handleAgentError.bind(service);
+    await handleError('t1', 'SDK crash', 2);
+
+    // Should have called remove (even though it returned NOT_FOUND)
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+    // Should not throw — NOT_FOUND is treated as success
+  });
+
+  // --- Gap 9: Concurrent startAgent race protection ---
+
+  it('prevents concurrent startAgent calls for the same task', async () => {
+    // Start two agents concurrently for the same task
+    const [result1, result2] = await Promise.all([
+      service.startAgent({
+        projectId: 'p1',
+        taskId: 't1',
+        sessionId: 's1',
+        prompt: 'Fix the bug',
+        phase: 'plan',
+      }),
+      service.startAgent({
+        projectId: 'p1',
+        taskId: 't1',
+        sessionId: 's2',
+        prompt: 'Fix the bug',
+        phase: 'plan',
+      }),
+    ]);
+
+    // One should succeed, one should fail with AGENT_ALREADY_RUNNING
+    const results = [result1, result2];
+    const failures = results.filter((r) => !r.ok);
+
+    // At least one should fail (the second one to check startingAgents or runningAgents)
+    expect(failures.length).toBeGreaterThanOrEqual(1);
+  });
 });

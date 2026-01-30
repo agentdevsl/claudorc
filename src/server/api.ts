@@ -51,11 +51,12 @@ validateEnv();
 import { Database as BunSQLite } from 'bun:sqlite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, isNotNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
 import { settings } from '../db/schema/settings.js';
+import { tasks } from '../db/schema/tasks.js';
 import {
   MIGRATION_SQL,
   PERFORMANCE_INDEXES_MIGRATION_SQL,
@@ -167,6 +168,49 @@ try {
 } catch (error) {
   console.error(
     '[API Server] Failed to reset stale agents:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+// Clean up orphaned worktrees from tasks where agents are no longer running (Gap 2)
+// After a server crash, tasks may still reference worktrees that should be cleaned up.
+try {
+  const orphanedTasks = db
+    .select({ id: tasks.id, worktreeId: tasks.worktreeId })
+    .from(tasks)
+    .where(isNotNull(tasks.worktreeId))
+    .all() as Array<{ id: string; worktreeId: string | null }>;
+
+  // Filter to tasks whose agent is not actively running (after restart, none are)
+  const tasksToClean = orphanedTasks.filter(
+    (t) => t.worktreeId && (t as { lastAgentStatus?: string }).lastAgentStatus !== 'planning'
+  );
+
+  if (tasksToClean.length > 0) {
+    console.log(`[API Server] Found ${tasksToClean.length} task(s) with orphaned worktrees`);
+    for (const t of tasksToClean) {
+      try {
+        db.update(tasks)
+          .set({
+            worktreeId: null,
+            branch: null,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, t.id))
+          .run();
+      } catch (cleanErr) {
+        console.error(
+          `[API Server] Failed to clear worktree refs for task ${t.id}:`,
+          cleanErr instanceof Error ? cleanErr.message : String(cleanErr)
+        );
+      }
+    }
+    console.log(`[API Server] Cleared worktree references from ${tasksToClean.length} task(s)`);
+    // Note: actual worktree removal happens via WorktreeService after it's initialized below
+  }
+} catch (error) {
+  console.error(
+    '[API Server] Failed to clean orphaned worktrees:',
     error instanceof Error ? error.message : String(error)
   );
 }
@@ -540,3 +584,13 @@ console.log(`[API Server] Running on http://localhost:${PORT}`);
 // Start the template sync scheduler
 startSyncScheduler(db, templateService);
 log.info('[API Server] Template sync scheduler started');
+
+// Graceful shutdown: clean up services
+function shutdownServer() {
+  log.info('[API Server] Shutting down...');
+  cliMonitorService.destroy();
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdownServer);
+process.on('SIGTERM', shutdownServer);

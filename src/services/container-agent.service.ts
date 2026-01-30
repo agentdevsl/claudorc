@@ -32,6 +32,7 @@ import { sessions } from '../db/schema/sessions.js';
 import { tasks } from '../db/schema/tasks.js';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
 import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
+import { CONTAINER_WORKSPACE_PATH } from '../lib/constants/sandbox.js';
 import type { SandboxError } from '../lib/errors/sandbox-errors.js';
 import { SandboxErrors } from '../lib/errors/sandbox-errors.js';
 import type {
@@ -143,6 +144,9 @@ export class ContainerAgentService {
   /** Map of taskId -> pending plan data (awaiting approval) */
   private pendingPlans = new Map<string, PlanData>();
 
+  /** Set of taskIds currently being started (prevents concurrent startAgent races) */
+  private startingAgents = new Set<string>();
+
   /** Interval for cleaning up expired pending plans */
   private planCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -180,11 +184,20 @@ export class ContainerAgentService {
       if (result.ok) {
         infoLog('cleanupWorktree', 'Worktree removed', { taskId, worktreeId });
       } else {
-        infoLog('cleanupWorktree', 'Worktree removal returned error', {
-          taskId,
-          worktreeId,
-          error: String(result.error),
-        });
+        // Treat NOT_FOUND as success — worktree is already gone (Gap 7)
+        const errorCode = (result.error as { code?: string })?.code;
+        if (errorCode === 'WORKTREE_NOT_FOUND') {
+          infoLog('cleanupWorktree', 'Worktree already removed (not found)', {
+            taskId,
+            worktreeId,
+          });
+        } else {
+          infoLog('cleanupWorktree', 'Worktree removal returned error', {
+            taskId,
+            worktreeId,
+            error: String(result.error),
+          });
+        }
       }
     } catch (removeErr) {
       infoLog('cleanupWorktree', 'Failed to remove worktree', {
@@ -202,13 +215,13 @@ export class ContainerAgentService {
    */
   private translatePathForContainer(hostWorktreePath: string, hostProjectPath: string): string {
     if (hostWorktreePath.startsWith(hostProjectPath)) {
-      return `/workspace${hostWorktreePath.slice(hostProjectPath.length)}`;
+      return `${CONTAINER_WORKSPACE_PATH}${hostWorktreePath.slice(hostProjectPath.length)}`;
     }
-    infoLog('translatePath', 'Path mismatch, defaulting to /workspace', {
+    infoLog('translatePath', 'Path mismatch, defaulting to container workspace', {
       hostWorktreePath,
       hostProjectPath,
     });
-    return '/workspace';
+    return CONTAINER_WORKSPACE_PATH;
   }
 
   /**
@@ -276,599 +289,624 @@ export class ContainerAgentService {
       return err(SandboxErrors.AGENT_ALREADY_RUNNING(taskId));
     }
 
-    // Parallel fetch: project and sandbox lookup at the same time
-    const [project, sandbox] = await Promise.all([
-      this.db.query.projects.findFirst({ where: eq(projects.id, projectId) }),
-      this.provider.get(projectId),
-    ]);
-
-    if (!project) {
-      infoLog('startAgent', 'Project not found', { projectId });
-      return err(SandboxErrors.PROJECT_NOT_FOUND);
+    // Prevent concurrent startAgent calls for the same task (Gap 9)
+    if (this.startingAgents.has(taskId)) {
+      infoLog('startAgent', 'Agent start already in flight for task', { taskId });
+      return err(SandboxErrors.AGENT_ALREADY_RUNNING(taskId));
     }
+    this.startingAgents.add(taskId);
 
-    // Use shared sandbox mode by default (fastest path - no per-project container creation)
-    // Sandbox was already fetched in parallel above
-    if (!sandbox) {
-      infoLog('startAgent', 'No sandbox available', { projectId });
-      return err(SandboxErrors.CONTAINER_NOT_FOUND);
-    }
-
-    infoLog('startAgent', 'Sandbox ready', { sandboxId: sandbox.id, status: sandbox.status });
-
-    if (sandbox.status !== 'running') {
-      infoLog('startAgent', 'Sandbox not running', {
-        sandboxId: sandbox.id,
-        status: sandbox.status,
-      });
-      return err(SandboxErrors.CONTAINER_NOT_RUNNING);
-    }
-
-    // Check if sandbox supports streaming exec
-    if (!sandbox.execStream) {
-      infoLog('startAgent', 'Sandbox does not support streaming exec', { sandboxId: sandbox.id });
-      return err(SandboxErrors.STREAMING_EXEC_NOT_SUPPORTED);
-    }
-
-    // Fetch task to get title for session
-    const task = await this.db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
-
-    // Validate task exists before proceeding
-    if (!task) {
-      infoLog('startAgent', 'Task not found', { taskId });
-      return err(SandboxErrors.TASK_NOT_FOUND(taskId));
-    }
-
-    // Create or reuse agent record for this container agent run
-    // This allows the UI to track active agents
-    const agentId = `agent-${taskId}`;
-    debugLog('startAgent', 'Creating agent record', { agentId, projectId, taskId });
     try {
-      await this.db
-        .insert(agents)
-        .values({
-          id: agentId,
-          projectId,
-          name: `Container Agent`,
-          type: 'task',
-          status: 'starting',
-          currentTaskId: taskId,
-          currentSessionId: sessionId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-        .onConflictDoUpdate({
-          target: agents.id,
-          set: {
+      // Parallel fetch: project and sandbox lookup at the same time
+      const [project, sandbox] = await Promise.all([
+        this.db.query.projects.findFirst({ where: eq(projects.id, projectId) }),
+        this.provider.get(projectId),
+      ]);
+
+      if (!project) {
+        infoLog('startAgent', 'Project not found', { projectId });
+        return err(SandboxErrors.PROJECT_NOT_FOUND);
+      }
+
+      // Use shared sandbox mode by default (fastest path - no per-project container creation)
+      // Sandbox was already fetched in parallel above
+      if (!sandbox) {
+        infoLog('startAgent', 'No sandbox available', { projectId });
+        return err(SandboxErrors.CONTAINER_NOT_FOUND);
+      }
+
+      infoLog('startAgent', 'Sandbox ready', { sandboxId: sandbox.id, status: sandbox.status });
+
+      if (sandbox.status !== 'running') {
+        infoLog('startAgent', 'Sandbox not running', {
+          sandboxId: sandbox.id,
+          status: sandbox.status,
+        });
+        return err(SandboxErrors.CONTAINER_NOT_RUNNING);
+      }
+
+      // Check if sandbox supports streaming exec
+      if (!sandbox.execStream) {
+        infoLog('startAgent', 'Sandbox does not support streaming exec', { sandboxId: sandbox.id });
+        return err(SandboxErrors.STREAMING_EXEC_NOT_SUPPORTED);
+      }
+
+      // Fetch task to get title for session
+      const task = await this.db.query.tasks.findFirst({
+        where: eq(tasks.id, taskId),
+      });
+
+      // Validate task exists before proceeding
+      if (!task) {
+        infoLog('startAgent', 'Task not found', { taskId });
+        return err(SandboxErrors.TASK_NOT_FOUND(taskId));
+      }
+
+      // Create or reuse agent record for this container agent run
+      // This allows the UI to track active agents
+      const agentId = `agent-${taskId}`;
+      debugLog('startAgent', 'Creating agent record', { agentId, projectId, taskId });
+      try {
+        await this.db
+          .insert(agents)
+          .values({
+            id: agentId,
+            projectId,
+            name: `Container Agent`,
+            type: 'task',
             status: 'starting',
             currentTaskId: taskId,
             currentSessionId: sessionId,
+            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          },
+          })
+          .onConflictDoUpdate({
+            target: agents.id,
+            set: {
+              status: 'starting',
+              currentTaskId: taskId,
+              currentSessionId: sessionId,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+        debugLog('startAgent', 'Agent record created/updated', { agentId });
+      } catch (dbErr) {
+        const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+        infoLog('startAgent', 'Failed to create agent record', {
+          agentId,
+          error: errorMessage,
         });
-      debugLog('startAgent', 'Agent record created/updated', { agentId });
-    } catch (dbErr) {
-      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      infoLog('startAgent', 'Failed to create agent record', {
-        agentId,
-        error: errorMessage,
-      });
-      return err(SandboxErrors.AGENT_RECORD_FAILED(errorMessage));
-    }
+        return err(SandboxErrors.AGENT_RECORD_FAILED(errorMessage));
+      }
 
-    // Create database session record for this container agent run
-    debugLog('startAgent', 'Creating session record', { sessionId, taskId });
-    try {
-      await this.db.insert(sessions).values({
-        id: sessionId,
-        projectId,
-        taskId,
-        agentId,
-        title: task.title ?? `Container Agent - ${taskId}`,
-        url: `/projects/${projectId}/sessions/${sessionId}`,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      });
-      debugLog('startAgent', 'Session record created', { sessionId });
-    } catch (dbErr) {
-      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      // Only ignore UNIQUE constraint violations (session already exists from retry)
-      if (
-        !errorMessage.includes('UNIQUE constraint failed') &&
-        !errorMessage.includes('already exists')
-      ) {
-        infoLog('startAgent', 'Failed to create session record', {
-          sessionId,
+      // Create database session record for this container agent run
+      debugLog('startAgent', 'Creating session record', { sessionId, taskId });
+      try {
+        await this.db.insert(sessions).values({
+          id: sessionId,
+          projectId,
+          taskId,
+          agentId,
+          title: task.title ?? `Container Agent - ${taskId}`,
+          url: `/projects/${projectId}/sessions/${sessionId}`,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        });
+        debugLog('startAgent', 'Session record created', { sessionId });
+      } catch (dbErr) {
+        const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+        // Only ignore UNIQUE constraint violations (session already exists from retry)
+        if (
+          !errorMessage.includes('UNIQUE constraint failed') &&
+          !errorMessage.includes('already exists')
+        ) {
+          infoLog('startAgent', 'Failed to create session record', {
+            sessionId,
+            taskId,
+            error: errorMessage,
+          });
+          return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
+        }
+        debugLog('startAgent', 'Session already exists, continuing', { sessionId });
+      }
+
+      // Link agent and session to task
+      debugLog('startAgent', 'Linking agent and session to task', { taskId, agentId, sessionId });
+      try {
+        await this.db
+          .update(tasks)
+          .set({
+            agentId,
+            sessionId,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, taskId));
+        debugLog('startAgent', 'Task linked to agent and session', { taskId });
+      } catch (dbErr) {
+        const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+        infoLog('startAgent', 'Failed to link task to agent/session', {
           taskId,
           error: errorMessage,
         });
-        return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
+        // Continue anyway - linking is non-critical
       }
-      debugLog('startAgent', 'Session already exists, continuing', { sessionId });
-    }
 
-    // Link agent and session to task
-    debugLog('startAgent', 'Linking agent and session to task', { taskId, agentId, sessionId });
-    try {
-      await this.db
-        .update(tasks)
-        .set({
-          agentId,
+      // Create durable stream for real-time events
+      debugLog('startAgent', 'Creating durable stream', { sessionId });
+      try {
+        await this.streams.createStream(sessionId, {
+          type: 'container-agent',
+          projectId,
+          taskId,
+        });
+        debugLog('startAgent', 'Stream created successfully', { sessionId });
+      } catch (streamErr) {
+        const errorMessage = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        // Only ignore "already exists" errors
+        if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate')) {
+          infoLog('startAgent', 'Failed to create durable stream', {
+            sessionId,
+            error: errorMessage,
+          });
+          return err(SandboxErrors.STREAM_CREATE_FAILED(errorMessage));
+        }
+        debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
+      }
+
+      // Publish initial status event (awaited to ensure stream is working)
+      try {
+        await this.streams.publish(sessionId, 'container-agent:status', {
+          taskId,
           sessionId,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(tasks.id, taskId));
-      debugLog('startAgent', 'Task linked to agent and session', { taskId });
-    } catch (dbErr) {
-      const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      infoLog('startAgent', 'Failed to link task to agent/session', {
-        taskId,
-        error: errorMessage,
-      });
-      // Continue anyway - linking is non-critical
-    }
-
-    // Create durable stream for real-time events
-    debugLog('startAgent', 'Creating durable stream', { sessionId });
-    try {
-      await this.streams.createStream(sessionId, {
-        type: 'container-agent',
-        projectId,
-        taskId,
-      });
-      debugLog('startAgent', 'Stream created successfully', { sessionId });
-    } catch (streamErr) {
-      const errorMessage = streamErr instanceof Error ? streamErr.message : String(streamErr);
-      // Only ignore "already exists" errors
-      if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate')) {
-        infoLog('startAgent', 'Failed to create durable stream', {
+          stage: 'initializing',
+          message: 'Starting...',
+        });
+        debugLog('startAgent', 'Initial status event published', { sessionId });
+      } catch (publishErr) {
+        const errorMessage = publishErr instanceof Error ? publishErr.message : String(publishErr);
+        infoLog('startAgent', 'Failed to publish initial status event - aborting agent start', {
           sessionId,
           error: errorMessage,
         });
-        return err(SandboxErrors.STREAM_CREATE_FAILED(errorMessage));
+        return err(SandboxErrors.STREAM_PUBLISH_FAILED(errorMessage));
       }
-      debugLog('startAgent', 'Stream already exists, continuing', { sessionId });
-    }
 
-    // Publish initial status event (awaited to ensure stream is working)
-    try {
+      // Stage: Validating - verify project and sandbox configuration
       await this.streams.publish(sessionId, 'container-agent:status', {
         taskId,
         sessionId,
-        stage: 'initializing',
-        message: 'Starting...',
+        stage: 'validating',
+        message: 'Validating configuration...',
       });
-      debugLog('startAgent', 'Initial status event published', { sessionId });
-    } catch (publishErr) {
-      const errorMessage = publishErr instanceof Error ? publishErr.message : String(publishErr);
-      infoLog('startAgent', 'Failed to publish initial status event - aborting agent start', {
-        sessionId,
-        error: errorMessage,
-      });
-      return err(SandboxErrors.STREAM_PUBLISH_FAILED(errorMessage));
-    }
-
-    // Stage: Validating - verify project and sandbox configuration
-    await this.streams.publish(sessionId, 'container-agent:status', {
-      taskId,
-      sessionId,
-      stage: 'validating',
-      message: 'Validating configuration...',
-    });
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: `🔍 Validating project configuration for "${project.name}"...`,
-    });
-    infoLog('startAgent', 'Validating project configuration', { projectId, taskId });
-
-    // Resolve agent configuration
-    // Model cascade: explicit param → project config → global default_model setting → hardcoded default
-    // All values are expanded to full API model IDs (e.g. 'claude-opus-4-5-20251101')
-    const projectModel = project.config?.model as string | undefined;
-    const resolvedModel =
-      (model ? getFullModelId(model) : undefined) ??
-      (projectModel ? getFullModelId(projectModel) : undefined) ??
-      (await getGlobalDefaultModel(this.db));
-    const agentConfig: AgentConfig = {
-      model: resolvedModel ?? getFullModelId(DEFAULT_AGENT_MODEL),
-      maxTurns: maxTurns ?? project.config?.maxTurns ?? 50,
-    };
-    infoLog('startAgent', 'Resolved agent config', {
-      model: agentConfig.model,
-      maxTurns: agentConfig.maxTurns,
-    });
-
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: `✅ Configuration validated: model=${agentConfig.model}, maxTurns=${agentConfig.maxTurns}`,
-    });
-    infoLog('startAgent', 'Sandbox validated', {
-      sandboxId: sandbox.id,
-      status: sandbox.status,
-      containerId: sandbox.containerId?.slice(0, 12),
-    });
-
-    // Create sentinel file path for cancellation
-    const stopFilePath = `/tmp/.agent-stop-${taskId}`;
-
-    // Clear any stale stop file from a previous run of the same task
-    // Without this, re-running a task (e.g. after plan approval) can immediately
-    // self-cancel if the previous run's stop file wasn't cleaned up in time
-    try {
-      await sandbox.exec('rm', ['-f', stopFilePath]);
-    } catch (cleanupErr) {
-      debugLog('startAgent', 'Failed to clean stale stop file (best effort)', {
-        stopFilePath,
-        error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
-      });
-    }
-
-    // Stage: Credentials - get OAuth token
-    await this.streams.publish(sessionId, 'container-agent:status', {
-      taskId,
-      sessionId,
-      stage: 'credentials',
-      message: 'Authenticating...',
-    });
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: '🔑 Retrieving OAuth credentials...',
-    });
-    infoLog('startAgent', 'Retrieving OAuth credentials', { taskId });
-
-    // Get OAuth token from database (via ApiKeyService)
-    // The Claude Agent SDK requires OAuth tokens to be written to ~/.claude/.credentials.json
-    // We pass it via CLAUDE_OAUTH_TOKEN env var, and agent-runner writes the credentials file
-    let oauthToken: string | null = null;
-    try {
-      oauthToken = await this.apiKeyService.getDecryptedKey('anthropic');
-      infoLog('startAgent', 'Retrieved OAuth token from database', {
-        hasToken: !!oauthToken,
-        isOAuth: oauthToken?.startsWith('sk-ant-oat') ?? false,
-      });
-    } catch (keyErr) {
-      infoLog('startAgent', 'Failed to get OAuth token from database', {
-        error: keyErr instanceof Error ? keyErr.message : String(keyErr),
-      });
-    }
-
-    // Fall back to environment variable if not in database
-    if (!oauthToken) {
-      oauthToken = process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? null;
-      if (oauthToken) {
-        infoLog('startAgent', 'Using OAuth token from environment variable');
-      }
-    }
-
-    if (!oauthToken) {
-      infoLog('startAgent', 'No OAuth token available');
       await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
         role: 'system',
-        content: '❌ No OAuth token configured. Please add your Anthropic API key in Settings.',
+        content: `🔍 Validating project configuration for "${project.name}"...`,
       });
-      return err(SandboxErrors.API_KEY_NOT_CONFIGURED);
-    }
+      infoLog('startAgent', 'Validating project configuration', { projectId, taskId });
 
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: '✅ OAuth credentials retrieved successfully',
-    });
+      // Resolve agent configuration
+      // Model cascade: explicit param → project config → global default_model setting → hardcoded default
+      // All values are expanded to full API model IDs (e.g. 'claude-opus-4-5-20251101')
+      const projectModel = project.config?.model as string | undefined;
+      const resolvedModel =
+        (model ? getFullModelId(model) : undefined) ??
+        (projectModel ? getFullModelId(projectModel) : undefined) ??
+        (await getGlobalDefaultModel(this.db));
+      const agentConfig: AgentConfig = {
+        model: resolvedModel ?? getFullModelId(DEFAULT_AGENT_MODEL),
+        maxTurns: maxTurns ?? project.config?.maxTurns ?? 50,
+      };
+      infoLog('startAgent', 'Resolved agent config', {
+        model: agentConfig.model,
+        maxTurns: agentConfig.maxTurns,
+      });
 
-    // Stage: Creating Sandbox - ensure container is ready
-    await this.streams.publish(sessionId, 'container-agent:status', {
-      taskId,
-      sessionId,
-      stage: 'creating_sandbox',
-      message: 'Preparing sandbox...',
-    });
-    const containerShort = sandbox.containerId?.slice(0, 12) ?? 'unknown';
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: `📦 Preparing sandbox container (${containerShort})...`,
-    });
-    infoLog('startAgent', 'Preparing sandbox environment', {
-      sandboxId: sandbox.id,
-      containerId: containerShort,
-    });
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'system',
+        content: `✅ Configuration validated: model=${agentConfig.model}, maxTurns=${agentConfig.maxTurns}`,
+      });
+      infoLog('startAgent', 'Sandbox validated', {
+        sandboxId: sandbox.id,
+        status: sandbox.status,
+        containerId: sandbox.containerId?.slice(0, 12),
+      });
 
-    // Sandbox is confirmed running (early return at top of method guards non-running state)
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content: '✅ Sandbox container ready',
-    });
+      // Create sentinel file path for cancellation
+      const stopFilePath = `/tmp/.agent-stop-${taskId}`;
 
-    // Stage: Worktree - create or recover isolated git worktree for the agent
-    let worktreeId: string | undefined;
-    let worktreePath = '/workspace'; // default when worktreeService unavailable or creation fails
-
-    // For execution phase, recover worktree from the task record (created during planning)
-    if (this.worktreeService && phase === 'execute' && task.worktreeId) {
+      // Clear any stale stop file from a previous run of the same task
+      // Without this, re-running a task (e.g. after plan approval) can immediately
+      // self-cancel if the previous run's stop file wasn't cleaned up in time
       try {
-        const worktreeStatus = await this.worktreeService.getStatus(task.worktreeId);
-        if (worktreeStatus.ok) {
-          worktreeId = worktreeStatus.value.id;
-          worktreePath = this.translatePathForContainer(worktreeStatus.value.path, project.path);
-          infoLog('startAgent', 'Recovered worktree from task record for execution', {
-            worktreeId,
-            branch: worktreeStatus.value.branch,
-            hostPath: worktreeStatus.value.path,
-            containerPath: worktreePath,
-          });
-        } else {
-          infoLog('startAgent', 'Failed to recover worktree for execution, using main workspace', {
-            taskId,
-            worktreeId: task.worktreeId,
-            error: String(worktreeStatus.error),
-          });
-        }
-      } catch (wtErr) {
-        const errorMessage = wtErr instanceof Error ? wtErr.message : String(wtErr);
-        infoLog('startAgent', 'Error recovering worktree for execution, using main workspace', {
-          taskId,
-          error: errorMessage,
+        await sandbox.exec('rm', ['-f', stopFilePath]);
+      } catch (cleanupErr) {
+        debugLog('startAgent', 'Failed to clean stale stop file (best effort)', {
+          stopFilePath,
+          error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
         });
       }
-    }
 
-    if (this.worktreeService && phase === 'plan') {
-      // Create worktree for the initial planning phase; execution phase reuses it via the task record
+      // Stage: Credentials - get OAuth token
+      await this.streams.publish(sessionId, 'container-agent:status', {
+        taskId,
+        sessionId,
+        stage: 'credentials',
+        message: 'Authenticating...',
+      });
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'system',
+        content: '🔑 Retrieving OAuth credentials...',
+      });
+      infoLog('startAgent', 'Retrieving OAuth credentials', { taskId });
+
+      // Get OAuth token from database (via ApiKeyService)
+      // The Claude Agent SDK requires OAuth tokens to be written to ~/.claude/.credentials.json
+      // We pass it via CLAUDE_OAUTH_TOKEN env var, and agent-runner writes the credentials file
+      let oauthToken: string | null = null;
+      try {
+        oauthToken = await this.apiKeyService.getDecryptedKey('anthropic');
+        infoLog('startAgent', 'Retrieved OAuth token from database', {
+          hasToken: !!oauthToken,
+          isOAuth: oauthToken?.startsWith('sk-ant-oat') ?? false,
+        });
+      } catch (keyErr) {
+        infoLog('startAgent', 'Failed to get OAuth token from database', {
+          error: keyErr instanceof Error ? keyErr.message : String(keyErr),
+        });
+      }
+
+      // Fall back to environment variable if not in database
+      if (!oauthToken) {
+        oauthToken = process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? null;
+        if (oauthToken) {
+          infoLog('startAgent', 'Using OAuth token from environment variable');
+        }
+      }
+
+      if (!oauthToken) {
+        infoLog('startAgent', 'No OAuth token available');
+        await this.streams.publish(sessionId, 'container-agent:message', {
+          taskId,
+          sessionId,
+          role: 'system',
+          content: '❌ No OAuth token configured. Please add your Anthropic API key in Settings.',
+        });
+        return err(SandboxErrors.API_KEY_NOT_CONFIGURED);
+      }
+
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'system',
+        content: '✅ OAuth credentials retrieved successfully',
+      });
+
+      // Stage: Creating Sandbox - ensure container is ready
       await this.streams.publish(sessionId, 'container-agent:status', {
         taskId,
         sessionId,
         stage: 'creating_sandbox',
-        message: 'Creating worktree...',
+        message: 'Preparing sandbox...',
       });
+      const containerShort = sandbox.containerId?.slice(0, 12) ?? 'unknown';
       await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
         role: 'system',
-        content: `🌿 Creating isolated git worktree for task "${task.title}"...`,
+        content: `📦 Preparing sandbox container (${containerShort})...`,
+      });
+      infoLog('startAgent', 'Preparing sandbox environment', {
+        sandboxId: sandbox.id,
+        containerId: containerShort,
       });
 
-      const publishWorktreeFallback = async (error: unknown): Promise<void> => {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        infoLog('startAgent', 'Worktree creation failed, continuing without isolation', {
+      // Sandbox is confirmed running (early return at top of method guards non-running state)
+      await this.streams.publish(sessionId, 'container-agent:message', {
+        taskId,
+        sessionId,
+        role: 'system',
+        content: '✅ Sandbox container ready',
+      });
+
+      // Stage: Worktree - create or recover isolated git worktree for the agent
+      let worktreeId: string | undefined;
+      let worktreePath = CONTAINER_WORKSPACE_PATH; // default when worktreeService unavailable or creation fails
+
+      // For execution phase, recover worktree from the task record (created during planning)
+      if (this.worktreeService && phase === 'execute' && task.worktreeId) {
+        try {
+          const worktreeStatus = await this.worktreeService.getStatus(task.worktreeId);
+          if (worktreeStatus.ok) {
+            worktreeId = worktreeStatus.value.id;
+            worktreePath = this.translatePathForContainer(worktreeStatus.value.path, project.path);
+            infoLog('startAgent', 'Recovered worktree from task record for execution', {
+              worktreeId,
+              branch: worktreeStatus.value.branch,
+              hostPath: worktreeStatus.value.path,
+              containerPath: worktreePath,
+            });
+          } else {
+            infoLog(
+              'startAgent',
+              'Failed to recover worktree for execution, using main workspace',
+              {
+                taskId,
+                worktreeId: task.worktreeId,
+                error: String(worktreeStatus.error),
+              }
+            );
+          }
+        } catch (wtErr) {
+          const errorMessage = wtErr instanceof Error ? wtErr.message : String(wtErr);
+          infoLog('startAgent', 'Error recovering worktree for execution, using main workspace', {
+            taskId,
+            error: errorMessage,
+          });
+        }
+      }
+
+      if (this.worktreeService && phase === 'plan') {
+        // Create worktree for the initial planning phase; execution phase reuses it via the task record
+        await this.streams.publish(sessionId, 'container-agent:status', {
           taskId,
-          error: errorMessage,
+          sessionId,
+          stage: 'creating_sandbox',
+          message: 'Creating worktree...',
         });
         await this.streams.publish(sessionId, 'container-agent:message', {
           taskId,
           sessionId,
           role: 'system',
-          content: '⚠️ Could not create worktree — agent will work in main workspace',
+          content: `🌿 Creating isolated git worktree for task "${task.title}"...`,
         });
-      };
 
-      try {
-        const worktreeResult = await this.worktreeService.create(
-          {
-            projectId,
-            agentId,
+        const publishWorktreeFallback = async (error: unknown): Promise<void> => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          infoLog('startAgent', 'Worktree creation failed, continuing without isolation', {
             taskId,
-            taskTitle: task.title,
-          },
-          {
-            // Skip host-side setup ops — container has its own filesystem
-            skipEnvCopy: true,
-            skipDepsInstall: true,
-            skipInitScript: true,
-          }
-        );
-
-        if (worktreeResult.ok) {
-          worktreeId = worktreeResult.value.id;
-          worktreePath = this.translatePathForContainer(worktreeResult.value.path, project.path);
-          infoLog('startAgent', 'Worktree created', {
-            worktreeId,
-            branch: worktreeResult.value.branch,
-            hostPath: worktreeResult.value.path,
-            containerPath: worktreePath,
+            error: errorMessage,
           });
-
-          // Link worktree to task (non-critical)
-          try {
-            await this.db
-              .update(tasks)
-              .set({
-                worktreeId,
-                branch: worktreeResult.value.branch,
-                updatedAt: new Date().toISOString(),
-              })
-              .where(eq(tasks.id, taskId));
-          } catch (dbErr) {
-            const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-            infoLog('startAgent', 'Failed to link worktree to task (non-critical)', {
-              taskId,
-              worktreeId,
-              error: errorMessage,
-            });
-          }
-
-          await this.streams.publish(sessionId, 'container-agent:worktree', {
-            taskId,
-            sessionId,
-            worktreeId,
-            branch: worktreeResult.value.branch,
-            containerPath: worktreePath,
-          });
-
           await this.streams.publish(sessionId, 'container-agent:message', {
             taskId,
             sessionId,
             role: 'system',
-            content: `✅ Worktree created: branch "${worktreeResult.value.branch}"`,
+            content: '⚠️ Could not create worktree — agent will work in main workspace',
           });
-        } else {
-          await publishWorktreeFallback(worktreeResult.error);
+        };
+
+        try {
+          const worktreeResult = await this.worktreeService.create(
+            {
+              projectId,
+              agentId,
+              taskId,
+              taskTitle: task.title,
+            },
+            {
+              // Skip host-side setup ops — container has its own filesystem
+              skipEnvCopy: true,
+              skipDepsInstall: true,
+              skipInitScript: true,
+            }
+          );
+
+          if (worktreeResult.ok) {
+            worktreeId = worktreeResult.value.id;
+            worktreePath = this.translatePathForContainer(worktreeResult.value.path, project.path);
+            infoLog('startAgent', 'Worktree created', {
+              worktreeId,
+              branch: worktreeResult.value.branch,
+              hostPath: worktreeResult.value.path,
+              containerPath: worktreePath,
+            });
+
+            // Link worktree to task (non-critical)
+            try {
+              await this.db
+                .update(tasks)
+                .set({
+                  worktreeId,
+                  branch: worktreeResult.value.branch,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(tasks.id, taskId));
+            } catch (dbErr) {
+              const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+              infoLog('startAgent', 'Failed to link worktree to task (non-critical)', {
+                taskId,
+                worktreeId,
+                error: errorMessage,
+              });
+            }
+
+            await this.streams.publish(sessionId, 'container-agent:worktree', {
+              taskId,
+              sessionId,
+              worktreeId,
+              branch: worktreeResult.value.branch,
+              containerPath: worktreePath,
+            });
+
+            await this.streams.publish(sessionId, 'container-agent:message', {
+              taskId,
+              sessionId,
+              role: 'system',
+              content: `✅ Worktree created: branch "${worktreeResult.value.branch}"`,
+            });
+          } else {
+            await publishWorktreeFallback(worktreeResult.error);
+          }
+        } catch (wtErr) {
+          await publishWorktreeFallback(wtErr);
         }
-      } catch (wtErr) {
-        await publishWorktreeFallback(wtErr);
       }
-    }
 
-    // Build environment variables for agent-runner
-    // CLAUDE_OAUTH_TOKEN is used by agent-runner to write credentials file
-    // (OAuth tokens can't be passed via ANTHROPIC_API_KEY - they're blocked by API)
-    const env: Record<string, string> = {
-      CLAUDE_OAUTH_TOKEN: '[REDACTED]',
-      AGENT_TASK_ID: taskId,
-      AGENT_SESSION_ID: sessionId,
-      AGENT_PROMPT: prompt,
-      AGENT_MAX_TURNS: String(agentConfig.maxTurns),
-      AGENT_MODEL: agentConfig.model,
-      AGENT_CWD: worktreePath,
-      AGENT_STOP_FILE: stopFilePath,
-      AGENT_PHASE: phase,
-      ...(sdkSessionId ? { AGENT_SDK_SESSION_ID: sdkSessionId } : {}),
-    };
-    debugLog('startAgent', 'Environment variables prepared', {
-      ...env,
-      AGENT_PROMPT: `[${prompt.length} chars]`,
-      AGENT_PHASE: phase,
-    });
-
-    // Create the container bridge to process stdout events
-    debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId, phase });
-    const bridge = createContainerBridge({
-      taskId,
-      sessionId,
-      projectId,
-      streams: this.streams,
-      onComplete: (status, turnCount) => {
-        infoLog('bridge:onComplete', 'Agent completed via bridge callback', {
-          taskId,
-          status,
-          turnCount,
-        });
-        this.handleAgentComplete(taskId, status, turnCount);
-      },
-      onError: (error, turnCount) => {
-        infoLog('bridge:onError', 'Agent error via bridge callback', { taskId, error, turnCount });
-        this.handleAgentError(taskId, error, turnCount);
-      },
-      onPlanReady: (planData) => {
-        infoLog('bridge:onPlanReady', 'Plan ready via bridge callback', {
-          taskId,
-          planLength: planData.plan.length,
-          sdkSessionId: planData.sdkSessionId,
-        });
-        this.handlePlanReady(taskId, sessionId, projectId, planData);
-      },
-    });
-
-    // Await status event for persistence (critical for UI breadcrumbs)
-    await this.streams.publish(sessionId, 'container-agent:status', {
-      taskId,
-      sessionId,
-      stage: 'executing',
-      message: phase === 'plan' ? 'Planning...' : 'Executing...',
-    });
-    await this.streams.publish(sessionId, 'container-agent:message', {
-      taskId,
-      sessionId,
-      role: 'system',
-      content:
-        phase === 'plan'
-          ? `🧠 Starting planning phase with ${agentConfig.model}...`
-          : `⚡ Starting execution phase with ${agentConfig.model}...`,
-    });
-
-    try {
-      // Start the agent-runner process inside the container
-      infoLog('startAgent', 'Executing agent-runner in container', {
-        sandboxId: sandbox.id,
-        cmd: 'node /opt/agent-runner/dist/index.js',
+      // Build environment variables for agent-runner
+      // CLAUDE_OAUTH_TOKEN is used by agent-runner to write credentials file
+      // (OAuth tokens can't be passed via ANTHROPIC_API_KEY - they're blocked by API)
+      const env: Record<string, string> = {
+        CLAUDE_OAUTH_TOKEN: '[REDACTED]',
+        AGENT_TASK_ID: taskId,
+        AGENT_SESSION_ID: sessionId,
+        AGENT_PROMPT: prompt,
+        AGENT_MAX_TURNS: String(agentConfig.maxTurns),
+        AGENT_MODEL: agentConfig.model,
+        AGENT_CWD: worktreePath,
+        AGENT_STOP_FILE: stopFilePath,
+        AGENT_PHASE: phase,
+        ...(sdkSessionId ? { AGENT_SDK_SESSION_ID: sdkSessionId } : {}),
+      };
+      debugLog('startAgent', 'Environment variables prepared', {
+        ...env,
+        AGENT_PROMPT: `[${prompt.length} chars]`,
+        AGENT_PHASE: phase,
       });
 
-      const execResult = await sandbox.execStream({
-        cmd: 'node',
-        args: ['/opt/agent-runner/dist/index.js'],
-        env: {
-          ...env,
-          CLAUDE_OAUTH_TOKEN: oauthToken, // Passed to agent-runner to write credentials file
-          AGENT_PROMPT: prompt, // Use actual prompt
-        },
-        cwd: worktreePath,
-      });
-      debugLog('startAgent', 'Agent-runner process started', { sandboxId: sandbox.id });
-
-      // Track the running agent
-      const runningAgent: RunningAgent = {
+      // Create the container bridge to process stdout events
+      debugLog('startAgent', 'Creating container bridge', { taskId, sessionId, projectId, phase });
+      const bridge = createContainerBridge({
         taskId,
         sessionId,
         projectId,
-        sandboxId: sandbox.id,
-        bridge,
-        execResult,
-        stopFilePath,
-        startedAt: new Date(),
-        stopRequested: false,
-        phase,
-        worktreeId,
-      };
-
-      this.runningAgents.set(taskId, runningAgent);
-      infoLog('startAgent', 'Agent registered as running', {
-        taskId,
-        totalRunning: this.runningAgents.size,
+        streams: this.streams,
+        onComplete: (status, turnCount) => {
+          infoLog('bridge:onComplete', 'Agent completed via bridge callback', {
+            taskId,
+            status,
+            turnCount,
+          });
+          this.handleAgentComplete(taskId, status, turnCount);
+        },
+        onError: (error, turnCount) => {
+          infoLog('bridge:onError', 'Agent error via bridge callback', {
+            taskId,
+            error,
+            turnCount,
+          });
+          this.handleAgentError(taskId, error, turnCount);
+        },
+        onPlanReady: (planData) => {
+          infoLog('bridge:onPlanReady', 'Plan ready via bridge callback', {
+            taskId,
+            planLength: planData.plan.length,
+            sdkSessionId: planData.sdkSessionId,
+          });
+          this.handlePlanReady(taskId, sessionId, projectId, planData);
+        },
       });
 
-      // Update agent status to 'running' in database
-      try {
-        await this.db
-          .update(agents)
-          .set({
-            status: phase === 'plan' ? 'planning' : 'running',
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(agents.id, agentId));
-        debugLog('startAgent', 'Agent status updated to running', { agentId, phase });
-      } catch (dbErr) {
-        const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-        infoLog('startAgent', 'Failed to update agent status', { agentId, error: errorMessage });
-        // Non-critical, continue
-      }
-
-      // Start processing the stdout stream (async, don't await)
-      debugLog('startAgent', 'Starting stdout stream processing', { taskId });
-      this.processAgentOutput(runningAgent);
-
-      // Await critical status events for persistence
+      // Await status event for persistence (critical for UI breadcrumbs)
       await this.streams.publish(sessionId, 'container-agent:status', {
         taskId,
         sessionId,
-        stage: 'running',
-        message: 'Running',
+        stage: 'executing',
+        message: phase === 'plan' ? 'Planning...' : 'Executing...',
       });
-      await this.streams.publish(sessionId, 'container-agent:started', {
+      await this.streams.publish(sessionId, 'container-agent:message', {
         taskId,
         sessionId,
-        model: agentConfig.model,
-        maxTurns: agentConfig.maxTurns,
+        role: 'system',
+        content:
+          phase === 'plan'
+            ? `🧠 Starting planning phase with ${agentConfig.model}...`
+            : `⚡ Starting execution phase with ${agentConfig.model}...`,
       });
-      infoLog('startAgent', 'Agent started', { taskId, sessionId });
 
-      return ok(undefined);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      infoLog('startAgent', 'Failed to start agent', { taskId, error: message });
-      return err(SandboxErrors.AGENT_START_FAILED(message));
+      try {
+        // Start the agent-runner process inside the container
+        infoLog('startAgent', 'Executing agent-runner in container', {
+          sandboxId: sandbox.id,
+          cmd: 'node /opt/agent-runner/dist/index.js',
+        });
+
+        const execResult = await sandbox.execStream({
+          cmd: 'node',
+          args: ['/opt/agent-runner/dist/index.js'],
+          env: {
+            ...env,
+            CLAUDE_OAUTH_TOKEN: oauthToken, // Passed to agent-runner to write credentials file
+            AGENT_PROMPT: prompt, // Use actual prompt
+          },
+          cwd: worktreePath,
+        });
+        debugLog('startAgent', 'Agent-runner process started', { sandboxId: sandbox.id });
+
+        // Track the running agent
+        const runningAgent: RunningAgent = {
+          taskId,
+          sessionId,
+          projectId,
+          sandboxId: sandbox.id,
+          bridge,
+          execResult,
+          stopFilePath,
+          startedAt: new Date(),
+          stopRequested: false,
+          phase,
+          worktreeId,
+        };
+
+        this.runningAgents.set(taskId, runningAgent);
+        infoLog('startAgent', 'Agent registered as running', {
+          taskId,
+          totalRunning: this.runningAgents.size,
+        });
+
+        // Update agent status to 'running' in database
+        try {
+          await this.db
+            .update(agents)
+            .set({
+              status: phase === 'plan' ? 'planning' : 'running',
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(agents.id, agentId));
+          debugLog('startAgent', 'Agent status updated to running', { agentId, phase });
+        } catch (dbErr) {
+          const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+          infoLog('startAgent', 'Failed to update agent status', { agentId, error: errorMessage });
+          // Non-critical, continue
+        }
+
+        // Start processing the stdout stream (async, don't await)
+        debugLog('startAgent', 'Starting stdout stream processing', { taskId });
+        this.processAgentOutput(runningAgent);
+
+        // Await critical status events for persistence
+        await this.streams.publish(sessionId, 'container-agent:status', {
+          taskId,
+          sessionId,
+          stage: 'running',
+          message: 'Running',
+        });
+        await this.streams.publish(sessionId, 'container-agent:started', {
+          taskId,
+          sessionId,
+          model: agentConfig.model,
+          maxTurns: agentConfig.maxTurns,
+        });
+        infoLog('startAgent', 'Agent started', { taskId, sessionId });
+
+        return ok(undefined);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        infoLog('startAgent', 'Failed to start agent', { taskId, error: message });
+
+        // Clean up worktree if it was created but agent failed to start (Gap 1)
+        if (worktreeId) {
+          await this.cleanupWorktree(taskId, worktreeId);
+        }
+
+        return err(SandboxErrors.AGENT_START_FAILED(message));
+      }
+    } finally {
+      this.startingAgents.delete(taskId);
     }
   }
 
@@ -923,6 +961,13 @@ export class ContainerAgentService {
       }
 
       agent.stopRequested = true;
+
+      // Safety-net worktree cleanup (Gap 3): if stream processing fails or
+      // the container is force-killed, handleAgentComplete may never fire.
+      // cleanupWorktree is idempotent — safe to call even if handleAgentComplete also cleans up.
+      if (agent.worktreeId) {
+        await this.cleanupWorktree(taskId, agent.worktreeId);
+      }
 
       // Publish cancelled event
       await this.streams.publish(agent.sessionId, 'container-agent:cancelled', {
@@ -1524,6 +1569,13 @@ export class ContainerAgentService {
             error: publishErr instanceof Error ? publishErr.message : String(publishErr),
           });
         });
+
+      // Clean up worktree since the plan failed to persist (Gap 4)
+      const orphanedAgent = this.runningAgents.get(taskId);
+      if (orphanedAgent?.worktreeId) {
+        void this.cleanupWorktree(taskId, orphanedAgent.worktreeId);
+      }
+
       // Clean up running agent and return early
       this.runningAgents.delete(taskId);
       return;
