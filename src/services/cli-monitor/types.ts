@@ -1,0 +1,212 @@
+// ── Session Status ──
+export type CliSessionStatus =
+  | 'working' // Assistant is actively generating or tools are running
+  | 'waiting_for_approval' // Tool use pending approval (permission required)
+  | 'waiting_for_input' // Turn complete, waiting for user message
+  | 'idle'; // No activity for IDLE_TIMEOUT_MS
+
+// ── Aggregate Status (for ambient UI) ──
+export type AggregateStatus = 'nominal' | 'attention' | 'danger' | 'idle';
+
+// ── Session State ──
+export interface CliSession {
+  sessionId: string; // UUID from JSONL sessionId field
+  filePath: string; // Absolute path to the .jsonl file
+  cwd: string; // Working directory from system event
+  projectName: string; // Extracted from cwd (basename)
+  projectHash: string; // Directory name under ~/.claude/projects/
+  gitBranch?: string; // From JSONL gitBranch field
+  status: CliSessionStatus;
+  messageCount: number; // Count of user + assistant messages
+  turnCount: number; // Count of assistant turns
+  goal?: string; // First user message text (truncated to 200 chars)
+  recentOutput?: string; // Last assistant text content (truncated to 500 chars)
+  pendingToolUse?: {
+    // Set when tool_use seen without tool_result
+    toolName: string;
+    toolId: string;
+  };
+  tokenUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+  };
+  model?: string; // From assistant message.model field
+  startedAt: number; // Timestamp of first event (ms)
+  lastActivityAt: number; // Timestamp of most recent event (ms)
+  lastReadOffset: number; // Byte offset for incremental file reading
+  isSubagent: boolean; // True if file is in /subagents/ directory
+  parentSessionId?: string; // Parent session ID if subagent
+}
+
+// ── Daemon Info ──
+export interface DaemonInfo {
+  daemonId: string;
+  pid: number;
+  version: string;
+  watchPath: string;
+  capabilities: string[];
+  registeredAt: number;
+  lastHeartbeatAt: number;
+}
+
+// ── Daemon Registration Payload ──
+export interface DaemonRegisterPayload {
+  daemonId: string;
+  pid: number;
+  version: string;
+  watchPath: string;
+  capabilities: string[];
+  startedAt: number;
+}
+
+// ── Daemon Heartbeat Payload ──
+export interface DaemonHeartbeatPayload {
+  daemonId: string;
+  sessionCount: number;
+}
+
+// ── Daemon Ingest Payload ──
+export interface DaemonIngestPayload {
+  daemonId: string;
+  sessions: CliSession[];
+  removedSessionIds: string[];
+}
+
+// ── Daemon Deregister Payload ──
+export interface DaemonDeregisterPayload {
+  daemonId: string;
+}
+
+// ── SSE Event Types ──
+export type CliMonitorEventType =
+  | 'cli-monitor:snapshot'
+  | 'cli-monitor:session-update'
+  | 'cli-monitor:session-removed'
+  | 'cli-monitor:status-change'
+  | 'cli-monitor:daemon-connected'
+  | 'cli-monitor:daemon-disconnected';
+
+export interface CliMonitorSnapshot {
+  type: 'cli-monitor:snapshot';
+  sessions: CliSession[];
+  daemon: DaemonInfo | null;
+  connected: boolean;
+}
+
+export interface CliMonitorSessionUpdate {
+  type: 'cli-monitor:session-update';
+  session: CliSession;
+  previousStatus?: CliSessionStatus;
+}
+
+export interface CliMonitorSessionRemoved {
+  type: 'cli-monitor:session-removed';
+  sessionId: string;
+}
+
+export interface CliMonitorStatusChange {
+  type: 'cli-monitor:status-change';
+  sessionId: string;
+  previousStatus: CliSessionStatus;
+  newStatus: CliSessionStatus;
+  timestamp: number;
+}
+
+export interface CliMonitorDaemonConnected {
+  type: 'cli-monitor:daemon-connected';
+  daemon: DaemonInfo;
+}
+
+export interface CliMonitorDaemonDisconnected {
+  type: 'cli-monitor:daemon-disconnected';
+}
+
+export type CliMonitorEvent =
+  | CliMonitorSnapshot
+  | CliMonitorSessionUpdate
+  | CliMonitorSessionRemoved
+  | CliMonitorStatusChange
+  | CliMonitorDaemonConnected
+  | CliMonitorDaemonDisconnected;
+
+// ── Status Derivation ──
+export function deriveAggregateStatus(sessions: CliSession[]): AggregateStatus {
+  if (sessions.length === 0) return 'idle';
+
+  let hasWorking = false;
+  for (const s of sessions) {
+    if (s.status === 'working') hasWorking = true;
+    if (s.status === 'waiting_for_approval' || s.status === 'waiting_for_input') return 'attention';
+  }
+
+  if (hasWorking) return 'nominal';
+  return 'idle';
+}
+
+// ── JSONL Raw Event Types (from Claude Code CLI) ──
+export type RawCliEventType = 'user' | 'assistant' | 'system' | 'queue-operation' | 'summary';
+
+export interface RawContentBlockText {
+  type: 'text';
+  text: string;
+}
+
+export interface RawContentBlockToolUse {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface RawContentBlockToolResult {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+
+export type RawContentBlock =
+  | RawContentBlockText
+  | RawContentBlockToolUse
+  | RawContentBlockToolResult;
+
+export interface RawCliEvent {
+  type: RawCliEventType;
+  uuid: string;
+  timestamp: string;
+  sessionId: string;
+  cwd: string;
+  version: string;
+  gitBranch?: string;
+  parentUuid: string | null;
+  isSidechain: boolean;
+  userType: 'external';
+  agentId?: string;
+
+  message?: {
+    role: 'user' | 'assistant';
+    model?: string;
+    content: string | RawContentBlock[];
+    usage?: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+    };
+    stop_reason?: string | null;
+  };
+  permissionMode?: string;
+  summary?: string;
+  operation?: string;
+  toolUseResult?: string;
+}
+
+// ── Constants ──
+export const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const DAEMON_HEARTBEAT_INTERVAL_MS = 10 * 1000; // 10 seconds
+export const DAEMON_TIMEOUT_MS = 30 * 1000; // 30 seconds
+export const INGEST_BATCH_INTERVAL_MS = 500; // Batch updates every 500ms
+export const GOAL_MAX_LENGTH = 200;
+export const RECENT_OUTPUT_MAX_LENGTH = 500;

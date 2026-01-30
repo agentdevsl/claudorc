@@ -42,7 +42,8 @@ export type ContainerAgentEventType =
   | 'agent:complete'
   | 'agent:error'
   | 'agent:cancelled'
-  | 'agent:plan_ready';
+  | 'agent:plan_ready'
+  | 'agent:file_changed';
 
 /**
  * Raw event structure from the container stdout.
@@ -69,6 +70,7 @@ const EVENT_TYPE_MAP: Record<ContainerAgentEventType, TypedEventType> = {
   'agent:error': 'container-agent:error',
   'agent:cancelled': 'container-agent:cancelled',
   'agent:plan_ready': 'container-agent:plan_ready',
+  'agent:file_changed': 'container-agent:file_changed',
 };
 
 /**

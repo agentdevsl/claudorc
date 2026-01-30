@@ -1,0 +1,409 @@
+import { Hono } from 'hono';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CliMonitorService } from '../../../services/cli-monitor/cli-monitor.service.js';
+import { createCliMonitorRoutes } from '../cli-monitor.js';
+
+// ── Mock Streams Server ──
+
+function createMockStreamsServer() {
+  const published: Array<{ id: string; type: string; data: unknown }> = [];
+  return {
+    publish: vi.fn(async (id: string, type: string, data: unknown) => {
+      published.push({ id, type, data });
+      return published.length;
+    }),
+    addRealtimeSubscriber: vi.fn(() => vi.fn()),
+    getEvents: vi.fn(() => []),
+    _published: published,
+  };
+}
+
+// ── Test App Factory ──
+
+function createTestApp() {
+  const streamsServer = createMockStreamsServer();
+  const service = new CliMonitorService(streamsServer as never);
+  const routes = createCliMonitorRoutes({ cliMonitorService: service });
+  const app = new Hono();
+  app.route('/api/cli-monitor', routes);
+  return { app, service, streamsServer };
+}
+
+// ── Request Helper ──
+
+async function request(app: Hono, method: string, path: string, body?: unknown) {
+  const init: RequestInit = { method };
+  if (body) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  return app.request(path, init);
+}
+
+// ── Tests ──
+
+describe('CLI Monitor API Routes', () => {
+  let app: Hono;
+  let service: CliMonitorService;
+
+  afterEach(() => {
+    service.destroy();
+  });
+
+  // ── POST /register ──
+
+  describe('POST /api/cli-monitor/register', () => {
+    it('registers daemon and returns ok', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'daemon-1',
+        pid: 12345,
+        version: '0.1.0',
+        watchPath: '/home/user/.claude/projects',
+        capabilities: ['jsonl'],
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+      expect(service.isDaemonConnected()).toBe(true);
+      expect(service.getDaemon()!.daemonId).toBe('daemon-1');
+    });
+
+    it('defaults capabilities and startedAt when omitted', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/register', {
+        daemonId: 'daemon-2',
+        pid: 999,
+        version: '0.2.0',
+        watchPath: '/tmp',
+      });
+
+      expect(res.status).toBe(200);
+      expect(service.getDaemon()!.daemonId).toBe('daemon-2');
+    });
+  });
+
+  // ── POST /heartbeat ──
+
+  describe('POST /api/cli-monitor/heartbeat', () => {
+    it('returns ok for registered daemon', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      const res = await request(app, 'POST', '/api/cli-monitor/heartbeat', {
+        daemonId: 'daemon-1',
+        sessionCount: 3,
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+    });
+
+    it('returns 404 for unknown daemon', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/heartbeat', {
+        daemonId: 'unknown-daemon',
+        sessionCount: 0,
+      });
+
+      expect(res.status).toBe(404);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('UNKNOWN_DAEMON');
+    });
+  });
+
+  // ── POST /ingest ──
+
+  describe('POST /api/cli-monitor/ingest', () => {
+    it('ingests sessions and returns ok', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      const sessions = [
+        {
+          sessionId: 'sess-1',
+          filePath: '/test/sess-1.jsonl',
+          cwd: '/project',
+          projectName: 'project',
+          projectHash: 'hash1',
+          status: 'working',
+          messageCount: 2,
+          turnCount: 1,
+          tokenUsage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheCreationTokens: 0,
+            cacheReadTokens: 0,
+          },
+          startedAt: Date.now(),
+          lastActivityAt: Date.now(),
+          lastReadOffset: 0,
+          isSubagent: false,
+        },
+      ];
+
+      const res = await request(app, 'POST', '/api/cli-monitor/ingest', {
+        daemonId: 'daemon-1',
+        sessions,
+        removedSessionIds: [],
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+      expect(service.getSessionCount()).toBe(1);
+    });
+
+    it('returns 404 for unknown daemon', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/ingest', {
+        daemonId: 'unknown',
+        sessions: [],
+        removedSessionIds: [],
+      });
+
+      expect(res.status).toBe(404);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error.code).toBe('UNKNOWN_DAEMON');
+    });
+
+    it('handles missing sessions and removedSessionIds fields', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      const res = await request(app, 'POST', '/api/cli-monitor/ingest', {
+        daemonId: 'daemon-1',
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+    });
+  });
+
+  // ── POST /deregister ──
+
+  describe('POST /api/cli-monitor/deregister', () => {
+    it('deregisters daemon and returns ok', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+
+      const res = await request(app, 'POST', '/api/cli-monitor/deregister', {
+        daemonId: 'daemon-1',
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+      expect(service.isDaemonConnected()).toBe(false);
+    });
+
+    it('returns ok even for unknown daemon (idempotent)', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'POST', '/api/cli-monitor/deregister', {
+        daemonId: 'nonexistent',
+      });
+
+      // deregisterDaemon returns false but route still returns ok
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({ ok: true });
+    });
+  });
+
+  // ── GET /status ──
+
+  describe('GET /api/cli-monitor/status', () => {
+    it('returns disconnected status when no daemon', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'GET', '/api/cli-monitor/status');
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+      expect(json.data.connected).toBe(false);
+      expect(json.data.daemon).toBeNull();
+      expect(json.data.sessionCount).toBe(0);
+    });
+
+    it('returns connected status with session count', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+      service.ingestSessions(
+        'daemon-1',
+        [
+          {
+            sessionId: 'sess-1',
+            filePath: '/test.jsonl',
+            cwd: '/project',
+            projectName: 'project',
+            projectHash: 'h1',
+            status: 'working',
+            messageCount: 0,
+            turnCount: 0,
+            tokenUsage: {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+            },
+            startedAt: Date.now(),
+            lastActivityAt: Date.now(),
+            lastReadOffset: 0,
+            isSubagent: false,
+          },
+        ],
+        []
+      );
+
+      const res = await request(app, 'GET', '/api/cli-monitor/status');
+
+      const json = await res.json();
+      expect(json.data.connected).toBe(true);
+      expect(json.data.daemon.daemonId).toBe('daemon-1');
+      expect(json.data.sessionCount).toBe(1);
+    });
+  });
+
+  // ── GET /sessions ──
+
+  describe('GET /api/cli-monitor/sessions', () => {
+    it('returns empty sessions list when none ingested', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'GET', '/api/cli-monitor/sessions');
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+      expect(json.data.sessions).toEqual([]);
+      expect(json.data.connected).toBe(false);
+    });
+
+    it('returns sessions and connected state', async () => {
+      ({ app, service } = createTestApp());
+      service.registerDaemon({
+        daemonId: 'daemon-1',
+        pid: 1,
+        version: '0.1.0',
+        watchPath: '/tmp',
+        capabilities: [],
+        startedAt: Date.now(),
+      });
+      service.ingestSessions(
+        'daemon-1',
+        [
+          {
+            sessionId: 'sess-1',
+            filePath: '/test.jsonl',
+            cwd: '/project',
+            projectName: 'project',
+            projectHash: 'h1',
+            status: 'idle',
+            messageCount: 10,
+            turnCount: 5,
+            tokenUsage: {
+              inputTokens: 500,
+              outputTokens: 200,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 100,
+            },
+            startedAt: Date.now() - 60000,
+            lastActivityAt: Date.now(),
+            lastReadOffset: 4096,
+            isSubagent: false,
+          },
+        ],
+        []
+      );
+
+      const res = await request(app, 'GET', '/api/cli-monitor/sessions');
+
+      const json = await res.json();
+      expect(json.data.sessions).toHaveLength(1);
+      expect(json.data.sessions[0].sessionId).toBe('sess-1');
+      expect(json.data.connected).toBe(true);
+    });
+  });
+
+  // ── GET /stream ──
+
+  describe('GET /api/cli-monitor/stream', () => {
+    it('returns SSE response with correct content-type header', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'GET', '/api/cli-monitor/stream');
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('text/event-stream');
+      expect(res.headers.get('Cache-Control')).toBe('no-cache');
+      expect(res.headers.get('Connection')).toBe('keep-alive');
+    });
+
+    it('sends initial snapshot as first SSE message', async () => {
+      ({ app, service } = createTestApp());
+
+      const res = await request(app, 'GET', '/api/cli-monitor/stream');
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      const { value } = await reader.read();
+      const text = decoder.decode(value);
+
+      // Should start with "data: " prefix (SSE format)
+      expect(text).toContain('data: ');
+      const jsonStr = text.replace('data: ', '').trim();
+      const parsed = JSON.parse(jsonStr);
+      expect(parsed.type).toBe('cli-monitor:snapshot');
+      expect(parsed.sessions).toEqual([]);
+      expect(parsed.connected).toBe(false);
+
+      reader.cancel();
+    });
+  });
+});

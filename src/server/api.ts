@@ -31,6 +31,7 @@ import { createDockerProvider } from '../lib/sandbox/index.js';
 import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
 import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import { CliMonitorService } from '../services/cli-monitor/index.js';
 import { createContainerAgentService } from '../services/container-agent.service.js';
 import { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from '../services/github-token.service.js';
@@ -275,6 +276,10 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
 console.log('[API Server] Using in-memory DurableStreamsServer for local development');
 
+// CLI Monitor service for monitoring Claude Code CLI sessions
+const cliMonitorService = new CliMonitorService(inMemoryStreamsServer);
+console.log('[API Server] CLI Monitor receiver ready (waiting for daemon)');
+
 // DurableStreamsService for SSE and container agent events
 // Pass db for event persistence to session_events table
 const durableStreamsService = new DurableStreamsService(inMemoryStreamsServer, db);
@@ -438,7 +443,8 @@ if (dockerProvider) {
       db,
       dockerProvider,
       durableStreamsService,
-      apiKeyService
+      apiKeyService,
+      worktreeService
     );
 
     // Wire up container agent service to task service
@@ -474,6 +480,7 @@ const app = createRouter({
   commandRunner: bunCommandRunner,
   durableStreamsService,
   dockerProvider,
+  cliMonitorService,
 });
 
 // Start server

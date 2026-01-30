@@ -1,0 +1,2135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Monitor - Timeline Swimlane View</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --secondary-muted: rgba(247, 120, 186, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes breathe { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes slideInUp {
+      from { transform: translateY(8px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(40px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideUpPanel {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes nowLinePulse {
+      0%, 100% { opacity: 0.7; box-shadow: 0 0 6px rgba(248, 81, 73, 0.3); }
+      50% { opacity: 1; box-shadow: 0 0 12px rgba(248, 81, 73, 0.6); }
+    }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    @keyframes tokenTick { 0% { transform: scale(1); } 50% { transform: scale(1.15); color: var(--accent-fg); } 100% { transform: scale(1); } }
+
+    @keyframes installSparkle {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    @keyframes radarPing {
+      0%   { transform: scale(0.3); opacity: 0.6; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    @keyframes slideInDown {
+      from { transform: translateY(-100%); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeOutUp {
+      to { transform: translateY(-20px); opacity: 0; pointer-events: none; }
+    }
+    @keyframes dangerPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0); }
+      50%      { box-shadow: 0 0 0 4px rgba(248, 81, 73, 0.15); }
+    }
+
+    /* ========================================
+       Sidebar
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .logo::before {
+      content: '';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+
+    .project-switcher {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-3); margin: var(--space-3);
+      background-color: var(--bg-subtle); border: 1px solid var(--border-default);
+      border-radius: var(--radius); cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .project-switcher:hover { border-color: var(--fg-subtle); }
+    .project-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .project-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .project-name { font-size: 14px; font-weight: 500; color: var(--fg-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-path-text { font-size: 12px; font-family: var(--font-mono); color: var(--fg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-switcher kbd { padding: 2px 6px; background-color: var(--bg-muted); border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 12px; color: var(--fg-muted); }
+
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section:last-child { margin-bottom: 0; }
+    .nav-section-title { display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2); font-size: 12px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .nav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); margin-bottom: 2px; font-size: 14px; font-weight: 500; color: var(--fg-muted); border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out); cursor: pointer; }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 10px; min-width: 20px; text-align: center; }
+    .nav-badge.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .nav-badge.default { background-color: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--success-fg), var(--accent-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout
+       ======================================== */
+    .app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ========================================
+       State Architecture
+       ======================================== */
+    .install-state, .waiting-state, .active-state { display: none; }
+
+    [data-state="install"] .install-state  { display: flex; }
+    [data-state="waiting"] .waiting-state  { display: flex; flex-direction: column; flex: 1; }
+    [data-state="active"]  .active-state   { display: flex; flex-direction: column; flex: 1; }
+
+    /* Hide irrelevant header controls per state */
+    [data-state="install"] .live-indicator,
+    [data-state="install"] .time-range,
+    [data-state="install"] .btn-secondary,
+    [data-state="install"] .alerts-toggle { display: none; }
+
+    [data-state="waiting"] .live-indicator,
+    [data-state="waiting"] .time-range { display: none; }
+
+    /* Daemon toggle: inactive in install state */
+    [data-state="install"] .toggle { background-color: var(--bg-emphasis); }
+    [data-state="install"] .toggle::after { transform: translateX(0); }
+
+    /* ========================================
+       Status-Reactive Ambient Color System
+       ======================================== */
+    [data-status="nominal"] {
+      --ambient: var(--success-fg);
+      --ambient-muted: var(--success-muted);
+      --ambient-rgb: 63, 185, 80;
+    }
+    [data-status="attention"] {
+      --ambient: var(--attention-fg);
+      --ambient-muted: var(--attention-muted);
+      --ambient-rgb: 210, 153, 34;
+    }
+    [data-status="danger"] {
+      --ambient: var(--danger-fg);
+      --ambient-muted: var(--danger-muted);
+      --ambient-rgb: 248, 81, 73;
+    }
+    [data-status="idle"] {
+      --ambient: var(--fg-subtle);
+      --ambient-muted: var(--bg-emphasis);
+      --ambient-rgb: 110, 118, 129;
+    }
+
+    /* Header reacts to status */
+    [data-state="active"] .header {
+      border-bottom-color: rgba(var(--ambient-rgb), 0.3);
+      box-shadow: 0 1px 8px rgba(var(--ambient-rgb), 0.08);
+      transition: border-color 500ms ease, box-shadow 500ms ease;
+    }
+    [data-status="danger"] .header {
+      box-shadow: 0 1px 12px rgba(var(--ambient-rgb), 0.15);
+    }
+
+    /* LIVE indicator variants */
+    [data-status="nominal"] .live-indicator { background: var(--success-muted); color: var(--success-fg); }
+    [data-status="attention"] .live-indicator { background: var(--attention-muted); color: var(--attention-fg); }
+    [data-status="danger"] .live-indicator { background: var(--danger-muted); color: var(--danger-fg); }
+    [data-status="idle"] .live-indicator { background: var(--bg-emphasis); color: var(--fg-muted); }
+
+    [data-status="attention"] .live-dot { background: var(--attention-fg); animation-duration: 1.5s; }
+    [data-status="danger"] .live-dot { background: var(--danger-fg); animation: dangerPulse 1s infinite; }
+    [data-status="idle"] .live-dot { background: var(--fg-subtle); animation: none; }
+
+    /* Summary strip top accent */
+    [data-state="active"] .summary-strip {
+      border-top: 2px solid rgba(var(--ambient-rgb), 0.4);
+      transition: border-color 500ms ease;
+    }
+
+    /* Sidebar nav badge status-reactive */
+    [data-status="nominal"] .nav-badge.status-reactive { background: var(--success-muted); color: var(--success-fg); }
+    [data-status="attention"] .nav-badge.status-reactive { background: var(--attention-muted); color: var(--attention-fg); }
+    [data-status="danger"] .nav-badge.status-reactive { background: var(--danger-muted); color: var(--danger-fg); animation: dangerPulse 1s infinite; }
+    [data-status="idle"] .nav-badge.status-reactive { background: var(--bg-emphasis); color: var(--fg-muted); }
+
+    /* Canvas background tint (subliminal) */
+    [data-status="nominal"] { background-color: #0d1214; }
+    [data-status="attention"] { background-color: #11110d; }
+    [data-status="danger"] { background-color: #120d0d; }
+    [data-status="idle"] { background-color: #0d1117; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--bg-default); border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: var(--space-3); }
+    .header-title { display: flex; align-items: center; gap: var(--space-3); }
+    .header-title h1 { font-size: 18px; font-weight: 600; }
+    .header-title .icon { width: 24px; height: 24px; color: var(--fg-muted); }
+    .header-controls { display: flex; align-items: center; gap: var(--space-3); }
+
+    .live-indicator {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background-color: var(--success-muted);
+      border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; color: var(--success-fg);
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background-color: var(--success-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      font-size: 14px; font-weight: 500; border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .btn-secondary { background-color: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); }
+    .btn-secondary:hover { background-color: var(--bg-muted); border-color: var(--fg-subtle); }
+    .btn-primary { background-color: var(--accent-fg); color: #fff; border: 1px solid transparent; }
+    .btn-primary:hover { background-color: #4c9aed; }
+    .btn-success { background-color: var(--success-fg); color: #fff; border: 1px solid transparent; }
+    .btn-success:hover { background-color: #36a348; }
+    .btn-danger { background-color: transparent; border: 1px solid var(--danger-fg); color: var(--danger-fg); }
+    .btn-danger:hover { background-color: var(--danger-muted); }
+    .btn-sm { padding: var(--space-1) var(--space-2); font-size: 12px; }
+    .btn .icon { width: 16px; height: 16px; }
+    .btn-sm .icon { width: 14px; height: 14px; }
+
+    .toggle-wrapper { display: flex; align-items: center; gap: var(--space-2); }
+    .toggle-label { font-size: 13px; font-weight: 500; color: var(--fg-muted); }
+    .toggle { position: relative; width: 40px; height: 22px; background-color: var(--bg-emphasis); border-radius: 11px; cursor: pointer; transition: background-color var(--duration-fast); }
+    .toggle.active { background-color: var(--success-fg); }
+    .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform var(--duration-fast); }
+    .toggle.active::after { transform: translateX(18px); }
+
+    /* Time Range Selector */
+    .time-range {
+      display: flex;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .time-range-btn {
+      padding: var(--space-1) var(--space-3);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border-right: 1px solid var(--border-default);
+      transition: all var(--duration-fast) var(--ease-out);
+      cursor: pointer;
+    }
+    .time-range-btn:last-child { border-right: none; }
+    .time-range-btn:hover { color: var(--fg-default); background: var(--bg-muted); }
+    .time-range-btn.active {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+      font-weight: 600;
+    }
+
+    /* ========================================
+       Summary Strip
+       ======================================== */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background-color: var(--border-default);
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .summary-card {
+      background-color: var(--bg-default);
+      padding: var(--space-3) var(--space-4);
+      display: flex; flex-direction: column; gap: var(--space-1);
+    }
+    .summary-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .summary-label {
+      font-size: 11px; font-weight: 600; color: var(--fg-subtle);
+      text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    }
+    .summary-icon { width: 14px; height: 14px; color: var(--fg-subtle); }
+    .summary-value {
+      font-size: 24px; font-weight: 700; color: var(--fg-default);
+      letter-spacing: var(--tracking-tight); line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .summary-detail {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 12px; color: var(--fg-muted);
+    }
+    .summary-detail .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .dot-working { background: var(--success-fg); animation: pulse 2s ease-in-out infinite; }
+    .dot-waiting { background: var(--attention-fg); }
+    .dot-idle { background: var(--fg-subtle); }
+    .cost-value { color: var(--attention-fg); font-weight: 600; }
+    .token-counter {
+      font-family: var(--font-mono);
+      animation: tokenTick 3s ease-in-out infinite;
+    }
+
+    /* ========================================
+       Swimlane Timeline View
+       ======================================== */
+    .timeline-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .swimlane-wrapper {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* Project Labels (Y-axis) */
+    .swimlane-labels {
+      width: 200px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+    }
+    .swimlane-labels-header {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-4);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+      flex-shrink: 0;
+    }
+    .swimlane-label {
+      height: 88px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0 var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+      transition: background var(--duration-fast);
+    }
+    .swimlane-label:hover {
+      background: var(--bg-subtle);
+    }
+    .swimlane-label-avatar {
+      width: 28px; height: 28px;
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600; color: #fff;
+      flex-shrink: 0;
+    }
+    .swimlane-label-info {
+      display: flex; flex-direction: column; gap: 2px;
+      min-width: 0;
+    }
+    .swimlane-label-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .swimlane-label-path {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .swimlane-label-count {
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+
+    /* Timeline Area */
+    .swimlane-timeline {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      position: relative;
+    }
+    .swimlane-timeline-inner {
+      min-width: 1200px;
+      position: relative;
+    }
+
+    /* Time Axis (X-axis) */
+    .time-axis {
+      height: 36px;
+      display: flex;
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .time-tick {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: var(--fg-subtle);
+      border-right: 1px solid var(--border-default);
+      position: relative;
+    }
+    .time-tick::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 1px;
+      height: 6px;
+      background: var(--fg-subtle);
+      opacity: 0.3;
+    }
+
+    /* Time Grid Lines */
+    .time-gridlines {
+      position: absolute;
+      top: 36px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .time-gridline {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border-default);
+      opacity: 0.3;
+    }
+
+    /* Now Line */
+    .now-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--danger-fg);
+      z-index: 20;
+      animation: nowLinePulse 2s ease-in-out infinite;
+    }
+    .now-line::before {
+      content: 'NOW';
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--danger-fg);
+      background: var(--bg-canvas);
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid var(--danger-fg);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    /* Swim Lanes */
+    .swimlane-row {
+      height: 88px;
+      border-bottom: 1px solid var(--border-default);
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 12px 0;
+    }
+    .swimlane-row:hover {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    /* Session Bars */
+    .session-bar {
+      position: absolute;
+      height: 40px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-3);
+      gap: var(--space-2);
+      overflow: hidden;
+      z-index: 5;
+      animation: slideInRight 0.4s var(--ease-out);
+    }
+    .session-bar:hover {
+      transform: scaleY(1.15);
+      z-index: 15;
+    }
+    .session-bar.selected {
+      box-shadow: 0 0 0 2px var(--accent-fg), var(--shadow-md);
+      z-index: 16;
+    }
+
+    /* Session bar status colors */
+    .session-bar.working {
+      background: linear-gradient(135deg, rgba(46, 160, 67, 0.3) 0%, rgba(46, 160, 67, 0.15) 100%);
+      border: 1px solid rgba(63, 185, 80, 0.4);
+    }
+    .session-bar.working::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(63, 185, 80, 0.15) 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: shimmer 2s ease-in-out infinite;
+    }
+    .session-bar.waiting {
+      background: linear-gradient(135deg, rgba(210, 153, 34, 0.3) 0%, rgba(210, 153, 34, 0.15) 100%);
+      border: 1px solid rgba(210, 153, 34, 0.4);
+    }
+    .session-bar.input {
+      background: linear-gradient(135deg, rgba(56, 139, 253, 0.3) 0%, rgba(56, 139, 253, 0.15) 100%);
+      border: 1px solid rgba(88, 166, 255, 0.4);
+    }
+    .session-bar.idle {
+      background: linear-gradient(135deg, rgba(110, 118, 129, 0.2) 0%, rgba(110, 118, 129, 0.08) 100%);
+      border: 1px solid rgba(110, 118, 129, 0.3);
+    }
+
+    /* Session bar content */
+    .bar-status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+    }
+    .bar-status-dot.working { background: var(--success-fg); animation: pulse 2s infinite; }
+    .bar-status-dot.waiting { background: var(--attention-fg); }
+    .bar-status-dot.input { background: var(--accent-fg); }
+    .bar-status-dot.idle { background: var(--fg-subtle); }
+
+    .bar-label {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      position: relative;
+      z-index: 2;
+    }
+    .session-bar.working .bar-label { color: var(--success-fg); }
+    .session-bar.waiting .bar-label { color: var(--attention-fg); }
+    .session-bar.input .bar-label { color: var(--accent-fg); }
+    .session-bar.idle .bar-label { color: var(--fg-subtle); }
+
+    .bar-id {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      white-space: nowrap;
+      position: relative;
+      z-index: 2;
+    }
+
+    .bar-branch {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--done-fg);
+      padding: 1px 6px;
+      background: var(--done-muted);
+      border-radius: 3px;
+      white-space: nowrap;
+      position: relative;
+      z-index: 2;
+      margin-left: auto;
+    }
+    .bar-branch .icon { width: 10px; height: 10px; }
+
+    /* Tooltip */
+    .session-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: var(--space-3);
+      min-width: 260px;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-fast) var(--ease-out);
+    }
+    .session-bar:hover .session-tooltip {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .tooltip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--border-default);
+    }
+    .tooltip-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-fg);
+      font-weight: 500;
+    }
+    .tooltip-status {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+    }
+    .tooltip-status.working { background: var(--success-muted); color: var(--success-fg); }
+    .tooltip-status.waiting { background: var(--attention-muted); color: var(--attention-fg); }
+    .tooltip-status.input { background: var(--accent-muted); color: var(--accent-fg); }
+    .tooltip-status.idle { background: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .tooltip-goal {
+      font-size: 12px;
+      color: var(--fg-default);
+      line-height: 1.4;
+      margin-bottom: var(--space-2);
+    }
+    .tooltip-meta {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+    .tooltip-meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+    .tooltip-meta .icon { width: 11px; height: 11px; }
+    .tooltip-meta .value { font-family: var(--font-mono); color: var(--fg-default); font-weight: 500; }
+
+    /* ========================================
+       Selected Session Detail Panel
+       ======================================== */
+    .detail-panel {
+      flex-shrink: 0;
+      height: 280px;
+      background: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      overflow: hidden;
+      animation: slideUpPanel 0.3s var(--ease-out);
+    }
+    .detail-panel-toggle {
+      position: absolute;
+      top: -28px;
+      right: var(--space-6);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      cursor: pointer;
+    }
+
+    /* Terminal Stream */
+    .detail-stream {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border-default);
+      min-width: 0;
+    }
+    .detail-stream-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-subtle);
+      flex-shrink: 0;
+    }
+    .detail-stream-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .detail-session-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-fg);
+      font-weight: 500;
+    }
+    .detail-session-status {
+      font-size: 11px;
+      color: var(--success-fg);
+      font-weight: 600;
+    }
+    .detail-terminal {
+      flex: 1;
+      background: #0a0e14;
+      padding: var(--space-3);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+      overflow-y: auto;
+    }
+    .stream-line { margin-bottom: 2px; animation: fadeIn 0.2s ease; }
+    .stream-line .role-user { color: var(--accent-fg); font-weight: 600; }
+    .stream-line .role-assistant { color: var(--done-fg); font-weight: 600; }
+    .stream-line .role-tool { color: var(--attention-fg); font-weight: 600; }
+    .stream-line .role-system { color: var(--fg-subtle); font-weight: 600; }
+    .stream-line .text { color: var(--fg-muted); }
+    .stream-line .file-path { color: var(--success-fg); }
+    .cursor-blink {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: var(--done-fg);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    /* Detail Sidebar */
+    .detail-sidebar {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .detail-section {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+    .detail-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: var(--space-2);
+    }
+
+    /* Token Breakdown */
+    .token-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .token-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .token-row-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+    .token-row-value {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+    .token-bar {
+      height: 6px;
+      background: var(--bg-emphasis);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: var(--space-2);
+    }
+    .token-bar-segments { display: flex; height: 100%; }
+    .token-bar-segment { height: 100%; transition: width 1s ease; }
+    .token-bar-segment.seg-input { background: var(--accent-fg); }
+    .token-bar-segment.seg-output { background: var(--done-fg); }
+    .token-bar-segment.seg-cache { background: var(--success-fg); }
+    .token-legend { display: flex; gap: var(--space-3); margin-top: var(--space-2); }
+    .token-legend-item { display: flex; align-items: center; gap: var(--space-1); font-size: 11px; color: var(--fg-subtle); }
+    .token-legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    /* Git Activity */
+    .git-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-1);
+    }
+    .git-row .icon { width: 14px; height: 14px; color: var(--fg-subtle); flex-shrink: 0; }
+    .git-row .value {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-default);
+    }
+    .git-branch-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      background: var(--done-muted);
+      color: var(--done-fg);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+    }
+    .git-branch-badge .icon { width: 11px; height: 11px; }
+
+    /* Controls */
+    .detail-controls {
+      display: flex;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border-top: 1px solid var(--border-default);
+      margin-top: auto;
+      background: var(--bg-subtle);
+    }
+    .detail-controls .btn { flex: 1; }
+
+    /* ========================================
+       Install State
+       ======================================== */
+    .install-state {
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-8);
+      text-align: center;
+      gap: var(--space-6);
+    }
+    .install-hero-icon {
+      position: relative;
+      width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle, var(--accent-muted) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .install-hero-icon svg {
+      width: 40px; height: 40px;
+      color: var(--accent-fg);
+      filter: drop-shadow(0 0 12px rgba(88, 166, 255, 0.4));
+    }
+    .install-sparkle {
+      position: absolute;
+      width: 4px; height: 4px;
+      background: var(--accent-fg);
+      border-radius: 50%;
+      animation: installSparkle 3s ease-in-out infinite;
+    }
+    .install-sparkle-1 { top: 8px; right: 12px; animation-delay: 0s; }
+    .install-sparkle-2 { bottom: 12px; left: 8px; animation-delay: 1s; }
+    .install-sparkle-3 { top: 20px; left: 4px; animation-delay: 2s; }
+
+    .install-headline {
+      font-size: 22px; font-weight: 700;
+      color: var(--fg-default);
+      letter-spacing: var(--tracking-tight);
+    }
+    .install-subline {
+      font-size: 14px; color: var(--fg-muted);
+      line-height: 1.6; max-width: 400px;
+    }
+
+    /* Install command block (primary CTA) */
+    .install-command {
+      width: 100%; max-width: 480px;
+    }
+    .install-command-label {
+      font-size: 11px; font-weight: 700;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+    .install-command-box {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 20px;
+      background: #0a0e14;
+      border: 1px solid var(--accent-fg);
+      border-radius: var(--radius-lg);
+      font-family: var(--font-mono); font-size: 15px;
+      color: var(--success-fg);
+      box-shadow: 0 0 20px rgba(88, 166, 255, 0.1), 0 0 0 1px rgba(88, 166, 255, 0.2);
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .install-command-box:hover {
+      border-color: #79b8ff;
+      box-shadow: 0 0 30px rgba(88, 166, 255, 0.2), 0 0 0 1px rgba(88, 166, 255, 0.3);
+      transform: translateY(-1px);
+    }
+    .install-command-box.connected {
+      border-color: var(--success-fg);
+      box-shadow: 0 0 20px rgba(63, 185, 80, 0.15);
+    }
+    .install-command-prompt { color: var(--fg-subtle); }
+    .install-command-text { flex: 1; color: var(--success-fg); }
+    .install-command-copy {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      border-radius: var(--radius);
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+      transition: all 150ms ease;
+    }
+    .install-command-copy:hover { background: var(--accent-muted); color: var(--accent-fg); }
+    .install-command-copy.copied { background: var(--success-muted); color: var(--success-fg); }
+    .install-command-connected-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600; color: var(--success-fg);
+      animation: fadeIn 300ms ease;
+    }
+
+    /* Alternative install methods */
+    .install-alternatives {
+      width: 100%; max-width: 480px;
+      text-align: left;
+    }
+    .install-alternatives-toggle {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--fg-muted);
+      cursor: pointer; margin-bottom: 12px;
+    }
+    .install-alternatives-toggle .chevron {
+      transition: transform 200ms ease;
+    }
+    .install-alternatives-toggle.open .chevron {
+      transform: rotate(90deg);
+    }
+    .install-alt-methods { display: none; }
+    .install-alternatives-toggle.open + .install-alt-methods { display: block; }
+    .install-alt-method {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--fg-muted);
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .install-alt-method:hover { border-color: var(--fg-subtle); color: var(--fg-default); }
+    .install-alt-label {
+      font-size: 10px; font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      padding: 2px 6px;
+      background: var(--bg-emphasis);
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Info strip */
+    .install-info-strip {
+      display: flex; flex-direction: column; gap: 8px;
+      width: 100%; max-width: 480px;
+      text-align: left;
+    }
+    .install-info-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--fg-muted);
+    }
+    .install-info-item svg { width: 14px; height: 14px; color: var(--fg-subtle); flex-shrink: 0; }
+    .install-info-item code {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--accent-fg); background: var(--accent-muted);
+      padding: 1px 4px; border-radius: 3px;
+    }
+
+    /* Ghost preview */
+    .install-preview { opacity: 0.3; transition: opacity 300ms; max-width: 400px; width: 100%; }
+    .install-preview:hover { opacity: 0.5; }
+    .install-preview-timeline {
+      position: relative; height: 84px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      background: var(--bg-default);
+      overflow: hidden;
+    }
+    .install-preview-bar {
+      position: absolute; height: 16px; border-radius: 3px;
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.2), rgba(88, 166, 255, 0.08));
+      border: 1px solid rgba(88, 166, 255, 0.15);
+    }
+
+    /* ========================================
+       Waiting State
+       ======================================== */
+    .waiting-state {
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: var(--space-4);
+    }
+    .waiting-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .waiting-radar {
+      position: relative; width: 80px; height: 80px;
+      margin-bottom: var(--space-4);
+    }
+    .waiting-radar-ring {
+      position: absolute; inset: 0;
+      border: 1px solid var(--success-fg);
+      border-radius: 50%;
+      animation: radarPing 3s ease-out infinite;
+      opacity: 0;
+    }
+    .waiting-radar-ring-2 { animation-delay: 1s; }
+    .waiting-radar-ring-3 { animation-delay: 2s; }
+    .waiting-radar-dot {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px; height: 10px;
+      background: var(--success-fg);
+      border-radius: 50%;
+      animation: breathe 2s ease-in-out infinite;
+      box-shadow: 0 0 12px rgba(63, 185, 80, 0.4);
+    }
+
+    .waiting-headline {
+      font-size: 18px; font-weight: 600;
+      color: var(--fg-default);
+    }
+    .waiting-subline {
+      font-size: 14px; color: var(--fg-muted);
+      max-width: 360px; line-height: 1.5;
+    }
+
+    .waiting-command-label {
+      font-size: 11px; font-weight: 700;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .waiting-command-box {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 16px;
+      background: #0a0e14;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      font-family: var(--font-mono); font-size: 14px;
+      color: var(--success-fg);
+    }
+    .waiting-hint {
+      font-size: 12px; color: var(--fg-subtle);
+      font-style: italic;
+    }
+
+    /* Waiting summary strip overrides */
+    .waiting-state .summary-strip .summary-value { color: var(--fg-subtle); }
+
+    /* ========================================
+       Alert Toast System
+       ======================================== */
+    .alert-toast-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 24px;
+      z-index: 50;
+    }
+    .alert-toast-container:empty { display: none; }
+
+    .alert-toast {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      max-width: 560px;
+      width: 100%;
+      animation: slideInDown 300ms var(--ease-out);
+    }
+
+    .alert-toast-approval { border-left: 4px solid var(--attention-fg); }
+    .alert-toast-approval .alert-toast-icon { color: var(--attention-fg); }
+
+    .alert-toast-error {
+      border-left: 4px solid var(--danger-fg);
+      animation: slideInDown 300ms var(--ease-out), dangerPulse 2s ease-in-out infinite;
+    }
+    .alert-toast-error .alert-toast-icon { color: var(--danger-fg); }
+
+    .alert-toast-complete { border-left: 4px solid var(--success-fg); }
+    .alert-toast-complete .alert-toast-icon { color: var(--success-fg); }
+
+    .alert-toast-input { border-left: 4px solid var(--accent-fg); }
+    .alert-toast-input .alert-toast-icon { color: var(--accent-fg); }
+
+    .alert-toast-new-session { border-left: 4px solid var(--fg-subtle); }
+    .alert-toast-new-session .alert-toast-icon { color: var(--fg-subtle); }
+
+    .alert-toast-icon { width: 20px; height: 20px; flex-shrink: 0; }
+    .alert-toast-content {
+      flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+    }
+    .alert-toast-title { font-size: 13px; font-weight: 600; color: var(--fg-default); }
+    .alert-toast-detail {
+      font-size: 12px; font-family: var(--font-mono); color: var(--fg-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .alert-toast-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .alert-toast-dismiss {
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-sm);
+      color: var(--fg-subtle);
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .alert-toast-dismiss:hover { background: var(--bg-emphasis); color: var(--fg-default); }
+
+    .alert-toast-autodismiss {
+      animation: slideInDown 300ms var(--ease-out), fadeOutUp 500ms ease 4.5s forwards;
+    }
+
+    /* ========================================
+       Scrollbar
+       ======================================== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    /* ========================================
+       Design Notes
+       ======================================== */
+    .design-notes {
+      position: fixed; bottom: var(--space-4); right: var(--space-4);
+      width: 380px; background: var(--bg-default);
+      border: 1px solid var(--accent-fg); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg); overflow: hidden; z-index: 1000;
+    }
+    .design-notes-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--accent-muted); border-bottom: 1px solid var(--accent-fg);
+    }
+    .design-notes-header h3 { font-size: 12px; font-weight: 600; color: var(--accent-fg); text-transform: uppercase; letter-spacing: 0.5px; }
+    .design-notes-content { padding: var(--space-4); max-height: 400px; overflow-y: auto; }
+    .design-note { margin-bottom: var(--space-4); }
+    .design-note:last-child { margin-bottom: 0; }
+    .design-note h4 { font-size: 13px; font-weight: 600; color: var(--fg-default); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+    .design-note h4 .icon { width: 14px; height: 14px; color: var(--accent-fg); }
+    .design-note p { font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
+    .design-note ul { margin-top: var(--space-2); padding-left: var(--space-4); }
+    .design-note li { font-size: 12px; color: var(--fg-muted); line-height: 1.6; margin-bottom: var(--space-1); list-style: disc; }
+    .design-note code { font-family: var(--font-mono); font-size: 11px; color: var(--accent-fg); background: var(--accent-muted); padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- ============================================
+       Sidebar
+       ============================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+          <defs><radialGradient id="coreGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#3fb950"/><stop offset="100%" stop-color="#3fb950" stop-opacity="0"/></radialGradient></defs>
+          <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+          <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+          <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+          <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+          <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+          <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+          <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+          <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/><circle cx="14" cy="14" r="2" fill="#fff"/>
+        </svg>
+      </div>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">AgentPane</span>
+        <span class="project-path-text">~/git/agentpane</span>
+      </div>
+      <kbd>&#8984;P</kbd>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Organization</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Projects
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          Sessions
+        </a>
+        <a class="nav-item active" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          CLI Monitor
+          <span class="nav-badge status-reactive">4</span>
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Content</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Org Templates
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>
+          Designer
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Admin</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">Simon Lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================
+       Main Application
+       ============================================ -->
+  <div class="app-layout" data-state="active" data-status="attention">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="header-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <h1>CLI Monitor</h1>
+        </div>
+        <div class="live-indicator">
+          <span class="live-dot"></span>
+          <span class="live-text">WAITING</span>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="alerts-toggle toggle-wrapper">
+          <span class="toggle-label">Alerts</span>
+          <div class="toggle active"></div>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--fg-muted);">
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+        </div>
+        <div class="toggle-wrapper">
+          <span class="toggle-label">Daemon</span>
+          <div class="toggle active"></div>
+        </div>
+        <div class="time-range">
+          <button class="time-range-btn">1h</button>
+          <button class="time-range-btn active">3h</button>
+          <button class="time-range-btn">12h</button>
+          <button class="time-range-btn">24h</button>
+        </div>
+        <button class="btn btn-secondary">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- ============================================
+         Install State — Daemon Onboarding
+         ============================================ -->
+    <div class="install-state">
+      <div class="install-hero-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        <div class="install-sparkle install-sparkle-1"></div>
+        <div class="install-sparkle install-sparkle-2"></div>
+        <div class="install-sparkle install-sparkle-3"></div>
+      </div>
+
+      <h2 class="install-headline">Monitor your Claude Code sessions</h2>
+      <p class="install-subline">See all your CLI sessions across projects in one place. Bring your own agent, centralised visibility.</p>
+
+      <div class="install-command">
+        <div class="install-command-label">Install</div>
+        <div class="install-command-box" onclick="copyInstallCommand(this)">
+          <span class="install-command-prompt">$</span>
+          <span class="install-command-text">npx @agentpane/cli-monitor</span>
+          <div class="install-command-copy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-alternatives">
+        <div class="install-alternatives-toggle" onclick="this.classList.toggle('open')">
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="9,18 15,12 9,6"/></svg>
+          Alternative install methods
+        </div>
+        <div class="install-alt-methods">
+          <div class="install-alt-method" onclick="copyCommand(this, 'npm i -g @agentpane/cli-monitor')">
+            <span class="install-alt-label">npm</span>
+            <span>npm i -g @agentpane/cli-monitor</span>
+          </div>
+          <div class="install-alt-method" onclick="copyCommand(this, 'brew install agentpane/tap/cli-monitor')">
+            <span class="install-alt-label">brew</span>
+            <span>brew install agentpane/tap/cli-monitor</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-info-strip">
+        <div class="install-info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Watches <code>~/.claude/projects/</code> for session logs
+        </div>
+        <div class="install-info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Runs locally — no data leaves your machine
+        </div>
+        <div class="install-info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Stop anytime: <code>cli-monitor stop</code>
+        </div>
+      </div>
+
+      <div class="install-preview">
+        <div class="install-preview-timeline">
+          <div class="install-preview-bar" style="top: 12px; left: 10%; width: 45%; height: 16px;"></div>
+          <div class="install-preview-bar" style="top: 34px; left: 25%; width: 55%; height: 16px;"></div>
+          <div class="install-preview-bar" style="top: 56px; left: 5%; width: 35%; height: 16px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================
+         Waiting State — Watching for Sessions
+         ============================================ -->
+    <div class="waiting-state">
+      <!-- Summary strip with zeros -->
+      <div class="summary-strip">
+        <div class="summary-card">
+          <div class="summary-header">
+            <span class="summary-label">Active Sessions</span>
+            <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <div class="summary-value" style="color:var(--fg-subtle)">0</div>
+          <div class="summary-detail">No sessions detected yet</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-header">
+            <span class="summary-label">Total Tokens</span>
+            <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+          </div>
+          <div class="summary-value" style="color:var(--fg-subtle)">0</div>
+          <div class="summary-detail">--</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-header">
+            <span class="summary-label">Files Changed</span>
+            <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          </div>
+          <div class="summary-value" style="color:var(--fg-subtle)">0</div>
+          <div class="summary-detail">--</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-header">
+            <span class="summary-label">Branches Active</span>
+            <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+          </div>
+          <div class="summary-value" style="color:var(--fg-subtle)">0</div>
+          <div class="summary-detail">--</div>
+        </div>
+      </div>
+
+      <!-- Radar + message -->
+      <div class="waiting-content">
+        <div class="waiting-radar">
+          <div class="waiting-radar-ring"></div>
+          <div class="waiting-radar-ring waiting-radar-ring-2"></div>
+          <div class="waiting-radar-ring waiting-radar-ring-3"></div>
+          <div class="waiting-radar-dot"></div>
+        </div>
+        <h2 class="waiting-headline">Watching for sessions...</h2>
+        <p class="waiting-subline">Start a Claude Code session in any terminal to see it here</p>
+        <span class="waiting-command-label">Try running</span>
+        <div class="waiting-command-box">
+          <span style="color:var(--fg-subtle)">$</span>
+          claude "fix the auth bug"<span class="cursor-blink"></span>
+        </div>
+        <span class="waiting-hint">or simply <code style="font-family:var(--font-mono);color:var(--accent-fg);background:var(--accent-muted);padding:1px 4px;border-radius:3px;">claude</code> for interactive</span>
+      </div>
+    </div>
+
+    <!-- ============================================
+         Active State — Timeline View
+         ============================================ -->
+    <div class="active-state">
+      <!-- Alert Toasts -->
+      <div class="alert-toast-container">
+        <div class="alert-toast alert-toast-approval">
+          <svg class="alert-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <div class="alert-toast-content">
+            <span class="alert-toast-title">Approval needed</span>
+            <span class="alert-toast-detail">e4f5g6h — Fix OAuth redirect</span>
+          </div>
+          <div class="alert-toast-actions">
+            <button class="btn btn-sm btn-primary">Review</button>
+            <div class="alert-toast-dismiss">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="alert-toast alert-toast-complete alert-toast-autodismiss">
+          <svg class="alert-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+          <div class="alert-toast-content">
+            <span class="alert-toast-title">Session completed</span>
+            <span class="alert-toast-detail">m0n1o2p — API reference docs</span>
+          </div>
+          <div class="alert-toast-actions">
+            <div class="alert-toast-dismiss">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Summary Strip -->
+    <div class="summary-strip">
+      <!-- Active Sessions -->
+      <div class="summary-card">
+        <div class="summary-header">
+          <span class="summary-label">Active Sessions</span>
+          <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <div class="summary-value">4</div>
+        <div class="summary-detail">
+          <span class="dot dot-working"></span> 2 working
+          <span style="margin-left:4px" class="dot dot-waiting"></span> 1 waiting
+          <span style="margin-left:4px" class="dot dot-idle"></span> 1 idle
+        </div>
+      </div>
+
+      <!-- Token Usage -->
+      <div class="summary-card">
+        <div class="summary-header">
+          <span class="summary-label">Total Tokens</span>
+          <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+        </div>
+        <div class="summary-value token-counter">284K</div>
+        <div class="summary-detail">
+          <span class="cost-value">$4.27</span> estimated cost
+        </div>
+      </div>
+
+      <!-- Files Changed -->
+      <div class="summary-card">
+        <div class="summary-header">
+          <span class="summary-label">Files Changed</span>
+          <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        </div>
+        <div class="summary-value">17</div>
+        <div class="summary-detail">
+          across 3 projects
+        </div>
+      </div>
+
+      <!-- Branches Active -->
+      <div class="summary-card">
+        <div class="summary-header">
+          <span class="summary-label">Branches Active</span>
+          <svg class="summary-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+        </div>
+        <div class="summary-value">3</div>
+        <div class="summary-detail">
+          feat/cli-monitor, fix/auth-redirect, main
+        </div>
+      </div>
+    </div>
+
+    <!-- Swimlane Timeline -->
+    <div class="timeline-container">
+      <div class="swimlane-wrapper">
+        <!-- Y-axis: Project Labels -->
+        <div class="swimlane-labels">
+          <div class="swimlane-labels-header">Projects</div>
+          <div class="swimlane-label">
+            <div class="swimlane-label-avatar" style="background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));">AP</div>
+            <div class="swimlane-label-info">
+              <span class="swimlane-label-name">AgentPane</span>
+              <span class="swimlane-label-path">~/git/agentpane</span>
+              <span class="swimlane-label-count">2 sessions</span>
+            </div>
+          </div>
+          <div class="swimlane-label">
+            <div class="swimlane-label-avatar" style="background: linear-gradient(135deg, var(--success-fg), var(--attention-fg));">PS</div>
+            <div class="swimlane-label-info">
+              <span class="swimlane-label-name">payment-service</span>
+              <span class="swimlane-label-path">~/git/payment-svc</span>
+              <span class="swimlane-label-count">1 session</span>
+            </div>
+          </div>
+          <div class="swimlane-label">
+            <div class="swimlane-label-avatar" style="background: linear-gradient(135deg, var(--secondary-fg), var(--danger-fg));">DS</div>
+            <div class="swimlane-label-info">
+              <span class="swimlane-label-name">docs-site</span>
+              <span class="swimlane-label-path">~/git/docs-site</span>
+              <span class="swimlane-label-count">1 session</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- X-axis: Timeline -->
+        <div class="swimlane-timeline">
+          <div class="swimlane-timeline-inner">
+            <!-- Time Axis -->
+            <div class="time-axis">
+              <div class="time-tick">11:00</div>
+              <div class="time-tick">11:15</div>
+              <div class="time-tick">11:30</div>
+              <div class="time-tick">11:45</div>
+              <div class="time-tick">12:00</div>
+              <div class="time-tick">12:15</div>
+              <div class="time-tick">12:30</div>
+              <div class="time-tick">12:45</div>
+              <div class="time-tick">13:00</div>
+              <div class="time-tick">13:15</div>
+              <div class="time-tick">13:30</div>
+              <div class="time-tick">13:45</div>
+            </div>
+
+            <!-- Grid Lines -->
+            <div class="time-gridlines">
+              <div class="time-gridline" style="left: 8.33%;"></div>
+              <div class="time-gridline" style="left: 16.66%;"></div>
+              <div class="time-gridline" style="left: 25%;"></div>
+              <div class="time-gridline" style="left: 33.33%;"></div>
+              <div class="time-gridline" style="left: 41.66%;"></div>
+              <div class="time-gridline" style="left: 50%;"></div>
+              <div class="time-gridline" style="left: 58.33%;"></div>
+              <div class="time-gridline" style="left: 66.66%;"></div>
+              <div class="time-gridline" style="left: 75%;"></div>
+              <div class="time-gridline" style="left: 83.33%;"></div>
+              <div class="time-gridline" style="left: 91.66%;"></div>
+            </div>
+
+            <!-- Now Line (positioned at ~13:42, about 91% through the 3h window) -->
+            <div class="now-line" style="left: 91%;"></div>
+
+            <!-- Swimlane Rows -->
+            <!-- AgentPane -->
+            <div class="swimlane-row">
+              <!-- Session 1: Working - started at 12:15, still active (12:15 to now ~13:42 = 87min) -->
+              <div class="session-bar working selected" style="left: 41.6%; width: 49.4%; top: 6px;">
+                <span class="bar-status-dot working"></span>
+                <span class="bar-label">CLI monitor daemon</span>
+                <span class="bar-id">a1b2c3d</span>
+                <span class="bar-branch">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                  feat/cli-monitor
+                </span>
+                <!-- Tooltip -->
+                <div class="session-tooltip">
+                  <div class="tooltip-header">
+                    <span class="tooltip-id">a1b2c3d</span>
+                    <span class="tooltip-status working">Working</span>
+                  </div>
+                  <div class="tooltip-goal">Implement the CLI monitor daemon service with JSONL parsing and durable streams integration</div>
+                  <div class="tooltip-meta">
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      <span class="value">42</span> msgs
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+                      <span class="value">89K</span> tokens
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                      <span class="value">87m</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <!-- Session 2: Waiting - started 11:30, waiting since 12:45 -->
+              <div class="session-bar waiting" style="left: 16.6%; width: 43%; top: 48px;">
+                <span class="bar-status-dot waiting"></span>
+                <span class="bar-label">Fix OAuth redirect</span>
+                <span class="bar-id">e4f5g6h</span>
+                <span class="bar-branch">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                  fix/auth-redirect
+                </span>
+                <div class="session-tooltip">
+                  <div class="tooltip-header">
+                    <span class="tooltip-id">e4f5g6h</span>
+                    <span class="tooltip-status waiting">Approval</span>
+                  </div>
+                  <div class="tooltip-goal">Fix OAuth redirect loop when session expires during navigation</div>
+                  <div class="tooltip-meta">
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      <span class="value">18</span> msgs
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+                      <span class="value">64K</span> tokens
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                      <span class="value">2h 12m</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- payment-service -->
+            <div class="swimlane-row">
+              <!-- Session: Working - started at 13:00 -->
+              <div class="session-bar working" style="left: 66.6%; width: 24.4%; top: 24px;">
+                <span class="bar-status-dot working"></span>
+                <span class="bar-label">Stripe webhooks</span>
+                <span class="bar-id">i7j8k9l</span>
+                <span class="bar-branch">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                  main
+                </span>
+                <div class="session-tooltip">
+                  <div class="tooltip-header">
+                    <span class="tooltip-id">i7j8k9l</span>
+                    <span class="tooltip-status working">Working</span>
+                  </div>
+                  <div class="tooltip-goal">Add Stripe webhook signature verification and idempotency keys</div>
+                  <div class="tooltip-meta">
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      <span class="value">67</span> msgs
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+                      <span class="value">112K</span> tokens
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                      <span class="value">42m</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- docs-site -->
+            <div class="swimlane-row">
+              <!-- Session: Idle - ran from 11:00 to 12:00, now idle -->
+              <div class="session-bar idle" style="left: 0%; width: 33.3%; top: 24px;">
+                <span class="bar-status-dot idle"></span>
+                <span class="bar-label">API reference docs</span>
+                <span class="bar-id">m0n1o2p</span>
+                <span class="bar-branch">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                  docs/api-ref
+                </span>
+                <div class="session-tooltip">
+                  <div class="tooltip-header">
+                    <span class="tooltip-id">m0n1o2p</span>
+                    <span class="tooltip-status idle">Idle</span>
+                  </div>
+                  <div class="tooltip-goal">Update API reference docs with new auth endpoints</div>
+                  <div class="tooltip-meta">
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      <span class="value">31</span> msgs
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+                      <span class="value">19K</span> tokens
+                    </span>
+                    <span>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                      <span class="value">1h</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selected Session Detail Panel -->
+      <div class="detail-panel">
+        <!-- Live Output Stream -->
+        <div class="detail-stream">
+          <div class="detail-stream-header">
+            <div class="detail-stream-left">
+              <span class="detail-session-id">a1b2c3d</span>
+              <span class="detail-session-status">&#9679; Live</span>
+            </div>
+            <span style="font-size:11px;color:var(--fg-subtle);">feat/cli-monitor</span>
+          </div>
+          <div class="detail-terminal">
+            <div class="stream-line"><span class="role-system">[system]</span> <span class="text">Session started. cwd: ~/git/agentpane</span></div>
+            <div class="stream-line"><span class="role-user">[user]</span> <span class="text">Implement the CLI monitor daemon service with JSONL parsing and durable streams integration</span></div>
+            <div class="stream-line"><span class="role-assistant">[claude]</span> <span class="text">I'll implement the CLI monitor daemon. Let me start by examining the existing service patterns...</span></div>
+            <div class="stream-line"><span class="role-tool">[tool:Read]</span> <span class="file-path">src/services/durable-streams.service.ts</span></div>
+            <div class="stream-line"><span class="role-assistant">[claude]</span> <span class="text">The durable streams service uses an InMemoryDurableStreamsServer. I'll create the monitor service following the same pattern...</span></div>
+            <div class="stream-line"><span class="role-tool">[tool:Write]</span> <span class="file-path">src/services/cli-monitor/types.ts</span></div>
+            <div class="stream-line"><span class="role-assistant">[claude]</span> <span class="text">Types defined. Now creating the main service with chokidar file watching...</span></div>
+            <div class="stream-line"><span class="role-tool">[tool:Write]</span> <span class="file-path">src/services/cli-monitor/cli-monitor.service.ts</span></div>
+            <div class="stream-line"><span class="role-assistant">[claude]</span> <span class="text">Creating the session card component with CVA variants for status states</span><span class="cursor-blink"></span></div>
+          </div>
+        </div>
+
+        <!-- Detail Sidebar -->
+        <div class="detail-sidebar">
+          <!-- Token Breakdown -->
+          <div class="detail-section">
+            <div class="detail-section-title">Token Usage</div>
+            <div class="token-breakdown">
+              <div class="token-row">
+                <span class="token-row-label">Input</span>
+                <span class="token-row-value">52,431</span>
+              </div>
+              <div class="token-row">
+                <span class="token-row-label">Output</span>
+                <span class="token-row-value">8,912</span>
+              </div>
+              <div class="token-row">
+                <span class="token-row-label">Cache read</span>
+                <span class="token-row-value">28,089</span>
+              </div>
+              <div class="token-row" style="margin-top: var(--space-1); padding-top: var(--space-1); border-top: 1px solid var(--border-default);">
+                <span class="token-row-label" style="font-weight: 600;">Est. cost</span>
+                <span class="token-row-value" style="color: var(--attention-fg);">$1.42</span>
+              </div>
+            </div>
+            <div class="token-bar">
+              <div class="token-bar-segments">
+                <div class="token-bar-segment seg-input" style="width: 58%;"></div>
+                <div class="token-bar-segment seg-output" style="width: 10%;"></div>
+                <div class="token-bar-segment seg-cache" style="width: 32%;"></div>
+              </div>
+            </div>
+            <div class="token-legend">
+              <span class="token-legend-item"><span class="token-legend-dot" style="background:var(--accent-fg)"></span>Input</span>
+              <span class="token-legend-item"><span class="token-legend-dot" style="background:var(--done-fg)"></span>Output</span>
+              <span class="token-legend-item"><span class="token-legend-dot" style="background:var(--success-fg)"></span>Cache</span>
+            </div>
+          </div>
+
+          <!-- Git Activity -->
+          <div class="detail-section">
+            <div class="detail-section-title">Git Activity</div>
+            <div class="git-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+              <span class="git-branch-badge">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                feat/cli-monitor
+              </span>
+            </div>
+            <div class="git-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+              <span class="value" style="font-family: var(--font-mono); font-size: 12px;">8 files changed</span>
+            </div>
+            <div class="git-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,11 12,14 22,4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <span class="value" style="font-family: var(--font-mono); font-size: 12px;">+342 / -89 lines</span>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="detail-controls">
+            <button class="btn btn-success btn-sm">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+              Approve
+            </button>
+            <button class="btn btn-secondary btn-sm">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Input
+            </button>
+            <button class="btn btn-danger btn-sm">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg>
+              Stop
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div><!-- /active-state -->
+  </div>
+
+  <!-- ============================================
+       Design Notes
+       ============================================ -->
+  <aside class="design-notes">
+    <div class="design-notes-header">
+      <h3>Design Notes</h3>
+    </div>
+    <div style="padding: 8px 16px; border-bottom: 1px solid var(--border-default); display: flex; flex-direction: column; gap: 6px;">
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span style="font-size:10px;color:var(--fg-subtle);width:40px;">State:</span>
+        <button data-demo-state="install" style="padding:3px 8px;font-size:11px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;color:var(--fg-muted);cursor:pointer;">Install</button>
+        <button data-demo-state="waiting" style="padding:3px 8px;font-size:11px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;color:var(--fg-muted);cursor:pointer;">Waiting</button>
+        <button data-demo-state="active" style="padding:3px 8px;font-size:11px;background:var(--accent-muted);border:1px solid var(--accent-fg);border-radius:4px;color:var(--accent-fg);cursor:pointer;">Active</button>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span style="font-size:10px;color:var(--fg-subtle);width:40px;">Status:</span>
+        <button data-demo-status="nominal" style="padding:3px 8px;font-size:11px;background:var(--success-muted);border:1px solid transparent;border-radius:4px;color:var(--success-fg);cursor:pointer;">● Nominal</button>
+        <button data-demo-status="attention" style="padding:3px 8px;font-size:11px;background:var(--attention-muted);border:1px solid transparent;border-radius:4px;color:var(--attention-fg);cursor:pointer;">● Attention</button>
+        <button data-demo-status="danger" style="padding:3px 8px;font-size:11px;background:var(--danger-muted);border:1px solid transparent;border-radius:4px;color:var(--danger-fg);cursor:pointer;">● Danger</button>
+        <button data-demo-status="idle" style="padding:3px 8px;font-size:11px;background:var(--bg-emphasis);border:1px solid transparent;border-radius:4px;color:var(--fg-muted);cursor:pointer;">● Idle</button>
+      </div>
+    </div>
+    <div class="design-notes-content">
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          Timeline Swimlane Approach
+        </h4>
+        <p>This variation replaces the card grid layout with a horizontal timeline view, inspired by Gantt charts and CI/CD pipeline views. Each project occupies its own swimlane on the Y-axis, and time flows along the X-axis.</p>
+        <ul>
+          <li><strong>Temporal context:</strong> Session bars show duration and overlap visually, making it easy to see which tasks ran concurrently</li>
+          <li><strong>At-a-glance status:</strong> Bar color encodes status (green=working, amber=waiting, blue=input, gray=idle)</li>
+          <li><strong>Active shimmer:</strong> Working sessions have a left-to-right gradient <code>shimmer</code> animation on their bars</li>
+          <li><strong>NOW line:</strong> A red vertical line with <code>nowLinePulse</code> animation marks the current time</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+          Interaction Model
+        </h4>
+        <ul>
+          <li>Hover any session bar to see a tooltip with goal, message count, and token usage</li>
+          <li>Click a bar to select it and open the detail panel below</li>
+          <li>Detail panel uses <code>slideUpPanel</code> animation and includes live stream, token breakdown, git info, and controls</li>
+          <li>Time range buttons (1h/3h/12h/24h) zoom the X-axis to different windows</li>
+          <li>Timeline scrolls horizontally for longer time ranges</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+          Advantages Over Card View
+        </h4>
+        <ul>
+          <li><strong>Duration visibility:</strong> Immediately see how long sessions have been running relative to each other</li>
+          <li><strong>Project-level grouping:</strong> Swimlanes create natural visual grouping by project without needing collapsible sections</li>
+          <li><strong>Time correlation:</strong> Overlapping bars reveal concurrent activity across projects</li>
+          <li><strong>Historical context:</strong> Completed/idle sessions remain visible in their time window rather than being pushed down a list</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          Animation Summary
+        </h4>
+        <ul>
+          <li><code>shimmer</code> - Active session bars have a moving gradient highlight (2s infinite)</li>
+          <li><code>nowLinePulse</code> - Red NOW line pulses with glow (2s infinite)</li>
+          <li><code>slideInRight</code> - New sessions animate from the right edge (0.4s)</li>
+          <li><code>slideUpPanel</code> - Detail panel slides up from bottom (0.3s)</li>
+          <li><code>pulse</code> - Status dots and LIVE indicator animate opacity (2s infinite)</li>
+          <li><code>tokenTick</code> - Token counter in summary strip scales on tick (3s infinite)</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Install State — Seamless Daemon Onboarding
+        </h4>
+        <ul>
+          <li>Single CTA onboarding inspired by modern CLI first-run (<code>gh</code>, <code>vercel</code>, <code>railway</code>)</li>
+          <li>Blue action color (not green) — green reserved for "working" status</li>
+          <li>Ghost preview at 30% opacity hints at the active view without distraction</li>
+          <li>Header visible but stripped to essentials (title + daemon toggle only)</li>
+          <li>Privacy-first messaging: local-only, disable anytime</li>
+          <li>Auto-detects daemon connection via <code>/api/cli-monitor/status</code> polling (3s)</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+          Waiting State — Watching for Sessions
+        </h4>
+        <ul>
+          <li>Radar pulse animation signals active watching (green = daemon alive)</li>
+          <li>Summary strip shows zeros to maintain spatial continuity with active state</li>
+          <li>Command snippet guides the user to their first session</li>
+          <li>Blinking cursor adds liveness to the waiting state</li>
+          <li>Auto-transitions to active state when first session is detected via SSE</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+          Status-Reactive Ambient System + Alerts
+        </h4>
+        <ul>
+          <li><code>data-status</code> attribute drives ambient color across header, LIVE indicator, summary border, sidebar badge, canvas tint</li>
+          <li>Hex background shifts are 1-2 units — subliminal, not dramatic</li>
+          <li>All ambient transitions use 500ms ease for smooth shifts</li>
+          <li>Alert toasts slide down from header with 4px left-border color coding</li>
+          <li>Error toasts pulse and persist; completion toasts auto-dismiss after 5s</li>
+          <li>Sound toggle is separate from daemon toggle — visual indicator only in wireframe</li>
+          <li>Sound design spec: musical tones (C/E/G notes) for different alert types</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    const layout = document.querySelector('.app-layout');
+
+    // State switching
+    document.querySelectorAll('[data-demo-state]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        layout.setAttribute('data-state', btn.dataset.demoState);
+        const toggle = document.querySelector('.header .toggle-wrapper:not(.alerts-toggle) .toggle');
+        if (toggle) toggle.classList.toggle('active', btn.dataset.demoState !== 'install');
+      });
+    });
+
+    // Status switching
+    document.querySelectorAll('[data-demo-status]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        layout.setAttribute('data-status', btn.dataset.demoStatus);
+        const labels = { nominal: 'LIVE', attention: 'WAITING', danger: 'ALERT', idle: 'IDLE' };
+        const liveText = document.querySelector('.live-text');
+        if (liveText) liveText.textContent = labels[btn.dataset.demoStatus];
+      });
+    });
+
+    // Copy install command
+    function copyInstallCommand(el) {
+      navigator.clipboard.writeText('npx @agentpane/cli-monitor');
+      const copyBtn = el.querySelector('.install-command-copy');
+      copyBtn.classList.add('copied');
+      copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20,6 9,17 4,12"/></svg>';
+      setTimeout(() => {
+        copyBtn.classList.remove('copied');
+        copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      }, 2000);
+    }
+
+    function copyCommand(el, text) {
+      navigator.clipboard.writeText(text);
+      el.style.borderColor = 'var(--success-fg)';
+      setTimeout(() => { el.style.borderColor = ''; }, 1500);
+    }
+  </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import { logger } from 'hono/logger';
 import type { EventEmittingSandboxProvider } from '../lib/sandbox/index.js';
 import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
+import type { CliMonitorService } from '../services/cli-monitor/index.js';
 import type { DurableStreamsService } from '../services/durable-streams.service.js';
 import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
@@ -23,6 +24,7 @@ import type { CommandRunner, WorktreeService } from '../services/worktree.servic
 import type { Database } from '../types/database.js';
 import { createAgentsRoutes } from './routes/agents.js';
 import { createApiKeysRoutes } from './routes/api-keys.js';
+import { createCliMonitorRoutes } from './routes/cli-monitor.js';
 import { createFilesystemRoutes } from './routes/filesystem.js';
 import { createGitRoutes } from './routes/git.js';
 import { createGitHubRoutes } from './routes/github.js';
@@ -57,6 +59,7 @@ export interface RouterDependencies {
   commandRunner: CommandRunner;
   durableStreamsService?: DurableStreamsService;
   dockerProvider?: EventEmittingSandboxProvider | null;
+  cliMonitorService?: CliMonitorService | null;
 }
 
 /**
@@ -211,6 +214,15 @@ export function createRouter(deps: RouterDependencies) {
       templateService: deps.templateService,
     })
   );
+
+  if (deps.cliMonitorService) {
+    app.route(
+      '/api/cli-monitor',
+      createCliMonitorRoutes({
+        cliMonitorService: deps.cliMonitorService,
+      })
+    );
+  }
 
   // Global error handler to catch uncaught exceptions
   app.onError((err, c) => {

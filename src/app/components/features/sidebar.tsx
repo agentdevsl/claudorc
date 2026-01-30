@@ -12,6 +12,7 @@ import {
   Plus,
   PuzzlePiece,
   Robot,
+  Terminal,
   TreeStructure,
 } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -38,6 +39,7 @@ interface NavItem {
 const organizationNavItems: readonly NavItem[] = [
   { label: 'Projects', to: '/projects', icon: Kanban, testId: 'nav-projects' },
   { label: 'Sessions', to: '/sessions', icon: Clock, testId: 'nav-sessions' },
+  { label: 'CLI Monitor', to: '/cli-monitor', icon: Terminal, testId: 'nav-cli-monitor' },
 ] as const;
 
 // CONTENT section - organization-wide templates, workflows, and marketplace

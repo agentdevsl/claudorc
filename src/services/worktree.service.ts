@@ -137,6 +137,32 @@ export type CommandRunner = {
   exec: (command: string, cwd: string) => Promise<CommandResult>;
 };
 
+/**
+ * Creates a CommandRunner that executes commands inside a sandbox container.
+ * This allows WorktreeService to run git commands inside Docker containers
+ * for isolated agent execution.
+ */
+export function createSandboxCommandRunner(sandbox: {
+  exec: (
+    cmd: string,
+    args?: string[]
+  ) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+}): CommandRunner {
+  return {
+    exec: async (command: string, cwd: string): Promise<CommandResult> => {
+      // Prepend cd to ensure git commands run in the correct directory inside the container
+      const escapedCwd = cwd.replace(/'/g, "'\\''");
+      const result = await sandbox.exec('sh', ['-c', `cd '${escapedCwd}' && ${command}`]);
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Command failed with exit code ${result.exitCode}: ${result.stderr || result.stdout}`
+        );
+      }
+      return { stdout: result.stdout, stderr: result.stderr };
+    },
+  };
+}
+
 export class WorktreeService {
   constructor(
     private db: Database,

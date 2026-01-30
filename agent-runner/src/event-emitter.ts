@@ -22,7 +22,8 @@ export type AgentEventType =
   | 'agent:complete'
   | 'agent:error'
   | 'agent:cancelled'
-  | 'agent:plan_ready';
+  | 'agent:plan_ready'
+  | 'agent:file_changed';
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -77,6 +78,14 @@ export interface AgentErrorData {
   error: string;
   code?: string;
   turnCount: number;
+}
+
+export interface AgentFileChangedData {
+  path: string;
+  action: 'create' | 'modify' | 'delete';
+  toolName: string;
+  additions?: number;
+  deletions?: number;
 }
 
 export interface AgentPlanReadyData {
@@ -206,6 +215,14 @@ export class EventEmitter {
    */
   cancelled(turnCount: number): void {
     this.emit('agent:cancelled', { turnCount }, true);
+  }
+
+  /**
+   * Emit agent:file_changed event (ASYNC - informational, can be batched).
+   * Emitted when the agent modifies a file via Write, Edit, or similar tools.
+   */
+  fileChanged(data: AgentFileChangedData): void {
+    this.emit('agent:file_changed', { ...data }, false);
   }
 
   /**

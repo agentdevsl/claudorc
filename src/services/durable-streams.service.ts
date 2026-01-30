@@ -218,6 +218,16 @@ export interface ContainerAgentStatusEvent {
   message: string;
 }
 
+export interface ContainerAgentFileChangedEvent {
+  taskId: string;
+  sessionId: string;
+  path: string;
+  action: 'create' | 'modify' | 'delete';
+  toolName: string;
+  additions?: number;
+  deletions?: number;
+}
+
 /**
  * Task creation events
  */
@@ -343,6 +353,7 @@ export interface StreamEventMap {
   'container-agent:cancelled': ContainerAgentCancelledEvent;
   'container-agent:task-update-failed': ContainerAgentTaskUpdateFailedEvent;
   'container-agent:plan_ready': ContainerAgentPlanReadyEvent;
+  'container-agent:file_changed': ContainerAgentFileChangedEvent;
 }
 
 /**

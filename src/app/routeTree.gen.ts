@@ -18,6 +18,7 @@ import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace/index'
 import { Route as DesignerIndexRouteImport } from './routes/designer/index'
+import { Route as CliMonitorIndexRouteImport } from './routes/cli-monitor/index'
 import { Route as CatalogIndexRouteImport } from './routes/catalog/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
@@ -83,6 +84,11 @@ const MarketplaceIndexRoute = MarketplaceIndexRouteImport.update({
 const DesignerIndexRoute = DesignerIndexRouteImport.update({
   id: '/designer/',
   path: '/designer/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CliMonitorIndexRoute = CliMonitorIndexRouteImport.update({
+  id: '/cli-monitor/',
+  path: '/cli-monitor/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogIndexRoute = CatalogIndexRouteImport.update({
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
+  '/cli-monitor/': typeof CliMonitorIndexRoute
   '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents': typeof AgentsIndexRoute
   '/catalog': typeof CatalogIndexRoute
+  '/cli-monitor': typeof CliMonitorIndexRoute
   '/designer': typeof DesignerIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
   '/projects': typeof ProjectsIndexRoute
@@ -278,6 +286,7 @@ export interface FileRoutesById {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
+  '/cli-monitor/': typeof CliMonitorIndexRoute
   '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents/'
     | '/catalog/'
+    | '/cli-monitor/'
     | '/designer/'
     | '/marketplace/'
     | '/projects/'
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents'
     | '/catalog'
+    | '/cli-monitor'
     | '/designer'
     | '/marketplace'
     | '/projects'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents/'
     | '/catalog/'
+    | '/cli-monitor/'
     | '/designer/'
     | '/marketplace/'
     | '/projects/'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   TemplatesProjectRoute: typeof TemplatesProjectRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   CatalogIndexRoute: typeof CatalogIndexRoute
+  CliMonitorIndexRoute: typeof CliMonitorIndexRoute
   DesignerIndexRoute: typeof DesignerIndexRoute
   MarketplaceIndexRoute: typeof MarketplaceIndexRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
@@ -475,6 +488,13 @@ declare module '@tanstack/react-router' {
       path: '/designer'
       fullPath: '/designer/'
       preLoaderRoute: typeof DesignerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cli-monitor/': {
+      id: '/cli-monitor/'
+      path: '/cli-monitor'
+      fullPath: '/cli-monitor/'
+      preLoaderRoute: typeof CliMonitorIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/catalog/': {
@@ -667,6 +687,7 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesProjectRoute: TemplatesProjectRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   CatalogIndexRoute: CatalogIndexRoute,
+  CliMonitorIndexRoute: CliMonitorIndexRoute,
   DesignerIndexRoute: DesignerIndexRoute,
   MarketplaceIndexRoute: MarketplaceIndexRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,

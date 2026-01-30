@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Monitor - Satellite Tracker / Ground Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --secondary-muted: rgba(247, 120, 186, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes breathe { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+    @keyframes orbit1 {
+      0% { transform: rotate(0deg) translateX(180px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(180px) rotate(-360deg); }
+    }
+    @keyframes orbit2 {
+      0% { transform: rotate(0deg) translateX(140px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(140px) rotate(-360deg); }
+    }
+    @keyframes orbit3 {
+      0% { transform: rotate(0deg) translateX(110px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(110px) rotate(-360deg); }
+    }
+    @keyframes orbit1-slow {
+      0% { transform: rotate(0deg) translateX(180px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(180px) rotate(-360deg); }
+    }
+
+    @keyframes beacon-blink {
+      0%, 40%, 100% { opacity: 0.3; box-shadow: 0 0 4px rgba(210, 153, 34, 0.2); }
+      50%, 60% { opacity: 1; box-shadow: 0 0 12px rgba(210, 153, 34, 0.8), 0 0 24px rgba(210, 153, 34, 0.4); }
+    }
+
+    @keyframes signal-dash {
+      0% { stroke-dashoffset: 20; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+    @keyframes mission-complete {
+      0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.6); }
+      50% { transform: scale(1.4); opacity: 0.8; box-shadow: 0 0 30px 10px rgba(63, 185, 80, 0.3); }
+      100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+    }
+
+    @keyframes globe-rotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes telemetry-bar {
+      0%, 100% { width: var(--bar-target); }
+      50% { width: calc(var(--bar-target) - 5%); }
+    }
+
+    @keyframes signal-pulse {
+      0% { opacity: 0.2; }
+      50% { opacity: 0.7; }
+      100% { opacity: 0.2; }
+    }
+
+    @keyframes trail-fade {
+      0% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes comms-flash {
+      0% { background-color: var(--bg-subtle); }
+      30% { background-color: rgba(88, 166, 255, 0.08); }
+      100% { background-color: var(--bg-subtle); }
+    }
+
+    @keyframes ring-pulse {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.3; }
+    }
+
+    @keyframes countdown-tick {
+      0%, 100% { color: var(--fg-default); }
+      50% { color: var(--accent-fg); }
+    }
+
+    /* ========================================
+       Sidebar (matching AgentPane)
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .logo::before {
+      content: '';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+
+    .project-switcher {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-3); margin: var(--space-3);
+      background-color: var(--bg-subtle); border: 1px solid var(--border-default);
+      border-radius: var(--radius); cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .project-switcher:hover { border-color: var(--fg-subtle); }
+    .project-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .project-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .project-name { font-size: 14px; font-weight: 500; color: var(--fg-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-path-text { font-size: 12px; font-family: var(--font-mono); color: var(--fg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-switcher kbd { padding: 2px 6px; background-color: var(--bg-muted); border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 12px; color: var(--fg-muted); }
+
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section:last-child { margin-bottom: 0; }
+    .nav-section-title { display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2); font-size: 12px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .nav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); margin-bottom: 2px; font-size: 14px; font-weight: 500; color: var(--fg-muted); border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out); cursor: pointer; }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 10px; min-width: 20px; text-align: center; }
+    .nav-badge.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .nav-badge.default { background-color: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--success-fg), var(--accent-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout
+       ======================================== */
+    .app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ========================================
+       Mission Control Header
+       ======================================== */
+    .mission-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-2) var(--space-6);
+      background: linear-gradient(180deg, var(--bg-default) 0%, rgba(22, 27, 34, 0.95) 100%);
+      border-bottom: 1px solid var(--border-default);
+      position: relative;
+      z-index: 10;
+    }
+    .mission-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(88, 166, 255, 0.3), transparent);
+    }
+
+    .mission-left { display: flex; align-items: center; gap: var(--space-4); }
+    .mission-title {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 13px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: var(--tracking-wide); color: var(--fg-muted);
+    }
+    .mission-title svg { width: 18px; height: 18px; color: var(--accent-fg); }
+
+    .mission-elapsed {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    .mission-elapsed .label { color: var(--fg-subtle); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .mission-elapsed .time { color: var(--accent-fg); font-weight: 600; animation: countdown-tick 2s ease-in-out infinite; }
+
+    .mission-center { display: flex; align-items: center; gap: var(--space-4); }
+
+    .mission-stat {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius);
+      font-size: 12px; font-weight: 500;
+    }
+    .mission-stat .stat-icon { width: 14px; height: 14px; }
+    .mission-stat .stat-value { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+    .mission-stat.satellites { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .mission-stat.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .mission-stat.alerts { background-color: var(--attention-muted); color: var(--attention-fg); }
+
+    .mission-right { display: flex; align-items: center; gap: var(--space-3); }
+    .live-indicator {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background-color: var(--success-muted);
+      border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; color: var(--success-fg);
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background-color: var(--success-fg);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* ========================================
+       Main Content Area
+       ======================================== */
+    .main-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: 1fr 160px;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Globe Viewport
+       ======================================== */
+    .globe-viewport {
+      grid-row: 1;
+      grid-column: 1;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 50%, rgba(13, 17, 23, 0.5) 0%, var(--bg-canvas) 70%);
+    }
+
+    /* Starfield background */
+    .starfield {
+      position: absolute; inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 10% 20%, rgba(230, 237, 243, 0.4), transparent),
+        radial-gradient(1px 1px at 30% 60%, rgba(230, 237, 243, 0.3), transparent),
+        radial-gradient(1px 1px at 50% 10%, rgba(230, 237, 243, 0.2), transparent),
+        radial-gradient(1px 1px at 70% 80%, rgba(230, 237, 243, 0.35), transparent),
+        radial-gradient(1px 1px at 90% 40%, rgba(230, 237, 243, 0.25), transparent),
+        radial-gradient(1px 1px at 15% 85%, rgba(230, 237, 243, 0.15), transparent),
+        radial-gradient(1px 1px at 45% 45%, rgba(230, 237, 243, 0.3), transparent),
+        radial-gradient(1px 1px at 75% 15%, rgba(230, 237, 243, 0.2), transparent),
+        radial-gradient(1px 1px at 85% 65%, rgba(230, 237, 243, 0.35), transparent),
+        radial-gradient(1px 1px at 25% 35%, rgba(230, 237, 243, 0.15), transparent),
+        radial-gradient(1.5px 1.5px at 55% 75%, rgba(88, 166, 255, 0.3), transparent),
+        radial-gradient(1.5px 1.5px at 5% 50%, rgba(163, 113, 247, 0.25), transparent),
+        radial-gradient(1px 1px at 60% 30%, rgba(230, 237, 243, 0.2), transparent),
+        radial-gradient(1px 1px at 40% 90%, rgba(230, 237, 243, 0.25), transparent),
+        radial-gradient(1px 1px at 80% 50%, rgba(230, 237, 243, 0.15), transparent),
+        radial-gradient(1px 1px at 20% 70%, rgba(230, 237, 243, 0.3), transparent);
+    }
+
+    /* Globe */
+    .globe-container {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 440px; height: 440px;
+    }
+
+    .globe {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse at 35% 35%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, #161b22 0%, #0d1117 100%);
+      box-shadow:
+        0 0 60px rgba(88, 166, 255, 0.06),
+        0 0 120px rgba(88, 166, 255, 0.03),
+        inset 0 0 40px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(88, 166, 255, 0.1);
+    }
+
+    /* Globe grid lines */
+    .globe-grid {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .globe-grid::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: -10%;
+      width: 120%; height: 1px;
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .globe-grid::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: -10%;
+      width: 1px; height: 120%;
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .globe-meridian {
+      position: absolute; inset: 10%;
+      border: 1px solid rgba(88, 166, 255, 0.05);
+      border-radius: 50%;
+    }
+    .globe-meridian:nth-child(2) {
+      inset: 25%;
+    }
+    .globe-meridian:nth-child(3) {
+      inset: 40%;
+    }
+    .globe-equator {
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 1px;
+      background: rgba(88, 166, 255, 0.06);
+      transform: scaleY(0.6);
+    }
+
+    /* Ground stations */
+    .ground-station {
+      position: absolute;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      z-index: 5;
+    }
+    .ground-station .antenna {
+      width: 16px; height: 16px;
+      color: var(--fg-subtle);
+      filter: drop-shadow(0 0 4px rgba(88, 166, 255, 0.3));
+    }
+    .ground-station .gs-label {
+      font-size: 9px; font-family: var(--font-mono);
+      color: var(--fg-subtle); text-transform: uppercase;
+      letter-spacing: 0.05em; white-space: nowrap;
+      background: rgba(13, 17, 23, 0.8);
+      padding: 1px 4px; border-radius: 2px;
+    }
+    .ground-station .gs-ping {
+      position: absolute; top: -2px; left: 50%;
+      transform: translateX(-50%);
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    /* Orbital rings */
+    .orbital-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1px solid;
+      transform: translate(-50%, -50%) rotateX(60deg);
+    }
+    .orbital-ring.ring-1 {
+      width: 360px; height: 360px;
+      border-color: rgba(88, 166, 255, 0.12);
+      animation: ring-pulse 4s ease-in-out infinite;
+    }
+    .orbital-ring.ring-2 {
+      width: 280px; height: 280px;
+      border-color: rgba(63, 185, 80, 0.12);
+      animation: ring-pulse 4s ease-in-out infinite 1.3s;
+    }
+    .orbital-ring.ring-3 {
+      width: 220px; height: 220px;
+      border-color: rgba(163, 113, 247, 0.12);
+      animation: ring-pulse 4s ease-in-out infinite 2.6s;
+    }
+
+    /* Ring labels */
+    .ring-label {
+      position: absolute;
+      font-size: 9px; font-family: var(--font-mono);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: rgba(13, 17, 23, 0.9);
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .ring-label.rl-1 {
+      top: 4%; left: 68%;
+      color: var(--accent-fg);
+      border-color: rgba(88, 166, 255, 0.2);
+    }
+    .ring-label.rl-2 {
+      top: 18%; left: 74%;
+      color: var(--success-fg);
+      border-color: rgba(63, 185, 80, 0.2);
+    }
+    .ring-label.rl-3 {
+      top: 28%; left: 72%;
+      color: var(--done-fg);
+      border-color: rgba(163, 113, 247, 0.2);
+    }
+
+    /* Satellites */
+    .satellite-orbit {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 0; height: 0;
+    }
+    .satellite {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      z-index: 10;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .satellite:hover { transform: scale(1.5) !important; }
+    .satellite .sat-body {
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      position: relative;
+    }
+    .satellite .sat-label {
+      position: absolute;
+      top: -22px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px; font-family: var(--font-mono);
+      color: var(--fg-muted); white-space: nowrap;
+      background: rgba(13, 17, 23, 0.9);
+      padding: 1px 6px; border-radius: 3px;
+      border: 1px solid var(--border-default);
+      pointer-events: none;
+    }
+
+    /* Satellite states */
+    .satellite.working .sat-body {
+      background: var(--success-fg);
+      box-shadow: 0 0 8px rgba(63, 185, 80, 0.6), 0 0 20px rgba(63, 185, 80, 0.3);
+    }
+    .satellite.working .sat-trail {
+      position: absolute;
+      top: 3px; right: 12px;
+      width: 40px; height: 6px;
+      background: linear-gradient(90deg, transparent, rgba(63, 185, 80, 0.5));
+      border-radius: 3px;
+      animation: trail-fade 1s ease-in-out infinite;
+    }
+
+    .satellite.waiting .sat-body {
+      background: var(--attention-fg);
+      animation: beacon-blink 2s ease-in-out infinite;
+    }
+
+    .satellite.idle .sat-body {
+      background: var(--fg-subtle);
+      opacity: 0.5;
+      box-shadow: 0 0 4px rgba(110, 118, 129, 0.2);
+    }
+
+    /* Satellite orbit animations */
+    .sat-orbit-1 { animation: orbit1 8s linear infinite; }
+    .sat-orbit-2 { animation: orbit2 12s linear infinite; }
+    .sat-orbit-2-offset { animation: orbit2 12s linear infinite; animation-delay: -4s; }
+    .sat-orbit-3 { animation: orbit3 30s linear infinite; }
+
+    /* Signal beams SVG */
+    .signal-beams {
+      position: absolute; inset: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .signal-beam {
+      stroke-dasharray: 6 4;
+      animation: signal-dash 1s linear infinite;
+    }
+
+    /* ========================================
+       Telemetry Panel
+       ======================================== */
+    .telemetry-panel {
+      grid-row: 1;
+      grid-column: 2;
+      background-color: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .telemetry-header {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      color: var(--fg-muted);
+      display: flex; align-items: center; gap: var(--space-2);
+    }
+    .telemetry-header svg { width: 14px; height: 14px; color: var(--accent-fg); }
+
+    .telemetry-feed {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .sat-telemetry {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+    .sat-telemetry:hover {
+      background-color: var(--bg-subtle);
+    }
+
+    .sat-telem-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+    .sat-telem-name {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 13px; font-weight: 600;
+    }
+    .sat-telem-name .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .sat-telem-name .status-dot.working { background: var(--success-fg); box-shadow: 0 0 6px rgba(63, 185, 80, 0.5); }
+    .sat-telem-name .status-dot.waiting { background: var(--attention-fg); animation: beacon-blink 2s ease-in-out infinite; }
+    .sat-telem-name .status-dot.idle { background: var(--fg-subtle); opacity: 0.5; }
+
+    .sat-telem-status {
+      font-size: 10px; font-family: var(--font-mono);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 1px 6px; border-radius: 3px;
+    }
+    .sat-telem-status.working { background: var(--success-muted); color: var(--success-fg); }
+    .sat-telem-status.waiting { background: var(--attention-muted); color: var(--attention-fg); }
+    .sat-telem-status.idle { background: var(--bg-emphasis); color: var(--fg-subtle); }
+
+    .sat-telem-project {
+      font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono);
+      margin-bottom: var(--space-2);
+      display: flex; align-items: center; gap: var(--space-1);
+    }
+    .sat-telem-project .proj-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .telem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2);
+    }
+
+    .telem-item {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .telem-label {
+      font-size: 9px; font-family: var(--font-mono);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--fg-subtle);
+    }
+    .telem-value {
+      font-size: 12px; font-family: var(--font-mono);
+      font-weight: 600; color: var(--fg-default);
+    }
+
+    .telem-bar {
+      height: 4px;
+      background-color: var(--bg-emphasis);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .telem-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .telem-bar-fill.signal { background: var(--accent-fg); }
+    .telem-bar-fill.fuel { background: var(--success-fg); }
+    .telem-bar-fill.fuel.low { background: var(--attention-fg); }
+    .telem-bar-fill.fuel.critical { background: var(--danger-fg); }
+
+    .telem-rate {
+      display: flex; align-items: center; gap: var(--space-1);
+      font-size: 11px; font-family: var(--font-mono);
+    }
+    .telem-rate .arrow-up { color: var(--success-fg); }
+    .telem-rate .arrow-down { color: var(--accent-fg); }
+
+    /* Branch tag */
+    .branch-tag {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 1px 6px;
+      background-color: var(--done-muted);
+      color: var(--done-fg);
+      border-radius: 3px;
+      font-size: 10px; font-family: var(--font-mono);
+      margin-top: var(--space-1);
+    }
+
+    /* ========================================
+       Comms Log Panel
+       ======================================== */
+    .comms-panel {
+      grid-row: 1;
+      grid-column: 2;
+      display: none; /* Integrated into telemetry */
+    }
+
+    /* ========================================
+       Mission Timeline
+       ======================================== */
+    .mission-timeline {
+      grid-row: 2;
+      grid-column: 1 / -1;
+      background-color: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .timeline-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-default);
+    }
+    .timeline-tab {
+      padding: var(--space-2) var(--space-4);
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      color: var(--fg-subtle);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .timeline-tab:hover { color: var(--fg-muted); }
+    .timeline-tab.active {
+      color: var(--accent-fg);
+      border-bottom-color: var(--accent-fg);
+    }
+
+    .timeline-content {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Timeline strip */
+    .timeline-strip {
+      flex: 1;
+      padding: var(--space-3) var(--space-4);
+      overflow-x: auto;
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      position: relative;
+    }
+
+    .timeline-track {
+      position: absolute;
+      top: 50%;
+      left: var(--space-4);
+      right: var(--space-4);
+      height: 2px;
+      background: var(--bg-emphasis);
+      transform: translateY(-50%);
+    }
+
+    .timeline-event {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center;
+      min-width: 100px;
+      padding-top: 6px;
+      z-index: 2;
+    }
+    .timeline-event .te-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-default);
+      margin-bottom: 4px;
+    }
+    .timeline-event .te-dot.launch { background: var(--accent-fg); }
+    .timeline-event .te-dot.planning { background: var(--done-fg); }
+    .timeline-event .te-dot.executing { background: var(--success-fg); }
+    .timeline-event .te-dot.waiting { background: var(--attention-fg); }
+    .timeline-event .te-dot.completed { background: var(--success-fg); box-shadow: 0 0 8px rgba(63, 185, 80, 0.5); }
+    .timeline-event .te-dot.idle { background: var(--fg-subtle); }
+
+    .timeline-event .te-label {
+      font-size: 10px; font-family: var(--font-mono);
+      color: var(--fg-muted); white-space: nowrap;
+      text-align: center;
+    }
+    .timeline-event .te-time {
+      font-size: 9px; font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+    .timeline-event .te-sat {
+      font-size: 9px; font-weight: 600;
+      color: var(--fg-subtle);
+      margin-bottom: 2px;
+    }
+
+    /* Comms log section in timeline */
+    .comms-log {
+      width: 400px;
+      min-width: 400px;
+      border-left: 1px solid var(--border-default);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .comms-log-header {
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--border-default);
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      color: var(--fg-subtle);
+      display: flex; align-items: center; gap: var(--space-2);
+    }
+    .comms-log-header svg { width: 12px; height: 12px; color: var(--accent-fg); }
+
+    .comms-entries {
+      flex: 1; overflow-y: auto;
+      padding: var(--space-1);
+    }
+    .comms-entry {
+      display: flex; align-items: flex-start; gap: var(--space-2);
+      padding: var(--space-1) var(--space-2);
+      border-radius: var(--radius-sm);
+      font-size: 11px; font-family: var(--font-mono);
+      animation: comms-flash 1.5s ease-out;
+    }
+    .comms-entry:nth-child(1) { animation-delay: 0s; }
+    .comms-entry:nth-child(2) { animation-delay: 0.3s; }
+    .comms-entry:nth-child(3) { animation-delay: 0.6s; }
+    .comms-entry:nth-child(4) { animation-delay: 0.9s; }
+    .comms-entry:nth-child(5) { animation-delay: 1.2s; }
+
+    .comms-timestamp {
+      color: var(--fg-subtle); white-space: nowrap;
+      min-width: 52px;
+    }
+    .comms-callsign {
+      color: var(--accent-fg); font-weight: 600;
+      min-width: 48px;
+    }
+    .comms-msg { color: var(--fg-muted); }
+    .comms-tool { color: var(--done-fg); }
+    .comms-result { color: var(--success-fg); }
+    .comms-arrow { color: var(--fg-subtle); }
+
+    /* ========================================
+       Design Notes
+       ======================================== */
+    .design-notes {
+      position: fixed;
+      bottom: 16px; right: 16px;
+      width: 300px;
+      background-color: var(--bg-default);
+      border: 1px solid var(--accent-fg);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      z-index: 100;
+      box-shadow: var(--shadow-lg);
+    }
+    .design-notes h3 {
+      font-size: 12px; font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      color: var(--accent-fg);
+      margin-bottom: var(--space-2);
+      display: flex; align-items: center; gap: var(--space-2);
+    }
+    .design-notes p {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-2);
+    }
+    .design-notes p:last-child { margin-bottom: 0; }
+    .design-notes ul {
+      margin: 0; padding-left: var(--space-4);
+    }
+    .design-notes li {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      line-height: 1.6;
+      list-style: disc;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background-color: var(--bg-emphasis); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--fg-subtle); }
+  </style>
+</head>
+<body>
+  <!-- ========================================
+       Sidebar
+       ======================================== -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 28 28" fill="none">
+          <circle class="logo-core" cx="14" cy="14" r="3" fill="#a371f7" opacity="0.9"/>
+          <circle class="logo-node logo-node-1" cx="14" cy="4" r="1.5" fill="#58a6ff"/>
+          <circle class="logo-node logo-node-2" cx="23" cy="9" r="1.5" fill="#58a6ff"/>
+          <circle class="logo-node logo-node-3" cx="23" cy="19" r="1.5" fill="#58a6ff"/>
+          <circle class="logo-node logo-node-4" cx="14" cy="24" r="1.5" fill="#58a6ff"/>
+          <circle class="logo-node logo-node-5" cx="5" cy="14" r="1.5" fill="#58a6ff"/>
+          <line x1="14" y1="4" x2="14" y2="11" stroke="#58a6ff" stroke-width="0.5" opacity="0.4"/>
+          <line x1="23" y1="9" x2="17" y2="12" stroke="#58a6ff" stroke-width="0.5" opacity="0.4"/>
+          <line x1="23" y1="19" x2="17" y2="16" stroke="#58a6ff" stroke-width="0.5" opacity="0.4"/>
+          <line x1="14" y1="24" x2="14" y2="17" stroke="#58a6ff" stroke-width="0.5" opacity="0.4"/>
+          <line x1="5" y1="14" x2="11" y2="14" stroke="#58a6ff" stroke-width="0.5" opacity="0.4"/>
+        </svg>
+      </div>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">All Projects</span>
+        <span class="project-path-text">3 projects tracked</span>
+      </div>
+      <kbd>P</kbd>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Monitor</span>
+        <div class="nav-item active">
+          <svg class="icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="5" r="1.5" fill="currentColor"/><path d="M8 5v4" stroke="currentColor" stroke-width="1.5"/></svg>
+          CLI Monitor
+          <span class="nav-badge active">4</span>
+        </div>
+        <div class="nav-item">
+          <svg class="icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.5"/></svg>
+          Task Board
+        </div>
+        <div class="nav-item">
+          <svg class="icon" viewBox="0 0 16 16" fill="none"><path d="M3 8h2v5H3zM7 5h2v8H7zM11 3h2v10h-2z" fill="currentColor" opacity="0.6"/></svg>
+          Sessions
+          <span class="nav-badge default">12</span>
+        </div>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Config</span>
+        <div class="nav-item">
+          <svg class="icon" viewBox="0 0 16 16" fill="none"><path d="M3 3h10v2H3zM3 7h10v2H3zM3 11h10v2H3z" fill="currentColor" opacity="0.6"/></svg>
+          Workflows
+        </div>
+        <div class="nav-item">
+          <svg class="icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
+          Settings
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">simon.lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================================
+       Main App
+       ======================================== -->
+  <div class="app-layout">
+    <!-- Mission Control Header -->
+    <header class="mission-header">
+      <div class="mission-left">
+        <div class="mission-title">
+          <svg viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="10" cy="6" r="2" fill="currentColor"/>
+            <path d="M6 14l2-3h4l2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Ground Control
+        </div>
+        <div class="mission-elapsed">
+          <span class="label">MET</span>
+          <span class="time">03:42:17</span>
+        </div>
+      </div>
+
+      <div class="mission-center">
+        <div class="mission-stat satellites">
+          <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="4" r="2" fill="currentColor"/><path d="M4 8l4-2 4 2" stroke="currentColor" stroke-width="1.5"/><path d="M3 12h10" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>Satellites</span>
+          <span class="stat-value">4</span>
+        </div>
+        <div class="mission-stat active">
+          <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" fill="currentColor" opacity="0.3"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
+          <span>Active</span>
+          <span class="stat-value">2</span>
+        </div>
+        <div class="mission-stat alerts">
+          <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2l6 12H2L8 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 7v3M8 11.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>Alerts</span>
+          <span class="stat-value">1</span>
+        </div>
+      </div>
+
+      <div class="mission-right">
+        <div class="live-indicator">
+          <div class="live-dot"></div>
+          TRACKING
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Globe Viewport -->
+      <div class="globe-viewport">
+        <div class="starfield"></div>
+
+        <div class="globe-container">
+          <!-- Orbital rings -->
+          <div class="orbital-ring ring-1"></div>
+          <div class="orbital-ring ring-2"></div>
+          <div class="orbital-ring ring-3"></div>
+
+          <!-- Ring labels -->
+          <div class="ring-label rl-1">agentpane</div>
+          <div class="ring-label rl-2">api-server</div>
+          <div class="ring-label rl-3">docs-site</div>
+
+          <!-- Globe -->
+          <div class="globe">
+            <div class="globe-grid">
+              <div class="globe-meridian"></div>
+              <div class="globe-meridian"></div>
+              <div class="globe-meridian"></div>
+            </div>
+            <div class="globe-equator"></div>
+
+            <!-- Ground stations on globe surface -->
+            <div class="ground-station" style="top: 30%; left: 20%;">
+              <div class="gs-ping" style="background: var(--accent-fg);"></div>
+              <svg class="antenna" viewBox="0 0 16 16" fill="none">
+                <path d="M8 14V8M4 14h8M5 8l3-5 3 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.6"/>
+              </svg>
+              <span class="gs-label">agentpane</span>
+            </div>
+            <div class="ground-station" style="top: 55%; left: 65%;">
+              <div class="gs-ping" style="background: var(--success-fg);"></div>
+              <svg class="antenna" viewBox="0 0 16 16" fill="none">
+                <path d="M8 14V8M4 14h8M5 8l3-5 3 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.6"/>
+              </svg>
+              <span class="gs-label">api-server</span>
+            </div>
+            <div class="ground-station" style="top: 70%; left: 35%;">
+              <div class="gs-ping" style="background: var(--done-fg);"></div>
+              <svg class="antenna" viewBox="0 0 16 16" fill="none">
+                <path d="M8 14V8M4 14h8M5 8l3-5 3 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.6"/>
+              </svg>
+              <span class="gs-label">docs-site</span>
+            </div>
+          </div>
+
+          <!-- Signal beams SVG overlay -->
+          <svg class="signal-beams" viewBox="0 0 440 440" width="440" height="440">
+            <!-- SAT-01 to agentpane ground station -->
+            <line class="signal-beam" x1="220" y1="120" x2="160" y2="195" stroke="rgba(88, 166, 255, 0.25)" stroke-width="1"/>
+            <!-- SAT-02 to api-server ground station -->
+            <line class="signal-beam" x1="300" y1="200" x2="260" y2="240" stroke="rgba(63, 185, 80, 0.25)" stroke-width="1" style="animation-delay: -0.5s;"/>
+            <!-- SAT-03 to api-server ground station -->
+            <line class="signal-beam" x1="180" y1="260" x2="260" y2="240" stroke="rgba(210, 153, 34, 0.2)" stroke-width="1" style="animation-delay: -1s;"/>
+            <!-- SAT-04 to docs-site ground station -->
+            <line class="signal-beam" x1="260" y1="300" x2="205" y2="270" stroke="rgba(110, 118, 129, 0.12)" stroke-width="1" style="animation-delay: -1.5s;"/>
+          </svg>
+
+          <!-- Satellites -->
+          <!-- SAT-01: Working, orbit 1 (agentpane project, fast) -->
+          <div class="satellite-orbit">
+            <div class="satellite working sat-orbit-1">
+              <div class="sat-body"></div>
+              <div class="sat-trail"></div>
+              <div class="sat-label">SAT-01</div>
+            </div>
+          </div>
+
+          <!-- SAT-02: Working, orbit 2 (api-server project, fast) -->
+          <div class="satellite-orbit">
+            <div class="satellite working sat-orbit-2">
+              <div class="sat-body"></div>
+              <div class="sat-trail"></div>
+              <div class="sat-label">SAT-02</div>
+            </div>
+          </div>
+
+          <!-- SAT-03: Waiting, orbit 2 offset (api-server project, stationary blink) -->
+          <div class="satellite-orbit">
+            <div class="satellite waiting sat-orbit-2-offset" style="animation-play-state: paused;">
+              <div class="sat-body"></div>
+              <div class="sat-label">SAT-03</div>
+            </div>
+          </div>
+
+          <!-- SAT-04: Idle, orbit 3 (docs-site project, slow drift) -->
+          <div class="satellite-orbit">
+            <div class="satellite idle sat-orbit-3">
+              <div class="sat-body"></div>
+              <div class="sat-label">SAT-04</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telemetry Panel -->
+      <div class="telemetry-panel">
+        <div class="telemetry-header">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h2v5H3zM7 4h2v9H7zM11 6h2v7h-2z" fill="currentColor"/>
+          </svg>
+          Telemetry Feeds
+        </div>
+
+        <div class="telemetry-feed">
+          <!-- SAT-01 Telemetry -->
+          <div class="sat-telemetry">
+            <div class="sat-telem-header">
+              <div class="sat-telem-name">
+                <div class="status-dot working"></div>
+                SAT-01
+              </div>
+              <span class="sat-telem-status working">Working</span>
+            </div>
+            <div class="sat-telem-project">
+              <span class="proj-dot" style="background: var(--accent-fg);"></span>
+              agentpane / feat/auth-flow
+            </div>
+            <div class="telem-grid">
+              <div class="telem-item">
+                <span class="telem-label">Signal</span>
+                <div class="telem-bar"><div class="telem-bar-fill signal" style="width: 85%;"></div></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Altitude (Tokens)</span>
+                <div class="telem-value">48.2k</div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Velocity</span>
+                <div class="telem-value">3.2 <span style="color: var(--fg-subtle); font-weight: 400;">t/min</span></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Fuel (Rate Limit)</span>
+                <div class="telem-bar"><div class="telem-bar-fill fuel" style="width: 72%;"></div></div>
+              </div>
+              <div class="telem-item" style="grid-column: 1 / -1;">
+                <span class="telem-label">Uplink / Downlink</span>
+                <div class="telem-rate">
+                  <span class="arrow-up">&#9650;</span> 12.4k in
+                  <span style="color: var(--fg-subtle); margin: 0 4px;">/</span>
+                  <span class="arrow-down">&#9660;</span> 35.8k out
+                </div>
+              </div>
+            </div>
+            <div class="branch-tag">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 9.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 6v3a3 3 0 0 0 3 3h3"/></svg>
+              feat/auth-flow
+            </div>
+          </div>
+
+          <!-- SAT-02 Telemetry -->
+          <div class="sat-telemetry">
+            <div class="sat-telem-header">
+              <div class="sat-telem-name">
+                <div class="status-dot working"></div>
+                SAT-02
+              </div>
+              <span class="sat-telem-status working">Working</span>
+            </div>
+            <div class="sat-telem-project">
+              <span class="proj-dot" style="background: var(--success-fg);"></span>
+              api-server / fix/rate-limiter
+            </div>
+            <div class="telem-grid">
+              <div class="telem-item">
+                <span class="telem-label">Signal</span>
+                <div class="telem-bar"><div class="telem-bar-fill signal" style="width: 92%;"></div></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Altitude (Tokens)</span>
+                <div class="telem-value">21.7k</div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Velocity</span>
+                <div class="telem-value">4.8 <span style="color: var(--fg-subtle); font-weight: 400;">t/min</span></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Fuel (Rate Limit)</span>
+                <div class="telem-bar"><div class="telem-bar-fill fuel" style="width: 58%;"></div></div>
+              </div>
+              <div class="telem-item" style="grid-column: 1 / -1;">
+                <span class="telem-label">Uplink / Downlink</span>
+                <div class="telem-rate">
+                  <span class="arrow-up">&#9650;</span> 6.1k in
+                  <span style="color: var(--fg-subtle); margin: 0 4px;">/</span>
+                  <span class="arrow-down">&#9660;</span> 15.6k out
+                </div>
+              </div>
+            </div>
+            <div class="branch-tag">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 9.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 6v3a3 3 0 0 0 3 3h3"/></svg>
+              fix/rate-limiter
+            </div>
+          </div>
+
+          <!-- SAT-03 Telemetry -->
+          <div class="sat-telemetry">
+            <div class="sat-telem-header">
+              <div class="sat-telem-name">
+                <div class="status-dot waiting"></div>
+                SAT-03
+              </div>
+              <span class="sat-telem-status waiting">Awaiting Approval</span>
+            </div>
+            <div class="sat-telem-project">
+              <span class="proj-dot" style="background: var(--success-fg);"></span>
+              api-server / feat/webhook-handler
+            </div>
+            <div class="telem-grid">
+              <div class="telem-item">
+                <span class="telem-label">Signal</span>
+                <div class="telem-bar"><div class="telem-bar-fill signal" style="width: 30%;"></div></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Altitude (Tokens)</span>
+                <div class="telem-value">67.3k</div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Velocity</span>
+                <div class="telem-value" style="color: var(--attention-fg);">0.0 <span style="color: var(--fg-subtle); font-weight: 400;">t/min</span></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Fuel (Rate Limit)</span>
+                <div class="telem-bar"><div class="telem-bar-fill fuel low" style="width: 35%;"></div></div>
+              </div>
+              <div class="telem-item" style="grid-column: 1 / -1;">
+                <span class="telem-label">Uplink / Downlink</span>
+                <div class="telem-rate">
+                  <span class="arrow-up">&#9650;</span> 22.1k in
+                  <span style="color: var(--fg-subtle); margin: 0 4px;">/</span>
+                  <span class="arrow-down">&#9660;</span> 45.2k out
+                </div>
+              </div>
+            </div>
+            <div class="branch-tag">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 9.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 6v3a3 3 0 0 0 3 3h3"/></svg>
+              feat/webhook-handler
+            </div>
+          </div>
+
+          <!-- SAT-04 Telemetry -->
+          <div class="sat-telemetry">
+            <div class="sat-telem-header">
+              <div class="sat-telem-name">
+                <div class="status-dot idle"></div>
+                SAT-04
+              </div>
+              <span class="sat-telem-status idle">Idle</span>
+            </div>
+            <div class="sat-telem-project">
+              <span class="proj-dot" style="background: var(--done-fg);"></span>
+              docs-site / chore/update-api-docs
+            </div>
+            <div class="telem-grid">
+              <div class="telem-item">
+                <span class="telem-label">Signal</span>
+                <div class="telem-bar"><div class="telem-bar-fill signal" style="width: 8%;"></div></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Altitude (Tokens)</span>
+                <div class="telem-value" style="color: var(--fg-subtle);">4.1k</div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Velocity</span>
+                <div class="telem-value" style="color: var(--fg-subtle);">0.0 <span style="font-weight: 400;">t/min</span></div>
+              </div>
+              <div class="telem-item">
+                <span class="telem-label">Fuel (Rate Limit)</span>
+                <div class="telem-bar"><div class="telem-bar-fill fuel" style="width: 95%;"></div></div>
+              </div>
+              <div class="telem-item" style="grid-column: 1 / -1;">
+                <span class="telem-label">Uplink / Downlink</span>
+                <div class="telem-rate" style="color: var(--fg-subtle);">
+                  <span class="arrow-up" style="opacity: 0.3;">&#9650;</span> 1.2k in
+                  <span style="margin: 0 4px;">/</span>
+                  <span class="arrow-down" style="opacity: 0.3;">&#9660;</span> 2.9k out
+                </div>
+              </div>
+            </div>
+            <div class="branch-tag" style="opacity: 0.5;">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 9.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 6v3a3 3 0 0 0 3 3h3"/></svg>
+              chore/update-api-docs
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mission Timeline -->
+      <div class="mission-timeline">
+        <div class="timeline-tabs">
+          <div class="timeline-tab active">Mission Timeline</div>
+          <div class="timeline-tab">Orbit Log</div>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-strip">
+            <div class="timeline-track"></div>
+
+            <div class="timeline-event">
+              <span class="te-sat">SAT-01</span>
+              <div class="te-dot launch"></div>
+              <span class="te-label">Launch</span>
+              <span class="te-time">14:18</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-02</span>
+              <div class="te-dot launch"></div>
+              <span class="te-label">Launch</span>
+              <span class="te-time">14:22</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-01</span>
+              <div class="te-dot planning"></div>
+              <span class="te-label">Planning</span>
+              <span class="te-time">14:19</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-03</span>
+              <div class="te-dot launch"></div>
+              <span class="te-label">Launch</span>
+              <span class="te-time">14:30</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-01</span>
+              <div class="te-dot executing"></div>
+              <span class="te-label">Executing</span>
+              <span class="te-time">14:24</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-04</span>
+              <div class="te-dot launch"></div>
+              <span class="te-label">Launch</span>
+              <span class="te-time">14:35</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-02</span>
+              <div class="te-dot executing"></div>
+              <span class="te-label">Executing</span>
+              <span class="te-time">14:38</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-03</span>
+              <div class="te-dot waiting"></div>
+              <span class="te-label">Waiting</span>
+              <span class="te-time">15:12</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-04</span>
+              <div class="te-dot completed" style="animation: mission-complete 2s ease-in-out;"></div>
+              <span class="te-label">Complete</span>
+              <span class="te-time">15:45</span>
+            </div>
+            <div class="timeline-event">
+              <span class="te-sat">SAT-04</span>
+              <div class="te-dot idle"></div>
+              <span class="te-label">Idle</span>
+              <span class="te-time">15:46</span>
+            </div>
+          </div>
+
+          <!-- Comms Log -->
+          <div class="comms-log">
+            <div class="comms-log-header">
+              <svg viewBox="0 0 16 16" fill="none">
+                <path d="M2 10l3-3 2 2 4-4 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Comms Log (Tool Calls)
+            </div>
+            <div class="comms-entries">
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:42</span>
+                <span class="comms-callsign">SAT-01</span>
+                <span class="comms-arrow">&gt;</span>
+                <span class="comms-msg"><span class="comms-tool">Edit</span> src/auth/oauth.ts</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:38</span>
+                <span class="comms-callsign">SAT-02</span>
+                <span class="comms-arrow">&gt;</span>
+                <span class="comms-msg"><span class="comms-tool">Bash</span> npm test --filter=rate</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:35</span>
+                <span class="comms-callsign">SAT-01</span>
+                <span class="comms-arrow">&lt;</span>
+                <span class="comms-msg"><span class="comms-result">Read</span> 42 lines from config.ts</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:30</span>
+                <span class="comms-callsign">SAT-02</span>
+                <span class="comms-arrow">&gt;</span>
+                <span class="comms-msg"><span class="comms-tool">Grep</span> "rateLimit" src/**/*.ts</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:22</span>
+                <span class="comms-callsign">SAT-03</span>
+                <span class="comms-arrow">&lt;</span>
+                <span class="comms-msg" style="color: var(--attention-fg);">Awaiting approval: webhook handler</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:58:15</span>
+                <span class="comms-callsign">SAT-01</span>
+                <span class="comms-arrow">&gt;</span>
+                <span class="comms-msg"><span class="comms-tool">Read</span> src/auth/session.ts</span>
+              </div>
+              <div class="comms-entry">
+                <span class="comms-timestamp">15:57:58</span>
+                <span class="comms-callsign">SAT-02</span>
+                <span class="comms-arrow">&gt;</span>
+                <span class="comms-msg"><span class="comms-tool">Edit</span> src/middleware/rate.ts</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Notes -->
+  <div class="design-notes">
+    <h3>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3M8 10v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Design Notes
+    </h3>
+    <p>
+      <strong>Satellite Tracker / Ground Control</strong> concept for CLI Monitor.
+      Each CLI session is a satellite orbiting a stylized dark globe.
+    </p>
+    <ul>
+      <li><strong>Orbital rings</strong> = projects (color-coded by orbit altitude)</li>
+      <li><strong>Satellites</strong> = sessions (speed/brightness reflects status)</li>
+      <li><strong>Ground stations</strong> = project repositories (antenna icons on globe)</li>
+      <li><strong>Signal beams</strong> = dashed lines connecting satellite to its repo</li>
+      <li><strong>Telemetry panel</strong> = per-satellite metrics (signal, altitude/tokens, velocity, fuel/rate-limit)</li>
+      <li><strong>Mission timeline</strong> = launch times and mission phase transitions</li>
+      <li><strong>Comms log</strong> = recent tool calls as radio transmissions</li>
+      <li>Working = fast orbit + bright trail; Waiting = stationary + amber beacon; Idle = slow drift + dim</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -3,6 +3,7 @@ import {
   type ConnectionState,
   type ContainerAgentComplete,
   type ContainerAgentError,
+  type ContainerAgentFileChanged,
   type ContainerAgentPlanReady,
   type ContainerAgentStarted,
   type ContainerAgentStatus,
@@ -51,6 +52,18 @@ export interface ContainerAgentToolExecution {
 }
 
 /**
+ * File change tracked during agent execution
+ */
+export interface FileChange {
+  path: string;
+  action: 'create' | 'modify' | 'delete';
+  toolName: string;
+  additions?: number;
+  deletions?: number;
+  timestamp: number;
+}
+
+/**
  * Container agent state
  */
 export interface ContainerAgentState {
@@ -74,6 +87,8 @@ export interface ContainerAgentState {
   streamedText: string;
   /** Tool executions */
   toolExecutions: ContainerAgentToolExecution[];
+  /** Files changed by the agent */
+  fileChanges: FileChange[];
   /** Messages from the agent */
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; timestamp: number }>;
   /** Final result if completed */
@@ -97,6 +112,7 @@ const initialState: ContainerAgentState = {
   remainingTurns: 0,
   streamedText: '',
   toolExecutions: [],
+  fileChanges: [],
   messages: [],
 };
 
@@ -275,6 +291,40 @@ export function useContainerAgent(sessionId: string | null): {
     }));
   }, []);
 
+  // Handle file changed
+  const handleFileChanged = useCallback((data: ContainerAgentFileChanged) => {
+    setState((prev) => {
+      // Deduplicate by path — update existing entry for the same file
+      const existingIndex = prev.fileChanges.findIndex((f) => f.path === data.path);
+      if (existingIndex >= 0) {
+        const updated = [...prev.fileChanges];
+        updated[existingIndex] = {
+          path: data.path,
+          action: data.action,
+          toolName: data.toolName,
+          additions: data.additions,
+          deletions: data.deletions,
+          timestamp: data.timestamp,
+        };
+        return { ...prev, fileChanges: updated };
+      }
+      return {
+        ...prev,
+        fileChanges: [
+          ...prev.fileChanges,
+          {
+            path: data.path,
+            action: data.action,
+            toolName: data.toolName,
+            additions: data.additions,
+            deletions: data.deletions,
+            timestamp: data.timestamp,
+          },
+        ],
+      };
+    });
+  }, []);
+
   // Subscribe to session events
   useEffect(() => {
     if (!sessionId) {
@@ -297,6 +347,7 @@ export function useContainerAgent(sessionId: string | null): {
       onContainerAgentError: (event) => handleError(event.data),
       onContainerAgentCancelled: (event) => handleCancelled(event.data),
       onContainerAgentPlanReady: (event) => handlePlanReady(event.data),
+      onContainerAgentFileChanged: (event) => handleFileChanged(event.data),
       onError: (error) => {
         console.error('[useContainerAgent] Stream error:', error);
         setConnectionState('disconnected');
@@ -332,6 +383,7 @@ export function useContainerAgent(sessionId: string | null): {
     handleError,
     handleCancelled,
     handlePlanReady,
+    handleFileChanged,
   ]);
 
   return { state, connectionState, isStreaming };
