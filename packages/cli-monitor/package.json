@@ -4,12 +4,33 @@
   "description": "CLI monitor daemon for AgentPane — watches Claude Code sessions in real-time",
   "type": "module",
   "bin": {
-    "cli-monitor": "./src/index.ts"
+    "cli-monitor": "dist/index.js"
   },
+  "files": [
+    "dist/index.js"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun build --compile --outfile=dist/cli-monitor src/index.ts",
-    "build:all": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/cli-monitor-darwin-arm64 src/index.ts && bun build --compile --target=bun-darwin-x64 --outfile=dist/cli-monitor-darwin-x64 src/index.ts && bun build --compile --target=bun-linux-x64 --outfile=dist/cli-monitor-linux-x64 src/index.ts"
+    "build:js": "bun build --target=node --define \"PKG_VERSION='$(node -p \"require('./package.json').version\")'\" --outfile=dist/index.js src/index.ts",
+    "build:all": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/cli-monitor-darwin-arm64 src/index.ts && bun build --compile --target=bun-darwin-x64 --outfile=dist/cli-monitor-darwin-x64 src/index.ts && bun build --compile --target=bun-linux-x64 --outfile=dist/cli-monitor-linux-x64 src/index.ts",
+    "prepublishOnly": "bun run build:js"
+  },
+  "author": "AgentPane",
+  "license": "MIT",
+  "keywords": [
+    "cli",
+    "monitor",
+    "claude",
+    "agent",
+    "agentpane",
+    "daemon"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {},
   "devDependencies": {

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import fsp from 'node:fs/promises';
 import { isProcessRunning, LOCK_FILE, releaseLock, startDaemon } from './daemon.js';

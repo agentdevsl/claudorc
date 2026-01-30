@@ -7,9 +7,9 @@ interface ContainerAgentChangesTabProps {
 }
 
 const actionConfig = {
-  create: { icon: FilePlus, label: 'Created', className: 'text-positive' },
+  create: { icon: FilePlus, label: 'Created', className: 'text-[var(--syntax-added)]' },
   modify: { icon: PencilSimple, label: 'Modified', className: 'text-attention' },
-  delete: { icon: Trash, label: 'Deleted', className: 'text-destructive' },
+  delete: { icon: Trash, label: 'Deleted', className: 'text-[var(--syntax-removed)]' },
 } as const;
 
 /**
@@ -61,10 +61,10 @@ export function ContainerAgentChangesTab({
               {(change.additions !== undefined || change.deletions !== undefined) && (
                 <div className="flex items-center gap-1.5 text-xs shrink-0">
                   {change.additions !== undefined && change.additions > 0 && (
-                    <span className="text-positive">+{change.additions}</span>
+                    <span className="text-[var(--syntax-added)]">+{change.additions}</span>
                   )}
                   {change.deletions !== undefined && change.deletions > 0 && (
-                    <span className="text-destructive">-{change.deletions}</span>
+                    <span className="text-[var(--syntax-removed)]">-{change.deletions}</span>
                   )}
                 </div>
               )}

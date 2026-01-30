@@ -525,6 +525,20 @@ export class WorktreeService {
           'git diff --name-only --diff-filter=U',
           worktree.project.path
         );
+
+        // Abort the failed merge to leave the repo in a clean state
+        try {
+          await this.runner.exec('git merge --abort', worktree.project.path);
+        } catch {
+          // Merge abort can fail if merge wasn't in progress — ignore
+        }
+
+        // Reset worktree status back to active (not stuck in 'merging')
+        await this.db
+          .update(worktrees)
+          .set({ status: 'active', updatedAt: new Date().toISOString() })
+          .where(eq(worktrees.id, worktreeId));
+
         return err(
           WorktreeErrors.MERGE_CONFLICT(conflicts.stdout.trim().split('\n').filter(Boolean))
         );
@@ -541,6 +555,12 @@ export class WorktreeService {
 
       return ok(undefined);
     } catch (error) {
+      // Reset worktree status on merge failure
+      await this.db
+        .update(worktrees)
+        .set({ status: 'active', updatedAt: new Date().toISOString() })
+        .where(eq(worktrees.id, worktreeId));
+
       return err(WorktreeErrors.CREATION_FAILED(worktree.branch, String(error)));
     }
   }

@@ -332,6 +332,21 @@ ALTER TABLE sandbox_configs ADD COLUMN network_policy_enabled INTEGER DEFAULT 1;
 ALTER TABLE sandbox_configs ADD COLUMN allowed_egress_hosts TEXT;
 `;
 
+// Performance indexes migration
+export const PERFORMANCE_INDEXES_MIGRATION_SQL = `
+-- Index for looking up tasks by agent
+CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id);
+
+-- Composite index for Kanban board queries (project + column + position)
+CREATE INDEX IF NOT EXISTS idx_tasks_kanban ON tasks(project_id, column, position);
+
+-- Index for worktree lookup by project
+CREATE INDEX IF NOT EXISTS idx_worktrees_project_id ON worktrees(project_id);
+
+-- Index for agents by project
+CREATE INDEX IF NOT EXISTS idx_agents_project_id ON agents(project_id);
+`;
+
 export const validateSchema = async (ctx: BootstrapContext) => {
   if (!ctx.db) {
     return err(createError('BOOTSTRAP_NO_DATABASE', 'Database not initialized', 500));

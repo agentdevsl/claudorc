@@ -5,6 +5,12 @@
 import { Hono } from 'hono';
 import type { WorktreeService } from '../../services/worktree.service.js';
 import { isValidId, json } from '../shared.js';
+import {
+  commitWorktreeSchema,
+  createWorktreeSchema,
+  mergeWorktreeSchema,
+  parseBody,
+} from '../validation.js';
 
 interface WorktreesDeps {
   worktreeService: WorktreeService;
@@ -46,15 +52,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
 
   // POST /api/worktrees
   app.post('/', async (c) => {
-    let body: {
-      projectId: string;
-      agentId: string;
-      taskId: string;
-      taskTitle: string;
-      baseBranch?: string;
-    };
+    let rawBody: unknown;
     try {
-      body = await c.req.json();
+      rawBody = await c.req.json();
     } catch {
       return json(
         { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
@@ -62,18 +62,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
       );
     }
 
-    if (!body.projectId || !body.agentId || !body.taskId || !body.taskTitle) {
-      return json(
-        {
-          ok: false,
-          error: {
-            code: 'MISSING_PARAMS',
-            message: 'projectId, agentId, taskId, and taskTitle are required',
-          },
-        },
-        400
-      );
-    }
+    const parsed = parseBody(createWorktreeSchema, rawBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
 
     try {
       const result = await worktreeService.create({
@@ -154,9 +145,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
       );
     }
 
-    let body: { message: string };
+    let rawBody: unknown;
     try {
-      body = await c.req.json();
+      rawBody = await c.req.json();
     } catch {
       return json(
         { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
@@ -164,12 +155,9 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
       );
     }
 
-    if (!body.message) {
-      return json(
-        { ok: false, error: { code: 'MISSING_PARAMS', message: 'message is required' } },
-        400
-      );
-    }
+    const parsed = parseBody(commitWorktreeSchema, rawBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
 
     try {
       const result = await worktreeService.commit(id, body.message);
@@ -203,20 +191,16 @@ export function createWorktreesRoutes({ worktreeService }: WorktreesDeps) {
       );
     }
 
-    let body: {
-      targetBranch?: string;
-      deleteAfterMerge?: boolean;
-      squash?: boolean;
-      commitMessage?: string;
-    };
+    let rawBody: unknown;
     try {
-      body = await c.req.json();
+      rawBody = await c.req.json();
     } catch {
-      return json(
-        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
-        400
-      );
+      rawBody = {};
     }
+
+    const parsed = parseBody(mergeWorktreeSchema, rawBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
 
     try {
       const result = await worktreeService.merge(id, body.targetBranch);

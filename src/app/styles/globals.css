@@ -792,6 +792,93 @@
   .progress-bar-smooth.dragging {
     transition: none;
   }
+
+  /* ==========================================
+     DIFF VIEWER - CSS Grid Layout
+     Inspired by diffs.com design philosophy:
+     bar indicators, sticky line numbers, data-attribute styling
+     ========================================== */
+
+  .diff-grid {
+    display: contents;
+  }
+
+  .diff-line {
+    display: grid;
+    grid-template-columns: 3px 48px 48px 1fr;
+    min-height: 24px;
+    line-height: 24px;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  /* Line type backgrounds via data-attribute styling */
+  .diff-line-added {
+    background-color: color-mix(in srgb, var(--syntax-added) 8%, transparent);
+  }
+
+  .diff-line-deleted {
+    background-color: color-mix(in srgb, var(--syntax-removed) 8%, transparent);
+  }
+
+  .diff-line-context {
+    background-color: transparent;
+  }
+
+  .diff-line-context:hover {
+    background-color: var(--bg-subtle);
+  }
+
+  /* Bar indicator — 3px colored left edge */
+  .diff-bar {
+    grid-column: 1;
+    width: 3px;
+    min-height: 100%;
+  }
+
+  /* Line numbers — sticky gutters */
+  .diff-line-number {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--fg-subtle);
+    user-select: none;
+    white-space: nowrap;
+    position: sticky;
+    left: 0;
+    background: inherit;
+  }
+
+  .diff-line-number[data-line-type="addition"] {
+    color: color-mix(in srgb, var(--syntax-added) 70%, var(--fg-subtle));
+    background-color: color-mix(in srgb, var(--syntax-added) 15%, transparent);
+  }
+
+  .diff-line-number[data-line-type="deletion"] {
+    color: color-mix(in srgb, var(--syntax-removed) 70%, var(--fg-subtle));
+    background-color: color-mix(in srgb, var(--syntax-removed) 15%, transparent);
+  }
+
+  /* Line content */
+  .diff-line-content {
+    grid-column: 4;
+    padding: 0 16px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .diff-line-content[data-line-type="addition"] {
+    color: var(--syntax-added);
+  }
+
+  .diff-line-content[data-line-type="deletion"] {
+    color: var(--syntax-removed);
+  }
+
+  .diff-line-content[data-line-type="context"] {
+    color: var(--fg-muted);
+  }
 }
 
 /* ==========================================

@@ -5,14 +5,48 @@
  * Runs alongside Vite dev server.
  */
 
+import { createLogger } from '../lib/logging/logger.js';
+
+const log = createLogger('APIServer');
+
 // Global error handlers to prevent crashes
 process.on('uncaughtException', (error) => {
-  console.error('[API Server] Uncaught Exception:', error);
+  log.error('Uncaught Exception', { error });
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[API Server] Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason, _promise) => {
+  log.error('Unhandled Rejection', { error: reason });
 });
+
+// Validate required environment variables at startup
+function validateEnv() {
+  const warnings: string[] = [];
+
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_OAUTH_TOKEN) {
+    warnings.push(
+      'Neither ANTHROPIC_API_KEY nor CLAUDE_OAUTH_TOKEN is set — agent execution will fail'
+    );
+  }
+
+  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+    warnings.push('CORS_ORIGIN not set — defaulting to http://localhost:3000');
+  }
+
+  for (const w of warnings) {
+    log.warn(w);
+  }
+
+  log.info('Environment validated', {
+    data: {
+      nodeEnv: process.env.NODE_ENV ?? 'development',
+      hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      hasOAuthToken: !!process.env.CLAUDE_OAUTH_TOKEN,
+      corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    },
+  });
+}
+
+validateEnv();
 
 import { Database as BunSQLite } from 'bun:sqlite';
 import fs from 'node:fs/promises';
@@ -24,6 +58,7 @@ import * as schema from '../db/schema/index.js';
 import { settings } from '../db/schema/settings.js';
 import {
   MIGRATION_SQL,
+  PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
@@ -62,17 +97,22 @@ declare const Bun: {
 };
 
 // Initialize SQLite database using Bun's native SQLite
-const DB_PATH = './data/agentpane.db';
+const DB_PATH = process.env.DB_PATH ?? './data/agentpane.db';
 const sqlite = new BunSQLite(DB_PATH);
+
+// Enable WAL mode for better concurrent read performance and crash recovery
+sqlite.exec('PRAGMA journal_mode=WAL');
+sqlite.exec('PRAGMA busy_timeout=5000');
+log.info('SQLite WAL mode enabled', { data: { dbPath: DB_PATH } });
 
 // Run migrations to ensure schema is up to date
 sqlite.exec(MIGRATION_SQL);
-console.log('[API Server] Schema migrations applied');
+log.info('Schema migrations applied');
 
 // Run sandbox migration (may fail if column already exists)
 try {
   sqlite.exec(SANDBOX_MIGRATION_SQL);
-  console.log('[API Server] Sandbox migration applied');
+  log.info('[API Server] Sandbox migration applied');
 } catch (error) {
   // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
@@ -87,7 +127,7 @@ try {
 // Run template sync interval migration (may fail if columns already exist)
 try {
   sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
-  console.log('[API Server] Template sync interval migration applied');
+  log.info('[API Server] Template sync interval migration applied');
 } catch (error) {
   // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
@@ -98,6 +138,10 @@ try {
   }
   // Silently ignore duplicate column errors (expected when migration already applied)
 }
+
+// Apply performance indexes (idempotent — uses IF NOT EXISTS)
+sqlite.exec(PERFORMANCE_INDEXES_MIGRATION_SQL);
+log.info('Performance indexes applied');
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
@@ -169,7 +213,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
     if (!this.streams.has(id)) {
       this.streams.set(id, []);
       this.subscribers.set(id, new Set());
-      console.log(`[InMemoryStreams] Created stream: ${id}`);
+      log.debug(`[InMemoryStreams] Created stream: ${id}`);
     }
   }
 
@@ -200,7 +244,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
         try {
           callback({ type, data, offset });
         } catch (err) {
-          console.error(`[InMemoryStreams] Subscriber error for ${id}:`, err);
+          log.error(`[InMemoryStreams] Subscriber error for ${id}`, { error: err });
         }
       }
     }
@@ -239,7 +283,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
     this.streams.delete(id);
     this.subscribers.delete(id);
     if (existed) {
-      console.log(`[InMemoryStreams] Deleted stream: ${id}`);
+      log.debug(`[InMemoryStreams] Deleted stream: ${id}`);
     }
     return existed;
   }
@@ -247,7 +291,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
   // Get all events for a stream (for SSE endpoint)
   getEvents(id: string): StoredEvent[] {
     const events = this.streams.get(id) ?? [];
-    console.log(`[InMemoryStreams] getEvents called for ${id}: ${events.length} events available`);
+    log.debug(`[InMemoryStreams] getEvents called for ${id}: ${events.length} events available`);
     return events;
   }
 
@@ -262,7 +306,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
       this.subscribers.set(id, subs);
     }
     subs.add(callback);
-    console.log(`[InMemoryStreams] Added real-time subscriber for ${id} (total: ${subs.size})`);
+    log.debug(`[InMemoryStreams] Added real-time subscriber for ${id} (total: ${subs.size})`);
     return () => {
       subs.delete(callback);
       console.log(
@@ -274,11 +318,11 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
 // Create in-memory streams server for local development
 const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
-console.log('[API Server] Using in-memory DurableStreamsServer for local development');
+log.info('[API Server] Using in-memory DurableStreamsServer for local development');
 
 // CLI Monitor service for monitoring Claude Code CLI sessions
 const cliMonitorService = new CliMonitorService(inMemoryStreamsServer);
-console.log('[API Server] CLI Monitor receiver ready (waiting for daemon)');
+log.info('[API Server] CLI Monitor receiver ready (waiting for daemon)');
 
 // DurableStreamsService for SSE and container agent events
 // Pass db for event persistence to session_events table
@@ -336,7 +380,7 @@ let containerAgentService: ReturnType<typeof createContainerAgentService> | null
 // Step 1: Initialize Docker provider
 try {
   dockerProvider = createDockerProvider();
-  console.log('[API Server] Docker provider initialized');
+  log.info('[API Server] Docker provider initialized');
 
   // Recover existing containers from previous runs
   const { recovered, removed } = await dockerProvider.recover();
@@ -355,9 +399,9 @@ try {
     message.includes('Cannot connect to Docker'); // Docker daemon offline
 
   if (isExpectedError) {
-    console.log('[API Server] Docker not available (expected), container agent service disabled');
+    log.info('[API Server] Docker not available (expected), container agent service disabled');
   } else {
-    console.error('[API Server] Docker initialization failed with unexpected error:', message);
+    log.error(`[API Server] Docker initialization failed with unexpected error: ${message}`);
   }
 }
 
@@ -415,9 +459,9 @@ if (dockerProvider) {
             idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
             volumeMounts: [],
           });
-          console.log('[API Server] Default global sandbox created');
+          log.info('[API Server] Default global sandbox created');
         } catch (createErr) {
-          console.warn('[API Server] Failed to create default sandbox:', createErr);
+          log.warn('[API Server] Failed to create default sandbox', { error: createErr });
         }
       } else {
         console.log(
@@ -425,7 +469,7 @@ if (dockerProvider) {
         );
       }
     } else {
-      console.log('[API Server] Default global sandbox already exists');
+      log.info('[API Server] Default global sandbox already exists');
     }
   } catch (sandboxErr) {
     // Sandbox setup failed but Docker is still available - container agent can still work
@@ -449,7 +493,7 @@ if (dockerProvider) {
 
     // Wire up container agent service to task service
     taskService.setContainerAgentService(containerAgentService);
-    console.log('[API Server] ContainerAgentService wired up to TaskService');
+    log.info('[API Server] ContainerAgentService wired up to TaskService');
   } catch (serviceErr) {
     console.error(
       '[API Server] Failed to create ContainerAgentService:',
@@ -495,4 +539,4 @@ console.log(`[API Server] Running on http://localhost:${PORT}`);
 
 // Start the template sync scheduler
 startSyncScheduler(db, templateService);
-console.log('[API Server] Template sync scheduler started');
+log.info('[API Server] Template sync scheduler started');

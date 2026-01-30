@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import type { DurableStreamsService } from '../../services/durable-streams.service.js';
 import type { SessionService } from '../../services/session.service.js';
 import { corsHeaders, isValidId, json } from '../shared.js';
+import { createSessionSchema, exportSessionSchema, parseBody } from '../validation.js';
 
 // Helper to format session as markdown
 function formatSessionAsMarkdown(
@@ -150,15 +151,10 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
   // POST /api/sessions
   app.post('/', async (c) => {
     try {
-      const body = await c.req.json();
-      const { projectId, taskId, agentId, title } = body;
-
-      if (!projectId) {
-        return json(
-          { ok: false, error: { code: 'VALIDATION_ERROR', message: 'projectId is required' } },
-          400
-        );
-      }
+      const rawBody = await c.req.json();
+      const parsed = parseBody(createSessionSchema, rawBody);
+      if (!parsed.ok) return parsed.response;
+      const { projectId, taskId, agentId, title } = parsed.data;
 
       const result = await sessionService.create({ projectId, taskId, agentId, title });
       if (!result.ok) {
@@ -260,21 +256,10 @@ export function createSessionsRoutes({ sessionService, durableStreamsService }: 
     }
 
     try {
-      const body = await c.req.json();
-      const format = body.format as 'json' | 'markdown' | 'csv';
-
-      if (!format || !['json', 'markdown', 'csv'].includes(format)) {
-        return json(
-          {
-            ok: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid format. Must be json, markdown, or csv',
-            },
-          },
-          400
-        );
-      }
+      const rawBody = await c.req.json();
+      const parsed = parseBody(exportSessionSchema, rawBody);
+      if (!parsed.ok) return parsed.response;
+      const { format } = parsed.data;
 
       // Get session details
       const sessionResult = await sessionService.getById(id);

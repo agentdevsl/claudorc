@@ -4,9 +4,13 @@
  * Main router that combines all route modules.
  */
 
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { getAuthContext } from '../lib/api/auth-middleware.js';
+import { rateLimiter } from '../lib/api/rate-limiter.js';
+import { createLogger } from '../lib/logging/logger.js';
 import type { EventEmittingSandboxProvider } from '../lib/sandbox/index.js';
 import type { AgentService } from '../services/agent.service.js';
 import type { ApiKeyService } from '../services/api-key.service.js';
@@ -20,7 +24,6 @@ import type { TaskService } from '../services/task.service.js';
 import type { TaskCreationService } from '../services/task-creation.service.js';
 import type { TemplateService } from '../services/template.service.js';
 import type { CommandRunner, WorktreeService } from '../services/worktree.service.js';
-// Types
 import type { Database } from '../types/database.js';
 import { createAgentsRoutes } from './routes/agents.js';
 import { createApiKeysRoutes } from './routes/api-keys.js';
@@ -28,7 +31,6 @@ import { createCliMonitorRoutes } from './routes/cli-monitor.js';
 import { createFilesystemRoutes } from './routes/filesystem.js';
 import { createGitRoutes } from './routes/git.js';
 import { createGitHubRoutes } from './routes/github.js';
-// Route modules
 import { createHealthRoutes } from './routes/health.js';
 import { createMarketplacesRoutes } from './routes/marketplaces.js';
 import { createProjectsRoutes } from './routes/projects.js';
@@ -43,6 +45,52 @@ import { createWebhooksRoutes } from './routes/webhooks.js';
 import { createWorkflowDesignerRoutes } from './routes/workflow-designer.js';
 import { createWorkflowsRoutes } from './routes/workflows.js';
 import { createWorktreesRoutes } from './routes/worktrees.js';
+
+const routerLog = createLogger('Router');
+
+let requestCounter = 0;
+
+async function requestIdMiddleware(c: Context, next: Next) {
+  const id =
+    c.req.header('x-request-id') ??
+    `req-${Date.now().toString(36)}-${(++requestCounter).toString(36)}`;
+  c.set('requestId', id);
+  c.header('X-Request-Id', id);
+  return next();
+}
+
+async function securityHeaders(c: Context, next: Next) {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('X-XSS-Protection', '1; mode=block');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    c.header(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    );
+  }
+}
+
+async function authMiddleware(c: Context, next: Next) {
+  const path = c.req.path;
+  if (path === '/api/health' || path === '/api/healthz' || path === '/api/readyz') {
+    return next();
+  }
+
+  const result = await getAuthContext(c.req.raw);
+  if (!result.ok) {
+    return c.json(
+      { ok: false, error: { code: result.error.code, message: result.error.message } },
+      result.error.status as 401 | 403
+    );
+  }
+
+  c.set('auth', result.value);
+  return next();
+}
 
 export interface RouterDependencies {
   db: Database;
@@ -62,24 +110,23 @@ export interface RouterDependencies {
   cliMonitorService?: CliMonitorService | null;
 }
 
-/**
- * Create the main Hono app with all routes
- */
 export function createRouter(deps: RouterDependencies) {
   const app = new Hono();
 
-  // Global middleware
   app.use(
     '*',
     cors({
       origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type'],
+      allowHeaders: ['Content-Type', 'Authorization'],
     })
   );
   app.use('*', logger());
+  app.use('*', requestIdMiddleware);
+  app.use('*', securityHeaders);
+  app.use('/api/*', rateLimiter({ max: 200, windowMs: 60_000 }));
+  app.use('/api/*', authMiddleware);
 
-  // Mount route modules
   app.route(
     '/api/health',
     createHealthRoutes({
@@ -89,62 +136,30 @@ export function createRouter(deps: RouterDependencies) {
     })
   );
 
-  app.route(
-    '/api/settings',
-    createSettingsRoutes({
-      db: deps.db,
-    })
-  );
+  app.get('/api/healthz', (c) => c.json({ ok: true, status: 'alive' }));
+  app.get('/api/readyz', async (c) => {
+    try {
+      await deps.db.query.projects.findFirst();
+      return c.json({ ok: true, status: 'ready' });
+    } catch {
+      return c.json({ ok: false, status: 'not_ready' }, 503);
+    }
+  });
 
-  app.route(
-    '/api/projects',
-    createProjectsRoutes({
-      db: deps.db,
-    })
-  );
-
-  app.route(
-    '/api/agents',
-    createAgentsRoutes({
-      agentService: deps.agentService,
-    })
-  );
-
+  app.route('/api/settings', createSettingsRoutes({ db: deps.db }));
+  app.route('/api/projects', createProjectsRoutes({ db: deps.db }));
+  app.route('/api/agents', createAgentsRoutes({ agentService: deps.agentService }));
   app.route(
     '/api/tasks/create-with-ai',
-    createTaskCreationRoutes({
-      taskCreationService: deps.taskCreationService,
-    })
+    createTaskCreationRoutes({ taskCreationService: deps.taskCreationService })
   );
-
-  app.route(
-    '/api/tasks',
-    createTasksRoutes({
-      taskService: deps.taskService,
-    })
-  );
-
-  app.route(
-    '/api/workflows',
-    createWorkflowsRoutes({
-      db: deps.db,
-    })
-  );
-
-  app.route(
-    '/api/templates',
-    createTemplatesRoutes({
-      templateService: deps.templateService,
-    })
-  );
-
+  app.route('/api/tasks', createTasksRoutes({ taskService: deps.taskService }));
+  app.route('/api/workflows', createWorkflowsRoutes({ db: deps.db }));
+  app.route('/api/templates', createTemplatesRoutes({ templateService: deps.templateService }));
   app.route(
     '/api/marketplaces',
-    createMarketplacesRoutes({
-      marketplaceService: deps.marketplaceService,
-    })
+    createMarketplacesRoutes({ marketplaceService: deps.marketplaceService })
   );
-
   app.route(
     '/api/sessions',
     createSessionsRoutes({
@@ -152,83 +167,38 @@ export function createRouter(deps: RouterDependencies) {
       durableStreamsService: deps.durableStreamsService,
     })
   );
-
-  app.route(
-    '/api/worktrees',
-    createWorktreesRoutes({
-      worktreeService: deps.worktreeService,
-    })
-  );
-
-  app.route(
-    '/api/github',
-    createGitHubRoutes({
-      githubService: deps.githubService,
-    })
-  );
-
-  app.route(
-    '/api/git',
-    createGitRoutes({
-      db: deps.db,
-      commandRunner: deps.commandRunner,
-    })
-  );
-
+  app.route('/api/worktrees', createWorktreesRoutes({ worktreeService: deps.worktreeService }));
+  app.route('/api/github', createGitHubRoutes({ githubService: deps.githubService }));
+  app.route('/api/git', createGitRoutes({ db: deps.db, commandRunner: deps.commandRunner }));
   app.route(
     '/api/sandbox-configs',
-    createSandboxRoutes({
-      sandboxConfigService: deps.sandboxConfigService,
-    })
+    createSandboxRoutes({ sandboxConfigService: deps.sandboxConfigService })
   );
-
   app.route(
     '/api/sandbox/status',
-    createSandboxStatusRoutes({
-      db: deps.db,
-      dockerProvider: deps.dockerProvider ?? null,
-    })
+    createSandboxStatusRoutes({ db: deps.db, dockerProvider: deps.dockerProvider ?? null })
   );
-
   app.route('/api/sandbox/k8s', createK8sRoutes());
-
-  app.route(
-    '/api/keys',
-    createApiKeysRoutes({
-      apiKeyService: deps.apiKeyService,
-    })
-  );
-
+  app.route('/api/keys', createApiKeysRoutes({ apiKeyService: deps.apiKeyService }));
   app.route('/api/filesystem', createFilesystemRoutes());
-
   app.route(
     '/api/workflow-designer',
-    createWorkflowDesignerRoutes({
-      templateService: deps.templateService,
-    })
+    createWorkflowDesignerRoutes({ templateService: deps.templateService })
   );
-
-  app.route(
-    '/api/webhooks',
-    createWebhooksRoutes({
-      templateService: deps.templateService,
-    })
-  );
+  app.route('/api/webhooks', createWebhooksRoutes({ templateService: deps.templateService }));
 
   if (deps.cliMonitorService) {
     app.route(
       '/api/cli-monitor',
-      createCliMonitorRoutes({
-        cliMonitorService: deps.cliMonitorService,
-      })
+      createCliMonitorRoutes({ cliMonitorService: deps.cliMonitorService })
     );
   }
 
-  // Global error handler to catch uncaught exceptions
   app.onError((err, c) => {
-    console.error('[API] Unhandled error:', err);
+    const requestId =
+      c.req.header('x-request-id') ?? (c.res.headers.get('X-Request-Id') || undefined);
+    routerLog.error('Unhandled error', { requestId, error: err });
 
-    // Determine error message based on environment
     const isProduction = process.env.NODE_ENV === 'production';
     let message = 'Internal server error';
     if (isProduction) {
@@ -237,19 +207,9 @@ export function createRouter(deps: RouterDependencies) {
       message = err.message;
     }
 
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message,
-        },
-      },
-      500
-    );
+    return c.json({ ok: false, error: { code: 'INTERNAL_ERROR', message } }, 500);
   });
 
-  // 404 handler for unmatched routes
   app.notFound((c) => {
     return c.json({ ok: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404);
   });

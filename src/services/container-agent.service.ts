@@ -202,7 +202,7 @@ export class ContainerAgentService {
    */
   private translatePathForContainer(hostWorktreePath: string, hostProjectPath: string): string {
     if (hostWorktreePath.startsWith(hostProjectPath)) {
-      return '/workspace' + hostWorktreePath.slice(hostProjectPath.length);
+      return `/workspace${hostWorktreePath.slice(hostProjectPath.length)}`;
     }
     infoLog('translatePath', 'Path mismatch, defaulting to /workspace', {
       hostWorktreePath,
