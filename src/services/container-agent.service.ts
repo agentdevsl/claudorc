@@ -163,6 +163,55 @@ export class ContainerAgentService {
   }
 
   /**
+   * Clean up a worktree by removing it via WorktreeService.
+   * Best-effort: logs errors but does not throw.
+   */
+  private async cleanupWorktree(taskId: string, worktreeId: string): Promise<void> {
+    if (!this.worktreeService) {
+      infoLog('cleanupWorktree', 'WorktreeService not available, skipping cleanup', {
+        taskId,
+        worktreeId,
+      });
+      return;
+    }
+
+    try {
+      const result = await this.worktreeService.remove(worktreeId, true);
+      if (result.ok) {
+        infoLog('cleanupWorktree', 'Worktree removed', { taskId, worktreeId });
+      } else {
+        infoLog('cleanupWorktree', 'Worktree removal returned error', {
+          taskId,
+          worktreeId,
+          error: String(result.error),
+        });
+      }
+    } catch (removeErr) {
+      infoLog('cleanupWorktree', 'Failed to remove worktree', {
+        taskId,
+        worktreeId,
+        error: removeErr instanceof Error ? removeErr.message : String(removeErr),
+      });
+    }
+  }
+
+  /**
+   * Translate a host filesystem path to the corresponding container path.
+   * The container bind-mounts the project root at /workspace, so we replace
+   * the host project path prefix with /workspace.
+   */
+  private translatePathForContainer(hostWorktreePath: string, hostProjectPath: string): string {
+    if (hostWorktreePath.startsWith(hostProjectPath)) {
+      return '/workspace' + hostWorktreePath.slice(hostProjectPath.length);
+    }
+    infoLog('translatePath', 'Path mismatch, defaulting to /workspace', {
+      hostWorktreePath,
+      hostProjectPath,
+    });
+    return '/workspace';
+  }
+
+  /**
    * Clean up expired pending plans to prevent memory leaks.
    */
   private cleanupExpiredPlans(): void {
@@ -554,11 +603,12 @@ export class ContainerAgentService {
         const worktreeStatus = await this.worktreeService.getStatus(task.worktreeId);
         if (worktreeStatus.ok) {
           worktreeId = worktreeStatus.value.id;
-          worktreePath = worktreeStatus.value.path;
+          worktreePath = this.translatePathForContainer(worktreeStatus.value.path, project.path);
           infoLog('startAgent', 'Recovered worktree from task record for execution', {
             worktreeId,
             branch: worktreeStatus.value.branch,
-            path: worktreePath,
+            hostPath: worktreeStatus.value.path,
+            containerPath: worktreePath,
           });
         } else {
           infoLog('startAgent', 'Failed to recover worktree for execution, using main workspace', {
@@ -623,11 +673,12 @@ export class ContainerAgentService {
 
         if (worktreeResult.ok) {
           worktreeId = worktreeResult.value.id;
-          worktreePath = worktreeResult.value.path;
+          worktreePath = this.translatePathForContainer(worktreeResult.value.path, project.path);
           infoLog('startAgent', 'Worktree created', {
             worktreeId,
             branch: worktreeResult.value.branch,
-            path: worktreePath,
+            hostPath: worktreeResult.value.path,
+            containerPath: worktreePath,
           });
 
           // Link worktree to task (non-critical)
@@ -648,6 +699,14 @@ export class ContainerAgentService {
               error: errorMessage,
             });
           }
+
+          await this.streams.publish(sessionId, 'container-agent:worktree', {
+            taskId,
+            sessionId,
+            worktreeId,
+            branch: worktreeResult.value.branch,
+            containerPath: worktreePath,
+          });
 
           await this.streams.publish(sessionId, 'container-agent:message', {
             taskId,
@@ -1144,6 +1203,11 @@ export class ContainerAgentService {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(tasks.id, taskId));
+
+        // Clean up worktree on cancellation (not needed for review/merge)
+        if (agent.worktreeId) {
+          await this.cleanupWorktree(taskId, agent.worktreeId);
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1350,6 +1414,11 @@ export class ContainerAgentService {
           error: publishErr instanceof Error ? publishErr.message : String(publishErr),
         });
       }
+    }
+
+    // Clean up worktree on error
+    if (agent.worktreeId) {
+      await this.cleanupWorktree(taskId, agent.worktreeId);
     }
 
     // Update agent status to error
@@ -1579,6 +1648,12 @@ export class ContainerAgentService {
       }
     }
 
+    // Look up worktreeId from task before clearing fields
+    const taskRecord = this.db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    }) as unknown as { worktreeId?: string | null } | undefined;
+    const worktreeIdToClean = taskRecord?.worktreeId;
+
     // DB write FIRST — only clear in-memory on success
     try {
       this.db
@@ -1589,6 +1664,8 @@ export class ContainerAgentService {
           planOptions: null,
           lastAgentStatus: null,
           rejectionReason: reason ?? null,
+          worktreeId: null,
+          branch: null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(tasks.id, taskId))
@@ -1606,6 +1683,12 @@ export class ContainerAgentService {
 
     // DB succeeded — safe to clear in-memory cache
     this.pendingPlans.delete(taskId);
+
+    // Clean up the worktree (async, best-effort — DB already updated)
+    if (worktreeIdToClean) {
+      void this.cleanupWorktree(taskId, worktreeIdToClean);
+    }
+
     infoLog('rejectPlan', 'Plan rejected successfully', { taskId });
     return ok(undefined);
   }

@@ -1,0 +1,303 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ContainerAgentService } from '../container-agent.service.js';
+
+/**
+ * Minimal mocks for ContainerAgentService constructor dependencies.
+ */
+
+// --- DB Mock ---
+function createDbMock() {
+  const updateSet = vi.fn(() => ({
+    where: vi.fn(() => ({
+      returning: vi.fn(),
+      run: vi.fn(),
+    })),
+    run: vi.fn(),
+  }));
+
+  return {
+    query: {
+      projects: { findFirst: vi.fn() },
+      agents: { findFirst: vi.fn() },
+      tasks: { findFirst: vi.fn() },
+      sessions: { findFirst: vi.fn() },
+      worktrees: { findFirst: vi.fn() },
+    },
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([]),
+        onConflictDoUpdate: vi.fn(() => ({ returning: vi.fn() })),
+      })),
+    })),
+    update: vi.fn(() => ({ set: updateSet })),
+  };
+}
+
+// --- Sandbox Provider Mock ---
+/** Create a mock readable stream compatible with readline.createInterface */
+function createMockReadableStream() {
+  const { Readable } = require('node:stream');
+  const stream = new Readable({ read() {} });
+  stream.push(null); // immediately end the stream
+  return stream;
+}
+
+function createProviderMock() {
+  const sandbox = {
+    id: 'sandbox-1',
+    status: 'running' as const,
+    containerId: 'abc123def456',
+    exec: vi.fn().mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' }),
+    execStream: vi.fn().mockResolvedValue({
+      stdout: createMockReadableStream(),
+      stderr: createMockReadableStream(),
+      wait: vi.fn().mockResolvedValue({ exitCode: 0 }),
+      kill: vi.fn(),
+    }),
+  };
+  return {
+    get: vi.fn().mockResolvedValue(sandbox),
+    getById: vi.fn().mockResolvedValue(sandbox),
+    sandbox,
+  };
+}
+
+// --- Streams Mock ---
+function createStreamsMock() {
+  return {
+    createStream: vi.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+// --- API Key Mock ---
+function createApiKeyMock() {
+  return {
+    getDecryptedKey: vi.fn().mockResolvedValue('sk-ant-oat01-test-token'),
+  };
+}
+
+// --- Worktree Service Mock ---
+function createWorktreeMock(overrides?: Record<string, string>) {
+  return {
+    create: vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: 'wt-1',
+        branch: 'fix-login-abc123',
+        path: '/Users/test/project/.worktrees/fix-login-abc123',
+        ...overrides,
+      },
+    }),
+    getStatus: vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: 'wt-1',
+        branch: 'fix-login-abc123',
+        status: 'active',
+        path: '/Users/test/project/.worktrees/fix-login-abc123',
+      },
+    }),
+    remove: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
+    commit: vi.fn().mockResolvedValue({ ok: true, value: 'abc123' }),
+  };
+}
+
+describe('ContainerAgentService — worktree integration', () => {
+  let db: ReturnType<typeof createDbMock>;
+  let provider: ReturnType<typeof createProviderMock>;
+  let streams: ReturnType<typeof createStreamsMock>;
+  let apiKey: ReturnType<typeof createApiKeyMock>;
+  let worktreeService: ReturnType<typeof createWorktreeMock>;
+  let service: ContainerAgentService;
+
+  const project = {
+    id: 'p1',
+    name: 'Test Project',
+    path: '/Users/test/project',
+    config: { model: 'claude-sonnet-4-20250514' },
+  };
+
+  const task = {
+    id: 't1',
+    title: 'Fix login bug',
+    projectId: 'p1',
+    worktreeId: null as string | null,
+  };
+
+  beforeEach(() => {
+    db = createDbMock();
+    provider = createProviderMock();
+    streams = createStreamsMock();
+    apiKey = createApiKeyMock();
+    worktreeService = createWorktreeMock();
+
+    db.query.projects.findFirst.mockResolvedValue(project);
+    db.query.tasks.findFirst.mockResolvedValue(task);
+
+    service = new ContainerAgentService(
+      db as never,
+      provider as never,
+      streams as never,
+      apiKey as never,
+      worktreeService as never
+    );
+  });
+
+  // --- Task 1: Path translation ---
+
+  it('translates worktree path to /workspace/... format on creation', async () => {
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    // The execStream should be called with AGENT_CWD = /workspace/.worktrees/fix-login-abc123
+    const execStreamCall = provider.sandbox.execStream.mock.calls[0]!;
+    const env = (execStreamCall[0] as { env: Record<string, string> }).env;
+    expect(env.AGENT_CWD).toBe('/workspace/.worktrees/fix-login-abc123');
+  });
+
+  it('translates recovered worktree path for execution phase', async () => {
+    // Task already has worktreeId from planning phase
+    db.query.tasks.findFirst.mockResolvedValue({
+      ...task,
+      worktreeId: 'wt-1',
+    });
+
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Execute plan',
+      phase: 'execute',
+      sdkSessionId: 'sdk-123',
+    });
+
+    const execStreamCall = provider.sandbox.execStream.mock.calls[0]!;
+    const env = (execStreamCall[0] as { env: Record<string, string> }).env;
+    expect(env.AGENT_CWD).toBe('/workspace/.worktrees/fix-login-abc123');
+  });
+
+  it('falls back to /workspace when worktree creation fails', async () => {
+    worktreeService.create.mockResolvedValue({
+      ok: false,
+      error: { code: 'WORKTREE_CREATION_FAILED', message: 'git error' },
+    });
+
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    const execStreamCall = provider.sandbox.execStream.mock.calls[0]!;
+    const env = (execStreamCall[0] as { env: Record<string, string> }).env;
+    expect(env.AGENT_CWD).toBe('/workspace');
+  });
+
+  // --- Task 2: Cleanup ---
+
+  it('commits worktree changes on completed status', async () => {
+    // Start agent to populate running agents
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    // Simulate completion via the internal method (accessed via prototype)
+    const handleComplete = (service as any).handleAgentComplete.bind(service);
+    await handleComplete('t1', 'completed', 5);
+
+    expect(worktreeService.commit).toHaveBeenCalledWith(
+      'wt-1',
+      expect.stringContaining('completed')
+    );
+  });
+
+  it('cleans up worktree on cancelled status', async () => {
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    const handleComplete = (service as any).handleAgentComplete.bind(service);
+    await handleComplete('t1', 'cancelled', 0);
+
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  it('cleans up worktree on agent error', async () => {
+    await service.startAgent({
+      projectId: 'p1',
+      taskId: 't1',
+      sessionId: 's1',
+      prompt: 'Fix the bug',
+      phase: 'plan',
+    });
+
+    const handleError = (service as any).handleAgentError.bind(service);
+    await handleError('t1', 'SDK crash', 2);
+
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  it('cleans up worktree and clears task fields on plan rejection', () => {
+    // Set up task with worktreeId
+    db.query.tasks.findFirst.mockReturnValue({
+      ...task,
+      worktreeId: 'wt-1',
+      plan: 'Some plan',
+      lastAgentStatus: 'planning',
+    } as any);
+
+    // Put a pending plan in memory
+    (service as any).pendingPlans.set('t1', {
+      taskId: 't1',
+      sessionId: 's1',
+      projectId: 'p1',
+      plan: 'Some plan',
+      turnCount: 3,
+      sdkSessionId: 'sdk-1',
+      createdAt: new Date(),
+    });
+
+    const result = service.rejectPlan('t1', 'Bad plan');
+
+    expect(result.ok).toBe(true);
+
+    // Should have cleared worktreeId and branch in the DB update
+    // Verify DB update was called (to set worktreeId/branch to null)
+    expect(db.update).toHaveBeenCalled();
+
+    // Worktree removal is async/best-effort
+    // Give it a tick to fire
+    expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
+  });
+
+  // --- Path translation edge cases ---
+
+  it('returns /workspace when paths do not match', () => {
+    const translate = (service as any).translatePathForContainer.bind(service);
+    expect(translate('/other/path/.worktrees/foo', '/Users/test/project')).toBe('/workspace');
+  });
+
+  it('handles trailing slash correctly', () => {
+    const translate = (service as any).translatePathForContainer.bind(service);
+    // Path without trailing slash on host
+    expect(translate('/Users/test/project/.worktrees/foo', '/Users/test/project')).toBe(
+      '/workspace/.worktrees/foo'
+    );
+  });
+});

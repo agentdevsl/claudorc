@@ -300,6 +300,14 @@ export interface TaskCreationProcessingEvent {
   message?: string;
 }
 
+export interface ContainerAgentWorktreeEvent {
+  taskId: string;
+  sessionId: string;
+  worktreeId: string;
+  branch: string;
+  containerPath: string;
+}
+
 // ============================================
 // Type-safe Event Map
 // ============================================
@@ -353,6 +361,7 @@ export interface StreamEventMap {
   'container-agent:cancelled': ContainerAgentCancelledEvent;
   'container-agent:task-update-failed': ContainerAgentTaskUpdateFailedEvent;
   'container-agent:plan_ready': ContainerAgentPlanReadyEvent;
+  'container-agent:worktree': ContainerAgentWorktreeEvent;
   'container-agent:file_changed': ContainerAgentFileChangedEvent;
 }
 

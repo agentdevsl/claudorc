@@ -157,6 +157,14 @@ const rawContainerAgentStatusSchema = z.object({
   message: z.string(),
 });
 
+const rawContainerAgentWorktreeSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  worktreeId: z.string(),
+  branch: z.string(),
+  containerPath: z.string(),
+});
+
 const rawContainerAgentFileChangedSchema = z.object({
   taskId: z.string(),
   sessionId: z.string(),
@@ -219,6 +227,7 @@ export type SessionEventType =
   | 'container-agent:error'
   | 'container-agent:cancelled'
   | 'container-agent:plan_ready'
+  | 'container-agent:worktree'
   | 'container-agent:file_changed';
 
 /**
@@ -335,6 +344,15 @@ export interface ContainerAgentPlanReady {
   timestamp: number;
 }
 
+export interface ContainerAgentWorktree {
+  taskId: string;
+  sessionId: string;
+  worktreeId: string;
+  branch: string;
+  containerPath: string;
+  timestamp: number;
+}
+
 export interface ContainerAgentFileChanged {
   taskId: string;
   sessionId: string;
@@ -366,6 +384,7 @@ export type TypedSessionEvent =
   | { channel: 'containerAgent:error'; data: ContainerAgentError; offset?: number }
   | { channel: 'containerAgent:cancelled'; data: ContainerAgentCancelled; offset?: number }
   | { channel: 'containerAgent:planReady'; data: ContainerAgentPlanReady; offset?: number }
+  | { channel: 'containerAgent:worktree'; data: ContainerAgentWorktree; offset?: number }
   | { channel: 'containerAgent:fileChanged'; data: ContainerAgentFileChanged; offset?: number };
 
 /**
@@ -435,6 +454,11 @@ export interface SessionCallbacks {
   onContainerAgentPlanReady?: (event: {
     channel: 'containerAgent:planReady';
     data: ContainerAgentPlanReady;
+    offset?: number;
+  }) => void;
+  onContainerAgentWorktree?: (event: {
+    channel: 'containerAgent:worktree';
+    data: ContainerAgentWorktree;
     offset?: number;
   }) => void;
   onContainerAgentFileChanged?: (event: {
@@ -933,6 +957,22 @@ function mapRawEventToTyped(raw: RawSessionEvent): TypedSessionEvent | null {
       };
     }
 
+    case 'container-agent:worktree': {
+      const parsed = rawContainerAgentWorktreeSchema.safeParse(raw.data);
+      if (!parsed.success) {
+        console.warn(
+          '[DurableStreamsClient] Invalid container-agent:worktree:',
+          parsed.error.message
+        );
+        return null;
+      }
+      return {
+        channel: 'containerAgent:worktree',
+        data: { ...parsed.data, timestamp: raw.timestamp },
+        offset: raw.offset,
+      };
+    }
+
     case 'container-agent:file_changed': {
       const parsed = rawContainerAgentFileChangedSchema.safeParse(raw.data);
       if (!parsed.success) {
@@ -1013,6 +1053,9 @@ function routeEventToCallback(event: TypedSessionEvent, callbacks: SessionCallba
       break;
     case 'containerAgent:planReady':
       callbacks.onContainerAgentPlanReady?.(event);
+      break;
+    case 'containerAgent:worktree':
+      callbacks.onContainerAgentWorktree?.(event);
       break;
     case 'containerAgent:fileChanged':
       callbacks.onContainerAgentFileChanged?.(event);

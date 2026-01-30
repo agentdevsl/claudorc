@@ -11,6 +11,7 @@ import {
   type ContainerAgentToolResult,
   type ContainerAgentToolStart,
   type ContainerAgentTurn,
+  type ContainerAgentWorktree,
   type SessionCallbacks,
   type Subscription,
   subscribeToSession,
@@ -77,6 +78,8 @@ export interface ContainerAgentState {
   statusHistory: ContainerAgentStatusEntry[];
   /** Model being used */
   model?: string;
+  /** Git branch for the agent's worktree */
+  branch?: string;
   /** Maximum turns allowed */
   maxTurns?: number;
   /** Current turn number */
@@ -291,6 +294,14 @@ export function useContainerAgent(sessionId: string | null): {
     }));
   }, []);
 
+  // Handle worktree info
+  const handleWorktree = useCallback((data: ContainerAgentWorktree) => {
+    setState((prev) => ({
+      ...prev,
+      branch: data.branch,
+    }));
+  }, []);
+
   // Handle file changed
   const handleFileChanged = useCallback((data: ContainerAgentFileChanged) => {
     setState((prev) => {
@@ -347,6 +358,7 @@ export function useContainerAgent(sessionId: string | null): {
       onContainerAgentError: (event) => handleError(event.data),
       onContainerAgentCancelled: (event) => handleCancelled(event.data),
       onContainerAgentPlanReady: (event) => handlePlanReady(event.data),
+      onContainerAgentWorktree: (event) => handleWorktree(event.data),
       onContainerAgentFileChanged: (event) => handleFileChanged(event.data),
       onError: (error) => {
         console.error('[useContainerAgent] Stream error:', error);
@@ -383,6 +395,7 @@ export function useContainerAgent(sessionId: string | null): {
     handleError,
     handleCancelled,
     handlePlanReady,
+    handleWorktree,
     handleFileChanged,
   ]);
 

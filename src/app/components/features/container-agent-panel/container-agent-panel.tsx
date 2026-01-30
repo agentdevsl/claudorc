@@ -1,10 +1,15 @@
 import { Square } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { useContainerAgent } from '@/app/hooks/use-container-agent';
+import { cn } from '@/lib/utils/cn';
+import { ContainerAgentChangesTab } from './container-agent-changes-tab';
 import { ContainerAgentHeader } from './container-agent-header';
 import { ContainerAgentStatusBreadcrumbs } from './container-agent-status-breadcrumbs';
 import { ContainerAgentStream } from './container-agent-stream';
 import { ContainerAgentToolList } from './container-agent-tool-list';
+
+type PanelTab = 'output' | 'changes';
 
 export interface ContainerAgentPanelProps {
   /** Session ID to subscribe to */
@@ -36,8 +41,10 @@ export function ContainerAgentPanel({
   isPlanActionPending,
 }: ContainerAgentPanelProps): React.JSX.Element {
   const { state, connectionState, isStreaming } = useContainerAgent(sessionId);
+  const [activeTab, setActiveTab] = useState<PanelTab>('output');
 
   const isActive = state.status === 'running' || state.status === 'starting';
+  const hasChanges = state.fileChanges.length > 0;
 
   return (
     <div className="flex flex-1 min-h-0 min-w-0 flex-col rounded-lg border border-border bg-surface">
@@ -46,6 +53,7 @@ export function ContainerAgentPanel({
         <ContainerAgentHeader
           status={state.status}
           model={state.model}
+          branch={state.branch}
           currentTurn={state.currentTurn}
           maxTurns={state.maxTurns}
           startedAt={state.startedAt}
@@ -76,29 +84,70 @@ export function ContainerAgentPanel({
         />
       )}
 
+      {/* Tab bar */}
+      {hasChanges && (
+        <div className="flex border-b border-border bg-surface-subtle" data-testid="panel-tabs">
+          <button
+            type="button"
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'output'
+                ? 'border-b-2 border-accent text-fg'
+                : 'text-fg-muted hover:text-fg'
+            )}
+            onClick={() => setActiveTab('output')}
+          >
+            Output
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'changes'
+                ? 'border-b-2 border-accent text-fg'
+                : 'text-fg-muted hover:text-fg'
+            )}
+            onClick={() => setActiveTab('changes')}
+          >
+            Changes
+            <span className="ml-1.5 rounded-full bg-surface-subtle px-1.5 py-0.5 text-xs tabular-nums">
+              {state.fileChanges.length}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Main content area */}
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
-        {/* Stream output */}
-        <div className="flex-1 min-h-0 min-w-0 flex flex-col">
-          <ContainerAgentStream
-            streamedText={state.streamedText}
-            messages={state.messages}
-            isStreaming={isStreaming}
-            result={state.result}
-            error={state.error}
-            status={state.status}
-            statusMessage={state.statusMessage}
-            plan={state.plan}
-            onApprovePlan={state.status === 'plan_ready' ? onApprovePlan : undefined}
-            onRejectPlan={state.status === 'plan_ready' ? onRejectPlan : undefined}
-            isPlanActionPending={isPlanActionPending}
-          />
-        </div>
+        {activeTab === 'output' ? (
+          <>
+            {/* Stream output */}
+            <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+              <ContainerAgentStream
+                streamedText={state.streamedText}
+                messages={state.messages}
+                isStreaming={isStreaming}
+                result={state.result}
+                error={state.error}
+                status={state.status}
+                statusMessage={state.statusMessage}
+                plan={state.plan}
+                onApprovePlan={state.status === 'plan_ready' ? onApprovePlan : undefined}
+                onRejectPlan={state.status === 'plan_ready' ? onRejectPlan : undefined}
+                isPlanActionPending={isPlanActionPending}
+              />
+            </div>
 
-        {/* Tool executions sidebar */}
-        {state.toolExecutions.length > 0 && (
-          <div className="flex flex-col min-h-0 w-full border-t border-border lg:w-80 lg:border-l lg:border-t-0">
-            <ContainerAgentToolList tools={state.toolExecutions} />
+            {/* Tool executions sidebar */}
+            {state.toolExecutions.length > 0 && (
+              <div className="flex flex-col min-h-0 w-full border-t border-border lg:w-80 lg:border-l lg:border-t-0">
+                <ContainerAgentToolList tools={state.toolExecutions} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+            <ContainerAgentChangesTab fileChanges={state.fileChanges} />
           </div>
         )}
       </div>
