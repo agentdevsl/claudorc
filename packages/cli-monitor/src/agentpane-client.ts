@@ -79,61 +79,51 @@ export class AgentPaneClient {
     }
   }
 
-  async register(payload: RegisterPayload): Promise<void> {
-    const res = await this.fetchWithTimeout(`${this.baseUrl}/api/cli-monitor/register`, {
+  private async postJson(path: string, body: unknown): Promise<Response> {
+    return this.fetchWithTimeout(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+  }
+
+  private async readErrorDetail(res: Response): Promise<string> {
+    try {
+      return await res.text();
+    } catch {
+      return '';
+    }
+  }
+
+  async register(payload: RegisterPayload): Promise<void> {
+    const res = await this.postJson('/api/cli-monitor/register', payload);
     if (!res.ok) {
-      let detail = '';
-      try {
-        detail = await res.text();
-      } catch {
-        /* ignore */
-      }
+      const detail = await this.readErrorDetail(res);
       throw new Error(`Registration failed: ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
   }
 
   async heartbeat(daemonId: string, sessionCount: number): Promise<'ok' | 'reregister'> {
-    const res = await this.fetchWithTimeout(`${this.baseUrl}/api/cli-monitor/heartbeat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ daemonId, sessionCount }),
-    });
-    if (res.ok) {
-      return 'ok';
-    }
-    if (res.status === 409) {
-      return 'reregister';
-    }
+    const res = await this.postJson('/api/cli-monitor/heartbeat', { daemonId, sessionCount });
+    if (res.ok) return 'ok';
+    if (res.status === 409) return 'reregister';
     throw new Error(`Heartbeat failed: ${res.status}`);
   }
 
   async ingest(daemonId: string, sessions: unknown[], removedSessionIds: string[]): Promise<void> {
-    const res = await this.fetchWithTimeout(`${this.baseUrl}/api/cli-monitor/ingest`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ daemonId, sessions, removedSessionIds }),
+    const res = await this.postJson('/api/cli-monitor/ingest', {
+      daemonId,
+      sessions,
+      removedSessionIds,
     });
     if (!res.ok) {
-      let detail = '';
-      try {
-        detail = await res.text();
-      } catch {
-        /* ignore */
-      }
+      const detail = await this.readErrorDetail(res);
       throw new Error(`Ingest failed: ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
   }
 
   async deregister(daemonId: string): Promise<void> {
-    const res = await this.fetchWithTimeout(`${this.baseUrl}/api/cli-monitor/deregister`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ daemonId }),
-    });
+    const res = await this.postJson('/api/cli-monitor/deregister', { daemonId });
     if (!res.ok) {
       throw new Error(`Deregister failed: ${res.status}`);
     }

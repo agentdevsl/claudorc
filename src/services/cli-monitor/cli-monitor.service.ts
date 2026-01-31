@@ -151,7 +151,7 @@ export class CliMonitorService {
     sessionCount: number;
   } {
     return {
-      connected: this.daemon !== null,
+      connected: this.isDaemonConnected(),
       daemon: this.daemon,
       sessionCount: this.sessions.size,
     };

@@ -6,3 +6,8 @@ export function createId(): string {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+/** Extract a human-readable message from an unknown error value */
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

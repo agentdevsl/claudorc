@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { logger } from './logger.js';
-import type { SessionStore } from './session-store.js';
+import type { SessionStatus, SessionStore } from './session-store.js';
 
 // Minimal types for JSONL events (no dependency on main repo types)
 interface RawEvent {
@@ -43,8 +43,6 @@ interface ContentBlock {
   tool_use_id?: string;
   is_error?: boolean;
 }
-
-type SessionStatus = 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
 
 const MAX_LINE_BYTES = 1_000_000; // 1MB per line
 

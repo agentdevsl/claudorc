@@ -6,7 +6,7 @@ import { AgentPaneClient } from './agentpane-client.js';
 import { printError, printStatusBox } from './display.js';
 import { logger } from './logger.js';
 import { SessionStore } from './session-store.js';
-import { createId } from './utils.js';
+import { createId, errorMessage } from './utils.js';
 import { VERSION } from './version.js';
 import { FileWatcher } from './watcher.js';
 
@@ -77,6 +77,15 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   const watchDir = options.watchPath || path.join(homedir(), '.claude', 'projects');
   const client = new AgentPaneClient(options.port);
   const store = new SessionStore();
+
+  const buildRegisterPayload = () => ({
+    daemonId,
+    pid: process.pid,
+    version: VERSION,
+    watchPath: watchDir,
+    capabilities: ['watch', 'parse', 'subagents'],
+    startedAt: Date.now(),
+  });
   let watcher: FileWatcher | null = null;
   let ingestTimer: ReturnType<typeof setInterval> | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -96,7 +105,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
       await client.deregister(daemonId);
     } catch (err) {
       logger.error('Deregister on shutdown failed', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
     await releaseLock();
@@ -144,14 +153,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
 
   while (!connected && !isShuttingDown) {
     try {
-      await client.register({
-        daemonId,
-        pid: process.pid,
-        version: VERSION,
-        watchPath: watchDir,
-        capabilities: ['watch', 'parse', 'subagents'],
-        startedAt: Date.now(),
-      });
+      await client.register(buildRegisterPayload());
       connected = true;
       retryDelay = 1000; // Reset on success
     } catch {
@@ -181,19 +183,12 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   // Heartbeat every 10s (unref to not block exit)
   const doReregister = async () => {
     try {
-      await client.register({
-        daemonId,
-        pid: process.pid,
-        version: VERSION,
-        watchPath: watchDir,
-        capabilities: ['watch', 'parse', 'subagents'],
-        startedAt: Date.now(),
-      });
+      await client.register(buildRegisterPayload());
       store.markAllChanged();
       logger.info('Re-registered with server, triggering full session re-sync');
     } catch (retryErr) {
       logger.error('Re-register failed', {
-        error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+        error: errorMessage(retryErr),
       });
     }
   };
@@ -206,7 +201,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
         await doReregister();
       }
     } catch (err) {
-      logger.error('Heartbeat failed', { error: err instanceof Error ? err.message : String(err) });
+      logger.error('Heartbeat failed', { error: errorMessage(err) });
       await doReregister();
     }
   }, 10_000);
@@ -234,7 +229,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     try {
       await client.ingest(daemonId, updated, removed);
     } catch (err) {
-      logger.error('Ingest failed', { error: err instanceof Error ? err.message : String(err) });
+      logger.error('Ingest failed', { error: errorMessage(err) });
       store.markPendingRetry(updated, removed);
     } finally {
       ingestInFlight = false;

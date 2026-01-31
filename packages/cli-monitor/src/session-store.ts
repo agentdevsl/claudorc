@@ -135,7 +135,6 @@ export class SessionStore {
     for (const [id, session] of this.sessions) {
       if (session.status === 'idle' && session.lastActivityAt < cutoff) {
         this.removeSession(id);
-        this.readOffsets.delete(session.filePath);
         evicted++;
       }
     }

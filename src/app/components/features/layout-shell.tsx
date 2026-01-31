@@ -32,9 +32,8 @@ export function LayoutShell({
         <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
-        {header ? (
-          header
-        ) : breadcrumbs ? (
+        {header && header}
+        {!header && breadcrumbs && (
           <header
             className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 sm:py-4"
             data-testid="layout-header"
@@ -50,10 +49,6 @@ export function LayoutShell({
               </button>
               <div>
                 <Breadcrumbs items={breadcrumbs} />
-                {/*
-                  Don't show separate page title - the last breadcrumb already shows the current page.
-                  This avoids redundancy like "Projects > test123ab / test123ab"
-                */}
               </div>
             </div>
             {centerAction ? (
@@ -71,7 +66,7 @@ export function LayoutShell({
               <div />
             )}
           </header>
-        ) : null}
+        )}
         <main className="flex-1 min-h-0 overflow-hidden" data-testid="layout-main">
           {children}
         </main>

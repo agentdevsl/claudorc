@@ -121,6 +121,30 @@ interface CliMonitorDeps {
   cliMonitorService: CliMonitorService;
 }
 
+/** Parse and validate a JSON POST body against a Zod schema.
+ *  Returns the parsed data on success, or an error Response on failure. */
+async function parseBody<T>(
+  c: {
+    req: { header: (name: string) => string | undefined; json: () => Promise<unknown> };
+    json: (data: unknown, status: number) => Response;
+  },
+  schema: z.ZodType<T>
+): Promise<T | Response> {
+  const sizeError = checkBodySize(c);
+  if (sizeError) return sizeError;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return invalidJsonError(c);
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(c, parsed.error.issues);
+  }
+  return parsed.data;
+}
+
 export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
   const app = new Hono();
 
@@ -128,48 +152,24 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /register — Daemon announces itself
   app.post('/register', async (c) => {
-    const sizeError = checkBodySize(c);
-    if (sizeError) return sizeError;
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return invalidJsonError(c);
-    }
-    const parsed = registerSchema.safeParse(body);
-    if (!parsed.success) {
-      console.warn('[CliMonitor] Register validation failed:', JSON.stringify(parsed.error.issues));
-      return validationError(c, parsed.error.issues);
-    }
+    const data = await parseBody(c, registerSchema);
+    if (data instanceof Response) return data;
     cliMonitorService.registerDaemon({
-      daemonId: parsed.data.daemonId,
-      pid: parsed.data.pid,
-      version: parsed.data.version,
-      watchPath: parsed.data.watchPath,
-      capabilities: parsed.data.capabilities,
-      startedAt: parsed.data.startedAt || Date.now(),
+      daemonId: data.daemonId,
+      pid: data.pid,
+      version: data.version,
+      watchPath: data.watchPath,
+      capabilities: data.capabilities,
+      startedAt: data.startedAt || Date.now(),
     });
     return c.json({ ok: true });
   });
 
   // POST /heartbeat — Daemon keepalive
   app.post('/heartbeat', async (c) => {
-    const sizeError = checkBodySize(c);
-    if (sizeError) return sizeError;
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return invalidJsonError(c);
-    }
-    const parsed = heartbeatSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(c, parsed.error.issues);
-    }
-    const result = cliMonitorService.handleHeartbeat(
-      parsed.data.daemonId,
-      parsed.data.sessionCount
-    );
+    const data = await parseBody(c, heartbeatSchema);
+    if (data instanceof Response) return data;
+    const result = cliMonitorService.handleHeartbeat(data.daemonId, data.sessionCount);
     if (result === 'ok') {
       return c.json({ ok: true });
     }
@@ -185,22 +185,12 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /ingest — Daemon pushes session updates
   app.post('/ingest', async (c) => {
-    const sizeError = checkBodySize(c);
-    if (sizeError) return sizeError;
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return invalidJsonError(c);
-    }
-    const parsed = ingestSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(c, parsed.error.issues);
-    }
+    const data = await parseBody(c, ingestSchema);
+    if (data instanceof Response) return data;
     const accepted = cliMonitorService.ingestSessions(
-      parsed.data.daemonId,
-      parsed.data.sessions as never[],
-      parsed.data.removedSessionIds
+      data.daemonId,
+      data.sessions as never[],
+      data.removedSessionIds
     );
     if (!accepted) {
       return c.json(
@@ -213,19 +203,9 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
 
   // POST /deregister — Daemon shutting down
   app.post('/deregister', async (c) => {
-    const sizeError = checkBodySize(c);
-    if (sizeError) return sizeError;
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return invalidJsonError(c);
-    }
-    const parsed = deregisterSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(c, parsed.error.issues);
-    }
-    cliMonitorService.deregisterDaemon(parsed.data.daemonId);
+    const data = await parseBody(c, deregisterSchema);
+    if (data instanceof Response) return data;
+    cliMonitorService.deregisterDaemon(data.daemonId);
     return c.json({ ok: true });
   });
 

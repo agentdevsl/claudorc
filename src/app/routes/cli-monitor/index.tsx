@@ -685,15 +685,13 @@ function ActiveState({
     }
   }, [selectedSession]);
 
-  // Summary stats
-  // Exclude subagents from summary stats to match visible card count
-  const visibleSessions = flatSessions;
-  const totalTokens = visibleSessions.reduce((sum, s) => sum + getSessionTokenTotal(s), 0);
-  const workingCount = visibleSessions.filter((s) => s.status === 'working').length;
-  const waitingCount = visibleSessions.filter(
+  // Summary stats (excludes subagents to match visible card count)
+  const totalTokens = flatSessions.reduce((sum, s) => sum + getSessionTokenTotal(s), 0);
+  const workingCount = flatSessions.filter((s) => s.status === 'working').length;
+  const waitingCount = flatSessions.filter(
     (s) => s.status === 'waiting_for_approval' || s.status === 'waiting_for_input'
   ).length;
-  const idleCount = visibleSessions.filter((s) => s.status === 'idle').length;
+  const idleCount = flatSessions.filter((s) => s.status === 'idle').length;
 
   // Group sessions by project
   const projectGroups = useMemo(() => {
@@ -730,7 +728,7 @@ function ActiveState({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px border-b border-border bg-border">
         <SummaryCard
           label="Active Sessions"
-          value={visibleSessions.length}
+          value={flatSessions.length}
           detail={`${workingCount} working \u00B7 ${waitingCount} waiting \u00B7 ${idleCount} idle`}
         />
         <SummaryCard
@@ -793,9 +791,9 @@ function ActiveState({
               );
             });
           })()}
-          {visibleSessions.length > visibleCount && (
+          {flatSessions.length > visibleCount && (
             <div ref={loadMoreRef} className="py-2 text-center text-xs text-fg-subtle">
-              Showing {visibleCount} of {visibleSessions.length} sessions — scroll to load more
+              Showing {visibleCount} of {flatSessions.length} sessions — scroll to load more
             </div>
           )}
         </div>

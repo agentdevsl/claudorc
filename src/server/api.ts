@@ -56,7 +56,7 @@ validateEnv();
 import { Database as BunSQLite } from 'bun:sqlite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
@@ -174,6 +174,33 @@ try {
 } catch (error) {
   console.error(
     '[API Server] Failed to reset stale agents:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+// Recover orphaned tasks from previous server runs
+// Tasks stuck in 'in_progress' with a non-null agentId cannot be legitimately running
+// after a restart — move them back to 'backlog' and clear stale references.
+// Uses direct DB update (not taskService.moveColumn) to avoid triggering agent auto-start.
+try {
+  const result = db
+    .update(tasks)
+    .set({
+      column: 'backlog',
+      agentId: null,
+      sessionId: null,
+      lastAgentStatus: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(tasks.column, 'in_progress'), isNotNull(tasks.agentId)))
+    .run();
+  const changes = (result as { changes?: number }).changes ?? 0;
+  if (changes > 0) {
+    console.log(`[API Server] Recovered ${changes} orphaned task(s) back to backlog`);
+  }
+} catch (error) {
+  console.error(
+    '[API Server] Failed to recover orphaned tasks:',
     error instanceof Error ? error.message : String(error)
   );
 }
