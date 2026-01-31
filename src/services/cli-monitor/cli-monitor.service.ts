@@ -1,3 +1,8 @@
+import { createId } from '@paralleldrive/cuid2';
+import { and, desc, eq, lt } from 'drizzle-orm';
+import { cliSessions } from '../../db/schema/cli-sessions.js';
+import { settings } from '../../db/schema/settings.js';
+import type { Database } from '../../types/database.js';
 import type { CliSession, DaemonInfo, DaemonRegisterPayload } from './types.js';
 import { DAEMON_TIMEOUT_MS } from './types.js';
 
@@ -15,12 +20,22 @@ const CLI_MONITOR_STREAM_ID = 'cli-monitor';
 
 export class CliMonitorService {
   private static readonly MAX_SESSIONS = 10_000;
+  private static readonly MAINTENANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+  private static readonly DEFAULT_RETENTION_DAYS = 1;
 
   private sessions = new Map<string, CliSession>();
   private daemon: DaemonInfo | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private streamsServer: StreamsServer) {}
+  constructor(
+    private streamsServer: StreamsServer,
+    private db?: Database
+  ) {
+    if (this.db) {
+      this.startMaintenance();
+    }
+  }
 
   // ── Daemon Registration ──
 
@@ -124,6 +139,16 @@ export class CliMonitorService {
       }
     }
 
+    // Persist to DB asynchronously (fire-and-forget)
+    if (this.db) {
+      this.persistSessions(sessions, removedIds).catch((persistErr) => {
+        console.error(
+          '[CliMonitor] DB persist error:',
+          persistErr instanceof Error ? persistErr.message : String(persistErr)
+        );
+      });
+    }
+
     return true;
   }
 
@@ -157,6 +182,44 @@ export class CliMonitorService {
     };
   }
 
+  // ── Historical Queries (from DB) ──
+
+  getHistoricalSessions(opts?: {
+    projectHash?: string;
+    since?: number;
+    limit?: number;
+  }): CliSession[] {
+    if (!this.db) return [];
+
+    const limit = Math.min(opts?.limit ?? 100, 500);
+
+    try {
+      const conditions = [];
+      if (opts?.projectHash) {
+        conditions.push(eq(cliSessions.projectHash, opts.projectHash));
+      }
+      if (opts?.since) {
+        conditions.push(lt(cliSessions.lastActivityAt, opts.since));
+      }
+
+      const rows = this.db
+        .select()
+        .from(cliSessions)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(cliSessions.lastActivityAt))
+        .limit(limit)
+        .all();
+
+      return rows.map((row) => this.rowToSession(row));
+    } catch (err) {
+      console.error(
+        '[CliMonitor] Historical query error:',
+        err instanceof Error ? err.message : String(err)
+      );
+      return [];
+    }
+  }
+
   // ── SSE Subscription ──
 
   addRealtimeSubscriber(
@@ -165,15 +228,157 @@ export class CliMonitorService {
     return this.streamsServer.addRealtimeSubscriber(CLI_MONITOR_STREAM_ID, callback);
   }
 
+  // ── Maintenance ──
+
+  async runMaintenance(): Promise<number> {
+    if (!this.db) return 0;
+
+    try {
+      // Read retention from settings, default to 1 day
+      let retentionDays = CliMonitorService.DEFAULT_RETENTION_DAYS;
+      try {
+        const setting = this.db.query.settings.findFirst({
+          where: eq(settings.key, 'cliMonitor.retentionDays'),
+        });
+        const row = setting as unknown as { value: string } | undefined;
+        if (row?.value) {
+          const parsed = Number.parseInt(row.value, 10);
+          if (!Number.isNaN(parsed) && parsed > 0) {
+            retentionDays = parsed;
+          }
+        }
+      } catch {
+        // Use default retention
+      }
+
+      const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+      const result = this.db
+        .delete(cliSessions)
+        .where(lt(cliSessions.lastActivityAt, cutoff))
+        .run();
+
+      const changes = (result as { changes?: number }).changes ?? 0;
+      if (changes > 0) {
+        console.log(
+          `[CliMonitor] Maintenance: deleted ${changes} session(s) older than ${retentionDays} day(s)`
+        );
+      }
+      return changes;
+    } catch (err) {
+      console.error(
+        '[CliMonitor] Maintenance error:',
+        err instanceof Error ? err.message : String(err)
+      );
+      return 0;
+    }
+  }
+
   // ── Cleanup ──
 
   destroy(): void {
     this.stopHeartbeatCheck();
+    this.stopMaintenance();
     this.sessions.clear();
     this.daemon = null;
   }
 
-  // ── Internal ──
+  // ── Internal: DB Persistence ──
+
+  private async persistSessions(sessions: CliSession[], removedIds: string[]): Promise<void> {
+    if (!this.db) return;
+
+    for (const session of sessions) {
+      const now = new Date().toISOString();
+      const values = {
+        sessionId: session.sessionId,
+        filePath: session.filePath,
+        cwd: session.cwd,
+        projectName: session.projectName,
+        projectHash: session.projectHash || '',
+        gitBranch: session.gitBranch ?? null,
+        status: session.status,
+        messageCount: session.messageCount,
+        turnCount: session.turnCount,
+        goal: session.goal ?? null,
+        recentOutput: session.recentOutput ?? null,
+        pendingToolUse: session.pendingToolUse ? JSON.stringify(session.pendingToolUse) : null,
+        tokenUsage: session.tokenUsage ? JSON.stringify(session.tokenUsage) : null,
+        model: session.model ?? null,
+        startedAt: session.startedAt,
+        lastActivityAt: session.lastActivityAt,
+        isSubagent: session.isSubagent,
+        parentSessionId: session.parentSessionId ?? null,
+        updatedAt: now,
+      };
+
+      try {
+        // Try update first (most common case)
+        const result = this.db
+          .update(cliSessions)
+          .set(values)
+          .where(eq(cliSessions.sessionId, session.sessionId))
+          .run();
+
+        const changes = (result as { changes?: number }).changes ?? 0;
+        if (changes === 0) {
+          // Insert new row
+          this.db
+            .insert(cliSessions)
+            .values({
+              id: createId(),
+              ...values,
+              createdAt: now,
+            })
+            .run();
+        }
+      } catch (upsertErr) {
+        console.error(
+          `[CliMonitor] Upsert error for ${session.sessionId}:`,
+          upsertErr instanceof Error ? upsertErr.message : String(upsertErr)
+        );
+      }
+    }
+
+    // Remove deleted sessions from DB
+    for (const id of removedIds) {
+      try {
+        this.db.delete(cliSessions).where(eq(cliSessions.sessionId, id)).run();
+      } catch (deleteErr) {
+        console.error(
+          `[CliMonitor] Delete error for ${id}:`,
+          deleteErr instanceof Error ? deleteErr.message : String(deleteErr)
+        );
+      }
+    }
+  }
+
+  private rowToSession(row: typeof cliSessions.$inferSelect): CliSession {
+    return {
+      sessionId: row.sessionId,
+      filePath: row.filePath,
+      cwd: row.cwd,
+      projectName: row.projectName,
+      projectHash: row.projectHash,
+      gitBranch: row.gitBranch ?? undefined,
+      status: row.status ?? 'idle',
+      messageCount: row.messageCount ?? 0,
+      turnCount: row.turnCount ?? 0,
+      goal: row.goal ?? undefined,
+      recentOutput: row.recentOutput ?? undefined,
+      pendingToolUse: row.pendingToolUse ? JSON.parse(row.pendingToolUse) : undefined,
+      tokenUsage: row.tokenUsage
+        ? JSON.parse(row.tokenUsage)
+        : { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+      model: row.model ?? undefined,
+      startedAt: row.startedAt,
+      lastActivityAt: row.lastActivityAt,
+      lastReadOffset: 0,
+      isSubagent: row.isSubagent ?? false,
+      parentSessionId: row.parentSessionId ?? undefined,
+    };
+  }
+
+  // ── Internal: Publishing ──
 
   private publish(type: string, data: unknown): void {
     this.streamsServer.publish(CLI_MONITOR_STREAM_ID, type, data).catch((publishErr) => {
@@ -183,6 +388,8 @@ export class CliMonitorService {
       );
     });
   }
+
+  // ── Internal: Heartbeat ──
 
   private startHeartbeatCheck(): void {
     this.stopHeartbeatCheck();
@@ -200,6 +407,25 @@ export class CliMonitorService {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+  }
+
+  // ── Internal: Maintenance ──
+
+  private startMaintenance(): void {
+    this.stopMaintenance();
+    // Run maintenance on startup
+    this.runMaintenance().catch(() => {});
+    // Then periodically
+    this.maintenanceTimer = setInterval(() => {
+      this.runMaintenance().catch(() => {});
+    }, CliMonitorService.MAINTENANCE_INTERVAL_MS);
+  }
+
+  private stopMaintenance(): void {
+    if (this.maintenanceTimer) {
+      clearInterval(this.maintenanceTimer);
+      this.maintenanceTimer = null;
     }
   }
 }

@@ -332,6 +332,37 @@ ALTER TABLE sandbox_configs ADD COLUMN network_policy_enabled INTEGER DEFAULT 1;
 ALTER TABLE sandbox_configs ADD COLUMN allowed_egress_hosts TEXT;
 `;
 
+// CLI Sessions migration (for CLI Monitor DB persistence)
+export const CLI_SESSIONS_MIGRATION_SQL = `
+CREATE TABLE IF NOT EXISTS "cli_sessions" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "session_id" TEXT NOT NULL UNIQUE,
+  "file_path" TEXT NOT NULL,
+  "cwd" TEXT NOT NULL,
+  "project_name" TEXT NOT NULL,
+  "project_hash" TEXT NOT NULL,
+  "git_branch" TEXT,
+  "status" TEXT NOT NULL DEFAULT 'idle',
+  "message_count" INTEGER NOT NULL DEFAULT 0,
+  "turn_count" INTEGER NOT NULL DEFAULT 0,
+  "goal" TEXT,
+  "recent_output" TEXT,
+  "pending_tool_use" TEXT,
+  "token_usage" TEXT,
+  "model" TEXT,
+  "started_at" INTEGER NOT NULL,
+  "last_activity_at" INTEGER NOT NULL,
+  "is_subagent" INTEGER NOT NULL DEFAULT 0,
+  "parent_session_id" TEXT,
+  "created_at" TEXT NOT NULL DEFAULT (datetime('now')),
+  "updated_at" TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS "idx_cli_sessions_project" ON "cli_sessions"("project_hash", "last_activity_at");
+CREATE INDEX IF NOT EXISTS "idx_cli_sessions_status" ON "cli_sessions"("status");
+CREATE INDEX IF NOT EXISTS "idx_cli_sessions_last_activity" ON "cli_sessions"("last_activity_at");
+`;
+
 // Performance indexes migration
 export const PERFORMANCE_INDEXES_MIGRATION_SQL = `
 -- Index for looking up tasks by agent

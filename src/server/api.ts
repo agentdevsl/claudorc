@@ -63,6 +63,7 @@ import * as schema from '../db/schema/index.js';
 import { settings } from '../db/schema/settings.js';
 import { tasks } from '../db/schema/tasks.js';
 import {
+  CLI_SESSIONS_MIGRATION_SQL,
   MIGRATION_SQL,
   PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
@@ -149,6 +150,10 @@ try {
 // Apply performance indexes (idempotent — uses IF NOT EXISTS)
 sqlite.exec(PERFORMANCE_INDEXES_MIGRATION_SQL);
 log.info('Performance indexes applied');
+
+// Apply CLI sessions migration (idempotent — uses IF NOT EXISTS)
+sqlite.exec(CLI_SESSIONS_MIGRATION_SQL);
+log.info('CLI sessions migration applied');
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
@@ -397,8 +402,8 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
 log.info('[API Server] Using in-memory DurableStreamsServer for local development');
 
-// CLI Monitor service for monitoring Claude Code CLI sessions
-const cliMonitorService = new CliMonitorService(inMemoryStreamsServer);
+// CLI Monitor service for monitoring Claude Code CLI sessions (with DB persistence)
+const cliMonitorService = new CliMonitorService(inMemoryStreamsServer, db);
 log.info('[API Server] CLI Monitor receiver ready (waiting for daemon)');
 
 // DurableStreamsService for SSE and container agent events

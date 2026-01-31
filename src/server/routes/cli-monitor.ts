@@ -241,6 +241,27 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
     });
   });
 
+  // GET /history — Query historical sessions from DB
+  app.get('/history', (c) => {
+    const projectHash = c.req.query('projectHash');
+    const sinceParam = c.req.query('since');
+    const limitParam = c.req.query('limit');
+
+    const since = sinceParam ? parseInt(sinceParam, 10) : undefined;
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    const sessions = cliMonitorService.getHistoricalSessions({
+      projectHash: projectHash || undefined,
+      since: since && !Number.isNaN(since) ? since : undefined,
+      limit: limit && !Number.isNaN(limit) ? limit : undefined,
+    });
+
+    return c.json({
+      ok: true,
+      data: { sessions, total: sessions.length },
+    });
+  });
+
   // GET /stream — SSE endpoint for live updates
   app.get('/stream', (c) => {
     if (activeSSEConnections >= MAX_SSE_CONNECTIONS) {
