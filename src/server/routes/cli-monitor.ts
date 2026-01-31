@@ -138,6 +138,7 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
     }
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
+      console.warn('[CliMonitor] Register validation failed:', JSON.stringify(parsed.error.issues));
       return validationError(c, parsed.error.issues);
     }
     cliMonitorService.registerDaemon({
@@ -165,17 +166,21 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
     if (!parsed.success) {
       return validationError(c, parsed.error.issues);
     }
-    const accepted = cliMonitorService.handleHeartbeat(
+    const result = cliMonitorService.handleHeartbeat(
       parsed.data.daemonId,
       parsed.data.sessionCount
     );
-    if (!accepted) {
-      return c.json(
-        { ok: false, error: { code: 'UNKNOWN_DAEMON', message: 'Daemon not registered' } },
-        404
-      );
+    if (result === 'ok') {
+      return c.json({ ok: true });
     }
-    return c.json({ ok: true });
+    // Tell daemon to re-register so it can recover
+    return c.json(
+      {
+        ok: false,
+        error: { code: 'REREGISTER', message: 'Daemon not recognized — please re-register' },
+      },
+      409
+    );
   });
 
   // POST /ingest — Daemon pushes session updates

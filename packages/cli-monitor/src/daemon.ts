@@ -179,30 +179,35 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   });
 
   // Heartbeat every 10s (unref to not block exit)
+  const doReregister = async () => {
+    try {
+      await client.register({
+        daemonId,
+        pid: process.pid,
+        version: VERSION,
+        watchPath: watchDir,
+        capabilities: ['watch', 'parse', 'subagents'],
+        startedAt: Date.now(),
+      });
+      store.markAllChanged();
+      logger.info('Re-registered with server, triggering full session re-sync');
+    } catch (retryErr) {
+      logger.error('Re-register failed', {
+        error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+      });
+    }
+  };
+
   heartbeatTimer = setInterval(async () => {
     try {
-      await client.heartbeat(daemonId, store.getSessionCount());
+      const result = await client.heartbeat(daemonId, store.getSessionCount());
+      if (result === 'reregister') {
+        logger.info('Server requested re-registration');
+        await doReregister();
+      }
     } catch (err) {
       logger.error('Heartbeat failed', { error: err instanceof Error ? err.message : String(err) });
-      // Server may have restarted — try to re-register
-      try {
-        await client.register({
-          daemonId,
-          pid: process.pid,
-          version: VERSION,
-          watchPath: watchDir,
-          capabilities: ['watch', 'parse', 'subagents'],
-          startedAt: Date.now(),
-        });
-        // Re-registration succeeded — server lost its state, so mark all
-        // sessions as changed to trigger a full re-sync on the next ingest.
-        store.markAllChanged();
-        logger.info('Re-registered with server, triggering full session re-sync');
-      } catch (retryErr) {
-        logger.error('Re-register failed', {
-          error: retryErr instanceof Error ? retryErr.message : String(retryErr),
-        });
-      }
+      await doReregister();
     }
   }, 10_000);
   if (heartbeatTimer.unref) heartbeatTimer.unref();

@@ -48,12 +48,15 @@ export class CliMonitorService {
     );
   }
 
-  handleHeartbeat(daemonId: string, _sessionCount: number): boolean {
-    if (this.daemon?.daemonId !== daemonId) {
-      return false;
+  handleHeartbeat(daemonId: string, _sessionCount: number): 'ok' | 'unknown' | 'stale' {
+    if (!this.daemon) {
+      return 'unknown';
+    }
+    if (this.daemon.daemonId !== daemonId) {
+      return 'stale';
     }
     this.daemon.lastHeartbeatAt = Date.now();
-    return true;
+    return 'ok';
   }
 
   deregisterDaemon(daemonId: string): boolean {
@@ -184,13 +187,13 @@ export class CliMonitorService {
   private startHeartbeatCheck(): void {
     this.stopHeartbeatCheck();
     this.heartbeatTimer = setInterval(() => {
-      if (this.daemon && Date.now() - this.daemon.lastHeartbeatAt > DAEMON_TIMEOUT_MS) {
+      if (this.daemon && Date.now() - this.daemon.lastHeartbeatAt > DAEMON_TIMEOUT_MS * 1.5) {
         console.warn(
-          `[CliMonitor] Daemon heartbeat timeout (${DAEMON_TIMEOUT_MS}ms), marking disconnected`
+          `[CliMonitor] Daemon heartbeat timeout (${DAEMON_TIMEOUT_MS * 1.5}ms with grace), marking disconnected`
         );
         this.deregisterDaemon(this.daemon.daemonId);
       }
-    }, 10_000);
+    }, 15_000);
   }
 
   private stopHeartbeatCheck(): void {

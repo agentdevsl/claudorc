@@ -11,6 +11,8 @@ interface LayoutShellProps {
   actions?: ReactNode;
   /** Action displayed in the center of the header */
   centerAction?: ReactNode;
+  /** Custom header element — when provided, replaces the default breadcrumbs-based header */
+  header?: ReactNode;
   children: ReactNode;
 }
 
@@ -21,6 +23,7 @@ export function LayoutShell({
   projectPath,
   actions,
   centerAction,
+  header,
   children,
 }: LayoutShellProps): React.JSX.Element {
   return (
@@ -29,7 +32,9 @@ export function LayoutShell({
         <Sidebar projectId={projectId} projectName={projectName} projectPath={projectPath} />
       </div>
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
-        {breadcrumbs ? (
+        {header ? (
+          header
+        ) : breadcrumbs ? (
           <header
             className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 sm:py-4"
             data-testid="layout-header"

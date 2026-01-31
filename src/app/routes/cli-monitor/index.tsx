@@ -200,29 +200,8 @@ function useCliMonitorState() {
     };
   }, []);
 
-  // Poll for daemon on install page
+  // SSE stream for live updates — always connected for instant daemon detection
   useEffect(() => {
-    if (pageState !== 'install') return;
-
-    const poll = setInterval(async () => {
-      try {
-        const result = await apiClient.cliMonitor.status();
-        if (result.ok && result.data.connected) {
-          setDaemonConnected(true);
-          setPageState(result.data.sessionCount > 0 ? 'active' : 'waiting');
-        }
-      } catch {
-        // Server may be down
-      }
-    }, 3000);
-
-    return () => clearInterval(poll);
-  }, [pageState]);
-
-  // SSE stream for live updates
-  useEffect(() => {
-    if (pageState === 'install') return;
-
     const streamUrl = apiClient.cliMonitor.getStreamUrl();
     const source = new EventSource(streamUrl);
     eventSourceRef.current = source;
@@ -335,7 +314,7 @@ function useCliMonitorState() {
       source.close();
       eventSourceRef.current = null;
     };
-  }, [pageState, addAlert]);
+  }, [addAlert]);
 
   const aggregateStatus = deriveAggregateStatus(sessions);
 

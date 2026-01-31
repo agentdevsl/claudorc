@@ -86,19 +86,29 @@ export class AgentPaneClient {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      throw new Error(`Registration failed: ${res.status} ${res.statusText}`);
+      let detail = '';
+      try {
+        detail = await res.text();
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`Registration failed: ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
   }
 
-  async heartbeat(daemonId: string, sessionCount: number): Promise<void> {
+  async heartbeat(daemonId: string, sessionCount: number): Promise<'ok' | 'reregister'> {
     const res = await this.fetchWithTimeout(`${this.baseUrl}/api/cli-monitor/heartbeat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ daemonId, sessionCount }),
     });
-    if (!res.ok) {
-      throw new Error(`Heartbeat failed: ${res.status}`);
+    if (res.ok) {
+      return 'ok';
     }
+    if (res.status === 409) {
+      return 'reregister';
+    }
+    throw new Error(`Heartbeat failed: ${res.status}`);
   }
 
   async ingest(daemonId: string, sessions: unknown[], removedSessionIds: string[]): Promise<void> {

@@ -7,6 +7,7 @@ import {
   Lightning,
   Spinner,
   Square,
+  User,
   Warning,
   WarningCircle,
   XCircle,
@@ -88,6 +89,19 @@ const STAGE_LABELS: Record<string, string> = {
   executing: 'Starting...',
   running: 'Running',
 };
+
+/**
+ * Determine which badge to show on a card. Returns exactly one kind,
+ * making mutual exclusivity explicit and testable.
+ */
+type BadgeKind = 'running' | 'waiting-approval' | 'last-run' | 'none';
+
+function getCardBadgeKind(task: Task): BadgeKind {
+  if (task.column === 'in_progress' && (task.agentId || task.sessionId)) return 'running';
+  if (task.column === 'waiting_approval') return 'waiting-approval';
+  if (task.lastAgentStatus && task.lastAgentStatus in LAST_RUN_STATUS_CONFIG) return 'last-run';
+  return 'none';
+}
 
 /** Agent status info from real-time subscription */
 interface AgentStatusInfo {
@@ -238,40 +252,58 @@ export function KanbanCard({
         </span>
 
         <div className="flex items-center gap-1.5">
-          {/* Last run status badge (only when not running) */}
-          {task.lastAgentStatus && !task.agentId && (
-            <div
-              className={cn(
-                'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
-                LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].className
-              )}
-              data-testid="last-run-status"
-            >
-              {LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].icon}
-              <span>{LAST_RUN_STATUS_CONFIG[task.lastAgentStatus].label}</span>
-            </div>
-          )}
+          {/* Status badge — exactly one of: last-run, running, waiting-approval, or none */}
+          {(() => {
+            const badgeKind = getCardBadgeKind(task);
+            if (badgeKind === 'last-run') {
+              const config = LAST_RUN_STATUS_CONFIG[task.lastAgentStatus!];
+              return (
+                <div
+                  className={cn(
+                    'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                    config.className
+                  )}
+                  data-testid="last-run-status"
+                >
+                  {config.icon}
+                  <span>{config.label}</span>
+                </div>
+              );
+            }
+            if (badgeKind === 'running') {
+              return (
+                <div
+                  className="flex items-center gap-1.5 rounded bg-[var(--attention-muted)] px-2 py-1 text-xs text-[var(--attention-fg)]"
+                  data-testid="agent-status-indicator"
+                >
+                  {agentStatus?.isStarting ? (
+                    <Spinner className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
+                  )}
+                  <span>
+                    {agentStatus?.currentStage
+                      ? (STAGE_LABELS[agentStatus.currentStage] ?? agentStatus.currentStage)
+                      : 'Running'}
+                  </span>
+                </div>
+              );
+            }
+            if (badgeKind === 'waiting-approval') {
+              return (
+                <div
+                  className="flex items-center gap-1.5 rounded bg-[var(--secondary-muted)] px-2 py-1 text-xs text-[var(--secondary-fg)]"
+                  data-testid="waiting-approval-indicator"
+                >
+                  <User className="h-3 w-3" weight="fill" />
+                  <span>Waiting Approval</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
-          {/* Agent running badge - show for agentId OR sessionId (container agents) */}
-          {(task.agentId || (task.column === 'in_progress' && task.sessionId)) && (
-            <div
-              className="flex items-center gap-1.5 rounded bg-[var(--attention-muted)] px-2 py-1 text-xs text-[var(--attention-fg)]"
-              data-testid="agent-status-indicator"
-            >
-              {agentStatus?.isStarting ? (
-                <Spinner className="h-3 w-3 animate-spin" />
-              ) : (
-                <Circle weight="fill" className="h-1.5 w-1.5 animate-pulse" />
-              )}
-              <span>
-                {agentStatus?.currentStage
-                  ? (STAGE_LABELS[agentStatus.currentStage] ?? 'Starting...')
-                  : 'Running'}
-              </span>
-            </div>
-          )}
-
-          {/* Run Now button (for backlog tasks - onRunNow is only passed for backlog) */}
+          {/* Run Now button — shown when onRunNow callback is provided */}
           {onRunNow && (
             <button
               type="button"

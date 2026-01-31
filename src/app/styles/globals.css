@@ -728,6 +728,43 @@
     animation: statusPulse 2s ease-in-out infinite;
   }
 
+  /* Terminal pane glow border for working sessions */
+  @keyframes glowBorder {
+    0%, 100% { border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 0 8px rgba(63, 185, 80, 0.05); }
+    50% { border-color: rgba(63, 185, 80, 0.6); box-shadow: 0 0 12px rgba(63, 185, 80, 0.1); }
+  }
+
+  /* Token counter tick animation */
+  @keyframes tokenTick {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); color: var(--accent-fg); }
+    100% { transform: scale(1); }
+  }
+
+  /* Timeline NOW line pulse */
+  @keyframes nowLinePulse {
+    0%, 100% { opacity: 0.7; box-shadow: 0 0 6px rgba(248, 81, 73, 0.3); }
+    50% { opacity: 1; box-shadow: 0 0 12px rgba(248, 81, 73, 0.6); }
+  }
+
+  /* Timeline session bar entry animation */
+  @keyframes slideInRight {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Timeline session bar shimmer overlay for working sessions */
+  @keyframes timelineShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Terminal pane line entry animation */
+  @keyframes fadeInLine {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* ==========================================
      SESSION HISTORY ANIMATIONS (Phase 6)
      ========================================== */
