@@ -1,6 +1,6 @@
 {
   "name": "@agentpane/cli-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI monitor daemon for AgentPane — watches Claude Code sessions in real-time",
   "type": "module",
   "bin": {
@@ -19,13 +19,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/agentpane/agentpane.git",
+    "url": "https://github.com/agentdevsl/claudorc.git",
     "directory": "packages/cli-monitor"
   },
   "bugs": {
-    "url": "https://github.com/agentpane/agentpane/issues"
+    "url": "https://github.com/agentdevsl/claudorc/issues"
   },
-  "homepage": "https://github.com/agentpane/agentpane/tree/main/packages/cli-monitor#readme",
+  "homepage": "https://github.com/agentdevsl/claudorc/tree/main/packages/cli-monitor#readme",
   "author": "AgentPane",
   "license": "MIT",
   "keywords": [
