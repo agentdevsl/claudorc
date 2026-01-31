@@ -310,6 +310,8 @@ describe('parseJsonlFile', () => {
         outputTokens: 130,
         cacheCreationTokens: 15,
         cacheReadTokens: 50,
+        ephemeral5mTokens: 0,
+        ephemeral1hTokens: 0,
       });
     });
 
@@ -331,6 +333,8 @@ describe('parseJsonlFile', () => {
         outputTokens: 0,
         cacheCreationTokens: 0,
         cacheReadTokens: 0,
+        ephemeral5mTokens: 0,
+        ephemeral1hTokens: 0,
       });
     });
   });
@@ -673,6 +677,250 @@ describe('parseJsonlFile', () => {
       const store = parseEvents(content);
       const session = store.getSession('sess-1');
       expect(session!.lastActivityAt).toBe(Date.parse('2025-01-15T12:05:00.000Z'));
+    });
+  });
+
+  // ── Thinking Blocks ──
+
+  describe('thinking blocks', () => {
+    it('does not treat thinking blocks as text output', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'thinking', thinking: 'Let me analyze this...', signature: 'sig_abc' },
+              { type: 'text', text: 'Here is my response.' },
+            ],
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session!.recentOutput).toBe('Here is my response.');
+      expect(session!.status).toBe('working');
+    });
+
+    it('handles message with only thinking block (no text)', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'thinking', thinking: 'Deep thought...', signature: 'sig_xyz' }],
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      // No text block means no recentOutput update and no status change from content
+      expect(session!.recentOutput).toBeUndefined();
+    });
+
+    it('does not affect status when mixed with tool_use', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'thinking', thinking: 'Planning...', signature: 'sig_123' },
+              { type: 'tool_use', id: 'tool-1', name: 'Read' },
+            ],
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session!.status).toBe('waiting_for_approval');
+      expect(session!.pendingToolUse).toEqual({ toolName: 'Read', toolId: 'tool-1' });
+    });
+  });
+
+  // ── Progress Events ──
+
+  describe('progress events', () => {
+    it('does not affect session state', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'user',
+          message: { role: 'user', content: 'Do something' },
+        }),
+        makeEvent({
+          type: 'progress',
+          uuid: 'uuid-2',
+          progressData: {
+            type: 'hook_progress',
+            hookEvent: 'PreToolUse',
+            hookName: 'lint-check',
+            command: 'npm run lint',
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session).toBeDefined();
+      expect(session!.messageCount).toBe(1); // Only user message counted
+      expect(session!.status).toBe('working');
+    });
+
+    it('creates session from progress event if first event', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'progress',
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session).toBeDefined();
+      expect(session!.messageCount).toBe(0);
+    });
+  });
+
+  // ── File History Snapshot Events ──
+
+  describe('file-history-snapshot events', () => {
+    it('does not affect session state', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'user',
+          message: { role: 'user', content: 'Edit file' },
+        }),
+        makeEvent({
+          type: 'file-history-snapshot',
+          uuid: 'uuid-2',
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session).toBeDefined();
+      expect(session!.messageCount).toBe(1);
+    });
+  });
+
+  // ── Extended Token Usage ──
+
+  describe('extended token usage (ephemeral cache)', () => {
+    it('accumulates ephemeral cache tokens from cache_creation', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: 'First',
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 10,
+              cache_read_input_tokens: 20,
+              cache_creation: {
+                ephemeral_5m_input_tokens: 30,
+                ephemeral_1h_input_tokens: 15,
+              },
+            },
+          },
+        }),
+        makeEvent({
+          type: 'assistant',
+          uuid: 'uuid-2',
+          message: {
+            role: 'assistant',
+            content: 'Second',
+            usage: {
+              input_tokens: 200,
+              output_tokens: 80,
+              cache_creation_input_tokens: 5,
+              cache_read_input_tokens: 30,
+              cache_creation: {
+                ephemeral_5m_input_tokens: 20,
+                ephemeral_1h_input_tokens: 10,
+              },
+            },
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session!.tokenUsage).toEqual({
+        inputTokens: 300,
+        outputTokens: 130,
+        cacheCreationTokens: 15,
+        cacheReadTokens: 50,
+        ephemeral5mTokens: 50,
+        ephemeral1hTokens: 25,
+      });
+    });
+
+    it('handles usage without cache_creation sub-object', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: 'No ephemeral',
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 10,
+              cache_read_input_tokens: 20,
+            },
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session!.tokenUsage.ephemeral5mTokens).toBe(0);
+      expect(session!.tokenUsage.ephemeral1hTokens).toBe(0);
+    });
+
+    it('mixes events with and without cache_creation', () => {
+      const content = toJsonl(
+        makeEvent({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: 'With ephemeral',
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+              cache_creation: {
+                ephemeral_5m_input_tokens: 40,
+                ephemeral_1h_input_tokens: 0,
+              },
+            },
+          },
+        }),
+        makeEvent({
+          type: 'assistant',
+          uuid: 'uuid-2',
+          message: {
+            role: 'assistant',
+            content: 'Without ephemeral',
+            usage: {
+              input_tokens: 200,
+              output_tokens: 80,
+              cache_creation_input_tokens: 5,
+              cache_read_input_tokens: 30,
+            },
+          },
+        })
+      );
+
+      const store = parseEvents(content);
+      const session = store.getSession('sess-1');
+      expect(session!.tokenUsage.ephemeral5mTokens).toBe(40);
+      expect(session!.tokenUsage.ephemeral1hTokens).toBe(0);
     });
   });
 });

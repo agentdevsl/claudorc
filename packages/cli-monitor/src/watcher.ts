@@ -1,6 +1,6 @@
-import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import chokidar, { type FSWatcher } from 'chokidar';
 import { logger } from './logger.js';
 import { parseJsonlFile } from './parser.js';
 import type { SessionStore } from './session-store.js';
@@ -9,8 +9,7 @@ import type { SessionStore } from './session-store.js';
 const MAX_FILE_READ_BYTES = 100 * 1024 * 1024;
 
 export class FileWatcher {
-  private watcher: fs.FSWatcher | null = null;
-  private linuxWatchers = new Map<string, fs.FSWatcher>();
+  private watcher: FSWatcher | null = null;
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly DEBOUNCE_MS = 200;
 
@@ -32,66 +31,30 @@ export class FileWatcher {
     // Initial scan
     await this.scanExisting();
 
-    // Watch for changes — Linux lacks recursive fs.watch support
-    if (process.platform === 'linux') {
-      await this.startLinuxWatch(this.watchDir);
-    } else {
-      this.startNativeRecursiveWatch();
-    }
-  }
-
-  private startNativeRecursiveWatch(): void {
+    // Watch for changes using chokidar (cross-platform recursive watching)
     try {
-      this.watcher = fs.watch(this.watchDir, { recursive: true }, (_eventType, filename) => {
-        if (!filename || !filename.endsWith('.jsonl')) return;
-        const fullPath = path.join(this.watchDir, filename);
-        this.debouncedProcess(fullPath);
+      this.watcher = chokidar.watch(this.watchDir, {
+        persistent: true,
+        ignoreInitial: true,
+        followSymlinks: false,
+        depth: 10,
       });
-      this.watcher.on('error', (err) => {
-        logger.error('fs.watch error', { error: String(err) });
+
+      this.watcher.on('add', (filePath: string) => {
+        if (!filePath.endsWith('.jsonl')) return;
+        this.debouncedProcess(filePath);
+      });
+
+      this.watcher.on('change', (filePath: string) => {
+        if (!filePath.endsWith('.jsonl')) return;
+        this.debouncedProcess(filePath);
+      });
+
+      this.watcher.on('error', (err: unknown) => {
+        logger.error('chokidar watcher error', { error: String(err) });
       });
     } catch (err) {
       logger.error('Failed to start file watcher', { error: String(err) });
-    }
-  }
-
-  private async startLinuxWatch(dir: string): Promise<void> {
-    try {
-      const watcher = fs.watch(dir, (_eventType, filename) => {
-        if (!filename) return;
-        const fullPath = path.join(dir, filename);
-        if (filename.endsWith('.jsonl')) {
-          this.debouncedProcess(fullPath);
-        }
-        // Check if a new directory was created and watch it recursively,
-        // or if a directory was deleted and we should clean up its watcher.
-        fsp
-          .stat(fullPath)
-          .then((stat) => {
-            if (stat.isDirectory() && !this.linuxWatchers.has(fullPath)) {
-              this.startLinuxWatch(fullPath);
-            }
-          })
-          .catch(() => {
-            // File/dir may have been deleted — clean up its watcher if tracked
-            const existingWatcher = this.linuxWatchers.get(fullPath);
-            if (existingWatcher) {
-              existingWatcher.close();
-              this.linuxWatchers.delete(fullPath);
-            }
-          });
-      });
-      this.linuxWatchers.set(dir, watcher);
-
-      // Recurse into existing subdirectories
-      const entries = await fsp.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          await this.startLinuxWatch(path.join(dir, entry.name));
-        }
-      }
-    } catch {
-      // Directory may not exist or permission denied
     }
   }
 
@@ -100,10 +63,6 @@ export class FileWatcher {
       this.watcher.close();
       this.watcher = null;
     }
-    for (const w of this.linuxWatchers.values()) {
-      w.close();
-    }
-    this.linuxWatchers.clear();
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer);
     }

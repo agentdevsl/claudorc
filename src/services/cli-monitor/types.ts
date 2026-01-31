@@ -31,6 +31,8 @@ export interface CliSession {
     outputTokens: number;
     cacheCreationTokens: number;
     cacheReadTokens: number;
+    ephemeral5mTokens?: number;
+    ephemeral1hTokens?: number;
   };
   model?: string; // From assistant message.model field
   startedAt: number; // Timestamp of first event (ms)
@@ -146,11 +148,24 @@ export function deriveAggregateStatus(sessions: CliSession[]): AggregateStatus {
 }
 
 // ── JSONL Raw Event Types (from Claude Code CLI) ──
-export type RawCliEventType = 'user' | 'assistant' | 'system' | 'queue-operation' | 'summary';
+export type RawCliEventType =
+  | 'user'
+  | 'assistant'
+  | 'system'
+  | 'queue-operation'
+  | 'summary'
+  | 'progress'
+  | 'file-history-snapshot';
 
 export interface RawContentBlockText {
   type: 'text';
   text: string;
+}
+
+export interface RawContentBlockThinking {
+  type: 'thinking';
+  thinking: string;
+  signature: string;
 }
 
 export interface RawContentBlockToolUse {
@@ -169,8 +184,30 @@ export interface RawContentBlockToolResult {
 
 export type RawContentBlock =
   | RawContentBlockText
+  | RawContentBlockThinking
   | RawContentBlockToolUse
   | RawContentBlockToolResult;
+
+// ── Extended Usage (from Claude API) ──
+export interface RawTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation?: {
+    ephemeral_5m_input_tokens: number;
+    ephemeral_1h_input_tokens: number;
+  };
+  service_tier?: string;
+}
+
+// ── Progress Event Data ──
+export interface RawProgressData {
+  type: 'hook_progress';
+  hookEvent: string;
+  hookName: string;
+  command: string;
+}
 
 export interface RawCliEvent {
   type: RawCliEventType;
@@ -185,22 +222,56 @@ export interface RawCliEvent {
   userType: 'external';
   agentId?: string;
 
+  // Present on assistant events
+  requestId?: string;
+
+  // Meta message flag
+  isMeta?: boolean;
+
+  // Thinking configuration
+  thinkingMetadata?: { maxThinkingTokens: number };
+
+  // Links tool result to requesting assistant
+  sourceToolAssistantUUID?: string;
+
+  // Present on summary events
+  leafUuid?: string;
+
+  // System event fields
+  subtype?: string;
+  level?: string;
+  hookCount?: number;
+  hookInfos?: Array<{ command: string }>;
+  hookErrors?: unknown[];
+  preventedContinuation?: boolean;
+  stopReason?: string;
+  hasOutput?: boolean;
+  toolUseID?: string;
+
   message?: {
     role: 'user' | 'assistant';
+    id?: string;
+    type?: string;
     model?: string;
     content: string | RawContentBlock[];
-    usage?: {
-      input_tokens: number;
-      output_tokens: number;
-      cache_creation_input_tokens: number;
-      cache_read_input_tokens: number;
-    };
+    usage?: RawTokenUsage;
     stop_reason?: string | null;
+    stop_sequence?: string | null;
   };
   permissionMode?: string;
   summary?: string;
   operation?: string;
-  toolUseResult?: string;
+  toolUseResult?:
+    | string
+    | {
+        stdout: string;
+        stderr: string;
+        interrupted: boolean;
+        isImage: boolean;
+      };
+
+  // Progress event data
+  progressData?: RawProgressData;
 }
 
 // ── Constants ──

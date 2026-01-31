@@ -43,6 +43,8 @@ const ingestSchema = z.object({
           outputTokens: z.number().nonnegative().default(0),
           cacheCreationTokens: z.number().nonnegative().default(0),
           cacheReadTokens: z.number().nonnegative().default(0),
+          ephemeral5mTokens: z.number().nonnegative().optional(),
+          ephemeral1hTokens: z.number().nonnegative().optional(),
         }),
         startedAt: z.number(),
         lastActivityAt: z.number(),

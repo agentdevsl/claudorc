@@ -18,6 +18,8 @@ export interface StoredSession {
     outputTokens: number;
     cacheCreationTokens: number;
     cacheReadTokens: number;
+    ephemeral5mTokens?: number;
+    ephemeral1hTokens?: number;
   };
   model?: string;
   startedAt: number;

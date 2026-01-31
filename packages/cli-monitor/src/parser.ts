@@ -23,6 +23,10 @@ interface RawEvent {
       output_tokens: number;
       cache_creation_input_tokens: number;
       cache_read_input_tokens: number;
+      cache_creation?: {
+        ephemeral_5m_input_tokens: number;
+        ephemeral_1h_input_tokens: number;
+      };
     };
     stop_reason?: string | null;
   };
@@ -32,6 +36,8 @@ interface RawEvent {
 interface ContentBlock {
   type: string;
   text?: string;
+  thinking?: string;
+  signature?: string;
   id?: string;
   name?: string;
   tool_use_id?: string;
@@ -109,6 +115,8 @@ export function parseJsonlFile(
           outputTokens: 0,
           cacheCreationTokens: 0,
           cacheReadTokens: 0,
+          ephemeral5mTokens: 0,
+          ephemeral1hTokens: 0,
         },
         startedAt: Date.parse(event.timestamp) || Date.now(),
         lastActivityAt: Date.parse(event.timestamp) || Date.now(),
@@ -164,6 +172,14 @@ export function parseJsonlFile(
           session.tokenUsage.outputTokens += message.usage.output_tokens || 0;
           session.tokenUsage.cacheCreationTokens += message.usage.cache_creation_input_tokens || 0;
           session.tokenUsage.cacheReadTokens += message.usage.cache_read_input_tokens || 0;
+          if (message.usage.cache_creation) {
+            session.tokenUsage.ephemeral5mTokens =
+              (session.tokenUsage.ephemeral5mTokens || 0) +
+              (message.usage.cache_creation.ephemeral_5m_input_tokens || 0);
+            session.tokenUsage.ephemeral1hTokens =
+              (session.tokenUsage.ephemeral1hTokens || 0) +
+              (message.usage.cache_creation.ephemeral_1h_input_tokens || 0);
+          }
         }
 
         if (Array.isArray(message.content)) {

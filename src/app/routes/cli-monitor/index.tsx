@@ -37,6 +37,8 @@ interface CliSession {
     outputTokens: number;
     cacheCreationTokens: number;
     cacheReadTokens: number;
+    ephemeral5mTokens?: number;
+    ephemeral1hTokens?: number;
   };
   model?: string;
   startedAt: number;
@@ -114,7 +116,9 @@ function getSessionTokenTotal(s: CliSession): number {
     (t.inputTokens ?? 0) +
     (t.outputTokens ?? 0) +
     (t.cacheCreationTokens ?? 0) +
-    (t.cacheReadTokens ?? 0)
+    (t.cacheReadTokens ?? 0) +
+    (t.ephemeral5mTokens ?? 0) +
+    (t.ephemeral1hTokens ?? 0)
   );
 }
 
@@ -272,6 +276,14 @@ function useCliMonitorState() {
                 addAlert({
                   type: 'approval',
                   title: 'Approval needed',
+                  detail: `${session.sessionId.slice(0, 7)} — ${session.goal || 'Unknown task'}`,
+                  sessionId: session.sessionId,
+                  autoDismiss: false,
+                });
+              } else if (session.status === 'waiting_for_input') {
+                addAlert({
+                  type: 'input',
+                  title: 'Input required',
                   detail: `${session.sessionId.slice(0, 7)} — ${session.goal || 'Unknown task'}`,
                   sessionId: session.sessionId,
                   autoDismiss: false,
@@ -996,11 +1008,33 @@ const SessionDetail = forwardRef<HTMLDivElement, { session: CliSession; onClose:
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-fg-muted">Cache</span>
+                <span className="text-fg-muted">Cache Creation</span>
+                <span className="font-mono font-medium">
+                  {(t?.cacheCreationTokens ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fg-muted">Cache Read</span>
                 <span className="font-mono font-medium">
                   {(t?.cacheReadTokens ?? 0).toLocaleString()}
                 </span>
               </div>
+              {(t?.ephemeral5mTokens ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-fg-muted">Ephemeral 5m</span>
+                  <span className="font-mono font-medium">
+                    {(t?.ephemeral5mTokens ?? 0).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {(t?.ephemeral1hTokens ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-fg-muted">Ephemeral 1h</span>
+                  <span className="font-mono font-medium">
+                    {(t?.ephemeral1hTokens ?? 0).toLocaleString()}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-border pt-1">
                 <span className="font-semibold text-fg-muted">Total</span>
                 <span className="font-mono font-medium">{totalTokens.toLocaleString()}</span>
