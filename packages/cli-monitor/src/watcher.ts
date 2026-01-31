@@ -189,6 +189,13 @@ export class FileWatcher {
 
         const bytesConsumed = parseJsonlFile(filePath, newContent, readOffset, this.store);
         this.store.setReadOffset(filePath, readOffset + bytesConsumed);
+
+        // If new bytes were consumed, touch lastActivityAt to Date.now() so that
+        // sessions whose files are still being written to are not incorrectly
+        // marked idle based on stale event timestamps in the JSONL.
+        if (bytesConsumed > 0) {
+          this.store.touchSessionsByFilePath(filePath);
+        }
       } finally {
         await fd.close();
       }

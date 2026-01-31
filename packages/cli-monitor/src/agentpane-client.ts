@@ -108,7 +108,13 @@ export class AgentPaneClient {
       body: JSON.stringify({ daemonId, sessions, removedSessionIds }),
     });
     if (!res.ok) {
-      throw new Error(`Ingest failed: ${res.status}`);
+      let detail = '';
+      try {
+        detail = await res.text();
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`Ingest failed: ${res.status}${detail ? ` — ${detail}` : ''}`);
     }
   }
 

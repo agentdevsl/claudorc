@@ -92,6 +92,17 @@ describe('SessionStore', () => {
       expect(updated.find((s) => s.sessionId === 'sess-1')).toBeUndefined();
       expect(removed).toContain('sess-1');
     });
+
+    it('clears the read offset for the session file path', () => {
+      const store = new SessionStore();
+      const fp = '/home/user/.claude/projects/abc123/sess-1.jsonl';
+      store.setSession('sess-1', makeSession({ filePath: fp }));
+      store.setReadOffset(fp, 4096);
+
+      store.removeSession('sess-1');
+
+      expect(store.getReadOffset(fp)).toBe(0);
+    });
   });
 
   // ── removeByFilePath ──

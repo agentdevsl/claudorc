@@ -70,6 +70,10 @@ export class SessionStore {
   }
 
   removeSession(id: string): void {
+    const session = this.sessions.get(id);
+    if (session) {
+      this.readOffsets.delete(session.filePath);
+    }
     this.sessions.delete(id);
     this.changedSessionIds.delete(id);
     this.removedSessionIds.add(id);
@@ -136,6 +140,27 @@ export class SessionStore {
       }
     }
     return evicted;
+  }
+
+  /** Touch lastActivityAt to Date.now() for all sessions associated with a file path.
+   *  This prevents active sessions (whose files are still being written to) from being
+   *  incorrectly marked idle based on stale event timestamps. */
+  touchSessionsByFilePath(filePath: string): void {
+    const now = Date.now();
+    for (const [id, session] of this.sessions) {
+      if (session.filePath === filePath) {
+        session.lastActivityAt = now;
+        this.changedSessionIds.add(id);
+      }
+    }
+  }
+
+  /** Mark all sessions as changed so they are included in the next flushChanges().
+   *  Used after server re-registration to ensure a full re-sync. */
+  markAllChanged(): void {
+    for (const id of this.sessions.keys()) {
+      this.changedSessionIds.add(id);
+    }
   }
 
   markIdleSessions(timeoutMs: number): void {

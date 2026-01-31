@@ -194,6 +194,10 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
           capabilities: ['watch', 'parse', 'subagents'],
           startedAt: Date.now(),
         });
+        // Re-registration succeeded — server lost its state, so mark all
+        // sessions as changed to trigger a full re-sync on the next ingest.
+        store.markAllChanged();
+        logger.info('Re-registered with server, triggering full session re-sync');
       } catch (retryErr) {
         logger.error('Re-register failed', {
           error: retryErr instanceof Error ? retryErr.message : String(retryErr),
