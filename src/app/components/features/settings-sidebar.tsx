@@ -8,6 +8,7 @@ import {
   Key,
   Robot,
   Swatches,
+  Terminal,
 } from '@phosphor-icons/react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -83,6 +84,7 @@ function useSettingsSections(): SettingsSection[] {
       title: 'Health',
       items: [
         { id: 'system', label: 'System Health', to: '/settings/system', icon: Heartbeat },
+        { id: 'cli-monitor', label: 'CLI Monitor', to: '/settings/cli-monitor', icon: Terminal },
         {
           id: 'github',
           label: 'GitHub',

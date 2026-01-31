@@ -1,6 +1,7 @@
-import { Terminal } from '@phosphor-icons/react';
+import { FolderOpen, Terminal } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CardsRightPanel } from '@/app/components/features/cli-monitor/cards-right-panel';
 import { useCliMonitor } from '@/app/components/features/cli-monitor/cli-monitor-context';
 import type {
   AlertToast,
@@ -10,7 +11,6 @@ import {
   formatTokenCount,
   getSessionTokenTotal,
 } from '@/app/components/features/cli-monitor/cli-monitor-utils';
-import { SessionDetail } from '@/app/components/features/cli-monitor/session-detail';
 import { SummaryStrip } from '@/app/components/features/cli-monitor/summary-strip';
 
 // -- Constants --
@@ -210,7 +210,6 @@ function ActiveState({
   const [visibleCount, setVisibleCount] = useState(VISIBLE_SESSION_LIMIT);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const sessionListRef = useRef<HTMLDivElement | null>(null);
   const selectedSession = sessions.find((s) => s.sessionId === selectedSessionId);
 
@@ -276,12 +275,6 @@ function ActiveState({
     }
   }, [focusedIndex]);
 
-  useEffect(() => {
-    if (selectedSession && detailPanelRef.current) {
-      detailPanelRef.current.focus();
-    }
-  }, [selectedSession]);
-
   const projectGroups = useMemo(() => {
     const groups = new Map<string, CliSession[]>();
     for (const s of sessions) {
@@ -315,65 +308,78 @@ function ActiveState({
       {/* Summary Strip */}
       <SummaryStrip sessions={sessions} />
 
-      {/* Session List */}
+      {/* Two-column layout */}
       <div
-        ref={sessionListRef}
-        className="flex-1 overflow-y-auto p-4"
-        role="listbox"
-        aria-label="CLI sessions"
-        tabIndex={0}
+        className={`flex-1 overflow-hidden ${selectedSession ? 'grid grid-cols-[1fr_380px]' : ''}`}
       >
-        <div className="space-y-3">
-          {(() => {
-            let rendered = 0;
-            const groups = Array.from(projectGroups.entries());
-            return groups.map(([projectName, projectSessions]) => {
-              if (rendered >= visibleCount) return null;
-              const remainingSlots = visibleCount - rendered;
-              const visibleProjectSessions = projectSessions.slice(0, remainingSlots);
-              const startIdx = rendered;
-              rendered += visibleProjectSessions.length;
-              return (
-                <div key={projectName}>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-                    {projectName}
-                  </h3>
-                  <div className="space-y-2">
-                    {visibleProjectSessions.map((session, i) => (
-                      <SessionCard
-                        key={session.sessionId}
-                        session={session}
-                        selected={session.sessionId === selectedSessionId}
-                        focused={startIdx + i === focusedIndex}
-                        dataIndex={startIdx + i}
-                        onClick={() =>
-                          setSelectedSessionId(
-                            session.sessionId === selectedSessionId ? null : session.sessionId
-                          )
-                        }
-                      />
-                    ))}
+        {/* Left: Session List */}
+        <div
+          ref={sessionListRef}
+          className="overflow-y-auto p-4"
+          role="listbox"
+          aria-label="CLI sessions"
+          tabIndex={0}
+        >
+          <div className="space-y-6">
+            {(() => {
+              let rendered = 0;
+              const groups = Array.from(projectGroups.entries());
+              return groups.map(([projectName, projectSessions]) => {
+                if (rendered >= visibleCount) return null;
+                const remainingSlots = visibleCount - rendered;
+                const visibleProjectSessions = projectSessions.slice(0, remainingSlots);
+                const startIdx = rendered;
+                rendered += visibleProjectSessions.length;
+                const firstSession = projectSessions[0];
+                return (
+                  <div key={projectName}>
+                    {/* Project Group Header */}
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                      <FolderOpen size={16} className="text-fg-subtle shrink-0" />
+                      <span className="text-sm font-semibold text-fg">{projectName}</span>
+                      {firstSession?.cwd && (
+                        <span className="font-mono text-[11px] text-fg-subtle truncate">
+                          {firstSession.cwd}
+                        </span>
+                      )}
+                      <span className="ml-auto rounded-full bg-emphasis px-2 py-0.5 text-[11px] font-medium text-fg-muted">
+                        {projectSessions.length}
+                      </span>
+                    </div>
+                    {/* Session Cards Grid */}
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-3">
+                      {visibleProjectSessions.map((session, i) => (
+                        <SessionCard
+                          key={session.sessionId}
+                          session={session}
+                          selected={session.sessionId === selectedSessionId}
+                          focused={startIdx + i === focusedIndex}
+                          dataIndex={startIdx + i}
+                          onClick={() =>
+                            setSelectedSessionId(
+                              session.sessionId === selectedSessionId ? null : session.sessionId
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            });
-          })()}
-          {flatSessions.length > visibleCount && (
-            <div ref={loadMoreRef} className="py-2 text-center text-xs text-fg-subtle">
-              Showing {visibleCount} of {flatSessions.length} sessions &mdash; scroll to load more
-            </div>
-          )}
+                );
+              });
+            })()}
+            {flatSessions.length > visibleCount && (
+              <div ref={loadMoreRef} className="py-2 text-center text-xs text-fg-subtle">
+                Showing {visibleCount} of {flatSessions.length} sessions &mdash; scroll to load more
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Selected Session Detail */}
-      {selectedSession && (
-        <SessionDetail
-          ref={detailPanelRef}
-          session={selectedSession}
-          onClose={() => setSelectedSessionId(null)}
-        />
-      )}
+        {/* Right: Detail Panel */}
+        {selectedSession && (
+          <CardsRightPanel session={selectedSession} onClose={() => setSelectedSessionId(null)} />
+        )}
+      </div>
     </div>
   );
 }
@@ -411,6 +417,20 @@ function AlertToastItem({ alert, onDismiss }: { alert: AlertToast; onDismiss: ()
 
 // -- Session Card --
 
+const statusAccentBorder: Record<string, string> = {
+  working: 'border-l-success',
+  waiting_for_approval: 'border-l-attention',
+  waiting_for_input: 'border-l-accent',
+  idle: 'border-l-fg-subtle',
+};
+
+const statusBadgeConfig: Record<string, { text: string; badge: string }> = {
+  working: { text: 'Working', badge: 'bg-success/15 text-success' },
+  waiting_for_approval: { text: 'Approval', badge: 'bg-attention/15 text-attention' },
+  waiting_for_input: { text: 'Input', badge: 'bg-accent/15 text-accent' },
+  idle: { text: 'Idle', badge: 'bg-emphasis text-fg-muted' },
+};
+
 function SessionCard({
   session,
   selected,
@@ -424,22 +444,21 @@ function SessionCard({
   dataIndex?: number;
   onClick: () => void;
 }) {
-  const statusConfig = {
-    working: {
-      dot: 'bg-success animate-pulse',
-      text: 'Working',
-      badge: 'bg-success/15 text-success',
-    },
-    waiting_for_approval: {
-      dot: 'bg-attention',
-      text: 'Approval',
-      badge: 'bg-attention/15 text-attention',
-    },
-    waiting_for_input: { dot: 'bg-accent', text: 'Input', badge: 'bg-accent/15 text-accent' },
-    idle: { dot: 'bg-fg-subtle', text: 'Idle', badge: 'bg-emphasis text-fg-muted' },
-  }[session.status];
-
+  const accentBorder = statusAccentBorder[session.status] ?? 'border-l-fg-subtle';
+  const config = statusBadgeConfig[session.status] ?? {
+    text: 'Idle',
+    badge: 'bg-emphasis text-fg-muted',
+  };
   const totalTokens = getSessionTokenTotal(session);
+  const isWorking = session.status === 'working';
+
+  const timeAgo = useMemo(() => {
+    const ms = Date.now() - session.lastActivityAt;
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min}m ago`;
+    return `${Math.floor(min / 60)}h ago`;
+  }, [session.lastActivityAt]);
 
   return (
     <button
@@ -449,28 +468,64 @@ function SessionCard({
       aria-selected={selected}
       aria-label={`Session: ${session.goal || session.sessionId.slice(0, 8)}`}
       data-session-index={dataIndex}
-      className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
+      className={`group/card flex w-full flex-col rounded-lg border border-l-[3px] text-left transition-all ${accentBorder} ${
         selected
-          ? 'border-accent bg-accent/5 shadow-md'
+          ? 'border-accent bg-accent/5 shadow-md border-l-accent'
           : focused
-            ? 'border-accent bg-subtle ring-2 ring-accent/30'
+            ? 'border-border bg-subtle ring-2 ring-accent/30'
             : 'border-border bg-default hover:border-fg-subtle hover:bg-subtle'
-      }`}
+      } ${isWorking ? 'shadow-[0_0_12px_rgba(63,185,80,0.08)]' : ''}`}
     >
-      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${statusConfig.dot}`} />
-      <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-        <span className="truncate text-sm font-semibold">
-          {session.goal || session.sessionId.slice(0, 8)}
+      {/* Card Header */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-1">
+        <span className="font-mono text-[11px] text-fg-subtle">
+          {session.sessionId.slice(0, 8)}
         </span>
-        <span className="truncate font-mono text-xs text-fg-subtle">
-          {session.sessionId.slice(0, 7)} {'\u00B7'} {session.projectName}
-          {session.gitBranch && ` \u00B7 ${session.gitBranch}`}
+        {session.gitBranch && (
+          <span className="rounded bg-[#a371f7]/15 px-1.5 py-0.5 text-[10px] font-mono font-medium text-[#a371f7] truncate max-w-[140px]">
+            {session.gitBranch}
+          </span>
+        )}
+        <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold ${config.badge}`}>
+          {config.text}
         </span>
       </div>
-      <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${statusConfig.badge}`}>
-        {statusConfig.text}
-      </span>
-      <span className="font-mono text-xs text-fg-muted">{formatTokenCount(totalTokens)}</span>
+
+      {/* Card Body - Goal */}
+      <div className="px-3 py-1.5">
+        <p className="text-[13px] font-medium text-fg line-clamp-2 leading-snug">
+          {session.goal || 'Interactive session'}
+        </p>
+      </div>
+
+      {/* Output Preview */}
+      {session.recentOutput && (
+        <div className="mx-3 mb-2 relative">
+          <div className="rounded bg-subtle dark:bg-[#0a0e14]/60 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-muted max-h-[56px] overflow-hidden">
+            {session.recentOutput.split('\n').slice(-3).join('\n')}
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-subtle dark:from-[#0a0e14]/60 to-transparent rounded-b pointer-events-none" />
+        </div>
+      )}
+
+      {/* Pending tool badge */}
+      {session.pendingToolUse && (
+        <div className="mx-3 mb-2">
+          <span className="inline-flex items-center gap-1.5 rounded bg-attention/15 px-2 py-1 text-[11px] font-medium text-attention">
+            <span className="h-1.5 w-1.5 rounded-full bg-attention" />
+            {session.pendingToolUse.toolName}
+          </span>
+        </div>
+      )}
+
+      {/* Card Footer */}
+      <div className="flex items-center gap-3 border-t border-border px-3 py-2 mt-auto">
+        <span className="text-[11px] text-fg-subtle">{session.messageCount} msgs</span>
+        <span className="text-[11px] text-fg-subtle">{timeAgo}</span>
+        <span className="ml-auto font-mono text-[11px] text-fg-muted">
+          {formatTokenCount(totalTokens)}
+        </span>
+      </div>
     </button>
   );
 }

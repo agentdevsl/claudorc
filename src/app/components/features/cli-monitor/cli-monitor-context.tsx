@@ -8,6 +8,8 @@ import {
   useState,
 } from 'react';
 import { apiClient } from '@/lib/api/client';
+import { useCliSessions } from '@/lib/cli-monitor/hooks';
+import { startCliMonitorSync } from '@/lib/cli-monitor/sync';
 import type { AggregateStatus, AlertToast, CliSession, PageState } from './cli-monitor-types';
 import { deriveAggregateStatus } from './cli-monitor-utils';
 
@@ -31,15 +33,13 @@ export function useCliMonitor(): CliMonitorContextValue {
 }
 
 export function CliMonitorProvider({ children }: { children: ReactNode }) {
+  const sessions = useCliSessions();
   const [pageState, setPageState] = useState<PageState>('install');
-  const [sessions, setSessions] = useState<CliSession[]>([]);
   const [daemonConnected, setDaemonConnected] = useState(false);
   const [alerts, setAlerts] = useState<AlertToast[]>([]);
   const [connectionError, setConnectionError] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const eventSourceRef = useRef<EventSource | null>(null);
   const alertTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const reconnectCountRef = useRef(0);
 
   const dismissAlert = useCallback((id: string) => {
     const timer = alertTimersRef.current.get(id);
@@ -87,120 +87,69 @@ export function CliMonitorProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // SSE stream for live updates
+  // SSE sync via collection-backed sync module
   useEffect(() => {
-    const streamUrl = apiClient.cliMonitor.getStreamUrl();
-    const source = new EventSource(streamUrl);
-    eventSourceRef.current = source;
-
-    source.onopen = () => {
-      reconnectCountRef.current = 0;
-      setConnectionError(false);
-    };
-
-    source.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case 'cli-monitor:snapshot':
-            setSessions(data.sessions || []);
-            setDaemonConnected(data.connected);
-            if (!data.connected) {
-              setPageState('install');
-            } else if ((data.sessions || []).length === 0) {
-              setPageState('waiting');
-            } else {
-              setPageState('active');
-            }
-            break;
-
-          case 'cli-monitor:daemon-connected':
-            setDaemonConnected(true);
-            break;
-
-          case 'cli-monitor:daemon-disconnected':
-            setDaemonConnected(false);
-            setPageState('install');
-            setSessions([]);
-            break;
-
-          case 'cli-monitor:session-update': {
-            const session = data.session as CliSession;
-            setSessions((prev) => {
-              const exists = prev.some((s) => s.sessionId === session.sessionId);
-              if (exists) {
-                return prev.map((s) => (s.sessionId === session.sessionId ? session : s));
-              }
-              return [...prev, session];
+    const cleanup = startCliMonitorSync(apiClient.cliMonitor.getStreamUrl(), {
+      onDaemonConnected: () => setDaemonConnected(true),
+      onDaemonDisconnected: () => {
+        setDaemonConnected(false);
+        setPageState('install');
+      },
+      onPageStateChange: setPageState,
+      onConnectionOpen: () => setConnectionError(false),
+      onConnectionError: () => setConnectionError(true),
+      onSessionUpdate: (session, previousStatus) => {
+        if (previousStatus && previousStatus !== session.status) {
+          if (session.status === 'waiting_for_approval') {
+            addAlert({
+              type: 'approval',
+              title: 'Approval needed',
+              detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
+              sessionId: session.sessionId,
+              autoDismiss: false,
             });
-            setPageState('active');
-
-            if (data.previousStatus && data.previousStatus !== session.status) {
-              if (session.status === 'waiting_for_approval') {
-                addAlert({
-                  type: 'approval',
-                  title: 'Approval needed',
-                  detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
-                  sessionId: session.sessionId,
-                  autoDismiss: false,
-                });
-              } else if (session.status === 'waiting_for_input') {
-                addAlert({
-                  type: 'input',
-                  title: 'Input required',
-                  detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
-                  sessionId: session.sessionId,
-                  autoDismiss: false,
-                });
-              } else if (session.status === 'idle' && data.previousStatus === 'working') {
-                addAlert({
-                  type: 'complete',
-                  title: 'Session completed',
-                  detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
-                  sessionId: session.sessionId,
-                  autoDismiss: true,
-                });
-              }
-            }
-
-            if (!data.previousStatus) {
-              addAlert({
-                type: 'new-session',
-                title: 'New session detected',
-                detail: `${session.projectName} \u2014 ${session.goal || session.sessionId.slice(0, 7)}`,
-                sessionId: session.sessionId,
-                autoDismiss: true,
-              });
-            }
-            break;
+          } else if (session.status === 'waiting_for_input') {
+            addAlert({
+              type: 'input',
+              title: 'Input required',
+              detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
+              sessionId: session.sessionId,
+              autoDismiss: false,
+            });
+          } else if (session.status === 'idle' && previousStatus === 'working') {
+            addAlert({
+              type: 'complete',
+              title: 'Session completed',
+              detail: `${session.sessionId.slice(0, 7)} \u2014 ${session.goal || 'Unknown task'}`,
+              sessionId: session.sessionId,
+              autoDismiss: true,
+            });
           }
-
-          case 'cli-monitor:session-removed':
-            setSessions((prev) => {
-              const remaining = prev.filter((s) => s.sessionId !== data.sessionId);
-              if (remaining.length === 0) setPageState('waiting');
-              return remaining;
-            });
-            break;
         }
-      } catch {
-        // Invalid JSON
-      }
-    };
+      },
+      onSessionNew: (session) => {
+        addAlert({
+          type: 'new-session',
+          title: 'New session detected',
+          detail: `${session.projectName} \u2014 ${session.goal || session.sessionId.slice(0, 7)}`,
+          sessionId: session.sessionId,
+          autoDismiss: true,
+        });
+      },
+      onSessionRemoved: () => {
+        // Page state is handled reactively via sessions array length
+      },
+    });
 
-    source.onerror = () => {
-      reconnectCountRef.current++;
-      if (reconnectCountRef.current >= 5) {
-        setConnectionError(true);
-      }
-    };
-
-    return () => {
-      source.close();
-      eventSourceRef.current = null;
-    };
+    return cleanup;
   }, [addAlert]);
+
+  // Derive page state from sessions when sessions change (for removal case)
+  useEffect(() => {
+    if (daemonConnected && sessions.length === 0 && pageState === 'active') {
+      setPageState('waiting');
+    }
+  }, [sessions.length, daemonConnected, pageState]);
 
   const aggregateStatus = deriveAggregateStatus(sessions);
 

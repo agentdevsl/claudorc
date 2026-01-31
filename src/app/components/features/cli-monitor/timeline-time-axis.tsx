@@ -82,9 +82,9 @@ export function TimelineTimeAxis({ timeRange, nowPercent }: TimelineTimeAxisProp
       {/* NOW line */}
       <div
         className="absolute top-0 bottom-0 w-0.5 bg-danger z-20 animate-[nowLinePulse_2s_ease-in-out_infinite]"
-        style={{ left: `${nowPercent}%` }}
+        style={{ left: `${Math.min(nowPercent, 99.5)}%` }}
       >
-        <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold text-danger bg-canvas px-1 py-px rounded border border-danger tracking-wide whitespace-nowrap">
+        <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 rounded bg-danger px-1.5 py-px text-[9px] font-bold text-white tracking-wide whitespace-nowrap shadow-sm">
           NOW
         </span>
       </div>

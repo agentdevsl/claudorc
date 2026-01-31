@@ -1,0 +1,114 @@
+/**
+ * CLI Monitor SSE Sync
+ *
+ * Manages the EventSource connection to the CLI monitor stream endpoint
+ * and routes events into the TanStack DB collection.
+ */
+
+import {
+  bulkSyncSessions,
+  clearAllCliSessions,
+  removeCliSession,
+  upsertCliSession,
+} from './collections.js';
+import type { CliSession } from './schema.js';
+
+type PageState = 'install' | 'waiting' | 'active';
+
+export type CliMonitorSyncCallbacks = {
+  onDaemonConnected?: () => void;
+  onDaemonDisconnected?: () => void;
+  onSessionUpdate?: (session: CliSession, previousStatus?: string) => void;
+  onSessionNew?: (session: CliSession) => void;
+  onSessionRemoved?: (sessionId: string) => void;
+  onConnectionOpen?: () => void;
+  onConnectionError?: () => void;
+  onPageStateChange?: (state: PageState) => void;
+};
+
+/**
+ * Start SSE sync for CLI monitor sessions.
+ * Returns a cleanup function to close the connection.
+ */
+export function startCliMonitorSync(
+  streamUrl: string,
+  callbacks: CliMonitorSyncCallbacks
+): () => void {
+  let reconnectCount = 0;
+  const source = new EventSource(streamUrl);
+
+  source.onopen = () => {
+    reconnectCount = 0;
+    callbacks.onConnectionOpen?.();
+  };
+
+  source.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'cli-monitor:snapshot': {
+          const sessions: CliSession[] = data.sessions || [];
+          bulkSyncSessions(sessions);
+
+          if (!data.connected) {
+            callbacks.onPageStateChange?.('install');
+          } else if (sessions.length === 0) {
+            callbacks.onPageStateChange?.('waiting');
+          } else {
+            callbacks.onPageStateChange?.('active');
+          }
+
+          if (data.connected) {
+            callbacks.onDaemonConnected?.();
+          }
+          break;
+        }
+
+        case 'cli-monitor:daemon-connected':
+          callbacks.onDaemonConnected?.();
+          break;
+
+        case 'cli-monitor:daemon-disconnected':
+          clearAllCliSessions();
+          callbacks.onDaemonDisconnected?.();
+          break;
+
+        case 'cli-monitor:session-update': {
+          const session = data.session as CliSession;
+          const previousStatus = data.previousStatus as string | undefined;
+
+          upsertCliSession(session);
+          callbacks.onPageStateChange?.('active');
+
+          if (previousStatus) {
+            callbacks.onSessionUpdate?.(session, previousStatus);
+          } else {
+            callbacks.onSessionNew?.(session);
+          }
+          break;
+        }
+
+        case 'cli-monitor:session-removed': {
+          const sessionId = data.sessionId as string;
+          removeCliSession(sessionId);
+          callbacks.onSessionRemoved?.(sessionId);
+          break;
+        }
+      }
+    } catch {
+      // Invalid JSON — ignore
+    }
+  };
+
+  source.onerror = () => {
+    reconnectCount++;
+    if (reconnectCount >= 5) {
+      callbacks.onConnectionError?.();
+    }
+  };
+
+  return () => {
+    source.close();
+  };
+}

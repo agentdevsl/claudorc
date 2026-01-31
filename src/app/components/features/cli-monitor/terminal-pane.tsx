@@ -1,4 +1,4 @@
-import { ArrowsOut, GitBranch } from '@phosphor-icons/react';
+import { ArrowsIn, ArrowsOut, GitBranch } from '@phosphor-icons/react';
 import { useEffect, useRef } from 'react';
 import type { CliSession } from './cli-monitor-types';
 
@@ -19,9 +19,16 @@ const paneStateClass: Record<string, string> = {
 interface TerminalPaneProps {
   session: CliSession | null;
   paneIndex: number;
+  maximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
-export function TerminalPane({ session, paneIndex }: TerminalPaneProps) {
+export function TerminalPane({
+  session,
+  paneIndex,
+  maximized,
+  onToggleMaximize,
+}: TerminalPaneProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isPinnedRef = useRef(true);
 
@@ -79,10 +86,14 @@ export function TerminalPane({ session, paneIndex }: TerminalPaneProps) {
           <span className="text-[10px] font-mono text-fg-subtle">T{session.turnCount}</span>
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleMaximize?.();
+            }}
             className="flex h-5 w-5 items-center justify-center rounded text-fg-subtle opacity-0 transition-opacity group-hover/pane:opacity-100 hover:bg-subtle hover:text-fg"
-            title="Maximize"
+            title={maximized ? 'Restore' : 'Maximize'}
           >
-            <ArrowsOut size={12} />
+            {maximized ? <ArrowsIn size={12} /> : <ArrowsOut size={12} />}
           </button>
         </div>
       </div>

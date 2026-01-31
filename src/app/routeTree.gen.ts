@@ -30,6 +30,7 @@ import { Route as SettingsProjectsRouteImport } from './routes/settings/projects
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
 import { Route as SettingsModelOptimizationsRouteImport } from './routes/settings/model-optimizations'
 import { Route as SettingsGithubRouteImport } from './routes/settings/github'
+import { Route as SettingsCliMonitorRouteImport } from './routes/settings/cli-monitor'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
@@ -150,6 +151,11 @@ const SettingsGithubRoute = SettingsGithubRouteImport.update({
   path: '/github',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsCliMonitorRoute = SettingsCliMonitorRouteImport.update({
+  id: '/cli-monitor',
+  path: '/cli-monitor',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -265,6 +272,7 @@ export interface FileRoutesByTo {
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -608,6 +620,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGithubRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/cli-monitor': {
+      id: '/settings/cli-monitor'
+      path: '/cli-monitor'
+      fullPath: '/settings/cli-monitor'
+      preLoaderRoute: typeof SettingsCliMonitorRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -722,6 +741,7 @@ interface SettingsRouteChildren {
   SettingsAgentsRoute: typeof SettingsAgentsRoute
   SettingsApiKeysRoute: typeof SettingsApiKeysRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsCliMonitorRoute: typeof SettingsCliMonitorRoute
   SettingsGithubRoute: typeof SettingsGithubRoute
   SettingsModelOptimizationsRoute: typeof SettingsModelOptimizationsRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
@@ -735,6 +755,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAgentsRoute: SettingsAgentsRoute,
   SettingsApiKeysRoute: SettingsApiKeysRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsCliMonitorRoute: SettingsCliMonitorRoute,
   SettingsGithubRoute: SettingsGithubRoute,
   SettingsModelOptimizationsRoute: SettingsModelOptimizationsRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
