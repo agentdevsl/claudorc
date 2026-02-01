@@ -150,6 +150,13 @@ export class FileWatcher {
 
     try {
       const stat = await fsp.stat(filePath);
+
+      // Skip files not modified within the last 24 hours
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      if (Date.now() - stat.mtimeMs > ONE_DAY_MS) {
+        return;
+      }
+
       const existingOffset = this.store.getReadOffset(filePath);
 
       // File truncated or new — read from start

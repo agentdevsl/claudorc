@@ -94,6 +94,10 @@ export class CliMonitorService {
       return false;
     }
 
+    // Drop sessions older than 24 hours (stale JSONL files from previous days)
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    sessions = sessions.filter((s) => s.lastActivityAt >= oneDayAgo);
+
     // Evict oldest sessions if adding would exceed limit
     const newSessionCount = sessions.filter((s) => !this.sessions.has(s.sessionId)).length;
     if (this.sessions.size + newSessionCount > CliMonitorService.MAX_SESSIONS) {
@@ -163,7 +167,8 @@ export class CliMonitorService {
   }
 
   getSessions(): CliSession[] {
-    return Array.from(this.sessions.values());
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return Array.from(this.sessions.values()).filter((s) => s.lastActivityAt >= oneDayAgo);
   }
 
   getSessionCount(): number {
