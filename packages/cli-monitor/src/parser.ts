@@ -61,6 +61,8 @@ interface ContentBlock {
 
 const MAX_LINE_BYTES = 1_000_000; // 1MB per line
 const MAX_RECENT_TURNS = 10;
+const MAX_GOAL_LENGTH = 200;
+const MAX_RECENT_OUTPUT_LENGTH = 500;
 const CONTEXT_WINDOW_DEFAULT = 200_000;
 
 function getContextWindowLimit(model?: string): number {
@@ -191,7 +193,7 @@ export function parseJsonlFile(
 
         // Set goal from first user text message
         if (!session.goal && typeof message.content === 'string') {
-          session.goal = message.content.slice(0, 200);
+          session.goal = message.content.slice(0, MAX_GOAL_LENGTH);
         }
 
         // Check for tool_result in content (approval was given)
@@ -239,7 +241,7 @@ export function parseJsonlFile(
             }
             if (block.type === 'text' && block.text) {
               hasText = true;
-              session.recentOutput = block.text.slice(0, 500);
+              session.recentOutput = block.text.slice(0, MAX_RECENT_OUTPUT_LENGTH);
             }
           }
 
@@ -250,7 +252,7 @@ export function parseJsonlFile(
             session.status = 'working';
           }
         } else if (typeof message.content === 'string') {
-          session.recentOutput = message.content.slice(0, 500);
+          session.recentOutput = message.content.slice(0, MAX_RECENT_OUTPUT_LENGTH);
           session.status = 'working';
         }
 
@@ -310,7 +312,7 @@ export function parseJsonlFile(
       session.status = 'idle';
       session.pendingToolUse = undefined;
       if (event.summary) {
-        session.recentOutput = event.summary.slice(0, 500);
+        session.recentOutput = event.summary.slice(0, MAX_RECENT_OUTPUT_LENGTH);
       }
     }
 

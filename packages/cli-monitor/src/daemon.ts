@@ -10,6 +10,9 @@ import { createId, errorMessage } from './utils.js';
 import { VERSION } from './version.js';
 import { FileWatcher } from './watcher.js';
 
+const IDLE_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const IDLE_SESSION_EVICTION_MS = 30 * 60 * 1000; // 30 minutes
+
 // ── PID Lock ──
 
 const LOCK_FILE = path.join(homedir(), '.claude', '.cli-monitor.lock');
@@ -218,8 +221,8 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
     idleCheckCounter++;
     if (idleCheckCounter >= 60) {
       idleCheckCounter = 0;
-      store.markIdleSessions(5 * 60 * 1000);
-      const evicted = store.evictIdleSessions(30 * 60 * 1000);
+      store.markIdleSessions(IDLE_SESSION_TIMEOUT_MS);
+      const evicted = store.evictIdleSessions(IDLE_SESSION_EVICTION_MS);
       if (evicted > 0) logger.info('Evicted idle sessions', { count: evicted });
     }
 

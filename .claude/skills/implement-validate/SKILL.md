@@ -1,7 +1,7 @@
 ---
 name: implement plan
 
-description: impleme
+description: Implement plan using concurrent opus agents and verify completion
 ---
 
 # Implementation Workflow

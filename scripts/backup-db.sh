@@ -39,7 +39,7 @@ BACKUP_COUNT=$(find "$BACKUP_DIR" -name "agentpane_*.db" -type f | wc -l | tr -d
 if [ "$BACKUP_COUNT" -gt 7 ]; then
   REMOVE_COUNT=$((BACKUP_COUNT - 7))
   echo "Cleaning up $REMOVE_COUNT old backup(s)..."
-  find "$BACKUP_DIR" -name "agentpane_*.db" -type f | sort | head -n "$REMOVE_COUNT" | xargs rm -f
+  find "$BACKUP_DIR" -name "agentpane_*.db" -type f | sort | head -n "$REMOVE_COUNT" | xargs -I {} rm -f "{}"
 fi
 
 echo "Done."

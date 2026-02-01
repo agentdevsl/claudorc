@@ -59,6 +59,18 @@ function extractFileChange(
   };
 }
 
+/** Detect file-modifying tools and emit file_changed event */
+function emitFileChangeIfApplicable(
+  toolName: string,
+  input: unknown,
+  events: ReturnType<typeof createEventEmitter>
+): void {
+  const fileChange = extractFileChange(toolName, (input as Record<string, unknown>) ?? {});
+  if (fileChange) {
+    events.fileChanged(fileChange);
+  }
+}
+
 // Phase type
 type AgentPhase = 'plan' | 'execute';
 
@@ -364,10 +376,7 @@ async function runPlanningPhase(): Promise<void> {
       });
 
       // Detect file-modifying tools and emit file_changed event
-      const fileChange = extractFileChange(toolName, (input as Record<string, unknown>) ?? {});
-      if (fileChange) {
-        events.fileChanged(fileChange);
-      }
+      emitFileChangeIfApplicable(toolName, input, events);
 
       // Capture ExitPlanMode options when the tool is called
       if (toolName === 'ExitPlanMode') {
@@ -711,10 +720,7 @@ async function runExecutionPhase(): Promise<void> {
     });
 
     // Detect file-modifying tools and emit file_changed event
-    const fileChange = extractFileChange(toolName, (input as Record<string, unknown>) ?? {});
-    if (fileChange) {
-      events.fileChanged(fileChange);
-    }
+    emitFileChangeIfApplicable(toolName, input, events);
 
     // Allow all tools in execution mode
     return { behavior: 'allow' as const, toolUseID: options.toolUseID };

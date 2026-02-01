@@ -78,8 +78,12 @@ function printUsage() {
 async function stopDaemon(serverPort: number) {
   try {
     const res = await fetch(`http://localhost:${serverPort}/api/cli-monitor/status`);
-    const data = (await res.json()) as { data?: { daemon?: { daemonId?: string } } };
-    if (data.data?.daemon?.daemonId) {
+    const json: unknown = await res.json();
+    const data =
+      typeof json === 'object' && json !== null && 'data' in json
+        ? (json as { data?: { daemon?: { daemonId?: string } } })
+        : undefined;
+    if (data?.data?.daemon?.daemonId) {
       await fetch(`http://localhost:${serverPort}/api/cli-monitor/deregister`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
