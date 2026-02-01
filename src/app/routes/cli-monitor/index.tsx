@@ -503,7 +503,15 @@ function SessionCard({
       {session.recentOutput && (
         <div className="mx-3 mb-2 relative">
           <div className="rounded bg-subtle dark:bg-[#0a0e14]/60 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-muted max-h-[56px] overflow-hidden">
-            {session.recentOutput.split('\n').slice(-3).join('\n')}
+            {(() => {
+              const trimmed = session.recentOutput.trimStart();
+              const looksLikeJson =
+                trimmed.startsWith('"') || trimmed.startsWith('{') || trimmed.startsWith('[');
+              if (looksLikeJson) {
+                return session.goal || 'Processing...';
+              }
+              return session.recentOutput.split('\n').slice(-3).join('\n');
+            })()}
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-subtle dark:from-[#0a0e14]/60 to-transparent rounded-b pointer-events-none" />
         </div>
@@ -523,6 +531,12 @@ function SessionCard({
       <div className="flex items-center gap-3 border-t border-border px-3 py-2 mt-auto">
         <span className="text-[11px] text-fg-subtle">{session.messageCount} msgs</span>
         <span className="text-[11px] text-fg-subtle">{timeAgo}</span>
+        {(session.performanceMetrics?.compactionCount ?? 0) > 0 && (
+          <span className="text-[10px] text-attention font-mono">
+            {session.performanceMetrics?.compactionCount} compaction
+            {session.performanceMetrics?.compactionCount === 1 ? '' : 's'}
+          </span>
+        )}
         <span className="ml-auto font-mono text-[11px] text-fg-muted">
           {formatTokenCount(totalTokens)}
         </span>

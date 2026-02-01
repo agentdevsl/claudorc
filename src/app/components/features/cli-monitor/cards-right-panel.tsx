@@ -216,8 +216,39 @@ function ActivityTab({ session }: { session: CliSession }) {
       <div className="space-y-3">
         {/* Session info */}
         <div>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-            Session Info
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              Session Info
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className={`h-2 w-2 rounded-full shrink-0 ${
+                  {
+                    working: 'bg-success animate-pulse',
+                    waiting_for_approval: 'bg-attention',
+                    waiting_for_input: 'bg-accent',
+                    idle: 'bg-fg-subtle',
+                  }[session.status] ?? 'bg-fg-subtle'
+                }`}
+              />
+              <span
+                className={`text-[11px] font-medium ${
+                  {
+                    working: 'text-success',
+                    waiting_for_approval: 'text-attention',
+                    waiting_for_input: 'text-accent',
+                    idle: 'text-fg-muted',
+                  }[session.status] ?? 'text-fg-muted'
+                }`}
+              >
+                {{
+                  working: 'Working',
+                  waiting_for_approval: 'Approval',
+                  waiting_for_input: 'Input',
+                  idle: 'Idle',
+                }[session.status] ?? 'Idle'}
+              </span>
+            </span>
           </div>
           <div className="space-y-1.5 text-xs">
             <div className="flex items-center gap-2 text-fg-muted">

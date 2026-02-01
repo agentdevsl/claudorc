@@ -54,10 +54,12 @@ export function TimelineSwimlane({
           <TimelineTimeAxis timeRange={timeRange} nowPercent={nowPercent} />
 
           {/* Swimlane rows */}
-          {Array.from(projectGroups.entries()).map(([projectName, projectSessions]) => (
+          {Array.from(projectGroups.entries()).map(([projectName, projectSessions], idx) => (
             <div
               key={projectName}
-              className="h-[88px] border-b border-border relative flex items-center py-3 hover:bg-white/[0.015]"
+              className={`h-[76px] border-b border-border relative flex items-center py-3 hover:bg-white/[0.015] ${
+                idx % 2 === 0 ? 'bg-white/[0.02]' : ''
+              }`}
             >
               {projectSessions.map((session, i) => {
                 const sessionStart = Math.max(session.startedAt, startTime);

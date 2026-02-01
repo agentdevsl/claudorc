@@ -1,7 +1,7 @@
 import { GitBranch } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { CliSession } from './cli-monitor-types';
-import { formatTokenCount, getSessionTokenTotal } from './cli-monitor-utils';
+import { estimateCost, formatTokenCount, getSessionTokenTotal } from './cli-monitor-utils';
 
 const barStatusClass: Record<string, string> = {
   working: 'bg-gradient-to-r from-success/30 to-success/15 border-success/40',
@@ -112,6 +112,21 @@ export function TimelineSessionBar({
             }`}
           />
         )}
+        {/* Compaction tick marks */}
+        {session.performanceMetrics?.compactionEvents?.map((evt) => {
+          const elapsed = evt.timestamp - session.startedAt;
+          const total =
+            (session.status === 'idle' ? session.lastActivityAt : Date.now()) - session.startedAt;
+          if (total <= 0) return null;
+          const pct = Math.min(Math.max((elapsed / total) * 100, 0), 100);
+          return (
+            <span
+              key={`${evt.timestamp}-${evt.type}`}
+              className="absolute z-[3] h-[6px] w-[6px] bg-attention rotate-45 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ left: `${pct}%` }}
+            />
+          );
+        })}
       </button>
 
       {/* Hover tooltip */}
@@ -131,16 +146,64 @@ export function TimelineSessionBar({
           <div className="flex items-center gap-3 text-[11px] text-fg-subtle">
             <span>{session.messageCount} msgs</span>
             <span className="font-mono">{formatTokenCount(totalTokens)} tokens</span>
+            <span className="font-mono text-fg-muted">
+              ${estimateCost(session).toFixed(2)} est.
+            </span>
             <span>{durationMin}m</span>
           </div>
           {session.performanceMetrics && (
-            <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-1 pt-1 border-t border-border">
-              <span>Context: {Math.round(session.performanceMetrics.contextPressure * 100)}%</span>
-              <span>·</span>
-              <span>Cache: {Math.round(session.performanceMetrics.cacheHitRatio * 100)}%</span>
-              <span>·</span>
-              <span>{session.performanceMetrics.compactionCount} compactions</span>
-            </div>
+            <>
+              <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-1 pt-1 border-t border-border">
+                <span>
+                  Context: {Math.round(session.performanceMetrics.contextPressure * 100)}%
+                </span>
+                <span>·</span>
+                <span>Cache: {Math.round(session.performanceMetrics.cacheHitRatio * 100)}%</span>
+                <span>·</span>
+                <span>{session.performanceMetrics.compactionCount} compactions</span>
+              </div>
+              {/* Context pressure mini-bar */}
+              <div className="h-1 w-full rounded-full bg-emphasis mt-1.5">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    session.performanceMetrics.contextPressure > 0.9
+                      ? 'bg-danger'
+                      : session.performanceMetrics.contextPressure > 0.7
+                        ? 'bg-attention'
+                        : 'bg-success'
+                  }`}
+                  style={{
+                    width: `${Math.round(session.performanceMetrics.contextPressure * 100)}%`,
+                  }}
+                />
+              </div>
+              {/* Compaction events */}
+              {session.performanceMetrics.compactionEvents?.length > 0 && (
+                <div className="mt-1.5 pt-1 border-t border-border space-y-0.5">
+                  {session.performanceMetrics.compactionEvents.slice(-3).map((evt) => (
+                    <div
+                      key={`${evt.timestamp}-${evt.type}`}
+                      className="flex items-center gap-1.5 text-[10px] text-fg-subtle"
+                    >
+                      <span
+                        className={`h-[5px] w-[5px] rounded-full shrink-0 ${
+                          evt.type === 'compact' ? 'bg-attention' : 'bg-accent'
+                        }`}
+                      />
+                      <span className="capitalize">
+                        {evt.type === 'microcompact' ? 'Micro' : 'Compact'}
+                      </span>
+                      <span className="ml-auto font-mono text-fg-subtle/70">
+                        {new Date(evt.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

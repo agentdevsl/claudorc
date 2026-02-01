@@ -1,3 +1,5 @@
+import { ArrowsInSimple, Coins, CurrencyDollar, Heartbeat, Users } from '@phosphor-icons/react';
+import type { ComponentType } from 'react';
 import { useMemo } from 'react';
 import type { CliSession, HealthStatus } from './cli-monitor-types';
 import { estimateCost, formatTokenCount, getSessionTokenTotal } from './cli-monitor-utils';
@@ -9,6 +11,7 @@ function SummaryCard({
   progressPercent,
   progressColor,
   valueClassName,
+  icon: Icon,
 }: {
   label: string;
   value: string | number;
@@ -16,10 +19,12 @@ function SummaryCard({
   progressPercent?: number;
   progressColor?: string;
   valueClassName?: string;
+  icon?: ComponentType<{ size?: number; className?: string }>;
 }) {
   return (
     <div className="flex flex-col gap-1 bg-default px-4 py-3 relative">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+        {Icon && <Icon size={16} className="text-fg-subtle" />}
         {label}
       </span>
       <span className={`text-2xl font-bold tabular-nums tracking-tight ${valueClassName ?? ''}`}>
@@ -61,6 +66,7 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
         detail={`${workingCount} working \u00B7 ${waitingCount} waiting \u00B7 ${idleCount} idle`}
         progressPercent={flatSessions.length > 0 ? (workingCount / flatSessions.length) * 100 : 0}
         progressColor="bg-success"
+        icon={Users}
       />
       <SummaryCard
         label="Total Tokens"
@@ -68,12 +74,14 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
         detail={`~$${totalCost.toFixed(2)} estimated`}
         progressPercent={totalTokens > 0 ? Math.min((totalTokens / 1_000_000) * 100, 100) : 0}
         progressColor="bg-accent"
+        icon={Coins}
       />
       <SummaryCard
         label="Est. Cost"
         value={`$${totalCost.toFixed(2)}`}
         detail={`${formatTokenCount(totalTokens)} total tokens`}
         valueClassName="text-attention"
+        icon={CurrencyDollar}
       />
       <CompactionSummaryCard sessions={flatSessions} totalCompactions={totalCompactions} />
       <HealthSummaryCard sessions={flatSessions} />
@@ -143,6 +151,7 @@ function CompactionSummaryCard({
       progressPercent={pressurePct}
       progressColor={pressureColor}
       valueClassName={totalCompactions > 0 ? 'text-attention' : ''}
+      icon={ArrowsInSimple}
     />
   );
 }
@@ -166,7 +175,8 @@ function HealthSummaryCard({ sessions }: { sessions: CliSession[] }) {
 
   return (
     <div className="flex flex-col gap-1 bg-default px-4 py-3 relative">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+        <Heartbeat size={16} className="text-fg-subtle" />
         Performance Health
       </span>
       <span className="text-2xl font-bold tabular-nums tracking-tight">

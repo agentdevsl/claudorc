@@ -1,4 +1,4 @@
-import { ArrowsIn, ArrowsOut, GitBranch } from '@phosphor-icons/react';
+import { ArrowsIn, ArrowsOut, GitBranch, Terminal } from '@phosphor-icons/react';
 import { useEffect, useRef } from 'react';
 import type { CliSession } from './cli-monitor-types';
 
@@ -6,6 +6,13 @@ const statusDotClass: Record<string, string> = {
   working: 'bg-success animate-pulse',
   waiting_for_approval: 'bg-attention',
   waiting_for_input: 'bg-accent animate-pulse',
+  idle: 'bg-fg-subtle',
+};
+
+const statusBarColor: Record<string, string> = {
+  working: 'bg-success',
+  waiting_for_approval: 'bg-attention',
+  waiting_for_input: 'bg-accent',
   idle: 'bg-fg-subtle',
 };
 
@@ -53,8 +60,9 @@ export function TerminalPane({
         <div className="flex items-center justify-between px-3 py-1 bg-default border-b border-border min-h-[32px]">
           <span className="font-mono text-[11px] text-fg-subtle">Pane {paneIndex + 1}</span>
         </div>
-        <div className="flex flex-1 items-center justify-center text-xs text-fg-subtle">
-          No session assigned
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
+          <Terminal size={24} className="text-fg-subtle" />
+          <span className="text-fg-subtle text-[11px]">Click to assign</span>
         </div>
       </div>
     );
@@ -70,10 +78,15 @@ export function TerminalPane({
   const stateClass = paneStateClass[session.status] ?? '';
   const isWorking = session.status === 'working';
 
+  const compactionCount = session.performanceMetrics?.compactionCount ?? 0;
+
   return (
     <div
       className={`flex flex-col bg-[#0a0e14] border transition-all ${stateClass} ${healthBorderClass}`}
     >
+      {/* Status color bar */}
+      <div className={`h-[2px] shrink-0 ${statusBarColor[session.status] ?? 'bg-fg-subtle'}`} />
+
       {/* Tab bar */}
       <div className="flex items-center justify-between px-3 py-1 bg-default border-b border-border min-h-[32px] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -97,6 +110,14 @@ export function TerminalPane({
             <>
               <CtxLabel pressure={session.performanceMetrics.contextPressure} />
               <ChrLabel ratio={session.performanceMetrics.cacheHitRatio} />
+              {compactionCount > 0 && (
+                <span
+                  className="text-[10px] font-mono font-medium text-attention"
+                  title="Compaction count"
+                >
+                  C{compactionCount}
+                </span>
+              )}
             </>
           )}
           <button
@@ -197,8 +218,12 @@ function CtxLabel({ pressure }: { pressure: number }) {
   const pct = Math.round(pressure * 100);
   const color =
     pressure > 0.9 ? 'text-danger' : pressure > 0.7 ? 'text-attention' : 'text-fg-subtle';
+  const bgClass = pressure > 0.9 ? 'bg-danger/15' : pressure > 0.7 ? 'bg-attention/15' : '';
   return (
-    <span className={`text-[10px] font-mono font-medium ${color}`} title="Context window pressure">
+    <span
+      className={`text-[10px] font-mono font-medium rounded px-1 ${color} ${bgClass}`}
+      title="Context window pressure"
+    >
       CTX {pct}%
     </span>
   );
@@ -207,8 +232,12 @@ function CtxLabel({ pressure }: { pressure: number }) {
 function ChrLabel({ ratio }: { ratio: number }) {
   const pct = Math.round(ratio * 100);
   const color = pct >= 70 ? 'text-fg-subtle' : pct >= 30 ? 'text-attention' : 'text-danger';
+  const bgClass = pct < 30 ? 'bg-danger/15' : pct < 70 ? 'bg-attention/15' : '';
   return (
-    <span className={`text-[10px] font-mono font-medium ${color}`} title="Cache hit ratio">
+    <span
+      className={`text-[10px] font-mono font-medium rounded px-1 ${color} ${bgClass}`}
+      title="Cache hit ratio"
+    >
       CHR {pct}%
     </span>
   );
