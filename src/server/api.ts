@@ -64,6 +64,7 @@ import { settings } from '../db/schema/settings.js';
 import { tasks } from '../db/schema/tasks.js';
 import {
   CLI_SESSIONS_MIGRATION_SQL,
+  CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL,
   MIGRATION_SQL,
   PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
@@ -154,6 +155,19 @@ log.info('Performance indexes applied');
 // Apply CLI sessions migration (idempotent — uses IF NOT EXISTS)
 sqlite.exec(CLI_SESSIONS_MIGRATION_SQL);
 log.info('CLI sessions migration applied');
+
+// Add performance_metrics column to cli_sessions (may fail if column already exists)
+try {
+  sqlite.exec(CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL);
+  log.info('CLI sessions performance_metrics migration applied');
+} catch (error) {
+  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+    console.warn(
+      '[API Server] CLI sessions performance_metrics migration error (unexpected):',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 

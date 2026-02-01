@@ -22,6 +22,7 @@ export const cliSessions = sqliteTable(
     recentOutput: text('recent_output'),
     pendingToolUse: text('pending_tool_use'), // JSON
     tokenUsage: text('token_usage'), // JSON
+    performanceMetrics: text('performance_metrics'), // JSON
     model: text('model'),
     startedAt: integer('started_at').notNull(),
     lastActivityAt: integer('last_activity_at').notNull(),

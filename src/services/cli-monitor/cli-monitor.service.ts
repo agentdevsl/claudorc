@@ -303,6 +303,9 @@ export class CliMonitorService {
         recentOutput: session.recentOutput ?? null,
         pendingToolUse: session.pendingToolUse ? JSON.stringify(session.pendingToolUse) : null,
         tokenUsage: session.tokenUsage ? JSON.stringify(session.tokenUsage) : null,
+        performanceMetrics: session.performanceMetrics
+          ? JSON.stringify(session.performanceMetrics)
+          : null,
         model: session.model ?? null,
         startedAt: session.startedAt,
         lastActivityAt: session.lastActivityAt,
@@ -375,6 +378,7 @@ export class CliMonitorService {
       lastReadOffset: 0,
       isSubagent: row.isSubagent ?? false,
       parentSessionId: row.parentSessionId ?? undefined,
+      performanceMetrics: row.performanceMetrics ? JSON.parse(row.performanceMetrics) : undefined,
     };
   }
 

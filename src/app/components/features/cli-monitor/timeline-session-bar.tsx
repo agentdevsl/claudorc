@@ -103,6 +103,15 @@ export function TimelineSessionBar({
             {session.gitBranch}
           </span>
         )}
+        {session.performanceMetrics && session.performanceMetrics.healthStatus !== 'healthy' && (
+          <span
+            className={`relative z-[2] ml-1 h-[6px] w-[6px] rounded-full shrink-0 ${
+              session.performanceMetrics.healthStatus === 'critical'
+                ? 'bg-danger animate-pulse'
+                : 'bg-attention'
+            }`}
+          />
+        )}
       </button>
 
       {/* Hover tooltip */}
@@ -124,6 +133,15 @@ export function TimelineSessionBar({
             <span className="font-mono">{formatTokenCount(totalTokens)} tokens</span>
             <span>{durationMin}m</span>
           </div>
+          {session.performanceMetrics && (
+            <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-1 pt-1 border-t border-border">
+              <span>Context: {Math.round(session.performanceMetrics.contextPressure * 100)}%</span>
+              <span>·</span>
+              <span>Cache: {Math.round(session.performanceMetrics.cacheHitRatio * 100)}%</span>
+              <span>·</span>
+              <span>{session.performanceMetrics.compactionCount} compactions</span>
+            </div>
+          )}
         </div>
       )}
     </div>

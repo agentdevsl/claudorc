@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { CliSession } from './cli-monitor-types';
+import type { CliSession, HealthStatus } from './cli-monitor-types';
 import { estimateCost, formatTokenCount, getSessionTokenTotal } from './cli-monitor-utils';
 
 function SummaryCard({
@@ -70,11 +70,75 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
         detail={`${formatTokenCount(totalTokens)} total tokens`}
         valueClassName="text-attention"
       />
-      <SummaryCard
-        label="Active Branches"
-        value={new Set(sessions.filter((s) => s.gitBranch).map((s) => s.gitBranch)).size}
-        detail={Array.from(new Set(sessions.map((s) => s.gitBranch).filter(Boolean))).join(', ')}
-      />
+      <HealthSummaryCard sessions={flatSessions} />
+    </div>
+  );
+}
+
+const healthColors: Record<HealthStatus, string> = {
+  healthy: 'bg-success',
+  warning: 'bg-attention',
+  critical: 'bg-danger',
+};
+
+const healthLabels: Record<HealthStatus, string> = {
+  healthy: 'All Healthy',
+  warning: 'Warning',
+  critical: 'Critical',
+};
+
+function getSessionHealth(session: CliSession): HealthStatus {
+  return session.performanceMetrics?.healthStatus ?? 'healthy';
+}
+
+function HealthSummaryCard({ sessions }: { sessions: CliSession[] }) {
+  const counts = useMemo(() => {
+    const c = { healthy: 0, warning: 0, critical: 0 };
+    for (const s of sessions) {
+      c[getSessionHealth(s)]++;
+    }
+    return c;
+  }, [sessions]);
+
+  const total = sessions.length || 1;
+  const healthyPct = (counts.healthy / total) * 100;
+  const warningPct = (counts.warning / total) * 100;
+  const criticalPct = (counts.critical / total) * 100;
+
+  const worstStatus: HealthStatus =
+    counts.critical > 0 ? 'critical' : counts.warning > 0 ? 'warning' : 'healthy';
+
+  return (
+    <div className="flex flex-col gap-1 bg-default px-4 py-3 relative">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+        Performance Health
+      </span>
+      <span className="text-2xl font-bold tabular-nums tracking-tight">
+        {healthLabels[worstStatus]}
+      </span>
+      <span className="truncate text-xs text-fg-muted">
+        {counts.healthy} healthy · {counts.warning} warning · {counts.critical} critical
+      </span>
+      <div className="h-[3px] w-full rounded-full bg-emphasis mt-1 flex overflow-hidden">
+        {healthyPct > 0 && (
+          <div
+            className={`h-full ${healthColors.healthy} transition-all duration-500`}
+            style={{ width: `${healthyPct}%` }}
+          />
+        )}
+        {warningPct > 0 && (
+          <div
+            className={`h-full ${healthColors.warning} transition-all duration-500`}
+            style={{ width: `${warningPct}%` }}
+          />
+        )}
+        {criticalPct > 0 && (
+          <div
+            className={`h-full ${healthColors.critical} transition-all duration-500`}
+            style={{ width: `${criticalPct}%` }}
+          />
+        )}
+      </div>
     </div>
   );
 }

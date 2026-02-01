@@ -45,6 +45,28 @@ interface ContentBlock {
 }
 
 const MAX_LINE_BYTES = 1_000_000; // 1MB per line
+const MAX_RECENT_TURNS = 10;
+const CONTEXT_WINDOW_DEFAULT = 200_000;
+
+function getContextWindowLimit(model?: string): number {
+  // All current Claude models use 200k context window
+  if (model && (model.includes('sonnet') || model.includes('opus') || model.includes('haiku'))) {
+    return 200_000;
+  }
+  return CONTEXT_WINDOW_DEFAULT;
+}
+
+function deriveHealthStatus(
+  pressure: number,
+  cacheHitRatio: number,
+  turnCount: number,
+  compactionCount: number
+): 'healthy' | 'warning' | 'critical' {
+  if (pressure > 0.9 || (cacheHitRatio < 0.1 && turnCount > 3)) return 'critical';
+  if (pressure > 0.7 || (cacheHitRatio < 0.3 && turnCount > 3) || compactionCount > 0)
+    return 'warning';
+  return 'healthy';
+}
 
 export function parseJsonlFile(
   filePath: string,
@@ -121,6 +143,16 @@ export function parseJsonlFile(
         lastReadOffset: 0,
         isSubagent,
         parentSessionId: isSubagent ? extractParentSessionId(filePath) : undefined,
+        performanceMetrics: {
+          compactionCount: 0,
+          lastCompactionAt: null,
+          recentTurns: [],
+          cacheHitRatio: 0,
+          contextWindowUsed: 0,
+          contextWindowLimit: CONTEXT_WINDOW_DEFAULT,
+          contextPressure: 0,
+          healthStatus: 'healthy',
+        },
       };
     }
 
@@ -213,12 +245,63 @@ export function parseJsonlFile(
           if (session.status !== 'waiting_for_approval') {
             session.status = 'waiting_for_input';
           }
+
+          // Track per-turn metrics in ring buffer
+          if (session.performanceMetrics && message.usage) {
+            const pm = session.performanceMetrics;
+            const turnMetric = {
+              turnNumber: session.turnCount,
+              inputTokens: message.usage.input_tokens || 0,
+              outputTokens: message.usage.output_tokens || 0,
+              cacheReadTokens: message.usage.cache_read_input_tokens || 0,
+              cacheCreationTokens: message.usage.cache_creation_input_tokens || 0,
+              timestamp: eventTime || Date.now(),
+            };
+            pm.recentTurns.push(turnMetric);
+            if (pm.recentTurns.length > MAX_RECENT_TURNS) {
+              pm.recentTurns.shift();
+            }
+
+            // Cache hit ratio across recent turns
+            let totalCacheRead = 0;
+            let totalInput = 0;
+            for (const t of pm.recentTurns) {
+              totalCacheRead += t.cacheReadTokens;
+              totalInput += t.inputTokens;
+            }
+            pm.cacheHitRatio =
+              totalCacheRead + totalInput > 0 ? totalCacheRead / (totalCacheRead + totalInput) : 0;
+
+            // Context pressure from most recent turn's input tokens
+            pm.contextWindowUsed = message.usage.input_tokens || 0;
+            pm.contextWindowLimit = getContextWindowLimit(session.model);
+            pm.contextPressure = pm.contextWindowUsed / pm.contextWindowLimit;
+
+            // Derive health
+            pm.healthStatus = deriveHealthStatus(
+              pm.contextPressure,
+              pm.cacheHitRatio,
+              session.turnCount,
+              pm.compactionCount
+            );
+          }
         }
       }
     }
 
-    // Summary event = session ending
+    // Summary event = compaction or session ending
     if (event.type === 'summary') {
+      if (session.performanceMetrics) {
+        session.performanceMetrics.compactionCount++;
+        session.performanceMetrics.lastCompactionAt = eventTime || Date.now();
+        // Re-derive health after compaction
+        session.performanceMetrics.healthStatus = deriveHealthStatus(
+          session.performanceMetrics.contextPressure,
+          session.performanceMetrics.cacheHitRatio,
+          session.turnCount,
+          session.performanceMetrics.compactionCount
+        );
+      }
       session.status = 'idle';
     }
 

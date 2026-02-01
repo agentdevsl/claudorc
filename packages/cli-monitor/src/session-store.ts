@@ -27,6 +27,23 @@ export interface StoredSession {
   lastReadOffset: number;
   isSubagent: boolean;
   parentSessionId?: string;
+  performanceMetrics?: {
+    compactionCount: number;
+    lastCompactionAt: number | null;
+    recentTurns: Array<{
+      turnNumber: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      timestamp: number;
+    }>;
+    cacheHitRatio: number;
+    contextWindowUsed: number;
+    contextWindowLimit: number;
+    contextPressure: number;
+    healthStatus: 'healthy' | 'warning' | 'critical';
+  };
 }
 
 const MAX_SESSIONS = 1000;

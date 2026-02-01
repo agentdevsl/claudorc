@@ -60,11 +60,20 @@ export function TerminalPane({
     );
   }
 
+  const healthStatus = session.performanceMetrics?.healthStatus;
+  const healthBorderClass =
+    healthStatus === 'critical'
+      ? 'ring-1 ring-danger/40'
+      : healthStatus === 'warning'
+        ? 'ring-1 ring-attention/30'
+        : '';
   const stateClass = paneStateClass[session.status] ?? '';
   const isWorking = session.status === 'working';
 
   return (
-    <div className={`flex flex-col bg-[#0a0e14] border transition-all ${stateClass}`}>
+    <div
+      className={`flex flex-col bg-[#0a0e14] border transition-all ${stateClass} ${healthBorderClass}`}
+    >
       {/* Tab bar */}
       <div className="flex items-center justify-between px-3 py-1 bg-default border-b border-border min-h-[32px] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -84,6 +93,12 @@ export function TerminalPane({
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] text-fg-subtle font-medium">{session.projectName}</span>
           <span className="text-[10px] font-mono text-fg-subtle">T{session.turnCount}</span>
+          {session.performanceMetrics && (
+            <>
+              <CtxLabel pressure={session.performanceMetrics.contextPressure} />
+              <ChrLabel ratio={session.performanceMetrics.cacheHitRatio} />
+            </>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -175,5 +190,26 @@ function TerminalLine({ line }: { line: string }) {
     <div className="mb-px animate-[fadeInLine_0.2s_ease] whitespace-pre-wrap break-words text-fg-muted">
       {line}
     </div>
+  );
+}
+
+function CtxLabel({ pressure }: { pressure: number }) {
+  const pct = Math.round(pressure * 100);
+  const color =
+    pressure > 0.9 ? 'text-danger' : pressure > 0.7 ? 'text-attention' : 'text-fg-subtle';
+  return (
+    <span className={`text-[10px] font-mono font-medium ${color}`} title="Context window pressure">
+      CTX {pct}%
+    </span>
+  );
+}
+
+function ChrLabel({ ratio }: { ratio: number }) {
+  const pct = Math.round(ratio * 100);
+  const color = pct >= 70 ? 'text-fg-subtle' : pct >= 30 ? 'text-attention' : 'text-danger';
+  return (
+    <span className={`text-[10px] font-mono font-medium ${color}`} title="Cache hit ratio">
+      CHR {pct}%
+    </span>
   );
 }

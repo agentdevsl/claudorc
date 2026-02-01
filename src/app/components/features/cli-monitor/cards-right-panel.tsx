@@ -265,9 +265,110 @@ function ActivityTab({ session }: { session: CliSession }) {
             <p className="text-xs text-fg-muted leading-relaxed">{session.goal}</p>
           </div>
         )}
+
+        {/* Performance Metrics */}
+        {session.performanceMetrics && <PerformanceSection metrics={session.performanceMetrics} />}
       </div>
     </div>
   );
+}
+
+function PerformanceSection({
+  metrics,
+}: {
+  metrics: NonNullable<CliSession['performanceMetrics']>;
+}) {
+  const pressurePct = Math.round(metrics.contextPressure * 100);
+  const cachePct = Math.round(metrics.cacheHitRatio * 100);
+  const pressureColor =
+    metrics.contextPressure > 0.9
+      ? 'text-danger'
+      : metrics.contextPressure > 0.7
+        ? 'text-attention'
+        : 'text-success';
+  const cacheColor =
+    cachePct >= 70 ? 'text-success' : cachePct >= 30 ? 'text-attention' : 'text-danger';
+
+  return (
+    <div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+        Performance
+      </div>
+      <div className="space-y-2.5 text-xs">
+        {/* Context pressure gauge */}
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="text-fg-muted">Context Pressure</span>
+            <span className={`font-mono font-medium ${pressureColor}`}>{pressurePct}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-emphasis overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                metrics.contextPressure > 0.9
+                  ? 'bg-danger'
+                  : metrics.contextPressure > 0.7
+                    ? 'bg-attention'
+                    : 'bg-success'
+              }`}
+              style={{ width: `${Math.min(pressurePct, 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Cache efficiency */}
+        <div className="flex justify-between">
+          <span className="text-fg-muted">Cache Efficiency</span>
+          <span className={`font-mono font-medium ${cacheColor}`}>{cachePct}%</span>
+        </div>
+
+        {/* Compaction count */}
+        <div className="flex justify-between">
+          <span className="text-fg-muted">Compactions</span>
+          <span className="font-mono font-medium">
+            {metrics.compactionCount}
+            {metrics.lastCompactionAt && (
+              <span className="text-fg-subtle ml-1">
+                ({formatTimeAgo(metrics.lastCompactionAt)})
+              </span>
+            )}
+          </span>
+        </div>
+
+        {/* Recent turns token bars */}
+        {metrics.recentTurns.length > 0 && (
+          <div>
+            <div className="text-fg-muted mb-1">Recent Turns</div>
+            <div className="flex items-end gap-px h-6">
+              {metrics.recentTurns.map((turn) => {
+                const total = turn.inputTokens + turn.outputTokens;
+                const maxTokens = Math.max(
+                  ...metrics.recentTurns.map((t) => t.inputTokens + t.outputTokens),
+                  1
+                );
+                const heightPct = Math.max((total / maxTokens) * 100, 4);
+                return (
+                  <div
+                    key={turn.turnNumber}
+                    className="flex-1 rounded-t bg-accent/60 transition-all duration-300"
+                    style={{ height: `${heightPct}%` }}
+                    title={`T${turn.turnNumber}: ${total.toLocaleString()} tokens`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatTimeAgo(timestamp: number): string {
+  const ms = Date.now() - timestamp;
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  return `${Math.floor(min / 60)}h ago`;
 }
 
 function TokensTab({ session }: { session: CliSession }) {

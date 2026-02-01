@@ -489,6 +489,7 @@ function SessionCard({
         <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold ${config.badge}`}>
           {config.text}
         </span>
+        <HealthBadge session={session} />
       </div>
 
       {/* Card Body - Goal */}
@@ -526,6 +527,56 @@ function SessionCard({
           {formatTokenCount(totalTokens)}
         </span>
       </div>
+      {/* Context pressure mini-bar */}
+      <ContextPressureBar session={session} />
     </button>
+  );
+}
+
+// -- Health Badge --
+
+function HealthBadge({ session }: { session: CliSession }) {
+  const health = session.performanceMetrics?.healthStatus;
+  if (!health || health === 'healthy') return null;
+
+  const pm = session.performanceMetrics;
+  const pressurePct = pm ? Math.round(pm.contextPressure * 100) : 0;
+  const tooltip =
+    health === 'critical'
+      ? `Context pressure: ${pressurePct}%`
+      : pm && pm.compactionCount > 0
+        ? `${pm.compactionCount} compaction${pm.compactionCount > 1 ? 's' : ''} detected`
+        : `Context pressure: ${pressurePct}%`;
+
+  if (health === 'critical') {
+    return (
+      <span className="relative flex h-2.5 w-2.5 shrink-0" title={tooltip}>
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-danger" />
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-attention shrink-0" title={tooltip} />
+  );
+}
+
+// -- Context Pressure Mini-bar --
+
+function ContextPressureBar({ session }: { session: CliSession }) {
+  const pressure = session.performanceMetrics?.contextPressure ?? 0;
+  if (pressure <= 0) return null;
+
+  const pct = Math.min(pressure * 100, 100);
+  const barColor = pressure > 0.9 ? 'bg-danger' : pressure > 0.7 ? 'bg-attention' : 'bg-success';
+
+  return (
+    <div className="h-[2px] w-full bg-emphasis rounded-b-lg overflow-hidden">
+      <div
+        className={`h-full ${barColor} transition-all duration-500`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
   );
 }

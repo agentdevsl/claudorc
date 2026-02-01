@@ -34,6 +34,27 @@ export const cliSessionSchema = z.object({
   lastReadOffset: z.number(),
   isSubagent: z.boolean(),
   parentSessionId: z.string().optional(),
+  performanceMetrics: z
+    .object({
+      compactionCount: z.number(),
+      lastCompactionAt: z.number().nullable(),
+      recentTurns: z.array(
+        z.object({
+          turnNumber: z.number(),
+          inputTokens: z.number(),
+          outputTokens: z.number(),
+          cacheReadTokens: z.number(),
+          cacheCreationTokens: z.number(),
+          timestamp: z.number(),
+        })
+      ),
+      cacheHitRatio: z.number(),
+      contextWindowUsed: z.number(),
+      contextWindowLimit: z.number(),
+      contextPressure: z.number(),
+      healthStatus: z.enum(['healthy', 'warning', 'critical']),
+    })
+    .optional(),
 });
 
 export type CliSession = z.infer<typeof cliSessionSchema>;

@@ -40,6 +40,30 @@ export interface CliSession {
   lastReadOffset: number; // Byte offset for incremental file reading
   isSubagent: boolean; // True if file is in /subagents/ directory
   parentSessionId?: string; // Parent session ID if subagent
+  performanceMetrics?: PerformanceMetrics;
+}
+
+// ── Performance Metrics ──
+export interface TurnMetrics {
+  turnNumber: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  timestamp: number;
+}
+
+export type HealthStatus = 'healthy' | 'warning' | 'critical';
+
+export interface PerformanceMetrics {
+  compactionCount: number;
+  lastCompactionAt: number | null;
+  recentTurns: TurnMetrics[];
+  cacheHitRatio: number;
+  contextWindowUsed: number;
+  contextWindowLimit: number;
+  contextPressure: number;
+  healthStatus: HealthStatus;
 }
 
 // ── Daemon Info ──

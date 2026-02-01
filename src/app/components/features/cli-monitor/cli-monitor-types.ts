@@ -2,6 +2,7 @@
 
 // Re-export CliSession from the canonical schema module
 export type { CliSession } from '@/lib/cli-monitor/schema';
+export type { HealthStatus, PerformanceMetrics, TurnMetrics } from '@/services/cli-monitor/types';
 
 export type CliSessionStatus = 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
 export type PageState = 'install' | 'waiting' | 'active';

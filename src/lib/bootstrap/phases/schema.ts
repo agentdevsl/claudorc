@@ -349,6 +349,7 @@ CREATE TABLE IF NOT EXISTS "cli_sessions" (
   "recent_output" TEXT,
   "pending_tool_use" TEXT,
   "token_usage" TEXT,
+  "performance_metrics" TEXT,
   "model" TEXT,
   "started_at" INTEGER NOT NULL,
   "last_activity_at" INTEGER NOT NULL,
@@ -361,6 +362,11 @@ CREATE TABLE IF NOT EXISTS "cli_sessions" (
 CREATE INDEX IF NOT EXISTS "idx_cli_sessions_project" ON "cli_sessions"("project_hash", "last_activity_at");
 CREATE INDEX IF NOT EXISTS "idx_cli_sessions_status" ON "cli_sessions"("status");
 CREATE INDEX IF NOT EXISTS "idx_cli_sessions_last_activity" ON "cli_sessions"("last_activity_at");
+`;
+
+// CLI Sessions performance_metrics column migration (for existing databases)
+export const CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL = `
+ALTER TABLE cli_sessions ADD COLUMN performance_metrics TEXT;
 `;
 
 // Performance indexes migration
