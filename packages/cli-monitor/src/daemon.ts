@@ -56,6 +56,7 @@ export interface DaemonOptions {
   port: number;
   watchPath?: string;
   background?: boolean;
+  retentionDays?: number;
 }
 
 export async function startDaemon(options: DaemonOptions): Promise<void> {
@@ -63,6 +64,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   if (options.background) {
     const childArgs = ['start', '--port', String(options.port)];
     if (options.watchPath) childArgs.push('--path', options.watchPath);
+    if (options.retentionDays) childArgs.push('--retention', String(options.retentionDays));
     const scriptPath = process.argv[1] ?? '';
     const child = spawn(process.execPath, [scriptPath, ...childArgs], {
       detached: true,
@@ -168,7 +170,7 @@ export async function startDaemon(options: DaemonOptions): Promise<void> {
   if (isShuttingDown) return;
 
   // Start file watcher
-  watcher = new FileWatcher(watchDir, store);
+  watcher = new FileWatcher(watchDir, store, options.retentionDays ?? 7);
   await watcher.start();
 
   // Print status

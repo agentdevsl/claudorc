@@ -42,6 +42,11 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
   const flatSessions = useMemo(() => sessions.filter((s) => !s.isSubagent), [sessions]);
 
   const totalTokens = flatSessions.reduce((sum, s) => sum + getSessionTokenTotal(s), 0);
+  const totalCost = flatSessions.reduce((sum, s) => sum + estimateCost(s), 0);
+  const totalCompactions = flatSessions.reduce(
+    (sum, s) => sum + (s.performanceMetrics?.compactionCount ?? 0),
+    0
+  );
   const workingCount = flatSessions.filter((s) => s.status === 'working').length;
   const waitingCount = flatSessions.filter(
     (s) => s.status === 'waiting_for_approval' || s.status === 'waiting_for_input'
@@ -49,7 +54,7 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
   const idleCount = flatSessions.filter((s) => s.status === 'idle').length;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-px border-b border-border bg-border">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-px border-b border-border bg-border">
       <SummaryCard
         label="Active Sessions"
         value={flatSessions.length}
@@ -60,16 +65,17 @@ export function SummaryStrip({ sessions }: { sessions: CliSession[] }) {
       <SummaryCard
         label="Total Tokens"
         value={formatTokenCount(totalTokens)}
-        detail={`~$${estimateCost(totalTokens).toFixed(2)} estimated`}
+        detail={`~$${totalCost.toFixed(2)} estimated`}
         progressPercent={totalTokens > 0 ? Math.min((totalTokens / 1_000_000) * 100, 100) : 0}
         progressColor="bg-accent"
       />
       <SummaryCard
         label="Est. Cost"
-        value={`$${estimateCost(totalTokens).toFixed(2)}`}
+        value={`$${totalCost.toFixed(2)}`}
         detail={`${formatTokenCount(totalTokens)} total tokens`}
         valueClassName="text-attention"
       />
+      <CompactionSummaryCard sessions={flatSessions} totalCompactions={totalCompactions} />
       <HealthSummaryCard sessions={flatSessions} />
     </div>
   );
@@ -89,6 +95,56 @@ const healthLabels: Record<HealthStatus, string> = {
 
 function getSessionHealth(session: CliSession): HealthStatus {
   return session.performanceMetrics?.healthStatus ?? 'healthy';
+}
+
+function CompactionSummaryCard({
+  sessions,
+  totalCompactions,
+}: {
+  sessions: CliSession[];
+  totalCompactions: number;
+}) {
+  const sessionsWithCompactions = sessions.filter(
+    (s) => (s.performanceMetrics?.compactionCount ?? 0) > 0
+  ).length;
+
+  // Count full vs micro compactions across all sessions
+  let fullCount = 0;
+  let microCount = 0;
+  for (const s of sessions) {
+    const events = s.performanceMetrics?.compactionEvents;
+    if (events) {
+      for (const e of events) {
+        if (e.type === 'compact') fullCount++;
+        else microCount++;
+      }
+    }
+  }
+
+  const avgPressure =
+    sessions.length > 0
+      ? sessions.reduce((sum, s) => sum + (s.performanceMetrics?.contextPressure ?? 0), 0) /
+        sessions.length
+      : 0;
+  const pressurePct = Math.round(avgPressure * 100);
+  const pressureColor =
+    avgPressure > 0.9 ? 'bg-danger' : avgPressure > 0.7 ? 'bg-attention' : 'bg-success';
+
+  const detail =
+    totalCompactions > 0
+      ? `${fullCount} full \u00B7 ${microCount} micro \u00B7 ${sessionsWithCompactions} session${sessionsWithCompactions !== 1 ? 's' : ''}`
+      : `${sessionsWithCompactions} session${sessionsWithCompactions !== 1 ? 's' : ''} \u00B7 ${pressurePct}% avg pressure`;
+
+  return (
+    <SummaryCard
+      label="Compactions"
+      value={totalCompactions}
+      detail={detail}
+      progressPercent={pressurePct}
+      progressColor={pressureColor}
+      valueClassName={totalCompactions > 0 ? 'text-attention' : ''}
+    />
+  );
 }
 
 function HealthSummaryCard({ sessions }: { sessions: CliSession[] }) {

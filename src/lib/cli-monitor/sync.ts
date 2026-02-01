@@ -5,12 +5,7 @@
  * and routes events into the TanStack DB collection.
  */
 
-import {
-  bulkSyncSessions,
-  clearAllCliSessions,
-  removeCliSession,
-  upsertCliSession,
-} from './collections.js';
+import { bulkSyncSessions, removeCliSession, upsertCliSession } from './collections.js';
 import type { CliSession } from './schema.js';
 
 type PageState = 'install' | 'waiting' | 'active';
@@ -51,12 +46,15 @@ export function startCliMonitorSync(
           const sessions: CliSession[] = data.sessions || [];
           bulkSyncSessions(sessions);
 
-          if (!data.connected) {
-            callbacks.onPageStateChange?.('install');
-          } else if (sessions.length === 0) {
+          if (sessions.length > 0) {
+            // Show active view when sessions exist (live or historical from DB)
+            callbacks.onPageStateChange?.('active');
+          } else if (data.connected) {
+            // Daemon connected but no sessions yet
             callbacks.onPageStateChange?.('waiting');
           } else {
-            callbacks.onPageStateChange?.('active');
+            // No daemon, no sessions — show install prompt
+            callbacks.onPageStateChange?.('install');
           }
 
           if (data.connected) {
@@ -70,7 +68,7 @@ export function startCliMonitorSync(
           break;
 
         case 'cli-monitor:daemon-disconnected':
-          clearAllCliSessions();
+          // Don't clear sessions — historical DB data should remain visible
           callbacks.onDaemonDisconnected?.();
           break;
 

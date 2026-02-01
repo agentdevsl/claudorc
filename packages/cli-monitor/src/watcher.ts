@@ -12,11 +12,15 @@ export class FileWatcher {
   private watcher: FSWatcher | null = null;
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly DEBOUNCE_MS = 200;
+  private readonly retentionMs: number;
 
   constructor(
     private watchDir: string,
-    private store: SessionStore
-  ) {}
+    private store: SessionStore,
+    retentionDays = 7
+  ) {
+    this.retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+  }
 
   async start(): Promise<void> {
     // Ensure watch directory exists
@@ -151,9 +155,8 @@ export class FileWatcher {
     try {
       const stat = await fsp.stat(filePath);
 
-      // Skip files not modified within the last 24 hours
-      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-      if (Date.now() - stat.mtimeMs > ONE_DAY_MS) {
+      // Skip files not modified within the retention window
+      if (Date.now() - stat.mtimeMs > this.retentionMs) {
         return;
       }
 

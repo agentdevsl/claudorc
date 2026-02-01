@@ -84,10 +84,11 @@ function StreamTab({ session }: { session: CliSession }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isPinnedRef = useRef(true);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recentOutput triggers auto-scroll on new output
   useEffect(() => {
     if (!contentRef.current || !isPinnedRef.current) return;
     contentRef.current.scrollTop = contentRef.current.scrollHeight;
-  }, []);
+  }, [session.recentOutput]);
 
   const handleScroll = () => {
     const el = contentRef.current;
@@ -182,15 +183,14 @@ function StreamLine({ line }: { line: string }) {
     );
   }
 
-  // Highlight file paths
-  const filePathRegex = /((?:\/[\w.-]+)+(?:\.\w+)?)/g;
-  if (filePathRegex.test(line)) {
-    const parts = line.split(filePathRegex);
+  // Highlight file paths — use non-global regex for .test() to avoid lastIndex state issues
+  const filePathPattern = /((?:\/[\w.-]+)+(?:\.\w+)?)/;
+  if (filePathPattern.test(line)) {
+    const parts = line.split(new RegExp(filePathPattern.source, 'g'));
     return (
       <div className="mb-px whitespace-pre-wrap break-words text-fg-muted">
-        {/* biome-ignore lint/suspicious/noArrayIndexKey: stable ordered parts */}
         {parts.map((part, i) =>
-          filePathRegex.test(part) ? (
+          filePathPattern.test(part) ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: stable ordered parts
             <span key={`${part}-${i}`} className="text-success">
               {part}
@@ -321,17 +321,48 @@ function PerformanceSection({
           <span className={`font-mono font-medium ${cacheColor}`}>{cachePct}%</span>
         </div>
 
-        {/* Compaction count */}
-        <div className="flex justify-between">
-          <span className="text-fg-muted">Compactions</span>
-          <span className="font-mono font-medium">
-            {metrics.compactionCount}
-            {metrics.lastCompactionAt && (
-              <span className="text-fg-subtle ml-1">
-                ({formatTimeAgo(metrics.lastCompactionAt)})
-              </span>
-            )}
-          </span>
+        {/* Compaction count + event timeline */}
+        <div>
+          <div className="flex justify-between">
+            <span className="text-fg-muted">Compactions</span>
+            <span className="font-mono font-medium">
+              {metrics.compactionCount}
+              {metrics.lastCompactionAt && (
+                <span className="text-fg-subtle ml-1">
+                  ({formatTimeAgo(metrics.lastCompactionAt)})
+                </span>
+              )}
+            </span>
+          </div>
+          {metrics.compactionEvents && metrics.compactionEvents.length > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {metrics.compactionEvents.slice(-5).map((evt, i) => (
+                <div
+                  key={`${evt.timestamp}-${i}`}
+                  className="flex items-center gap-1.5 text-[10px]"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                      evt.type === 'compact' ? 'bg-attention' : 'bg-accent'
+                    }`}
+                  />
+                  <span className="text-fg-subtle truncate">
+                    {evt.type === 'compact' ? 'Full' : 'Micro'}
+                    {evt.preTokens > 0 && ` · ${Math.round(evt.preTokens / 1000)}k ctx`}
+                    {evt.tokensSaved != null && evt.tokensSaved > 0 && (
+                      <span className="text-success"> −{Math.round(evt.tokensSaved / 1000)}k</span>
+                    )}
+                    {evt.parentSessionId && (
+                      <span className="text-fg-subtle"> · sub:{evt.sessionId.slice(0, 6)}</span>
+                    )}
+                  </span>
+                  <span className="ml-auto text-fg-subtle shrink-0">
+                    {formatTimeAgo(evt.timestamp)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recent turns token bars */}

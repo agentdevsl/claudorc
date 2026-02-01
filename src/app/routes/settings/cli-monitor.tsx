@@ -73,7 +73,7 @@ function CliMonitorSettingsPage(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retentionDays, setRetentionDays] = useState('1');
+  const [retentionDays, setRetentionDays] = useState('7');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {

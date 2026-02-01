@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { logger } from './logger.js';
-import type { SessionStatus, SessionStore } from './session-store.js';
+import type { CompactionEvent, SessionStatus, SessionStore } from './session-store.js';
 
 // Minimal types for JSONL events (no dependency on main repo types)
 interface RawEvent {
   type: string;
+  subtype?: string;
   uuid: string;
   timestamp: string;
   sessionId: string;
@@ -30,7 +31,21 @@ interface RawEvent {
     };
     stop_reason?: string | null;
   };
+  // progress events nest message under data
+  data?: {
+    message?: RawEvent['message'];
+  };
   summary?: string;
+  compactMetadata?: {
+    trigger: string;
+    preTokens: number;
+  };
+  microcompactMetadata?: {
+    trigger: string;
+    preTokens: number;
+    tokensSaved?: number;
+    compactedToolIds?: string[];
+  };
 }
 
 interface ContentBlock {
@@ -146,6 +161,7 @@ export function parseJsonlFile(
         performanceMetrics: {
           compactionCount: 0,
           lastCompactionAt: null,
+          compactionEvents: [],
           recentTurns: [],
           cacheHitRatio: 0,
           contextWindowUsed: 0,
@@ -289,20 +305,47 @@ export function parseJsonlFile(
       }
     }
 
-    // Summary event = compaction or session ending
+    // Summary event marks session as completed (idle)
     if (event.type === 'summary') {
+      session.status = 'idle';
+      session.pendingToolUse = undefined;
+      if (event.summary) {
+        session.recentOutput = event.summary.slice(0, 500);
+      }
+    }
+
+    // Compaction events: system events with compact_boundary or microcompact_boundary subtypes
+    if (
+      event.type === 'system' &&
+      (event.subtype === 'compact_boundary' || event.subtype === 'microcompact_boundary')
+    ) {
       if (session.performanceMetrics) {
-        session.performanceMetrics.compactionCount++;
-        session.performanceMetrics.lastCompactionAt = eventTime || Date.now();
+        const pm = session.performanceMetrics;
+        const isMicro = event.subtype === 'microcompact_boundary';
+        const metadata = isMicro ? event.microcompactMetadata : event.compactMetadata;
+
+        const compactionEvent: CompactionEvent = {
+          type: isMicro ? 'microcompact' : 'compact',
+          timestamp: eventTime || Date.now(),
+          trigger: metadata?.trigger ?? 'unknown',
+          preTokens: metadata?.preTokens ?? 0,
+          tokensSaved: isMicro ? event.microcompactMetadata?.tokensSaved : undefined,
+          sessionId,
+          parentSessionId: session.parentSessionId,
+        };
+
+        pm.compactionCount++;
+        pm.lastCompactionAt = compactionEvent.timestamp;
+        pm.compactionEvents.push(compactionEvent);
+
         // Re-derive health after compaction
-        session.performanceMetrics.healthStatus = deriveHealthStatus(
-          session.performanceMetrics.contextPressure,
-          session.performanceMetrics.cacheHitRatio,
+        pm.healthStatus = deriveHealthStatus(
+          pm.contextPressure,
+          pm.cacheHitRatio,
           session.turnCount,
-          session.performanceMetrics.compactionCount
+          pm.compactionCount
         );
       }
-      session.status = 'idle';
     }
 
     store.setSession(sessionId, session);

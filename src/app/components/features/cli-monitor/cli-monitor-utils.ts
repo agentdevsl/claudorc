@@ -19,9 +19,20 @@ export function formatTokenCount(tokens: number): string {
   return String(tokens);
 }
 
-export function estimateCost(tokens: number): number {
-  // Rough estimate: $3/1M input tokens + $15/1M output tokens, averaged
-  return (tokens / 1_000_000) * 5;
+export function estimateCost(tokens: number): number;
+export function estimateCost(session: CliSession): number;
+export function estimateCost(arg: number | CliSession): number {
+  if (typeof arg === 'number') {
+    // Fallback flat rate for raw token count
+    return (arg / 1_000_000) * 5;
+  }
+  const t = arg.tokenUsage;
+  if (!t) return 0;
+  const inputCost = ((t.inputTokens ?? 0) / 1_000_000) * 3;
+  const outputCost = ((t.outputTokens ?? 0) / 1_000_000) * 15;
+  const cacheCreateCost = ((t.cacheCreationTokens ?? 0) / 1_000_000) * 3.75;
+  const cacheReadCost = ((t.cacheReadTokens ?? 0) / 1_000_000) * 0.3;
+  return inputCost + outputCost + cacheCreateCost + cacheReadCost;
 }
 
 export function deriveAggregateStatus(sessions: CliSession[]): AggregateStatus {

@@ -38,6 +38,19 @@ export const cliSessionSchema = z.object({
     .object({
       compactionCount: z.number(),
       lastCompactionAt: z.number().nullable(),
+      compactionEvents: z
+        .array(
+          z.object({
+            type: z.enum(['compact', 'microcompact']),
+            timestamp: z.number(),
+            trigger: z.string(),
+            preTokens: z.number(),
+            tokensSaved: z.number().optional(),
+            sessionId: z.string(),
+            parentSessionId: z.string().optional(),
+          })
+        )
+        .default([]),
       recentTurns: z.array(
         z.object({
           turnNumber: z.number(),

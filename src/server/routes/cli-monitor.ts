@@ -65,6 +65,19 @@ const ingestSchema = z.object({
           .object({
             compactionCount: z.number().int().nonnegative().default(0),
             lastCompactionAt: z.number().nullable().default(null),
+            compactionEvents: z
+              .array(
+                z.object({
+                  type: z.enum(['compact', 'microcompact']),
+                  timestamp: z.number(),
+                  trigger: z.string(),
+                  preTokens: z.number().nonnegative(),
+                  tokensSaved: z.number().nonnegative().optional(),
+                  sessionId: z.string(),
+                  parentSessionId: z.string().optional(),
+                })
+              )
+              .default([]),
             recentTurns: z
               .array(
                 z.object({
@@ -244,7 +257,9 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
     const limitParam = c.req.query('limit');
     const offsetParam = c.req.query('offset');
 
-    const allSessions = cliMonitorService.getSessions();
+    const allSessions = cliMonitorService
+      .getSessions()
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
     const total = allSessions.length;
 
     let sessions = allSessions;
@@ -312,10 +327,15 @@ export function createCliMonitorRoutes({ cliMonitorService }: CliMonitorDeps) {
           }
         };
 
-        // 1. Send snapshot
+        // 1. Send snapshot (include historical DB sessions when daemon is offline)
+        const liveSessions = cliMonitorService.getSessions();
+        const snapshotSessions =
+          liveSessions.length > 0
+            ? liveSessions
+            : cliMonitorService.getHistoricalSessions({ limit: 100 });
         send({
           type: 'cli-monitor:snapshot',
-          sessions: cliMonitorService.getSessions(),
+          sessions: snapshotSessions,
           daemon: cliMonitorService.getDaemon(),
           connected: cliMonitorService.isDaemonConnected(),
         });

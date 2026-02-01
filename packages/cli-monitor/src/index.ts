@@ -35,10 +35,12 @@ if (flags.version) {
 
 const port = typeof flags.port === 'string' ? parseInt(flags.port, 10) : 3001;
 const watchPath = typeof flags.path === 'string' ? flags.path : undefined;
+const retentionDays =
+  typeof flags.retention === 'string' ? parseInt(flags.retention, 10) : undefined;
 
 switch (command) {
   case 'start':
-    await startDaemon({ port, watchPath, background: flags.daemon === true });
+    await startDaemon({ port, watchPath, background: flags.daemon === true, retentionDays });
     break;
   case 'stop':
     await stopDaemon(port);
@@ -66,9 +68,10 @@ function printUsage() {
     version        Print version and exit
 
   Options:
-    --port <n>     AgentPane server port (default: 3001)
-    --path <dir>   Custom watch path (default: ~/.claude/projects/)
-    --daemon       Run in background (detached)
+    --port <n>       AgentPane server port (default: 3001)
+    --path <dir>     Custom watch path (default: ~/.claude/projects/)
+    --retention <n>  Session retention in days (default: 7)
+    --daemon         Run in background (detached)
   `);
 }
 

@@ -55,9 +55,20 @@ export interface TurnMetrics {
 
 export type HealthStatus = 'healthy' | 'warning' | 'critical';
 
+export interface CompactionEvent {
+  type: 'compact' | 'microcompact';
+  timestamp: number;
+  trigger: string;
+  preTokens: number;
+  tokensSaved?: number;
+  sessionId: string;
+  parentSessionId?: string;
+}
+
 export interface PerformanceMetrics {
   compactionCount: number;
   lastCompactionAt: number | null;
+  compactionEvents: CompactionEvent[];
   recentTurns: TurnMetrics[];
   cacheHitRatio: number;
   contextWindowUsed: number;

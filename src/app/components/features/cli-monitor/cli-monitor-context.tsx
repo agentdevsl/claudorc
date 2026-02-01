@@ -145,15 +145,15 @@ export function CliMonitorProvider({ children }: { children: ReactNode }) {
   }, [addAlert]);
 
   // Derive page state from sessions (including historical DB data)
+  // Only upgrade pageState, never downgrade from 'active' — the SSE snapshot
+  // handler in sync.ts is the primary authority, this effect catches async
+  // collection updates that arrive after the snapshot callback.
   useEffect(() => {
     if (sessions.length > 0) {
-      // Always show active view when sessions exist (live or historical from DB)
       setPageState('active');
     } else if (daemonConnected) {
-      // Daemon connected but no sessions yet — show waiting state
-      setPageState('waiting');
+      setPageState((prev) => (prev === 'active' ? 'active' : 'waiting'));
     }
-    // When no sessions and no daemon, keep current state (install by default)
   }, [sessions.length, daemonConnected]);
 
   const aggregateStatus = deriveAggregateStatus(sessions);

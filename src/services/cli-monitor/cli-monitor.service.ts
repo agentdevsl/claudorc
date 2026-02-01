@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, lt } from 'drizzle-orm';
 import { cliSessions } from '../../db/schema/cli-sessions.js';
 import { settings } from '../../db/schema/settings.js';
 import type { Database } from '../../types/database.js';
@@ -21,7 +21,7 @@ const CLI_MONITOR_STREAM_ID = 'cli-monitor';
 export class CliMonitorService {
   private static readonly MAX_SESSIONS = 10_000;
   private static readonly MAINTENANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-  private static readonly DEFAULT_RETENTION_DAYS = 1;
+  private static readonly DEFAULT_RETENTION_DAYS = 7;
 
   private sessions = new Map<string, CliSession>();
   private daemon: DaemonInfo | null = null;
@@ -95,8 +95,8 @@ export class CliMonitorService {
     }
 
     // Drop sessions older than 24 hours (stale JSONL files from previous days)
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    sessions = sessions.filter((s) => s.lastActivityAt >= oneDayAgo);
+    const cutoffMs = Date.now() - CliMonitorService.DEFAULT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    sessions = sessions.filter((s) => s.lastActivityAt >= cutoffMs);
 
     // Evict oldest sessions if adding would exceed limit
     const newSessionCount = sessions.filter((s) => !this.sessions.has(s.sessionId)).length;
@@ -167,8 +167,8 @@ export class CliMonitorService {
   }
 
   getSessions(): CliSession[] {
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return Array.from(this.sessions.values()).filter((s) => s.lastActivityAt >= oneDayAgo);
+    const cutoffMs = Date.now() - CliMonitorService.DEFAULT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    return Array.from(this.sessions.values()).filter((s) => s.lastActivityAt >= cutoffMs);
   }
 
   getSessionCount(): number {
@@ -204,7 +204,7 @@ export class CliMonitorService {
         conditions.push(eq(cliSessions.projectHash, opts.projectHash));
       }
       if (opts?.since) {
-        conditions.push(lt(cliSessions.lastActivityAt, opts.since));
+        conditions.push(gt(cliSessions.lastActivityAt, opts.since));
       }
 
       const rows = this.db
@@ -320,25 +320,18 @@ export class CliMonitorService {
       };
 
       try {
-        // Try update first (most common case)
-        const result = this.db
-          .update(cliSessions)
-          .set(values)
-          .where(eq(cliSessions.sessionId, session.sessionId))
+        this.db
+          .insert(cliSessions)
+          .values({
+            id: createId(),
+            ...values,
+            createdAt: now,
+          })
+          .onConflictDoUpdate({
+            target: cliSessions.sessionId,
+            set: values,
+          })
           .run();
-
-        const changes = (result as { changes?: number }).changes ?? 0;
-        if (changes === 0) {
-          // Insert new row
-          this.db
-            .insert(cliSessions)
-            .values({
-              id: createId(),
-              ...values,
-              createdAt: now,
-            })
-            .run();
-        }
       } catch (upsertErr) {
         console.error(
           `[CliMonitor] Upsert error for ${session.sessionId}:`,

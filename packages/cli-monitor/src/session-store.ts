@@ -1,5 +1,16 @@
 export type SessionStatus = 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
 
+export interface CompactionEvent {
+  type: 'compact' | 'microcompact';
+  timestamp: number;
+  trigger: string;
+  preTokens: number;
+  tokensSaved?: number;
+  sessionId: string;
+  /** For subagent sessions, the parent session ID */
+  parentSessionId?: string;
+}
+
 export interface StoredSession {
   sessionId: string;
   filePath: string;
@@ -30,6 +41,7 @@ export interface StoredSession {
   performanceMetrics?: {
     compactionCount: number;
     lastCompactionAt: number | null;
+    compactionEvents: CompactionEvent[];
     recentTurns: Array<{
       turnNumber: number;
       inputTokens: number;
