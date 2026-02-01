@@ -186,7 +186,7 @@ describe('CLI Monitor API Routes', () => {
       expect(json).toEqual({ ok: true });
     });
 
-    it('returns 404 for unknown daemon', async () => {
+    it('returns 409 for unknown daemon', async () => {
       ({ app, service } = createTestApp());
 
       const res = await request(app, 'POST', '/api/cli-monitor/heartbeat', {
@@ -194,10 +194,10 @@ describe('CLI Monitor API Routes', () => {
         sessionCount: 0,
       });
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(409);
       const json = await res.json();
       expect(json.ok).toBe(false);
-      expect(json.error.code).toBe('UNKNOWN_DAEMON');
+      expect(json.error.code).toBe('REREGISTER');
     });
 
     it('returns 400 when daemonId is missing', async () => {

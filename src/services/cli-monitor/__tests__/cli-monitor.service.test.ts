@@ -142,20 +142,20 @@ describe('CliMonitorService', () => {
       vi.spyOn(Date, 'now').mockReturnValue(later);
 
       const result = service.handleHeartbeat('daemon-1', 3);
-      expect(result).toBe(true);
+      expect(result).toBe('ok');
       expect(service.getDaemon()!.lastHeartbeatAt).toBe(later);
     });
 
-    it('returns false for unknown daemon', () => {
+    it('returns stale for unknown daemon', () => {
       service.registerDaemon(makeDaemonPayload({ daemonId: 'daemon-1' }));
 
       const result = service.handleHeartbeat('daemon-unknown', 0);
-      expect(result).toBe(false);
+      expect(result).toBe('stale');
     });
 
-    it('returns false when no daemon is registered', () => {
+    it('returns unknown when no daemon is registered', () => {
       const result = service.handleHeartbeat('daemon-1', 0);
-      expect(result).toBe(false);
+      expect(result).toBe('unknown');
     });
   });
 
@@ -177,11 +177,11 @@ describe('CliMonitorService', () => {
       service.registerDaemon(makeDaemonPayload());
       expect(service.isDaemonConnected()).toBe(true);
 
-      // Advance past the timeout threshold
-      vi.setSystemTime(now + DAEMON_TIMEOUT_MS + 1000);
+      // Advance past the timeout threshold (includes 1.5x grace period)
+      vi.setSystemTime(now + DAEMON_TIMEOUT_MS * 1.5 + 1000);
 
-      // The heartbeat check interval is 10s, so advance timers to trigger it
-      vi.advanceTimersByTime(10_000);
+      // The heartbeat check interval is 15s, so advance timers to trigger it
+      vi.advanceTimersByTime(15_000);
 
       expect(service.isDaemonConnected()).toBe(false);
       expect(service.getDaemon()).toBeNull();
