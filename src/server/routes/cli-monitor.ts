@@ -61,6 +61,29 @@ const ingestSchema = z.object({
           .optional(),
         model: z.string().optional(),
         parentSessionId: z.string().optional(),
+        performanceMetrics: z
+          .object({
+            compactionCount: z.number().int().nonnegative().default(0),
+            lastCompactionAt: z.number().nullable().default(null),
+            recentTurns: z
+              .array(
+                z.object({
+                  turnNumber: z.number().int().nonnegative(),
+                  inputTokens: z.number().nonnegative(),
+                  outputTokens: z.number().nonnegative(),
+                  cacheReadTokens: z.number().nonnegative(),
+                  cacheCreationTokens: z.number().nonnegative(),
+                  timestamp: z.number(),
+                })
+              )
+              .default([]),
+            cacheHitRatio: z.number().min(0).max(1).default(0),
+            contextWindowUsed: z.number().nonnegative().default(0),
+            contextWindowLimit: z.number().nonnegative().default(0),
+            contextPressure: z.number().min(0).max(1).default(0),
+            healthStatus: z.enum(['healthy', 'warning', 'critical']).default('healthy'),
+          })
+          .optional(),
       })
     )
     .max(500)

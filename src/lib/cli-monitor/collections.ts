@@ -44,6 +44,7 @@ export function upsertCliSession(session: CliSession): void {
       draft.gitBranch = session.gitBranch;
       draft.isSubagent = session.isSubagent;
       draft.parentSessionId = session.parentSessionId;
+      draft.performanceMetrics = session.performanceMetrics;
     });
   } else {
     cliSessionsCollection.insert(session);
