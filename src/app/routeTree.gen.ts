@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TerraformRouteImport } from './routes/terraform'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CliMonitorRouteImport } from './routes/cli-monitor'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorktreesIndexRouteImport } from './routes/worktrees/index'
+import { Route as TerraformIndexRouteImport } from './routes/terraform/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as QueueIndexRouteImport } from './routes/queue/index'
@@ -22,6 +24,7 @@ import { Route as DesignerIndexRouteImport } from './routes/designer/index'
 import { Route as CliMonitorIndexRouteImport } from './routes/cli-monitor/index'
 import { Route as CatalogIndexRouteImport } from './routes/catalog/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as TerraformModulesRouteImport } from './routes/terraform/modules'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
 import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
@@ -45,6 +48,11 @@ import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects
 import { Route as ProjectsProjectIdGitRouteImport } from './routes/projects/$projectId/git'
 import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/projects/$projectId/tasks/$taskId'
 
+const TerraformRoute = TerraformRouteImport.update({
+  id: '/terraform',
+  path: '/terraform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -64,6 +72,11 @@ const WorktreesIndexRoute = WorktreesIndexRouteImport.update({
   id: '/worktrees/',
   path: '/worktrees/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const TerraformIndexRoute = TerraformIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TerraformRoute,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
@@ -109,6 +122,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const TerraformModulesRoute = TerraformModulesRouteImport.update({
+  id: '/modules',
+  path: '/modules',
+  getParentRoute: () => TerraformRoute,
 } as any)
 const TemplatesProjectRoute = TemplatesProjectRouteImport.update({
   id: '/templates/project',
@@ -229,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cli-monitor': typeof CliMonitorRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
+  '/terraform': typeof TerraformRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/cli-monitor/terminal': typeof CliMonitorTerminalRoute
@@ -246,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
+  '/terraform/modules': typeof TerraformModulesRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
   '/cli-monitor/': typeof CliMonitorIndexRoute
@@ -255,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/queue/': typeof QueueIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/terraform/': typeof TerraformIndexRoute
   '/worktrees/': typeof WorktreesIndexRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
@@ -281,6 +302,7 @@ export interface FileRoutesByTo {
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
+  '/terraform/modules': typeof TerraformModulesRoute
   '/agents': typeof AgentsIndexRoute
   '/catalog': typeof CatalogIndexRoute
   '/cli-monitor': typeof CliMonitorIndexRoute
@@ -290,6 +312,7 @@ export interface FileRoutesByTo {
   '/queue': typeof QueueIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/terraform': typeof TerraformIndexRoute
   '/worktrees': typeof WorktreesIndexRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
@@ -302,6 +325,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/cli-monitor': typeof CliMonitorRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
+  '/terraform': typeof TerraformRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
   '/cli-monitor/terminal': typeof CliMonitorTerminalRoute
@@ -319,6 +343,7 @@ export interface FileRoutesById {
   '/settings/system': typeof SettingsSystemRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
+  '/terraform/modules': typeof TerraformModulesRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
   '/cli-monitor/': typeof CliMonitorIndexRoute
@@ -328,6 +353,7 @@ export interface FileRoutesById {
   '/queue/': typeof QueueIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/terraform/': typeof TerraformIndexRoute
   '/worktrees/': typeof WorktreesIndexRoute
   '/projects/$projectId/git': typeof ProjectsProjectIdGitRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
@@ -341,6 +367,7 @@ export interface FileRouteTypes {
     | '/'
     | '/cli-monitor'
     | '/settings'
+    | '/terraform'
     | '/agents/$agentId'
     | '/catalog/$workflowId'
     | '/cli-monitor/terminal'
@@ -358,6 +385,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
+    | '/terraform/modules'
     | '/agents/'
     | '/catalog/'
     | '/cli-monitor/'
@@ -367,6 +395,7 @@ export interface FileRouteTypes {
     | '/queue/'
     | '/sessions/'
     | '/settings/'
+    | '/terraform/'
     | '/worktrees/'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
@@ -393,6 +422,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
+    | '/terraform/modules'
     | '/agents'
     | '/catalog'
     | '/cli-monitor'
@@ -402,6 +432,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/sessions'
     | '/settings'
+    | '/terraform'
     | '/worktrees'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
@@ -413,6 +444,7 @@ export interface FileRouteTypes {
     | '/'
     | '/cli-monitor'
     | '/settings'
+    | '/terraform'
     | '/agents/$agentId'
     | '/catalog/$workflowId'
     | '/cli-monitor/terminal'
@@ -430,6 +462,7 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/templates/org'
     | '/templates/project'
+    | '/terraform/modules'
     | '/agents/'
     | '/catalog/'
     | '/cli-monitor/'
@@ -439,6 +472,7 @@ export interface FileRouteTypes {
     | '/queue/'
     | '/sessions/'
     | '/settings/'
+    | '/terraform/'
     | '/worktrees/'
     | '/projects/$projectId/git'
     | '/projects/$projectId/settings'
@@ -451,6 +485,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CliMonitorRoute: typeof CliMonitorRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
+  TerraformRoute: typeof TerraformRouteWithChildren
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   CatalogWorkflowIdRoute: typeof CatalogWorkflowIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
@@ -473,6 +508,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terraform': {
+      id: '/terraform'
+      path: '/terraform'
+      fullPath: '/terraform'
+      preLoaderRoute: typeof TerraformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -500,6 +542,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/worktrees/'
       preLoaderRoute: typeof WorktreesIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/terraform/': {
+      id: '/terraform/'
+      path: '/'
+      fullPath: '/terraform/'
+      preLoaderRoute: typeof TerraformIndexRouteImport
+      parentRoute: typeof TerraformRoute
     }
     '/settings/': {
       id: '/settings/'
@@ -563,6 +612,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/terraform/modules': {
+      id: '/terraform/modules'
+      path: '/modules'
+      fullPath: '/terraform/modules'
+      preLoaderRoute: typeof TerraformModulesRouteImport
+      parentRoute: typeof TerraformRoute
     }
     '/templates/project': {
       id: '/templates/project'
@@ -769,10 +825,25 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
   SettingsRouteChildren,
 )
 
+interface TerraformRouteChildren {
+  TerraformModulesRoute: typeof TerraformModulesRoute
+  TerraformIndexRoute: typeof TerraformIndexRoute
+}
+
+const TerraformRouteChildren: TerraformRouteChildren = {
+  TerraformModulesRoute: TerraformModulesRoute,
+  TerraformIndexRoute: TerraformIndexRoute,
+}
+
+const TerraformRouteWithChildren = TerraformRoute._addFileChildren(
+  TerraformRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CliMonitorRoute: CliMonitorRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
+  TerraformRoute: TerraformRouteWithChildren,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   CatalogWorkflowIdRoute: CatalogWorkflowIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRoute,

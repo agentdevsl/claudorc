@@ -1073,6 +1073,126 @@ export const apiClient = {
     getCategories: () => apiServerFetch<{ categories: string[] }>('/api/marketplaces/categories'),
   },
 
+  terraform: {
+    listRegistries: () =>
+      apiServerFetch<{
+        items: Array<{
+          id: string;
+          name: string;
+          orgName: string;
+          tokenSettingKey: string;
+          status: 'active' | 'syncing' | 'error';
+          lastSyncedAt: string | null;
+          syncError: string | null;
+          moduleCount: number;
+          syncIntervalMinutes: number | null;
+          nextSyncAt: string | null;
+          createdAt: string;
+          updatedAt: string;
+        }>;
+        totalCount: number;
+      }>('/api/terraform/registries'),
+
+    createRegistry: (data: {
+      name: string;
+      orgName: string;
+      tokenSettingKey: string;
+      syncIntervalMinutes?: number;
+    }) =>
+      apiServerFetch<{
+        id: string;
+        name: string;
+        orgName: string;
+        tokenSettingKey: string;
+        status: string;
+        moduleCount: number;
+        createdAt: string;
+        updatedAt: string;
+      }>('/api/terraform/registries', { method: 'POST', body: data }),
+
+    getRegistry: (id: string) =>
+      apiServerFetch<{
+        id: string;
+        name: string;
+        orgName: string;
+        tokenSettingKey: string;
+        status: string;
+        lastSyncedAt: string | null;
+        syncError: string | null;
+        moduleCount: number;
+        syncIntervalMinutes: number | null;
+        nextSyncAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>(`/api/terraform/registries/${encodeURIComponent(id)}`),
+
+    deleteRegistry: (id: string) =>
+      apiServerFetch<{ deleted: boolean }>(`/api/terraform/registries/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+
+    syncRegistry: (id: string) =>
+      apiServerFetch<{
+        registryId: string;
+        moduleCount: number;
+        syncedAt: string;
+      }>(`/api/terraform/registries/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+
+    listModules: (params?: {
+      search?: string;
+      provider?: string;
+      registryId?: string;
+      limit?: number;
+    }) => {
+      const sp = new URLSearchParams();
+      if (params?.search) sp.set('search', params.search);
+      if (params?.provider) sp.set('provider', params.provider);
+      if (params?.registryId) sp.set('registryId', params.registryId);
+      if (params?.limit) sp.set('limit', String(params.limit));
+      const qs = sp.toString();
+      return apiServerFetch<{
+        items: Array<{
+          id: string;
+          registryId: string;
+          name: string;
+          namespace: string;
+          provider: string;
+          version: string;
+          source: string;
+          description: string | null;
+          inputs: unknown[] | null;
+          outputs: unknown[] | null;
+          dependencies: string[] | null;
+          publishedAt: string | null;
+          createdAt: string;
+          updatedAt: string;
+        }>;
+        totalCount: number;
+      }>(`/api/terraform/modules${qs ? `?${qs}` : ''}`);
+    },
+
+    getModule: (id: string) =>
+      apiServerFetch<{
+        id: string;
+        registryId: string;
+        name: string;
+        namespace: string;
+        provider: string;
+        version: string;
+        source: string;
+        description: string | null;
+        readme: string | null;
+        inputs: unknown[] | null;
+        outputs: unknown[] | null;
+        dependencies: string[] | null;
+        publishedAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>(`/api/terraform/modules/${encodeURIComponent(id)}`),
+
+    getComposeUrl: () => `${API_BASE}/api/terraform/compose`,
+  },
+
   cliMonitor: {
     status: () =>
       apiServerFetch<{

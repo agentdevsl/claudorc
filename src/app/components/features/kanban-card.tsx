@@ -256,6 +256,7 @@ export function KanbanCard({
           {(() => {
             const badgeKind = getCardBadgeKind(task);
             if (badgeKind === 'last-run') {
+              // biome-ignore lint/style/noNonNullAssertion: lastAgentStatus is guaranteed when badgeKind is 'last-run'
               const config = LAST_RUN_STATUS_CONFIG[task.lastAgentStatus!];
               return (
                 <div

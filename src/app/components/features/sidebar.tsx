@@ -51,6 +51,7 @@ const contentNavItems: readonly NavItem[] = [
   { label: 'Designer', to: '/designer', icon: TreeStructure, testId: 'nav-designer' },
   { label: 'Catalog', to: '/catalog', icon: GridFour, testId: 'nav-catalog' },
   { label: 'Marketplace', to: '/marketplace', icon: PuzzlePiece, testId: 'nav-marketplace' },
+  { label: 'Terraform', to: '/terraform', icon: Cube, testId: 'nav-terraform' },
 ] as const;
 
 // EXECUTION section - runtime and sandbox configuration

@@ -69,6 +69,7 @@ import {
   PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
+  TERRAFORM_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
 import { createDockerProvider } from '../lib/sandbox/index.js';
 import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
@@ -88,6 +89,9 @@ import {
 } from '../services/task-creation.service.js';
 import { TemplateService } from '../services/template.service.js';
 import { startSyncScheduler } from '../services/template-sync-scheduler.js';
+import { TerraformComposeService } from '../services/terraform-compose.service.js';
+import { TerraformRegistryService } from '../services/terraform-registry.service.js';
+import { startTerraformSyncScheduler } from '../services/terraform-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { createRouter } from './router.js';
@@ -168,6 +172,10 @@ try {
     );
   }
 }
+
+// Apply Terraform tables migration (idempotent — uses IF NOT EXISTS)
+sqlite.exec(TERRAFORM_MIGRATION_SQL);
+log.info('Terraform migration applied');
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
@@ -601,6 +609,10 @@ if (dockerProvider) {
 // MarketplaceService for plugin marketplace operations
 const marketplaceService = new MarketplaceService(db);
 
+// Terraform services
+const terraformRegistryService = new TerraformRegistryService(db);
+const terraformComposeService = new TerraformComposeService(terraformRegistryService);
+
 // AgentService for agent lifecycle management
 const agentService = new AgentService(db, worktreeService, taskService, sessionService);
 
@@ -621,6 +633,8 @@ const app = createRouter({
   durableStreamsService,
   dockerProvider,
   cliMonitorService,
+  terraformRegistryService,
+  terraformComposeService,
 });
 
 // Start server
@@ -636,6 +650,10 @@ console.log(`[API Server] Running on http://localhost:${PORT}`);
 // Start the template sync scheduler
 startSyncScheduler(db, templateService);
 log.info('[API Server] Template sync scheduler started');
+
+// Start the Terraform sync scheduler
+startTerraformSyncScheduler(db, terraformRegistryService);
+log.info('[API Server] Terraform sync scheduler started');
 
 // Graceful shutdown: stop accepting requests, clean up services, close DB
 let isShuttingDown = false;
