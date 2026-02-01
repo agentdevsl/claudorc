@@ -137,6 +137,46 @@ export type CommandRunner = {
   exec: (command: string, cwd: string) => Promise<CommandResult>;
 };
 
+/**
+ * Validates that a shell command string does not contain injection metacharacters.
+ * Throws if dangerous characters are detected.
+ */
+function validateShellCommand(command: string): void {
+  const DANGEROUS_PATTERN = /[;|`]|\$\(|&&|\|\||[\n\r]/;
+  if (DANGEROUS_PATTERN.test(command)) {
+    throw new Error(
+      `Command rejected: contains shell metacharacters that could enable injection. Command: ${command.slice(0, 80)}`
+    );
+  }
+}
+
+/**
+ * Creates a CommandRunner that executes commands inside a sandbox container.
+ * This allows WorktreeService to run git commands inside Docker containers
+ * for isolated agent execution.
+ */
+export function createSandboxCommandRunner(sandbox: {
+  exec: (
+    cmd: string,
+    args?: string[]
+  ) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+}): CommandRunner {
+  return {
+    exec: async (command: string, cwd: string): Promise<CommandResult> => {
+      validateShellCommand(command);
+
+      const escapedCwd = cwd.replace(/'/g, "'\\''");
+      const result = await sandbox.exec('sh', ['-c', `cd '${escapedCwd}' && ${command}`]);
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Command failed with exit code ${result.exitCode}: ${result.stderr || result.stdout}`
+        );
+      }
+      return { stdout: result.stdout, stderr: result.stderr };
+    },
+  };
+}
+
 export class WorktreeService {
   constructor(
     private db: Database,
@@ -499,6 +539,20 @@ export class WorktreeService {
           'git diff --name-only --diff-filter=U',
           worktree.project.path
         );
+
+        // Abort the failed merge to leave the repo in a clean state
+        try {
+          await this.runner.exec('git merge --abort', worktree.project.path);
+        } catch {
+          // Merge abort can fail if merge wasn't in progress — ignore
+        }
+
+        // Reset worktree status back to active (not stuck in 'merging')
+        await this.db
+          .update(worktrees)
+          .set({ status: 'active', updatedAt: new Date().toISOString() })
+          .where(eq(worktrees.id, worktreeId));
+
         return err(
           WorktreeErrors.MERGE_CONFLICT(conflicts.stdout.trim().split('\n').filter(Boolean))
         );
@@ -515,6 +569,12 @@ export class WorktreeService {
 
       return ok(undefined);
     } catch (error) {
+      // Reset worktree status on merge failure
+      await this.db
+        .update(worktrees)
+        .set({ status: 'active', updatedAt: new Date().toISOString() })
+        .where(eq(worktrees.id, worktreeId));
+
       return err(WorktreeErrors.CREATION_FAILED(worktree.branch, String(error)));
     }
   }

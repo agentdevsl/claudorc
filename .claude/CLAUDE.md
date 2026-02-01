@@ -149,6 +149,21 @@ The startup script includes health checks to ensure both servers are ready befor
 - **API offline**: If API requests fail, check that port 3001 is running. Restart with `npm run dev`.
 - **Frontend not loading**: Ensure port 3000 is available and Vite started successfully.
 
+### Publishing `@agentpane/cli-monitor` to npm
+
+The CLI monitor package lives at `packages/cli-monitor`. To publish:
+
+```bash
+cd packages/cli-monitor
+npm version patch --no-git-tag-version   # bump version
+npm publish --//registry.npmjs.org/:_authToken=<token>
+```
+
+- The `prepublishOnly` script runs tests and builds automatically.
+- **npm access token** is stored in `/specs/CLI_monitor/.env` (`npm_access_token`). Use this token for the `--//registry.npmjs.org/:_authToken=` flag.
+- The package is published with `"access": "public"` under the `@agentpane` scope.
+- Build output: `dist/index.js` (single Bun-bundled file, ~75 KB).
+
 ## Agent Execution Architecture
 
 ### Task → Agent Flow

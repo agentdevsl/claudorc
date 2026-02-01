@@ -1,0 +1,2067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentPane — Noir Command // Case File #2847</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   NOIR COMMAND — AgentPane Investigations Division
+   Film noir detective board. AI agents as operatives.
+   2 AM. The lamp is on. The typewriter clicks.
+   ============================================================ */
+
+/* --- CSS Reset & Base --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Noir Palette */
+  --noir-black: #12100e;
+  --ink-black: #1a1a1a;
+  --desk-dark: #1e1b18;
+  --desk-wood: #2a2420;
+  --aged-paper: #f5e6c8;
+  --paper-light: #faf0dc;
+  --paper-dark: #d9c9a5;
+  --blood-red: #8b0000;
+  --blood-red-bright: #a50000;
+  --cigarette-amber: #d4a574;
+  --lamp-green: #2d5016;
+  --lamp-glow: #4a8a2a;
+  --smoke-white: rgba(200, 195, 185, 0.06);
+  --rust: #7a4a2a;
+  --manila: #c8a96e;
+  --cork: #b08050;
+  --cork-dark: #8a6040;
+  --string-red: #cc2222;
+  --pin-silver: #b8b0a0;
+  --typewriter-ink: #2c2826;
+
+  /* Fonts */
+  --font-typewriter: 'Special Elite', cursive;
+  --font-case: 'Playfair Display', serif;
+  --font-data: 'Courier Prime', monospace;
+
+  /* Timing */
+  --flicker-speed: 4s;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--noir-black);
+  color: var(--aged-paper);
+  font-family: var(--font-typewriter);
+}
+
+/* --- SVG Filters for Film Grain & Paper Texture --- */
+.svg-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* --- Film Grain Overlay --- */
+.film-grain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.08;
+  filter: url(#grain-filter);
+  background: repeating-conic-gradient(
+    rgba(200, 190, 170, 0.03) 0%,
+    transparent 0.5%,
+    transparent 1%
+  );
+  animation: grain-shift 0.15s steps(1) infinite;
+}
+
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-1px, 1px); }
+  20% { transform: translate(1px, -1px); }
+  30% { transform: translate(-1px, -1px); }
+  40% { transform: translate(1px, 1px); }
+  50% { transform: translate(0, -1px); }
+  60% { transform: translate(-1px, 0); }
+  70% { transform: translate(1px, 0); }
+  80% { transform: translate(0, 1px); }
+  90% { transform: translate(-1px, 1px); }
+  100% { transform: translate(1px, -1px); }
+}
+
+/* --- Vignette --- */
+.vignette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 40%,
+    rgba(10, 8, 6, 0.4) 70%,
+    rgba(5, 4, 3, 0.85) 100%
+  );
+}
+
+/* --- Desk Lamp Light Cone --- */
+.desk-lamp {
+  position: fixed;
+  top: -120px;
+  right: 80px;
+  width: 600px;
+  height: 700px;
+  pointer-events: none;
+  z-index: 9997;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(74, 138, 42, 0.10) 0%,
+    rgba(74, 138, 42, 0.06) 25%,
+    rgba(45, 80, 22, 0.03) 50%,
+    transparent 70%
+  );
+  animation: lamp-flicker var(--flicker-speed) ease-in-out infinite;
+}
+
+@keyframes lamp-flicker {
+  0%, 100% { opacity: 1; }
+  48% { opacity: 1; }
+  49% { opacity: 0.85; }
+  50% { opacity: 0.95; }
+  51% { opacity: 0.80; }
+  52% { opacity: 1; }
+  78% { opacity: 1; }
+  79% { opacity: 0.9; }
+  80% { opacity: 1; }
+}
+
+/* --- Camera Flash Effect --- */
+.camera-flash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10000;
+  background: white;
+  opacity: 0;
+  transition: none;
+}
+
+.camera-flash.flash {
+  animation: flash-pop 0.3s ease-out;
+}
+
+@keyframes flash-pop {
+  0% { opacity: 0.6; }
+  10% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+/* --- Cigarette Smoke Wisps --- */
+.smoke-container {
+  position: fixed;
+  bottom: 100px;
+  left: 50px;
+  width: 120px;
+  height: 300px;
+  pointer-events: none;
+  z-index: 9996;
+}
+
+.smoke-wisp {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  height: 80px;
+  background: linear-gradient(
+    to top,
+    rgba(180, 175, 165, 0.15),
+    rgba(180, 175, 165, 0.05),
+    transparent
+  );
+  border-radius: 50%;
+  filter: blur(6px);
+  animation: smoke-rise 6s ease-out infinite;
+}
+
+.smoke-wisp:nth-child(1) {
+  left: 50%;
+  animation-delay: 0s;
+}
+
+.smoke-wisp:nth-child(2) {
+  left: 45%;
+  animation-delay: 2s;
+  width: 3px;
+  height: 100px;
+}
+
+.smoke-wisp:nth-child(3) {
+  left: 55%;
+  animation-delay: 4s;
+  width: 2px;
+  height: 60px;
+}
+
+@keyframes smoke-rise {
+  0% {
+    transform: translateY(0) scaleX(1) rotate(0deg);
+    opacity: 0.3;
+  }
+  30% {
+    transform: translateY(-60px) scaleX(2) rotate(-5deg);
+    opacity: 0.2;
+  }
+  60% {
+    transform: translateY(-140px) scaleX(4) rotate(8deg);
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateY(-250px) scaleX(8) rotate(-3deg);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   MAIN LAYOUT
+   ============================================================ */
+.noir-container {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  position: relative;
+  background:
+    /* Desk wood grain */
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 3px,
+      rgba(42, 36, 32, 0.15) 3px,
+      rgba(42, 36, 32, 0.15) 4px
+    ),
+    linear-gradient(180deg, var(--noir-black) 0%, var(--desk-dark) 40%, var(--desk-wood) 100%);
+}
+
+/* ============================================================
+   CASE HEADER
+   ============================================================ */
+.case-header {
+  position: relative;
+  padding: 18px 30px 14px 30px;
+  background:
+    /* Paper texture */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(245, 230, 200, 0.02) 2px,
+      rgba(245, 230, 200, 0.02) 3px
+    ),
+    linear-gradient(180deg, rgba(30, 27, 24, 0.95) 0%, rgba(18, 16, 14, 0.98) 100%);
+  border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+  z-index: 10;
+}
+
+/* Coffee ring stain */
+.case-header::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 140px;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 3px solid rgba(139, 100, 60, 0.08);
+  background: radial-gradient(
+    circle,
+    transparent 55%,
+    rgba(139, 100, 60, 0.04) 60%,
+    rgba(139, 100, 60, 0.06) 65%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.case-header-content {
+  display: flex;
+  align-items: baseline;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.case-title {
+  font-family: var(--font-case);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--aged-paper);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  position: relative;
+  padding-bottom: 4px;
+}
+
+.case-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--blood-red),
+    var(--blood-red-bright),
+    var(--blood-red),
+    transparent
+  );
+}
+
+.case-classification {
+  font-family: var(--font-typewriter);
+  font-size: 12px;
+  color: var(--cigarette-amber);
+  letter-spacing: 1.5px;
+  opacity: 0.8;
+}
+
+.case-classification .active-tag {
+  color: var(--blood-red-bright);
+  font-weight: bold;
+}
+
+.case-classification .critical-tag {
+  color: var(--blood-red);
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.case-date {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: rgba(245, 230, 200, 0.4);
+  letter-spacing: 1px;
+  margin-left: auto;
+}
+
+/* ============================================================
+   MAIN CONTENT AREA
+   ============================================================ */
+.main-content {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: 1fr;
+  gap: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ============================================================
+   INVESTIGATION BOARD (Cork Board)
+   ============================================================ */
+.investigation-board {
+  position: relative;
+  overflow: hidden;
+  background:
+    /* Cork texture pattern */
+    radial-gradient(circle at 20% 30%, rgba(176, 128, 80, 0.08) 0%, transparent 2%),
+    radial-gradient(circle at 60% 70%, rgba(176, 128, 80, 0.06) 0%, transparent 1.5%),
+    radial-gradient(circle at 80% 20%, rgba(176, 128, 80, 0.07) 0%, transparent 2.5%),
+    radial-gradient(circle at 40% 90%, rgba(176, 128, 80, 0.05) 0%, transparent 1%),
+    radial-gradient(circle at 10% 80%, rgba(176, 128, 80, 0.06) 0%, transparent 2%),
+    /* Cork base */
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 4px,
+      rgba(138, 96, 64, 0.04) 4px,
+      rgba(138, 96, 64, 0.04) 5px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 6px,
+      rgba(138, 96, 64, 0.03) 6px,
+      rgba(138, 96, 64, 0.03) 7px
+    ),
+    linear-gradient(180deg, rgba(26, 22, 18, 0.97) 0%, rgba(30, 27, 24, 0.95) 100%);
+}
+
+/* String connections SVG */
+.string-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.string-connections line,
+.string-connections path {
+  stroke: var(--string-red);
+  stroke-width: 1.5;
+  stroke-dasharray: none;
+  opacity: 0.5;
+  filter: drop-shadow(0 0 2px rgba(204, 34, 34, 0.3));
+}
+
+/* --- Agent Cards (Pinned Polaroid/Case Files) --- */
+.agent-card {
+  position: absolute;
+  width: 210px;
+  background: var(--aged-paper);
+  color: var(--typewriter-ink);
+  padding: 12px;
+  box-shadow:
+    2px 3px 8px rgba(0, 0, 0, 0.5),
+    1px 1px 3px rgba(0, 0, 0, 0.3),
+    inset 0 0 30px rgba(139, 100, 60, 0.1);
+  z-index: 5;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, z-index 0s;
+  cursor: default;
+}
+
+.agent-card:hover {
+  z-index: 20;
+  box-shadow:
+    4px 6px 16px rgba(0, 0, 0, 0.6),
+    2px 3px 6px rgba(0, 0, 0, 0.4),
+    inset 0 0 30px rgba(139, 100, 60, 0.1);
+}
+
+/* Paper aging effect */
+.agent-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 10% 90%, rgba(139, 100, 60, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 10%, rgba(139, 100, 60, 0.08) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+/* Pushpin */
+.pushpin {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 35%,
+    #e8e0d0,
+    var(--pin-silver) 40%,
+    #706858 100%
+  );
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    0 1px 1px rgba(0, 0, 0, 0.3),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.pushpin::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 5px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+}
+
+/* Agent mugshot */
+.agent-mugshot {
+  width: 100%;
+  height: 100px;
+  background: var(--ink-black);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.agent-mugshot::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(245, 230, 200, 0.03) 2px,
+    rgba(245, 230, 200, 0.03) 3px
+  );
+}
+
+/* Geometric avatar */
+.agent-avatar {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-avatar .head {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid;
+  margin: 0 auto 4px auto;
+}
+
+.agent-avatar .body {
+  width: 44px;
+  height: 24px;
+  border-radius: 22px 22px 0 0;
+  border: 2px solid;
+  border-bottom: none;
+  margin: 0 auto;
+}
+
+.agent-avatar.status-active .head,
+.agent-avatar.status-active .body {
+  border-color: var(--lamp-glow);
+}
+
+.agent-avatar.status-planning .head,
+.agent-avatar.status-planning .body {
+  border-color: var(--cigarette-amber);
+}
+
+.agent-avatar.status-idle .head,
+.agent-avatar.status-idle .body {
+  border-color: rgba(245, 230, 200, 0.3);
+}
+
+.agent-avatar.status-error .head,
+.agent-avatar.status-error .body {
+  border-color: var(--blood-red);
+}
+
+/* Card text */
+.agent-label {
+  font-family: var(--font-typewriter);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(44, 40, 38, 0.5);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.agent-name {
+  font-family: var(--font-typewriter);
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--typewriter-ink);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.agent-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.active {
+  background: var(--lamp-glow);
+  box-shadow: 0 0 6px rgba(74, 138, 42, 0.6);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+.status-dot.planning {
+  background: var(--cigarette-amber);
+  box-shadow: 0 0 6px rgba(212, 165, 116, 0.4);
+  animation: dot-pulse 2.5s ease-in-out infinite;
+}
+
+.status-dot.idle {
+  background: rgba(245, 230, 200, 0.3);
+}
+
+.status-dot.error {
+  background: var(--blood-red);
+  box-shadow: 0 0 6px rgba(139, 0, 0, 0.5);
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.agent-assignment {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: rgba(44, 40, 38, 0.7);
+  line-height: 1.4;
+  margin-bottom: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(44, 40, 38, 0.2);
+}
+
+.agent-lastseen {
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: rgba(44, 40, 38, 0.4);
+  font-style: italic;
+}
+
+/* Card positions */
+.agent-card:nth-child(1) {
+  top: 30px;
+  left: 40px;
+  transform: rotate(-3deg);
+}
+
+.agent-card:nth-child(2) {
+  top: 20px;
+  left: 300px;
+  transform: rotate(2deg);
+}
+
+.agent-card:nth-child(3) {
+  top: 50px;
+  left: 560px;
+  transform: rotate(-1.5deg);
+}
+
+.agent-card:nth-child(4) {
+  top: 310px;
+  left: 120px;
+  transform: rotate(2.5deg);
+}
+
+.agent-card:nth-child(5) {
+  top: 290px;
+  left: 430px;
+  transform: rotate(-2deg);
+}
+
+.agent-card:nth-child(1):hover { transform: rotate(-3deg) scale(1.04); }
+.agent-card:nth-child(2):hover { transform: rotate(2deg) scale(1.04); }
+.agent-card:nth-child(3):hover { transform: rotate(-1.5deg) scale(1.04); }
+.agent-card:nth-child(4):hover { transform: rotate(2.5deg) scale(1.04); }
+.agent-card:nth-child(5):hover { transform: rotate(-2deg) scale(1.04); }
+
+
+/* ============================================================
+   EVIDENCE BOARD (Bottom Left overlay)
+   ============================================================ */
+.evidence-board {
+  position: absolute;
+  bottom: 12px;
+  left: 20px;
+  width: 340px;
+  z-index: 15;
+  background:
+    linear-gradient(180deg, rgba(26, 26, 26, 0.92) 0%, rgba(18, 16, 14, 0.95) 100%);
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  padding: 14px 16px;
+  box-shadow: 3px 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.evidence-header {
+  font-family: var(--font-typewriter);
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--cigarette-amber);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+  text-transform: uppercase;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.evidence-item {
+  background: rgba(245, 230, 200, 0.05);
+  border: 1px solid rgba(245, 230, 200, 0.08);
+  padding: 8px 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.evidence-item:hover {
+  background: rgba(245, 230, 200, 0.08);
+}
+
+/* Small pushpin on evidence */
+.evidence-item::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d0c8b8, #908878);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.evidence-icon {
+  font-size: 16px;
+  margin-bottom: 4px;
+  display: block;
+  filter: grayscale(0.5);
+}
+
+.evidence-type {
+  font-family: var(--font-typewriter);
+  font-size: 10px;
+  color: var(--aged-paper);
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.evidence-count {
+  font-family: var(--font-data);
+  font-size: 18px;
+  color: var(--cigarette-amber);
+  font-weight: bold;
+}
+
+.evidence-total {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: rgba(245, 230, 200, 0.4);
+  padding-top: 8px;
+  border-top: 1px dashed rgba(212, 165, 116, 0.1);
+  letter-spacing: 1px;
+}
+
+
+/* ============================================================
+   RIGHT PANEL
+   ============================================================ */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 16, 14, 0.6);
+  border-left: 1px solid rgba(212, 165, 116, 0.08);
+  overflow: hidden;
+}
+
+/* ============================================================
+   CASE PROGRESS (Top Right)
+   ============================================================ */
+.case-progress {
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.08);
+  flex-shrink: 0;
+}
+
+.case-progress-header {
+  font-family: var(--font-typewriter);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--cigarette-amber);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.progress-clock-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+/* Clock-face progress */
+.progress-clock {
+  width: 90px;
+  height: 90px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.progress-clock svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.progress-clock .track {
+  fill: none;
+  stroke: rgba(245, 230, 200, 0.08);
+  stroke-width: 4;
+}
+
+.progress-clock .progress-arc {
+  fill: none;
+  stroke: var(--blood-red);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 251.3;
+  stroke-dashoffset: 82.9;
+  filter: drop-shadow(0 0 4px rgba(139, 0, 0, 0.4));
+  transition: stroke-dashoffset 1s ease;
+}
+
+/* Clock face markers */
+.progress-clock .clock-marks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.clock-mark {
+  position: absolute;
+  width: 1px;
+  height: 6px;
+  background: rgba(245, 230, 200, 0.15);
+  top: 2px;
+  left: 50%;
+  transform-origin: 0 43px;
+}
+
+.progress-clock-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.progress-percent {
+  font-family: var(--font-case);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--aged-paper);
+  display: block;
+  line-height: 1;
+}
+
+.progress-sublabel {
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: rgba(245, 230, 200, 0.4);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.progress-info {
+  font-family: var(--font-typewriter);
+  font-size: 11px;
+  color: rgba(245, 230, 200, 0.5);
+  line-height: 1.6;
+}
+
+/* Task checklist */
+.task-checklist {
+  list-style: none;
+}
+
+.task-checklist li {
+  font-family: var(--font-data);
+  font-size: 11px;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(245, 230, 200, 0.6);
+  border-bottom: 1px dotted rgba(212, 165, 116, 0.06);
+}
+
+.task-checklist li:last-child {
+  border-bottom: none;
+}
+
+.task-check {
+  font-size: 13px;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.task-check.done {
+  color: var(--lamp-glow);
+}
+
+.task-check.pending {
+  color: rgba(245, 230, 200, 0.2);
+}
+
+.task-checklist li.completed {
+  color: rgba(245, 230, 200, 0.35);
+  text-decoration: line-through;
+  text-decoration-color: rgba(245, 230, 200, 0.15);
+}
+
+.task-checklist li.in-progress {
+  color: var(--cigarette-amber);
+}
+
+
+/* ============================================================
+   TYPEWRITER FEED
+   ============================================================ */
+.typewriter-feed {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.08);
+}
+
+.typewriter-header {
+  font-family: var(--font-typewriter);
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--cigarette-amber);
+  padding: 12px 20px 10px 20px;
+  border-bottom: 1px solid rgba(212, 165, 116, 0.08);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.typewriter-paper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 18px;
+  position: relative;
+  background:
+    /* Ruled lines */
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 21px,
+      rgba(212, 165, 116, 0.06) 21px,
+      rgba(212, 165, 116, 0.06) 22px
+    ),
+    /* Paper texture */
+    linear-gradient(180deg, rgba(245, 230, 200, 0.03) 0%, rgba(245, 230, 200, 0.01) 100%);
+}
+
+/* Paper curl at bottom */
+.typewriter-paper::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(18, 16, 14, 0.8) 60%,
+    rgba(18, 16, 14, 0.95)
+  );
+  display: block;
+  pointer-events: none;
+}
+
+/* Custom scrollbar */
+.typewriter-paper::-webkit-scrollbar {
+  width: 4px;
+}
+
+.typewriter-paper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.typewriter-paper::-webkit-scrollbar-thumb {
+  background: rgba(212, 165, 116, 0.15);
+  border-radius: 2px;
+}
+
+.typewriter-line {
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  line-height: 22px;
+  color: rgba(245, 230, 200, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  margin: 0;
+}
+
+.typewriter-line .tw-time {
+  color: rgba(245, 230, 200, 0.3);
+}
+
+.typewriter-line .tw-agent {
+  color: var(--cigarette-amber);
+  font-weight: bold;
+}
+
+.typewriter-line .tw-action {
+  color: rgba(245, 230, 200, 0.5);
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: var(--aged-paper);
+  animation: cursor-blink 0.8s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+
+/* ============================================================
+   DOSSIER METRICS (Bottom Right)
+   ============================================================ */
+.dossier-metrics {
+  flex-shrink: 0;
+  padding: 14px 18px;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(200, 169, 110, 0.04) 0%, rgba(200, 169, 110, 0.02) 100%);
+}
+
+/* Manila folder tab */
+.dossier-tab {
+  position: absolute;
+  top: -14px;
+  left: 20px;
+  background: var(--manila);
+  color: var(--ink-black);
+  font-family: var(--font-typewriter);
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 3px 14px;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+}
+
+.dossier-content {
+  position: relative;
+}
+
+/* CONFIDENTIAL stamp */
+.confidential-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  font-family: var(--font-case);
+  font-size: 28px;
+  font-weight: 900;
+  color: rgba(139, 0, 0, 0.12);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  border: 3px solid rgba(139, 0, 0, 0.10);
+  padding: 4px 16px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dossier-item {
+  position: relative;
+  z-index: 1;
+}
+
+.dossier-label {
+  font-family: var(--font-typewriter);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: rgba(245, 230, 200, 0.35);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.dossier-value {
+  font-family: var(--font-data);
+  font-size: 15px;
+  color: var(--aged-paper);
+  font-weight: bold;
+}
+
+.dossier-value.errors {
+  color: var(--blood-red-bright);
+}
+
+.dossier-unit {
+  font-size: 10px;
+  font-weight: normal;
+  color: rgba(245, 230, 200, 0.4);
+}
+
+
+/* ============================================================
+   STATUS BAR (Desk Bottom)
+   ============================================================ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background:
+    linear-gradient(180deg, rgba(42, 36, 32, 0.6) 0%, rgba(30, 27, 24, 0.9) 100%);
+  border-top: 1px solid rgba(212, 165, 116, 0.08);
+  z-index: 10;
+}
+
+.status-division {
+  font-family: var(--font-typewriter);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(245, 230, 200, 0.25);
+  text-transform: uppercase;
+}
+
+.status-secure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: rgba(245, 230, 200, 0.35);
+  letter-spacing: 1px;
+}
+
+.secure-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lamp-glow);
+  box-shadow: 0 0 6px rgba(74, 138, 42, 0.4);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+.status-clock {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: rgba(245, 230, 200, 0.4);
+  letter-spacing: 2px;
+  padding: 2px 12px;
+  border: 1px solid rgba(212, 165, 116, 0.08);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================================
+   ANIMATIONS — Photo Develop Effect
+   ============================================================ */
+.agent-card {
+  animation: photo-develop 1.5s ease-out forwards;
+  opacity: 0;
+}
+
+.agent-card:nth-child(1) { animation-delay: 0.2s; }
+.agent-card:nth-child(2) { animation-delay: 0.5s; }
+.agent-card:nth-child(3) { animation-delay: 0.8s; }
+.agent-card:nth-child(4) { animation-delay: 1.1s; }
+.agent-card:nth-child(5) { animation-delay: 1.4s; }
+
+@keyframes photo-develop {
+  0% {
+    opacity: 0;
+    filter: brightness(3) contrast(0.3) sepia(1);
+  }
+  40% {
+    opacity: 0.6;
+    filter: brightness(1.5) contrast(0.7) sepia(0.5);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1) contrast(1) sepia(0);
+  }
+}
+
+/* String fade in */
+.string-connections {
+  opacity: 0;
+  animation: strings-appear 0.5s ease-out 2s forwards;
+}
+
+@keyframes strings-appear {
+  to { opacity: 1; }
+}
+
+/* ============================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================ */
+@media (max-width: 1200px) {
+  .main-content {
+    grid-template-columns: 1fr 300px;
+  }
+
+  .agent-card:nth-child(3) {
+    left: 460px;
+  }
+
+  .agent-card:nth-child(5) {
+    left: 340px;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 300px;
+  }
+
+  .right-panel {
+    border-left: none;
+    border-top: 1px solid rgba(212, 165, 116, 0.08);
+    flex-direction: row;
+  }
+}
+
+/* ============================================================
+   EVIDENCE & DOSSIER INTERACTION DETAILS
+   ============================================================ */
+.evidence-item .evidence-label {
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: rgba(44, 40, 38, 0.4);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Board label annotations */
+.board-annotation {
+  position: absolute;
+  font-family: var(--font-typewriter);
+  font-size: 10px;
+  color: rgba(245, 230, 200, 0.12);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.board-annotation.top-label {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  letter-spacing: 4px;
+}
+
+/* ============================================================
+   ADDITIONAL TEXTURES
+   ============================================================ */
+
+/* Tape strip effect for some cards */
+.tape-strip {
+  position: absolute;
+  width: 60px;
+  height: 18px;
+  background: rgba(245, 230, 200, 0.15);
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(0.5deg);
+  z-index: 11;
+  border: 1px solid rgba(245, 230, 200, 0.08);
+}
+
+/* Red circle marking on a card */
+.red-circle-mark {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(139, 0, 0, 0.3);
+  border-radius: 50%;
+  top: 10px;
+  right: 8px;
+  pointer-events: none;
+}
+
+/* Handwritten note style */
+.handwritten-note {
+  position: absolute;
+  font-family: var(--font-typewriter);
+  font-size: 9px;
+  color: rgba(139, 0, 0, 0.35);
+  transform: rotate(-5deg);
+  pointer-events: none;
+}
+
+/* Folder crease line */
+.dossier-metrics::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(200, 169, 110, 0.15) 20%,
+    rgba(200, 169, 110, 0.15) 80%,
+    transparent
+  );
+}
+
+/* Additional board items: scattered notes */
+.scattered-note {
+  position: absolute;
+  width: 80px;
+  padding: 8px;
+  background: rgba(245, 230, 200, 0.06);
+  border: 1px solid rgba(245, 230, 200, 0.04);
+  font-family: var(--font-typewriter);
+  font-size: 8px;
+  color: rgba(245, 230, 200, 0.25);
+  z-index: 3;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+}
+
+.scattered-note.note-1 {
+  top: 240px;
+  left: 20px;
+  transform: rotate(4deg);
+}
+
+.scattered-note.note-2 {
+  top: 180px;
+  left: 740px;
+  transform: rotate(-6deg);
+  width: 90px;
+}
+
+.scattered-note.note-3 {
+  top: 430px;
+  left: 680px;
+  transform: rotate(2deg);
+}
+
+/* Underline emphasis animation */
+@keyframes underline-draw {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Type cursor for active typing line */
+.typing-active .typewriter-cursor {
+  display: inline-block;
+}
+
+/* Stamp effect for classified */
+.stamp-effect {
+  font-family: var(--font-case);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  opacity: 0.12;
+  color: var(--blood-red);
+}
+
+</style>
+</head>
+<body>
+
+<!-- SVG Filters -->
+<svg class="svg-filters" aria-hidden="true">
+  <defs>
+    <filter id="grain-filter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="mono"/>
+      <feBlend in="SourceGraphic" in2="mono" mode="multiply"/>
+    </filter>
+  </defs>
+</svg>
+
+<!-- Ambient Effects -->
+<div class="film-grain" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="desk-lamp" aria-hidden="true"></div>
+<div class="camera-flash" id="cameraFlash" aria-hidden="true"></div>
+<div class="smoke-container" aria-hidden="true">
+  <div class="smoke-wisp"></div>
+  <div class="smoke-wisp"></div>
+  <div class="smoke-wisp"></div>
+</div>
+
+<!-- Main Container -->
+<div class="noir-container">
+
+  <!-- ============================
+       CASE HEADER
+       ============================ -->
+  <header class="case-header">
+    <div class="case-header-content">
+      <h1 class="case-title">Case File #2847</h1>
+      <span class="case-classification">
+        Classification: <span class="active-tag">Active</span> // Priority: <span class="critical-tag">Critical</span>
+      </span>
+      <span class="case-date">Filed: 30 Jan 2026 // Lead Operative: Agent Atlas</span>
+    </div>
+  </header>
+
+  <!-- ============================
+       MAIN CONTENT
+       ============================ -->
+  <div class="main-content">
+
+    <!-- INVESTIGATION BOARD -->
+    <div class="investigation-board">
+
+      <div class="board-annotation top-label">Persons of Interest</div>
+
+      <!-- String Connections SVG -->
+      <svg class="string-connections" id="stringsSvg" aria-hidden="true">
+        <!-- Strings drawn by JS -->
+      </svg>
+
+      <!-- Agent Card 1: ATLAS -->
+      <div class="agent-card" id="card-atlas">
+        <div class="pushpin"></div>
+        <div class="red-circle-mark"></div>
+        <div class="agent-mugshot">
+          <div class="agent-avatar status-active">
+            <div class="head"></div>
+            <div class="body"></div>
+          </div>
+        </div>
+        <div class="agent-label">Operative</div>
+        <div class="agent-name">ATLAS</div>
+        <div class="agent-status">
+          <span class="status-dot active"></span>
+          STATUS: ACTIVE
+        </div>
+        <div class="agent-assignment">Refactoring auth middleware and implementing OAuth2 token rotation</div>
+        <div class="agent-lastseen">Last seen: 2 min ago</div>
+      </div>
+
+      <!-- Agent Card 2: CIPHER -->
+      <div class="agent-card" id="card-cipher">
+        <div class="pushpin"></div>
+        <div class="tape-strip"></div>
+        <div class="agent-mugshot">
+          <div class="agent-avatar status-active">
+            <div class="head"></div>
+            <div class="body"></div>
+          </div>
+        </div>
+        <div class="agent-label">Operative</div>
+        <div class="agent-name">CIPHER</div>
+        <div class="agent-status">
+          <span class="status-dot active"></span>
+          STATUS: ACTIVE
+        </div>
+        <div class="agent-assignment">Database migration for session table schema redesign</div>
+        <div class="agent-lastseen">Last seen: 45 sec ago</div>
+      </div>
+
+      <!-- Agent Card 3: RAVEN -->
+      <div class="agent-card" id="card-raven">
+        <div class="pushpin"></div>
+        <div class="agent-mugshot">
+          <div class="agent-avatar status-planning">
+            <div class="head"></div>
+            <div class="body"></div>
+          </div>
+        </div>
+        <div class="agent-label">Operative</div>
+        <div class="agent-name">RAVEN</div>
+        <div class="agent-status">
+          <span class="status-dot planning"></span>
+          STATUS: PLANNING
+        </div>
+        <div class="agent-assignment">Analyzing test coverage gaps in notification service</div>
+        <div class="agent-lastseen">Last seen: 5 min ago</div>
+      </div>
+
+      <!-- Agent Card 4: GHOST -->
+      <div class="agent-card" id="card-ghost">
+        <div class="pushpin"></div>
+        <div class="agent-mugshot">
+          <div class="agent-avatar status-idle">
+            <div class="head"></div>
+            <div class="body"></div>
+          </div>
+        </div>
+        <div class="agent-label">Operative</div>
+        <div class="agent-name">GHOST</div>
+        <div class="agent-status">
+          <span class="status-dot idle"></span>
+          STATUS: IDLE
+        </div>
+        <div class="agent-assignment">Awaiting new assignment from operations</div>
+        <div class="agent-lastseen">Last seen: 12 min ago</div>
+        <div class="handwritten-note" style="bottom:-18px;right:5px;">standby?</div>
+      </div>
+
+      <!-- Agent Card 5: SPECTER -->
+      <div class="agent-card" id="card-specter">
+        <div class="pushpin"></div>
+        <div class="red-circle-mark" style="top:auto;bottom:30px;right:12px;"></div>
+        <div class="agent-mugshot">
+          <div class="agent-avatar status-error">
+            <div class="head"></div>
+            <div class="body"></div>
+          </div>
+        </div>
+        <div class="agent-label">Operative</div>
+        <div class="agent-name">SPECTER</div>
+        <div class="agent-status">
+          <span class="status-dot error"></span>
+          STATUS: ERROR
+        </div>
+        <div class="agent-assignment">API rate limit exceeded during bulk data import operation</div>
+        <div class="agent-lastseen">Last seen: 8 min ago</div>
+      </div>
+
+      <!-- Scattered Notes -->
+      <div class="scattered-note note-1">Check worktree isolation — possible leak?</div>
+      <div class="scattered-note note-2">ATLAS &amp; CIPHER linked via shared auth module</div>
+      <div class="scattered-note note-3">SPECTER — retry after cooldown period</div>
+
+      <!-- Evidence Board (overlay, bottom left) -->
+      <div class="evidence-board">
+        <div class="evidence-header">Evidence Collected</div>
+        <div class="evidence-grid">
+          <div class="evidence-item">
+            <span class="evidence-icon">&#128196;</span>
+            <div class="evidence-type">Documents Retrieved</div>
+            <div class="evidence-count" id="evidenceFiles">47</div>
+          </div>
+          <div class="evidence-item">
+            <span class="evidence-icon">&#9998;</span>
+            <div class="evidence-type">Statements Recorded</div>
+            <div class="evidence-count" id="evidenceWrites">23</div>
+          </div>
+          <div class="evidence-item">
+            <span class="evidence-icon">&#9881;</span>
+            <div class="evidence-type">Field Operations</div>
+            <div class="evidence-count" id="evidenceBash">18</div>
+          </div>
+          <div class="evidence-item">
+            <span class="evidence-icon">&#127760;</span>
+            <div class="evidence-type">Intelligence Gathered</div>
+            <div class="evidence-count" id="evidenceWeb">9</div>
+          </div>
+          <div class="evidence-total">
+            TOTAL EVIDENCE PIECES: <strong id="evidenceTotal">97</strong>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /investigation-board -->
+
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+      <!-- CASE PROGRESS -->
+      <div class="case-progress">
+        <div class="case-progress-header">Case Progress</div>
+        <div class="progress-clock-container">
+          <div class="progress-clock">
+            <svg viewBox="0 0 100 100">
+              <circle class="track" cx="50" cy="50" r="40"/>
+              <circle class="progress-arc" cx="50" cy="50" r="40" id="progressArc"/>
+              <!-- Clock hour marks -->
+              <line x1="50" y1="12" x2="50" y2="16" stroke="rgba(245,230,200,0.15)" stroke-width="1"/>
+              <line x1="88" y1="50" x2="84" y2="50" stroke="rgba(245,230,200,0.15)" stroke-width="1"/>
+              <line x1="50" y1="88" x2="50" y2="84" stroke="rgba(245,230,200,0.15)" stroke-width="1"/>
+              <line x1="12" y1="50" x2="16" y2="50" stroke="rgba(245,230,200,0.15)" stroke-width="1"/>
+              <!-- Diagonal marks -->
+              <line x1="76.4" y1="23.6" x2="73.6" y2="26.4" stroke="rgba(245,230,200,0.08)" stroke-width="0.8"/>
+              <line x1="76.4" y1="76.4" x2="73.6" y2="73.6" stroke="rgba(245,230,200,0.08)" stroke-width="0.8"/>
+              <line x1="23.6" y1="76.4" x2="26.4" y2="73.6" stroke="rgba(245,230,200,0.08)" stroke-width="0.8"/>
+              <line x1="23.6" y1="23.6" x2="26.4" y2="26.4" stroke="rgba(245,230,200,0.08)" stroke-width="0.8"/>
+            </svg>
+            <div class="progress-clock-label">
+              <span class="progress-percent" id="progressPercent">67%</span>
+              <span class="progress-sublabel">Solved</span>
+            </div>
+          </div>
+          <div class="progress-info">
+            Case Progress: 67%<br>
+            4 of 6 objectives<br>
+            completed
+          </div>
+        </div>
+        <ul class="task-checklist">
+          <li class="completed">
+            <span class="task-check done">&#9745;</span>
+            Identify suspects
+          </li>
+          <li class="completed">
+            <span class="task-check done">&#9745;</span>
+            Establish timeline
+          </li>
+          <li class="completed">
+            <span class="task-check done">&#9745;</span>
+            Secure perimeter
+          </li>
+          <li class="completed">
+            <span class="task-check done">&#9745;</span>
+            Interview witnesses
+          </li>
+          <li class="in-progress">
+            <span class="task-check pending">&#9744;</span>
+            Gather evidence
+          </li>
+          <li>
+            <span class="task-check pending">&#9744;</span>
+            File report
+          </li>
+        </ul>
+      </div>
+
+      <!-- TYPEWRITER FEED -->
+      <div class="typewriter-feed">
+        <div class="typewriter-header">Field Reports</div>
+        <div class="typewriter-paper" id="typewriterPaper">
+          <!-- Lines added by JS -->
+        </div>
+      </div>
+
+      <!-- DOSSIER METRICS -->
+      <div class="dossier-metrics">
+        <div class="dossier-tab">Classified</div>
+        <div class="dossier-content">
+          <div class="confidential-stamp">Confidential</div>
+          <div class="dossier-grid">
+            <div class="dossier-item">
+              <div class="dossier-label">Operations</div>
+              <div class="dossier-value"><span id="metricOps">147</span> <span class="dossier-unit">completed</span></div>
+            </div>
+            <div class="dossier-item">
+              <div class="dossier-label">Intelligence</div>
+              <div class="dossier-value"><span id="metricTokens">24,847</span> <span class="dossier-unit">tokens</span></div>
+            </div>
+            <div class="dossier-item">
+              <div class="dossier-label">Expenditure</div>
+              <div class="dossier-value">$<span id="metricCost">0.47</span></div>
+            </div>
+            <div class="dossier-item">
+              <div class="dossier-label">Errors</div>
+              <div class="dossier-value errors"><span id="metricErrors">2</span> <span class="dossier-unit">incidents</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right-panel -->
+
+  </div><!-- /main-content -->
+
+
+  <!-- ============================
+       STATUS BAR
+       ============================ -->
+  <footer class="status-bar">
+    <span class="status-division">AgentPane Investigations Division</span>
+    <span class="status-secure">
+      <span class="secure-dot"></span>
+      Secure Line: Active
+    </span>
+    <span class="status-clock" id="statusClock">02:00:00</span>
+  </footer>
+
+</div><!-- /noir-container -->
+
+
+<script>
+/* ============================================================
+   NOIR COMMAND — JavaScript Engine
+   Typewriter effects, live data simulation, ambient effects
+   ============================================================ */
+
+(function() {
+  'use strict';
+
+  // ---- Clock ----
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('statusClock').textContent = h + ':' + m + ':' + s;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ---- String Connections (SVG) ----
+  function drawStrings() {
+    const svg = document.getElementById('stringsSvg');
+    if (!svg) return;
+
+    const board = svg.parentElement;
+    const boardRect = board.getBoundingClientRect();
+
+    const cards = [
+      document.getElementById('card-atlas'),
+      document.getElementById('card-cipher'),
+      document.getElementById('card-raven'),
+      document.getElementById('card-ghost'),
+      document.getElementById('card-specter')
+    ];
+
+    // Get center points of each card relative to the board
+    function getCenter(el) {
+      if (!el) return { x: 0, y: 0 };
+      const r = el.getBoundingClientRect();
+      return {
+        x: r.left - boardRect.left + r.width / 2,
+        y: r.top - boardRect.top + r.height * 0.15 // pin location
+      };
+    }
+
+    const points = cards.map(getCenter);
+
+    // Connections: ATLAS-CIPHER, ATLAS-RAVEN, CIPHER-SPECTER, GHOST-SPECTER
+    const connections = [
+      [0, 1],
+      [0, 2],
+      [1, 4],
+      [3, 4],
+      [1, 3]
+    ];
+
+    svg.innerHTML = '';
+    svg.setAttribute('width', boardRect.width);
+    svg.setAttribute('height', boardRect.height);
+
+    connections.forEach(function(conn) {
+      const p1 = points[conn[0]];
+      const p2 = points[conn[1]];
+
+      // Slight curve via quadratic bezier
+      const mx = (p1.x + p2.x) / 2;
+      const my = (p1.y + p2.y) / 2 + (Math.random() * 30 - 15);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M ' + p1.x + ' ' + p1.y + ' Q ' + mx + ' ' + my + ' ' + p2.x + ' ' + p2.y);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#cc2222');
+      path.setAttribute('stroke-width', '1.2');
+      path.setAttribute('opacity', '0.4');
+      path.style.filter = 'drop-shadow(0 0 2px rgba(204, 34, 34, 0.25))';
+      svg.appendChild(path);
+    });
+  }
+
+  // Draw strings after cards animate in
+  setTimeout(drawStrings, 2200);
+  window.addEventListener('resize', drawStrings);
+
+
+  // ---- Typewriter Feed ----
+  const typewriterReports = [
+    { time: '14:32:07', agent: 'ATLAS', action: 'Accessed file: src/auth/middleware.ts' },
+    { time: '14:32:14', agent: 'CIPHER', action: 'Executed migration: alter_sessions_table' },
+    { time: '14:32:22', agent: 'ATLAS', action: 'Modified function: validateToken()' },
+    { time: '14:32:31', agent: 'RAVEN', action: 'Scanning test directory: tests/notifications/' },
+    { time: '14:32:38', agent: 'CIPHER', action: 'Created index: idx_sessions_user_id' },
+    { time: '14:32:45', agent: 'SPECTER', action: 'ERROR: Rate limit 429 — import halted' },
+    { time: '14:32:52', agent: 'ATLAS', action: 'Reading config: oauth2.config.json' },
+    { time: '14:33:01', agent: 'RAVEN', action: 'Coverage analysis: 72% — 14 gaps found' },
+    { time: '14:33:08', agent: 'CIPHER', action: 'Verified schema: sessions table OK' },
+    { time: '14:33:15', agent: 'ATLAS', action: 'Writing: src/auth/token-rotation.ts' },
+    { time: '14:33:23', agent: 'RAVEN', action: 'Generated test: notification.delivery.test.ts' },
+    { time: '14:33:30', agent: 'ATLAS', action: 'Bash: npm run test -- auth/' },
+    { time: '14:33:38', agent: 'CIPHER', action: 'Backup created: sessions_backup_20260130' },
+    { time: '14:33:45', agent: 'SPECTER', action: 'Retry scheduled: 60s cooldown' },
+    { time: '14:33:52', agent: 'ATLAS', action: 'Tests passed: 14/14 auth suite' },
+    { time: '14:34:01', agent: 'RAVEN', action: 'Fetched docs: notification-api reference' },
+    { time: '14:34:08', agent: 'CIPHER', action: 'Rollback plan documented: migration v12' },
+    { time: '14:34:15', agent: 'ATLAS', action: 'Committed: feat(auth): add token rotation' },
+    { time: '14:34:23', agent: 'RAVEN', action: 'Writing test: edge case — empty payload' },
+    { time: '14:34:30', agent: 'SPECTER', action: 'Resuming import: batch 47/120' },
+    { time: '14:34:38', agent: 'ATLAS', action: 'Opened PR #847: OAuth2 token rotation' },
+    { time: '14:34:45', agent: 'CIPHER', action: 'Migration complete — 0 errors' },
+    { time: '14:34:52', agent: 'RAVEN', action: 'Coverage improved: 72% → 86%' },
+    { time: '14:35:01', agent: 'GHOST', action: 'Standby — monitoring assignment queue' },
+    { time: '14:35:08', agent: 'SPECTER', action: 'Batch 48/120 imported successfully' },
+    { time: '14:35:15', agent: 'ATLAS', action: 'Reviewing: PR feedback from CI checks' },
+    { time: '14:35:22', agent: 'RAVEN', action: 'All notification tests green: 23/23' },
+    { time: '14:35:30', agent: 'CIPHER', action: 'Starting: session cleanup cron job' },
+    { time: '14:35:38', agent: 'ATLAS', action: 'Fixed lint: trailing comma in config' },
+    { time: '14:35:45', agent: 'SPECTER', action: 'Batch 52/120 — rate stable' },
+  ];
+
+  const typewriterPaper = document.getElementById('typewriterPaper');
+  let reportIndex = 0;
+  let isTyping = false;
+
+  function formatReport(report) {
+    return '<span class="tw-time">[' + report.time + ']</span> ' +
+           '<span class="tw-agent">' + report.agent + '</span> ' +
+           '<span class="tw-action">\u2014 ' + report.action + '</span>';
+  }
+
+  function typewriterEffect(element, html, callback) {
+    // We'll type the text content but insert HTML at the end
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const plainText = tempDiv.textContent;
+
+    let charIndex = 0;
+    isTyping = true;
+
+    // Show cursor
+    element.innerHTML = '<span class="typewriter-cursor"></span>';
+
+    function typeChar() {
+      if (charIndex < plainText.length) {
+        // Replace cursor with text so far + cursor
+        const typed = plainText.substring(0, charIndex + 1);
+        element.innerHTML = escapeHtml(typed) + '<span class="typewriter-cursor"></span>';
+        charIndex++;
+
+        // Random delay for realism
+        const delay = 15 + Math.random() * 35;
+        setTimeout(typeChar, delay);
+      } else {
+        // Done typing — replace with formatted HTML
+        element.innerHTML = html;
+        isTyping = false;
+        if (callback) callback();
+      }
+    }
+
+    typeChar();
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function addReport() {
+    if (isTyping) return;
+
+    const report = typewriterReports[reportIndex % typewriterReports.length];
+    reportIndex++;
+
+    const line = document.createElement('div');
+    line.className = 'typewriter-line';
+    typewriterPaper.appendChild(line);
+
+    typewriterEffect(line, formatReport(report), function() {
+      // Scroll to bottom
+      typewriterPaper.scrollTop = typewriterPaper.scrollHeight;
+
+      // Schedule next report
+      const nextDelay = 2500 + Math.random() * 3000;
+      setTimeout(addReport, nextDelay);
+    });
+  }
+
+  // Initial batch (instant, no typewriter)
+  function addInitialReports() {
+    const initial = typewriterReports.slice(0, 6);
+    initial.forEach(function(report) {
+      const line = document.createElement('div');
+      line.className = 'typewriter-line';
+      line.innerHTML = formatReport(report);
+      typewriterPaper.appendChild(line);
+    });
+    reportIndex = 6;
+    typewriterPaper.scrollTop = typewriterPaper.scrollHeight;
+  }
+
+  addInitialReports();
+  setTimeout(addReport, 3000);
+
+
+  // ---- Camera Flash (rare) ----
+  function triggerFlash() {
+    const flash = document.getElementById('cameraFlash');
+    flash.classList.remove('flash');
+    // Force reflow
+    void flash.offsetWidth;
+    flash.classList.add('flash');
+
+    // Schedule next flash (15-45 seconds)
+    const nextFlash = 15000 + Math.random() * 30000;
+    setTimeout(triggerFlash, nextFlash);
+  }
+
+  // First flash after 8-15 seconds
+  setTimeout(triggerFlash, 8000 + Math.random() * 7000);
+
+
+  // ---- Live Data Updates ----
+  let opsCount = 147;
+  let tokensCount = 24847;
+  let costValue = 0.47;
+  let filesCount = 47;
+  let writesCount = 23;
+  let bashCount = 18;
+  let webCount = 9;
+
+  function updateMetrics() {
+    // Randomly increment some metrics
+    if (Math.random() > 0.4) {
+      opsCount += Math.floor(Math.random() * 3) + 1;
+      document.getElementById('metricOps').textContent = opsCount;
+    }
+
+    if (Math.random() > 0.3) {
+      tokensCount += Math.floor(Math.random() * 500) + 100;
+      document.getElementById('metricTokens').textContent = tokensCount.toLocaleString();
+    }
+
+    if (Math.random() > 0.5) {
+      costValue += parseFloat((Math.random() * 0.03).toFixed(3));
+      document.getElementById('metricCost').textContent = costValue.toFixed(2);
+    }
+
+    // Evidence counts
+    if (Math.random() > 0.6) {
+      filesCount++;
+      document.getElementById('evidenceFiles').textContent = filesCount;
+    }
+    if (Math.random() > 0.7) {
+      writesCount++;
+      document.getElementById('evidenceWrites').textContent = writesCount;
+    }
+    if (Math.random() > 0.75) {
+      bashCount++;
+      document.getElementById('evidenceBash').textContent = bashCount;
+    }
+    if (Math.random() > 0.85) {
+      webCount++;
+      document.getElementById('evidenceWeb').textContent = webCount;
+    }
+
+    document.getElementById('evidenceTotal').textContent =
+      filesCount + writesCount + bashCount + webCount;
+  }
+
+  setInterval(updateMetrics, 4000);
+
+
+  // ---- Progress Animation ----
+  let currentProgress = 67;
+
+  function animateProgress() {
+    // Slowly increment progress
+    if (currentProgress < 100 && Math.random() > 0.7) {
+      currentProgress = Math.min(100, currentProgress + 1);
+
+      const circumference = 2 * Math.PI * 40; // r=40
+      const offset = circumference * (1 - currentProgress / 100);
+      document.getElementById('progressArc').style.strokeDashoffset = offset;
+      document.getElementById('progressPercent').textContent = currentProgress + '%';
+    }
+  }
+
+  setInterval(animateProgress, 8000);
+
+
+  // ---- Agent Last Seen Updates ----
+  const agents = [
+    { id: 'card-atlas', times: ['just now', '30 sec ago', '1 min ago', '2 min ago'] },
+    { id: 'card-cipher', times: ['just now', '15 sec ago', '45 sec ago', '1 min ago'] },
+    { id: 'card-raven', times: ['3 min ago', '4 min ago', '5 min ago', '6 min ago'] },
+    { id: 'card-ghost', times: ['10 min ago', '11 min ago', '12 min ago', '13 min ago'] },
+    { id: 'card-specter', times: ['6 min ago', '7 min ago', '8 min ago', '9 min ago'] },
+  ];
+
+  let timeIndex = 0;
+
+  function updateLastSeen() {
+    agents.forEach(function(agent) {
+      const card = document.getElementById(agent.id);
+      if (!card) return;
+      const lastSeen = card.querySelector('.agent-lastseen');
+      if (lastSeen) {
+        lastSeen.textContent = 'Last seen: ' + agent.times[timeIndex % agent.times.length];
+      }
+    });
+    timeIndex++;
+  }
+
+  setInterval(updateLastSeen, 10000);
+
+
+  // ---- Desk Lamp Flicker Enhancement ----
+  const deskLamp = document.querySelector('.desk-lamp');
+  function randomFlicker() {
+    if (Math.random() > 0.85) {
+      deskLamp.style.opacity = (0.6 + Math.random() * 0.4).toString();
+      setTimeout(function() {
+        deskLamp.style.opacity = '1';
+      }, 50 + Math.random() * 100);
+    }
+    setTimeout(randomFlicker, 2000 + Math.random() * 5000);
+  }
+  randomFlicker();
+
+
+  // ---- Smoke Wisps — Additional Randomization ----
+  const smokeWisps = document.querySelectorAll('.smoke-wisp');
+  function randomizeSmoke() {
+    smokeWisps.forEach(function(wisp) {
+      wisp.style.animationDuration = (5 + Math.random() * 4) + 's';
+    });
+    setTimeout(randomizeSmoke, 8000);
+  }
+  randomizeSmoke();
+
+})();
+</script>
+
+</body>
+</html>

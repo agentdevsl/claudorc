@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Monitor - F1 Race Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --secondary-muted: rgba(247, 120, 186, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+
+      /* F1-specific tokens */
+      --f1-red: #e10600;
+      --f1-red-muted: rgba(225, 6, 0, 0.15);
+      --f1-gold: #ffd700;
+      --f1-gold-muted: rgba(255, 215, 0, 0.12);
+      --car-green: #3fb950;
+      --car-amber: #d29922;
+      --car-gray: #6e7681;
+      --sector-purple: #a371f7;
+      --drs-cyan: #39d2c0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes breathe { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+    @keyframes carMove1 {
+      0% { offset-distance: 0%; }
+      100% { offset-distance: 100%; }
+    }
+    @keyframes carMove2 {
+      0% { offset-distance: 25%; }
+      100% { offset-distance: 125%; }
+    }
+    @keyframes carMove3 {
+      0% { offset-distance: 55%; }
+      100% { offset-distance: 155%; }
+    }
+
+    @keyframes hazardBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    @keyframes flagWave {
+      0% { transform: scaleX(1); }
+      25% { transform: scaleX(1.05) skewX(-2deg); }
+      50% { transform: scaleX(1); }
+      75% { transform: scaleX(1.05) skewX(2deg); }
+      100% { transform: scaleX(1); }
+    }
+
+    @keyframes safetyCarPulse {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes tachSweep {
+      0% { stroke-dashoffset: 220; }
+      50% { stroke-dashoffset: 100; }
+      100% { stroke-dashoffset: 120; }
+    }
+
+    @keyframes radioScroll {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
+    }
+
+    @keyframes sectorFlash {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.8; }
+    }
+
+    @keyframes lapChartDraw {
+      from { stroke-dashoffset: 1000; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes checkeredScroll {
+      0% { background-position: 0 0; }
+      100% { background-position: 20px 0; }
+    }
+
+    @keyframes gaugePulse {
+      0%, 100% { filter: drop-shadow(0 0 2px currentColor); }
+      50% { filter: drop-shadow(0 0 6px currentColor); }
+    }
+
+    @keyframes drsGlow {
+      0%, 100% { opacity: 0.3; filter: blur(2px); }
+      50% { opacity: 0.7; filter: blur(4px); }
+    }
+
+    @keyframes pitCrewBusy {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    /* ========================================
+       Sidebar
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .logo::before {
+      content: '';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+
+    .project-switcher {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-3); margin: var(--space-3);
+      background-color: var(--bg-subtle); border: 1px solid var(--border-default);
+      border-radius: var(--radius); cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .project-switcher:hover { border-color: var(--fg-subtle); }
+    .project-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .project-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .project-name { font-size: 14px; font-weight: 500; color: var(--fg-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-path-text { font-size: 12px; font-family: var(--font-mono); color: var(--fg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-switcher kbd { padding: 2px 6px; background-color: var(--bg-muted); border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 12px; color: var(--fg-muted); }
+
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section:last-child { margin-bottom: 0; }
+    .nav-section-title { display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2); font-size: 12px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .nav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); margin-bottom: 2px; font-size: 14px; font-weight: 500; color: var(--fg-muted); border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out); cursor: pointer; }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 10px; min-width: 20px; text-align: center; }
+    .nav-badge.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .nav-badge.default { background-color: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--success-fg), var(--accent-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Application Layout
+       ======================================== */
+    .app-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Race Control Bar (Top Strip)
+       ======================================== */
+    .race-control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-4);
+      height: 48px;
+      background: linear-gradient(180deg, #1a1f26 0%, var(--bg-default) 100%);
+      border-bottom: 2px solid var(--f1-red);
+      flex-shrink: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .race-control-bar::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--f1-red), transparent 30%, transparent 70%, var(--f1-red));
+    }
+
+    .rc-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .rc-title {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--fg-default);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .rc-title-accent {
+      color: var(--f1-red);
+    }
+
+    .rc-flag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .rc-flag.green {
+      background: var(--success-muted);
+      color: var(--success-fg);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .rc-flag.yellow {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+      animation: hazardBlink 1.5s ease-in-out infinite;
+    }
+
+    .rc-flag.red {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .rc-flag-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .rc-center {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+    }
+
+    .rc-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .rc-stat-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fg-subtle);
+    }
+
+    .rc-stat-value {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+      letter-spacing: 0.05em;
+    }
+
+    .rc-stat-value.gold {
+      color: var(--f1-gold);
+    }
+
+    .rc-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .rc-weather {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .rc-weather-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .rc-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--f1-red-muted);
+      border: 1px solid rgba(225, 6, 0, 0.4);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--f1-red);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .rc-live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--f1-red);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    /* ========================================
+       Main Content Area (3-panel)
+       ======================================== */
+    .race-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr 300px;
+      grid-template-rows: 1fr 140px;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Timing Tower (Left Panel)
+       ======================================== */
+    .timing-tower {
+      grid-row: 1 / 3;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tt-header {
+      padding: var(--space-3) var(--space-3);
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tt-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+
+    .tt-fastest-lap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--done-muted);
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--done-fg);
+    }
+
+    .tt-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-1) 0;
+    }
+
+    .tt-entry {
+      display: grid;
+      grid-template-columns: 28px 4px 1fr auto;
+      align-items: center;
+      gap: 0;
+      padding: 6px var(--space-3);
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      cursor: pointer;
+      transition: background-color var(--duration-fast) var(--ease-out);
+    }
+
+    .tt-entry:hover {
+      background: var(--bg-subtle);
+    }
+
+    .tt-entry.selected {
+      background: var(--bg-subtle);
+      border-left: 2px solid var(--accent-fg);
+    }
+
+    .tt-entry.leader {
+      background: var(--f1-gold-muted);
+    }
+
+    .tt-position {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg-default);
+      text-align: center;
+      width: 28px;
+    }
+
+    .tt-position.p1 {
+      color: var(--f1-gold);
+    }
+
+    .tt-color-stripe {
+      width: 4px;
+      height: 32px;
+      border-radius: 2px;
+    }
+
+    .tt-info {
+      padding: 0 var(--space-2);
+      min-width: 0;
+    }
+
+    .tt-driver-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-default);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tt-team-name {
+      font-size: 10px;
+      color: var(--fg-subtle);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tt-timing {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .tt-gap {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg-muted);
+    }
+
+    .tt-sector {
+      display: flex;
+      gap: 3px;
+    }
+
+    .tt-sector-block {
+      width: 16px;
+      height: 4px;
+      border-radius: 1px;
+    }
+
+    .tt-sector-block.green { background: var(--success-fg); }
+    .tt-sector-block.yellow { background: var(--attention-fg); }
+    .tt-sector-block.purple { background: var(--done-fg); }
+    .tt-sector-block.gray { background: var(--bg-emphasis); }
+
+    .tt-status-badge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .tt-status-badge.pit {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .tt-status-badge.out {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+    }
+
+    .tt-fastest {
+      color: var(--done-fg);
+    }
+
+    .tt-lap-info {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--fg-subtle);
+    }
+
+    /* ========================================
+       Circuit Map (Center)
+       ======================================== */
+    .circuit-viewport {
+      background: var(--bg-canvas);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .circuit-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Track styling */
+    .track-surface {
+      fill: none;
+      stroke: var(--bg-emphasis);
+      stroke-width: 28;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .track-edge {
+      fill: none;
+      stroke: var(--border-default);
+      stroke-width: 32;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .track-center-line {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 1;
+      stroke-dasharray: 8 6;
+    }
+
+    .track-kerb {
+      fill: none;
+      stroke-width: 3;
+      stroke-dasharray: 6 6;
+    }
+
+    .kerb-red { stroke: rgba(225, 6, 0, 0.5); }
+    .kerb-white { stroke: rgba(255, 255, 255, 0.3); }
+
+    /* Sector markers */
+    .sector-gate {
+      stroke: var(--fg-subtle);
+      stroke-width: 2;
+      stroke-dasharray: 4 2;
+    }
+
+    .sector-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--fg-subtle);
+      letter-spacing: 0.1em;
+    }
+
+    .sector-sublabel {
+      font-family: var(--font-sans);
+      font-size: 8px;
+      fill: var(--fg-subtle);
+      opacity: 0.7;
+    }
+
+    /* DRS zones */
+    .drs-zone {
+      fill: none;
+      stroke: var(--drs-cyan);
+      stroke-width: 28;
+      opacity: 0.08;
+    }
+
+    .drs-zone-glow {
+      fill: none;
+      stroke: var(--drs-cyan);
+      stroke-width: 34;
+      opacity: 0.04;
+      animation: drsGlow 3s ease-in-out infinite;
+    }
+
+    .drs-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      fill: var(--drs-cyan);
+      letter-spacing: 0.12em;
+      opacity: 0.7;
+    }
+
+    /* Start/Finish line */
+    .start-finish-line {
+      stroke: var(--fg-default);
+      stroke-width: 3;
+    }
+
+    /* Cars on track */
+    .car {
+      offset-rotate: auto;
+    }
+
+    .car-body {
+      filter: drop-shadow(0 0 6px currentColor);
+    }
+
+    .car-working {
+      offset-path: path("M 400,120 C 520,120 580,120 620,140 C 660,160 680,200 680,240 C 680,300 660,340 620,370 C 580,400 520,420 460,420 C 400,420 340,420 300,400 C 240,370 200,340 180,300 C 160,260 160,220 180,180 C 200,140 260,120 320,120 Z");
+    }
+
+    .car-1 {
+      animation: carMove1 8s linear infinite;
+      color: var(--car-green);
+    }
+
+    .car-2 {
+      animation: carMove2 10s linear infinite;
+      color: #58a6ff;
+    }
+
+    /* Pit lane */
+    .pit-lane {
+      fill: none;
+      stroke: var(--bg-emphasis);
+      stroke-width: 16;
+      stroke-linecap: round;
+    }
+
+    .pit-lane-line {
+      fill: none;
+      stroke: var(--attention-fg);
+      stroke-width: 1;
+      stroke-dasharray: 4 4;
+      opacity: 0.4;
+    }
+
+    /* Garage area */
+    .garage-area {
+      fill: var(--bg-muted);
+      stroke: var(--border-default);
+      stroke-width: 1;
+      rx: 4;
+    }
+
+    .garage-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      fill: var(--fg-subtle);
+      letter-spacing: 0.1em;
+    }
+
+    /* Safety car indicator */
+    .safety-car-indicator {
+      opacity: 0;
+    }
+
+    .safety-car-indicator.active {
+      opacity: 1;
+    }
+
+    /* Circuit overlay labels */
+    .circuit-name {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--fg-subtle);
+      opacity: 0.4;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .turn-number {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 600;
+      fill: var(--fg-subtle);
+      opacity: 0.5;
+    }
+
+    /* ========================================
+       Telemetry Panel (Right)
+       ======================================== */
+    .telemetry-panel {
+      grid-row: 1 / 3;
+      background: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .tp-header {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tp-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+
+    .tp-car-id {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-default);
+    }
+
+    .tp-car-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .tp-section {
+      padding: var(--space-3);
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    .tp-section-title {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-subtle);
+      margin-bottom: var(--space-2);
+    }
+
+    /* Speed Gauge / Tachometer */
+    .tach-container {
+      display: flex;
+      justify-content: center;
+      padding: var(--space-2) 0;
+    }
+
+    .tach-svg {
+      width: 180px;
+      height: 110px;
+    }
+
+    .tach-bg {
+      fill: none;
+      stroke: var(--bg-emphasis);
+      stroke-width: 10;
+      stroke-linecap: round;
+    }
+
+    .tach-fill {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .tach-tick {
+      stroke: var(--fg-subtle);
+      stroke-width: 1;
+      opacity: 0.4;
+    }
+
+    .tach-tick-major {
+      stroke: var(--fg-muted);
+      stroke-width: 1.5;
+    }
+
+    .tach-value {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      fill: var(--fg-default);
+      text-anchor: middle;
+    }
+
+    .tach-unit {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      fill: var(--fg-subtle);
+      text-anchor: middle;
+      letter-spacing: 0.1em;
+    }
+
+    .tach-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      fill: var(--fg-subtle);
+      text-anchor: middle;
+    }
+
+    /* Tire wear indicators */
+    .tire-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2);
+    }
+
+    .tire-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 6px 8px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-default);
+    }
+
+    .tire-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 700;
+      position: relative;
+    }
+
+    .tire-icon.green { border-color: var(--success-fg); color: var(--success-fg); }
+    .tire-icon.yellow { border-color: var(--attention-fg); color: var(--attention-fg); }
+    .tire-icon.red { border-color: var(--danger-fg); color: var(--danger-fg); }
+
+    .tire-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .tire-label {
+      font-size: 9px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .tire-value {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .tire-value.green { color: var(--success-fg); }
+    .tire-value.yellow { color: var(--attention-fg); }
+    .tire-value.red { color: var(--danger-fg); }
+
+    /* Fuel load bar */
+    .fuel-container {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .fuel-bar-wrapper {
+      flex: 1;
+      height: 20px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-default);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .fuel-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-sm);
+      transition: width 1s ease-out;
+      position: relative;
+    }
+
+    .fuel-bar-fill.healthy {
+      background: linear-gradient(90deg, var(--success-fg), #2ea043);
+    }
+
+    .fuel-bar-fill.warning {
+      background: linear-gradient(90deg, var(--attention-fg), #9e6a03);
+    }
+
+    .fuel-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+    }
+
+    .fuel-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      min-width: 50px;
+      text-align: right;
+    }
+
+    /* ERS bar */
+    .ers-container {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .ers-bar-wrapper {
+      flex: 1;
+      height: 14px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-default);
+      overflow: hidden;
+    }
+
+    .ers-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius-sm);
+      transition: width 0.5s ease-out;
+      position: relative;
+    }
+
+    .ers-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+    }
+
+    .ers-value {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-fg);
+      min-width: 40px;
+      text-align: right;
+    }
+
+    /* Team Radio */
+    .team-radio {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      padding: var(--space-2);
+      height: 130px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .team-radio::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      background: linear-gradient(180deg, var(--bg-canvas) 0%, transparent 100%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .team-radio::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      background: linear-gradient(0deg, var(--bg-canvas) 0%, transparent 100%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .radio-scroll {
+      animation: radioScroll 20s linear infinite;
+    }
+
+    .radio-line {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.6;
+      color: var(--fg-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 1px 0;
+    }
+
+    .radio-line .timestamp {
+      color: var(--fg-subtle);
+      margin-right: 8px;
+    }
+
+    .radio-line .tool-name {
+      color: var(--accent-fg);
+    }
+
+    .radio-line .success-text {
+      color: var(--success-fg);
+    }
+
+    .radio-line .error-text {
+      color: var(--danger-fg);
+    }
+
+    /* Lap counter */
+    .lap-counter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+    }
+
+    .lap-counter-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .lap-counter-value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg-default);
+    }
+
+    .lap-counter-total {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--fg-subtle);
+    }
+
+    /* ========================================
+       Lap Chart (Bottom Strip)
+       ======================================== */
+    .lap-chart {
+      background: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      overflow: hidden;
+    }
+
+    .lc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .lc-title {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--fg-subtle);
+    }
+
+    .lc-legend {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .lc-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--fg-subtle);
+    }
+
+    .lc-legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .lc-chart {
+      flex: 1;
+      position: relative;
+    }
+
+    .lc-chart svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .lc-grid-line {
+      stroke: var(--border-default);
+      stroke-width: 0.5;
+      opacity: 0.5;
+    }
+
+    .lc-axis-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      fill: var(--fg-subtle);
+    }
+
+    .lc-line {
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 1000;
+      animation: lapChartDraw 3s ease-out forwards;
+    }
+
+    /* ========================================
+       Design Notes Panel
+       ======================================== */
+    .design-notes {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 320px;
+      background: var(--bg-default);
+      border: 1px solid var(--accent-fg);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      z-index: 200;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .design-notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+
+    .design-notes h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-fg);
+      letter-spacing: 0.05em;
+    }
+
+    .design-notes p {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .design-notes p:last-child {
+      margin-bottom: 0;
+    }
+
+    .design-notes strong {
+      color: var(--fg-default);
+      font-weight: 600;
+    }
+
+    .design-notes code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--done-fg);
+      background: var(--done-muted);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* ========================================
+       Scrollbar
+       ======================================== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    /* ========================================
+       Checkered pattern
+       ======================================== */
+    .checkered-bar {
+      height: 4px;
+      background-image:
+        linear-gradient(45deg, #fff 25%, transparent 25%),
+        linear-gradient(-45deg, #fff 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #fff 75%),
+        linear-gradient(-45deg, transparent 75%, #fff 75%);
+      background-size: 4px 4px;
+      background-position: 0 0, 0 2px, 2px -2px, -2px 0px;
+      opacity: 0.15;
+      animation: checkeredScroll 1s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================
+       Sidebar
+       ============================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+          <defs><radialGradient id="coreGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#3fb950"/><stop offset="100%" stop-color="#3fb950" stop-opacity="0"/></radialGradient></defs>
+          <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+          <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+          <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+          <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+          <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+          <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+          <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+          <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/><circle cx="14" cy="14" r="2" fill="#fff"/>
+        </svg>
+      </div>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">AgentPane</span>
+        <span class="project-path-text">~/git/agentpane</span>
+      </div>
+      <kbd>&#8984;P</kbd>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Organization</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Projects
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          Sessions
+        </a>
+        <a class="nav-item active" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          CLI Monitor
+          <span class="nav-badge active">4</span>
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Content</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Org Templates
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>
+          Designer
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Admin</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">Simon Lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================
+       Main Application
+       ============================================ -->
+  <div class="app-layout">
+
+    <!-- Race Control Bar -->
+    <div class="race-control-bar">
+      <div class="rc-left">
+        <div class="rc-title">
+          <span class="rc-title-accent">RACE</span> CONTROL
+        </div>
+        <div class="rc-flag green">
+          <span class="rc-flag-dot"></span>
+          GREEN FLAG
+        </div>
+      </div>
+      <div class="rc-center">
+        <div class="rc-stat">
+          <span class="rc-stat-label">Race Time</span>
+          <span class="rc-stat-value">01:24:37</span>
+        </div>
+        <div class="rc-stat">
+          <span class="rc-stat-label">Total Laps</span>
+          <span class="rc-stat-value">847</span>
+        </div>
+        <div class="rc-stat">
+          <span class="rc-stat-label">Fastest Lap</span>
+          <span class="rc-stat-value gold">session-alpha</span>
+        </div>
+        <div class="rc-stat">
+          <span class="rc-stat-label">Conditions</span>
+          <span class="rc-stat-value" style="color: var(--success-fg);">
+            <span style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              DRY
+            </span>
+          </span>
+        </div>
+      </div>
+      <div class="rc-right">
+        <div class="rc-live">
+          <span class="rc-live-dot"></span>
+          LIVE
+        </div>
+      </div>
+    </div>
+
+    <div class="checkered-bar"></div>
+
+    <!-- Main 3-Panel Content -->
+    <div class="race-content">
+
+      <!-- ========================================
+           Timing Tower (Left)
+           ======================================== -->
+      <div class="timing-tower">
+        <div class="tt-header">
+          <span class="tt-title">Timing Tower</span>
+          <div class="tt-fastest-lap">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+            Fastest Lap
+          </div>
+        </div>
+
+        <div class="tt-list">
+          <!-- P1 - Leader (Working) -->
+          <div class="tt-entry leader selected">
+            <span class="tt-position p1">1</span>
+            <div class="tt-color-stripe" style="background: var(--success-fg);"></div>
+            <div class="tt-info">
+              <div class="tt-driver-name">session-alpha</div>
+              <div class="tt-team-name">agentpane / feat-auth</div>
+            </div>
+            <div class="tt-timing">
+              <span class="tt-gap" style="color: var(--done-fg);">LEADER</span>
+              <div class="tt-sector">
+                <div class="tt-sector-block purple"></div>
+                <div class="tt-sector-block green"></div>
+                <div class="tt-sector-block green"></div>
+              </div>
+              <span class="tt-lap-info">Lap 42/50</span>
+            </div>
+          </div>
+
+          <!-- P2 - Working -->
+          <div class="tt-entry">
+            <span class="tt-position">2</span>
+            <div class="tt-color-stripe" style="background: var(--accent-fg);"></div>
+            <div class="tt-info">
+              <div class="tt-driver-name">session-bravo</div>
+              <div class="tt-team-name">dataflow / fix-pipeline</div>
+            </div>
+            <div class="tt-timing">
+              <span class="tt-gap">+3.241s</span>
+              <div class="tt-sector">
+                <div class="tt-sector-block green"></div>
+                <div class="tt-sector-block green"></div>
+                <div class="tt-sector-block yellow"></div>
+              </div>
+              <span class="tt-lap-info">Lap 38/50</span>
+            </div>
+          </div>
+
+          <!-- P3 - Waiting (Pit Stop) -->
+          <div class="tt-entry">
+            <span class="tt-position">3</span>
+            <div class="tt-color-stripe" style="background: var(--attention-fg);"></div>
+            <div class="tt-info">
+              <div class="tt-driver-name">session-charlie</div>
+              <div class="tt-team-name">agentpane / refactor-db</div>
+            </div>
+            <div class="tt-timing">
+              <span class="tt-gap">+12.8s</span>
+              <span class="tt-status-badge pit" style="animation: hazardBlink 1.2s ease-in-out infinite;">PIT</span>
+              <span class="tt-lap-info">Lap 35/50</span>
+            </div>
+          </div>
+
+          <!-- P4 - Idle (Out / Garage) -->
+          <div class="tt-entry">
+            <span class="tt-position">4</span>
+            <div class="tt-color-stripe" style="background: var(--fg-subtle);"></div>
+            <div class="tt-info">
+              <div class="tt-driver-name">session-delta</div>
+              <div class="tt-team-name">webstore / add-cart</div>
+            </div>
+            <div class="tt-timing">
+              <span class="tt-gap" style="color: var(--fg-subtle);">--</span>
+              <span class="tt-status-badge out">OUT</span>
+              <span class="tt-lap-info">Lap 0/50</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           Circuit Map (Center)
+           ======================================== -->
+      <div class="circuit-viewport">
+        <svg class="circuit-svg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <!-- Track path definition -->
+            <path id="trackPath" d="
+              M 400,80
+              C 520,80 600,80 660,110
+              Q 720,140 720,200
+              L 720,260
+              Q 720,320 680,360
+              C 640,400 580,430 500,440
+              L 380,440
+              C 300,440 220,430 180,400
+              Q 120,360 100,300
+              L 80,240
+              Q 60,180 100,130
+              C 140,80 240,70 320,75
+              Z
+            "/>
+
+            <!-- Pit lane path -->
+            <path id="pitLanePath" d="
+              M 320,390 C 360,410 440,415 500,400 Q 540,390 560,370
+            "/>
+
+            <!-- DRS Zone 1 path (long straight) -->
+            <path id="drsZone1" d="M 400,80 C 520,80 600,80 660,110"/>
+
+            <!-- DRS Zone 2 path -->
+            <path id="drsZone2" d="M 100,300 L 80,240 Q 60,180 100,130"/>
+
+            <!-- Glow filters -->
+            <filter id="carGlow">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+
+            <filter id="trackGlow">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+              <feFlood flood-color="#58a6ff" flood-opacity="0.05" result="color"/>
+              <feComposite in="color" in2="blur" operator="in" result="glow"/>
+              <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+
+            <filter id="safetyGlow">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="4"/>
+            </filter>
+
+            <!-- Checkered pattern -->
+            <pattern id="checkered" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+              <rect width="4" height="4" fill="rgba(255,255,255,0.5)"/>
+              <rect x="4" y="4" width="4" height="4" fill="rgba(255,255,255,0.5)"/>
+            </pattern>
+
+            <!-- Arrow marker for cars -->
+            <marker id="arrowGreen" markerWidth="12" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M 0,0 L 12,4 L 0,8 L 3,4 Z" fill="#3fb950"/>
+            </marker>
+            <marker id="arrowBlue" markerWidth="12" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M 0,0 L 12,4 L 0,8 L 3,4 Z" fill="#58a6ff"/>
+            </marker>
+          </defs>
+
+          <!-- Background grid dots -->
+          <g opacity="0.03">
+            <pattern id="gridDots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+              <circle cx="10" cy="10" r="0.5" fill="#e6edf3"/>
+            </pattern>
+            <rect width="800" height="500" fill="url(#gridDots)"/>
+          </g>
+
+          <!-- Circuit name watermark -->
+          <text class="circuit-name" x="400" y="260" text-anchor="middle" style="font-size: 32px; opacity: 0.04; font-weight: 700;">AGENTPANE GP</text>
+
+          <!-- Track edge (outer glow) -->
+          <use href="#trackPath" class="track-edge" filter="url(#trackGlow)"/>
+
+          <!-- DRS Zones (rendered before track surface) -->
+          <use href="#drsZone1" class="drs-zone-glow"/>
+          <use href="#drsZone1" class="drs-zone"/>
+          <text class="drs-label" x="540" y="68">DRS</text>
+
+          <use href="#drsZone2" class="drs-zone-glow" style="animation-delay: 1.5s;"/>
+          <use href="#drsZone2" class="drs-zone"/>
+          <text class="drs-label" x="52" y="210">DRS</text>
+
+          <!-- Track surface -->
+          <use href="#trackPath" class="track-surface"/>
+
+          <!-- Track center line -->
+          <use href="#trackPath" class="track-center-line"/>
+
+          <!-- Kerbs at corners -->
+          <!-- Turn 1 -->
+          <path d="M 660,110 Q 720,140 720,200" class="track-kerb kerb-red" stroke-dashoffset="0"/>
+          <path d="M 660,110 Q 720,140 720,200" class="track-kerb kerb-white" stroke-dashoffset="6"/>
+
+          <!-- Turn 3 -->
+          <path d="M 680,360 C 640,400 580,430 500,440" class="track-kerb kerb-red"/>
+          <path d="M 680,360 C 640,400 580,430 500,440" class="track-kerb kerb-white" stroke-dashoffset="6"/>
+
+          <!-- Turn 5 -->
+          <path d="Q 60,180 100,130" class="track-kerb kerb-red"/>
+          <path d="Q 60,180 100,130" class="track-kerb kerb-white" stroke-dashoffset="6"/>
+
+          <!-- Sector dividers -->
+          <!-- Sector 1/2 boundary -->
+          <line x1="720" y1="190" x2="740" y2="190" class="sector-gate"/>
+          <text class="sector-label" x="748" y="188">S1</text>
+          <text class="sector-sublabel" x="748" y="200">PLANNING</text>
+
+          <!-- Sector 2/3 boundary -->
+          <line x1="290" y1="440" x2="290" y2="460" class="sector-gate"/>
+          <text class="sector-label" x="290" y="474" text-anchor="middle">S2</text>
+          <text class="sector-sublabel" x="290" y="486" text-anchor="middle">EXECUTING</text>
+
+          <!-- Sector 3/1 boundary (start/finish) -->
+          <text class="sector-label" x="375" y="60">S3</text>
+          <text class="sector-sublabel" x="375" y="72">REVIEWING</text>
+
+          <!-- Start/Finish line -->
+          <line x1="398" y1="64" x2="398" y2="96" class="start-finish-line"/>
+          <rect x="394" y="60" width="8" height="4" fill="url(#checkered)" opacity="0.6"/>
+          <text class="turn-number" x="410" y="62" style="font-size: 9px; fill: var(--fg-muted);">START/FINISH</text>
+
+          <!-- Turn numbers -->
+          <text class="turn-number" x="690" y="105">T1</text>
+          <text class="turn-number" x="735" y="270">T2</text>
+          <text class="turn-number" x="695" y="375">T3</text>
+          <text class="turn-number" x="470" y="456">T4</text>
+          <text class="turn-number" x="165" y="415">T5</text>
+          <text class="turn-number" x="65" y="310">T6</text>
+          <text class="turn-number" x="45" y="175">T7</text>
+          <text class="turn-number" x="115" y="95">T8</text>
+
+          <!-- Pit lane -->
+          <use href="#pitLanePath" class="pit-lane"/>
+          <use href="#pitLanePath" class="pit-lane-line"/>
+          <text class="turn-number" x="420" y="425" style="font-size: 9px;">PIT LANE</text>
+
+          <!-- Pit entry/exit markers -->
+          <text class="turn-number" x="300" y="380" style="fill: var(--attention-fg); opacity: 0.6;">PIT IN</text>
+          <text class="turn-number" x="565" y="360" style="fill: var(--attention-fg); opacity: 0.6;">PIT OUT</text>
+
+          <!-- Garage area -->
+          <rect class="garage-area" x="360" y="450" width="120" height="30" rx="4"/>
+          <text class="garage-label" x="420" y="468" text-anchor="middle">GARAGE</text>
+
+          <!-- Cars on track -->
+          <!-- Car 1 - session-alpha (Working, Leader) - Green -->
+          <g>
+            <circle r="8" fill="#3fb950" filter="url(#carGlow)" opacity="0.3">
+              <animateMotion dur="8s" repeatCount="indefinite" rotate="auto">
+                <mpath href="#trackPath"/>
+              </animateMotion>
+            </circle>
+            <g>
+              <animateMotion dur="8s" repeatCount="indefinite" rotate="auto">
+                <mpath href="#trackPath"/>
+              </animateMotion>
+              <!-- Car arrow shape -->
+              <polygon points="-6,-4 6,0 -6,4 -3,0" fill="#3fb950" filter="url(#carGlow)"/>
+              <text font-family="var(--font-mono)" font-size="7" fill="#fff" text-anchor="middle" y="-8" font-weight="700">ALF</text>
+            </g>
+          </g>
+
+          <!-- Car 2 - session-bravo (Working) - Blue -->
+          <g>
+            <circle r="7" fill="#58a6ff" filter="url(#carGlow)" opacity="0.25">
+              <animateMotion dur="10s" repeatCount="indefinite" rotate="auto" begin="-3s">
+                <mpath href="#trackPath"/>
+              </animateMotion>
+            </circle>
+            <g>
+              <animateMotion dur="10s" repeatCount="indefinite" rotate="auto" begin="-3s">
+                <mpath href="#trackPath"/>
+              </animateMotion>
+              <polygon points="-6,-4 6,0 -6,4 -3,0" fill="#58a6ff" filter="url(#carGlow)"/>
+              <text font-family="var(--font-mono)" font-size="7" fill="#fff" text-anchor="middle" y="-8" font-weight="700">BRV</text>
+            </g>
+          </g>
+
+          <!-- Car 3 - session-charlie (Waiting / Pit Stop) - Amber, in pit lane -->
+          <g>
+            <g transform="translate(430, 405)">
+              <!-- Hazard blink effect -->
+              <circle r="10" fill="var(--attention-fg)" opacity="0.08" style="animation: pitCrewBusy 2s ease-in-out infinite;"/>
+              <circle r="4" fill="var(--attention-fg)" opacity="0.6"/>
+              <!-- Blinking hazard lights -->
+              <circle cx="-5" cy="0" r="1.5" fill="var(--attention-fg)" style="animation: hazardBlink 0.8s ease-in-out infinite;"/>
+              <circle cx="5" cy="0" r="1.5" fill="var(--attention-fg)" style="animation: hazardBlink 0.8s ease-in-out infinite; animation-delay: 0.4s;"/>
+              <text font-family="var(--font-mono)" font-size="7" fill="var(--attention-fg)" text-anchor="middle" y="-10" font-weight="700">CHR</text>
+              <text font-family="var(--font-mono)" font-size="6" fill="var(--attention-fg)" text-anchor="middle" y="14" font-weight="600" opacity="0.7" style="animation: hazardBlink 1.5s ease-in-out infinite;">PIT STOP</text>
+            </g>
+          </g>
+
+          <!-- Car 4 - session-delta (Idle / Garage) - Gray -->
+          <g transform="translate(420, 465)">
+            <rect x="-8" y="-4" width="16" height="8" rx="2" fill="var(--fg-subtle)" opacity="0.4"/>
+            <text font-family="var(--font-mono)" font-size="6" fill="var(--fg-subtle)" text-anchor="middle" y="-8" font-weight="600">DLT</text>
+          </g>
+
+          <!-- Safety car indicator (hidden when not active) -->
+          <g class="safety-car-indicator" transform="translate(260, 78)">
+            <rect x="-30" y="-10" width="60" height="20" rx="4" fill="var(--attention-fg)" opacity="0.15"/>
+            <text font-family="var(--font-mono)" font-size="8" fill="var(--attention-fg)" text-anchor="middle" y="3" font-weight="700">SAFETY CAR</text>
+          </g>
+
+          <!-- Speed indicators near working cars -->
+          <g opacity="0.5">
+            <text font-family="var(--font-mono)" font-size="7" fill="var(--success-fg)" x="745" y="250" opacity="0.4">42 t/min</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- ========================================
+           Telemetry Panel (Right)
+           ======================================== -->
+      <div class="telemetry-panel">
+        <div class="tp-header">
+          <span class="tp-title">Telemetry</span>
+          <div class="tp-car-id">
+            <div class="tp-car-dot" style="background: var(--success-fg);"></div>
+            session-alpha
+          </div>
+        </div>
+
+        <!-- Speed Gauge -->
+        <div class="tp-section">
+          <div class="tp-section-title">Speed (turns/min)</div>
+          <div class="tach-container">
+            <svg class="tach-svg" viewBox="0 0 200 120">
+              <!-- Gauge background arc -->
+              <path d="M 25,100 A 75,75 0 0,1 175,100" class="tach-bg"/>
+
+              <!-- Colored segments -->
+              <!-- Green zone (0-40) -->
+              <path d="M 25,100 A 75,75 0 0,1 145,35" fill="none" stroke="var(--success-fg)" stroke-width="10" stroke-linecap="round" opacity="0.08"/>
+              <!-- Yellow zone (40-50) -->
+              <path d="M 145,35 A 75,75 0 0,1 168,58" fill="none" stroke="var(--attention-fg)" stroke-width="10" stroke-linecap="round" opacity="0.08"/>
+              <!-- Red zone (50-60) -->
+              <path d="M 168,58 A 75,75 0 0,1 175,100" fill="none" stroke="var(--danger-fg)" stroke-width="10" stroke-linecap="round" opacity="0.08"/>
+
+              <!-- Gauge fill (animated) -->
+              <path d="M 25,100 A 75,75 0 0,1 175,100"
+                fill="none"
+                stroke="var(--success-fg)"
+                stroke-width="10"
+                stroke-linecap="round"
+                stroke-dasharray="236"
+                stroke-dashoffset="80"
+                class="tach-fill"
+                style="animation: tachSweep 4s ease-in-out infinite;"
+              />
+
+              <!-- Tick marks -->
+              <line x1="25" y1="96" x2="25" y2="88" class="tach-tick-major"/>
+              <line x1="40" y1="74" x2="44" y2="68" class="tach-tick"/>
+              <line x1="62" y1="52" x2="67" y2="47" class="tach-tick-major"/>
+              <line x1="85" y1="38" x2="88" y2="32" class="tach-tick"/>
+              <line x1="100" y1="25" x2="100" y2="18" class="tach-tick-major"/>
+              <line x1="118" y1="32" x2="121" y2="26" class="tach-tick"/>
+              <line x1="138" y1="47" x2="143" y2="42" class="tach-tick-major"/>
+              <line x1="157" y1="66" x2="162" y2="61" class="tach-tick"/>
+              <line x1="175" y1="96" x2="175" y2="88" class="tach-tick-major"/>
+
+              <!-- Scale labels -->
+              <text class="tach-label" x="22" y="112">0</text>
+              <text class="tach-label" x="58" y="58">15</text>
+              <text class="tach-label" x="100" y="16">30</text>
+              <text class="tach-label" x="142" y="42">45</text>
+              <text class="tach-label" x="178" y="112">60</text>
+
+              <!-- Current value -->
+              <text class="tach-value" x="100" y="90">42</text>
+              <text class="tach-unit" x="100" y="104">TURNS/MIN</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Tire Wear (Rate Limits) -->
+        <div class="tp-section">
+          <div class="tp-section-title">Tire Wear (Rate Limits)</div>
+          <div class="tire-grid">
+            <div class="tire-indicator">
+              <div class="tire-icon green">
+                <span>FL</span>
+              </div>
+              <div class="tire-detail">
+                <span class="tire-label">API Calls</span>
+                <span class="tire-value green">23%</span>
+              </div>
+            </div>
+            <div class="tire-indicator">
+              <div class="tire-icon green">
+                <span>FR</span>
+              </div>
+              <div class="tire-detail">
+                <span class="tire-label">Tokens/min</span>
+                <span class="tire-value green">31%</span>
+              </div>
+            </div>
+            <div class="tire-indicator">
+              <div class="tire-icon yellow">
+                <span>RL</span>
+              </div>
+              <div class="tire-detail">
+                <span class="tire-label">Tool Calls</span>
+                <span class="tire-value yellow">68%</span>
+              </div>
+            </div>
+            <div class="tire-indicator">
+              <div class="tire-icon green">
+                <span>RR</span>
+              </div>
+              <div class="tire-detail">
+                <span class="tire-label">Concurrency</span>
+                <span class="tire-value green">25%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fuel Load (Token Budget) -->
+        <div class="tp-section">
+          <div class="tp-section-title">Fuel Load (Token Budget)</div>
+          <div class="fuel-container">
+            <div class="fuel-bar-wrapper">
+              <div class="fuel-bar-fill healthy" style="width: 62%;"></div>
+            </div>
+            <span class="fuel-value">62%</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+            <span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle);">124k / 200k tokens</span>
+            <span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle);">~8 laps</span>
+          </div>
+        </div>
+
+        <!-- ERS (Cache Hit Ratio) -->
+        <div class="tp-section">
+          <div class="tp-section-title">ERS Deploy (Cache Hit Ratio)</div>
+          <div class="ers-container">
+            <div class="ers-bar-wrapper">
+              <div class="ers-bar-fill" style="width: 73%;"></div>
+            </div>
+            <span class="ers-value">73%</span>
+          </div>
+        </div>
+
+        <!-- Lap Counter -->
+        <div class="tp-section">
+          <div class="lap-counter">
+            <span class="lap-counter-label">LAP</span>
+            <span class="lap-counter-value">42</span>
+            <span class="lap-counter-total">/ 50</span>
+          </div>
+        </div>
+
+        <!-- Team Radio -->
+        <div class="tp-section" style="border-bottom: none;">
+          <div class="tp-section-title" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg-subtle)" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+            </svg>
+            Team Radio
+          </div>
+          <div class="team-radio">
+            <div class="radio-scroll">
+              <div class="radio-line"><span class="timestamp">01:24:12</span> <span class="tool-name">Read</span> src/auth/oauth.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:15</span> <span class="success-text">File read complete</span> (142 lines)</div>
+              <div class="radio-line"><span class="timestamp">01:24:18</span> <span class="tool-name">Grep</span> "validateToken" --type ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:20</span> Found 3 matches across 2 files</div>
+              <div class="radio-line"><span class="timestamp">01:24:23</span> <span class="tool-name">Edit</span> src/auth/oauth.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:26</span> <span class="success-text">Edit applied</span> (+14 -3 lines)</div>
+              <div class="radio-line"><span class="timestamp">01:24:30</span> <span class="tool-name">Bash</span> npm run test:auth</div>
+              <div class="radio-line"><span class="timestamp">01:24:45</span> <span class="success-text">Tests passed</span> (12/12)</div>
+              <div class="radio-line"><span class="timestamp">01:24:48</span> <span class="tool-name">Read</span> src/auth/session.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:51</span> Analyzing session refresh logic...</div>
+              <div class="radio-line"><span class="timestamp">01:24:55</span> <span class="tool-name">Edit</span> src/auth/session.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:58</span> <span class="success-text">Edit applied</span> (+8 -2 lines)</div>
+
+              <!-- Duplicate for seamless scroll -->
+              <div class="radio-line"><span class="timestamp">01:24:12</span> <span class="tool-name">Read</span> src/auth/oauth.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:15</span> <span class="success-text">File read complete</span> (142 lines)</div>
+              <div class="radio-line"><span class="timestamp">01:24:18</span> <span class="tool-name">Grep</span> "validateToken" --type ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:20</span> Found 3 matches across 2 files</div>
+              <div class="radio-line"><span class="timestamp">01:24:23</span> <span class="tool-name">Edit</span> src/auth/oauth.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:26</span> <span class="success-text">Edit applied</span> (+14 -3 lines)</div>
+              <div class="radio-line"><span class="timestamp">01:24:30</span> <span class="tool-name">Bash</span> npm run test:auth</div>
+              <div class="radio-line"><span class="timestamp">01:24:45</span> <span class="success-text">Tests passed</span> (12/12)</div>
+              <div class="radio-line"><span class="timestamp">01:24:48</span> <span class="tool-name">Read</span> src/auth/session.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:51</span> Analyzing session refresh logic...</div>
+              <div class="radio-line"><span class="timestamp">01:24:55</span> <span class="tool-name">Edit</span> src/auth/session.ts</div>
+              <div class="radio-line"><span class="timestamp">01:24:58</span> <span class="success-text">Edit applied</span> (+8 -2 lines)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           Lap Chart (Bottom Strip)
+           ======================================== -->
+      <div class="lap-chart">
+        <div class="lc-header">
+          <span class="lc-title">Position Chart</span>
+          <div class="lc-legend">
+            <div class="lc-legend-item">
+              <div class="lc-legend-dot" style="background: var(--success-fg);"></div>
+              session-alpha
+            </div>
+            <div class="lc-legend-item">
+              <div class="lc-legend-dot" style="background: var(--accent-fg);"></div>
+              session-bravo
+            </div>
+            <div class="lc-legend-item">
+              <div class="lc-legend-dot" style="background: var(--attention-fg);"></div>
+              session-charlie
+            </div>
+            <div class="lc-legend-item">
+              <div class="lc-legend-dot" style="background: var(--fg-subtle);"></div>
+              session-delta
+            </div>
+          </div>
+        </div>
+        <div class="lc-chart">
+          <svg viewBox="0 0 600 80" preserveAspectRatio="none" width="100%" height="100%">
+            <!-- Grid lines -->
+            <line x1="0" y1="10" x2="600" y2="10" class="lc-grid-line"/>
+            <line x1="0" y1="30" x2="600" y2="30" class="lc-grid-line"/>
+            <line x1="0" y1="50" x2="600" y2="50" class="lc-grid-line"/>
+            <line x1="0" y1="70" x2="600" y2="70" class="lc-grid-line"/>
+
+            <!-- Vertical time markers -->
+            <line x1="100" y1="0" x2="100" y2="80" class="lc-grid-line"/>
+            <line x1="200" y1="0" x2="200" y2="80" class="lc-grid-line"/>
+            <line x1="300" y1="0" x2="300" y2="80" class="lc-grid-line"/>
+            <line x1="400" y1="0" x2="400" y2="80" class="lc-grid-line"/>
+            <line x1="500" y1="0" x2="500" y2="80" class="lc-grid-line"/>
+
+            <!-- Position labels (Y axis) -->
+            <text class="lc-axis-label" x="-2" y="13" text-anchor="end">P1</text>
+            <text class="lc-axis-label" x="-2" y="33" text-anchor="end">P2</text>
+            <text class="lc-axis-label" x="-2" y="53" text-anchor="end">P3</text>
+            <text class="lc-axis-label" x="-2" y="73" text-anchor="end">P4</text>
+
+            <!-- Time labels (X axis) -->
+            <text class="lc-axis-label" x="0" y="80" style="font-size: 7px;">0m</text>
+            <text class="lc-axis-label" x="100" y="80" style="font-size: 7px;">15m</text>
+            <text class="lc-axis-label" x="200" y="80" style="font-size: 7px;">30m</text>
+            <text class="lc-axis-label" x="300" y="80" style="font-size: 7px;">45m</text>
+            <text class="lc-axis-label" x="400" y="80" style="font-size: 7px;">60m</text>
+            <text class="lc-axis-label" x="500" y="80" style="font-size: 7px;">75m</text>
+
+            <!-- session-alpha: started P2, overtook to P1 at ~15min, held P1 -->
+            <polyline class="lc-line" stroke="#3fb950"
+              points="0,30 50,30 100,25 120,10 200,10 300,10 400,10 500,10 600,10"/>
+
+            <!-- session-bravo: started P3, moved to P2, brief P1 at start, now P2 -->
+            <polyline class="lc-line" stroke="#58a6ff" style="animation-delay: 0.5s;"
+              points="0,10 50,10 100,15 120,30 200,30 300,30 400,30 500,30 600,30"/>
+
+            <!-- session-charlie: started P1 briefly, dropped, now P3 (pit) -->
+            <polyline class="lc-line" stroke="#d29922" style="animation-delay: 1s;"
+              points="0,50 50,50 100,50 200,50 250,50 300,50 400,50 500,50 600,50"/>
+
+            <!-- session-delta: entered late, P4 garage -->
+            <polyline class="lc-line" stroke="#6e7681" style="animation-delay: 1.5s; stroke-dasharray: 4 3;"
+              points="400,70 500,70 600,70"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       Design Notes Panel
+       ============================================ -->
+  <div class="design-notes">
+    <div class="design-notes-header">
+      <h3>Design Notes</h3>
+      <span style="font-size: 10px; color: var(--fg-subtle); font-family: var(--font-mono);">CLI-MON-F1</span>
+    </div>
+    <p>
+      <strong>Concept: F1 Race Control.</strong> CLI sessions become race cars on a circuit.
+      Working sessions are <code>green cars</code> moving along the SVG track at speeds proportional
+      to their turns/minute. Waiting sessions sit in the <code>pit lane</code> with amber hazard lights.
+      Idle sessions are parked in the <code>garage</code>.
+    </p>
+    <p>
+      The <strong>Timing Tower</strong> ranks sessions like an F1 leaderboard with sector times
+      (planning/executing/reviewing), gap-to-leader, and purple <code>fastest lap</code> indicators.
+      The <strong>Telemetry Panel</strong> shows a tachometer for speed, tire wear for rate limits,
+      fuel for token budget, and ERS for cache hit ratio.
+    </p>
+    <p>
+      Track sectors map to task phases. <strong>DRS zones</strong> indicate high-throughput periods.
+      A <strong>Safety Car</strong> deploys when rate limits exceed 80%.
+      The bottom <strong>Lap Chart</strong> traces position changes over time.
+    </p>
+  </div>
+
+</body>
+</html>

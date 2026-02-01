@@ -30,7 +30,46 @@ import {
   unstable_v2_createSession,
   unstable_v2_resumeSession,
 } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentFileChangedData } from './event-emitter.js';
 import { createEventEmitter } from './event-emitter.js';
+
+/** File-modifying tool names and how to extract the path from their input */
+const FILE_MODIFY_TOOLS: Record<
+  string,
+  { pathKey: string; action: (input: Record<string, unknown>) => AgentFileChangedData['action'] }
+> = {
+  Write: { pathKey: 'file_path', action: () => 'create' },
+  Edit: { pathKey: 'file_path', action: () => 'modify' },
+  NotebookEdit: { pathKey: 'notebook_path', action: () => 'modify' },
+};
+
+/** Extract file change info from a tool call, if applicable */
+function extractFileChange(
+  toolName: string,
+  input: Record<string, unknown>
+): AgentFileChangedData | null {
+  const spec = FILE_MODIFY_TOOLS[toolName];
+  if (!spec) return null;
+  const filePath = input[spec.pathKey];
+  if (typeof filePath !== 'string' || !filePath) return null;
+  return {
+    path: filePath,
+    action: spec.action(input),
+    toolName,
+  };
+}
+
+/** Detect file-modifying tools and emit file_changed event */
+function emitFileChangeIfApplicable(
+  toolName: string,
+  input: unknown,
+  events: ReturnType<typeof createEventEmitter>
+): void {
+  const fileChange = extractFileChange(toolName, (input as Record<string, unknown>) ?? {});
+  if (fileChange) {
+    events.fileChanged(fileChange);
+  }
+}
 
 // Phase type
 type AgentPhase = 'plan' | 'execute';
@@ -335,6 +374,9 @@ async function runPlanningPhase(): Promise<void> {
         toolId: options.toolUseID,
         input: (input as Record<string, unknown>) ?? {},
       });
+
+      // Detect file-modifying tools and emit file_changed event
+      emitFileChangeIfApplicable(toolName, input, events);
 
       // Capture ExitPlanMode options when the tool is called
       if (toolName === 'ExitPlanMode') {
@@ -676,6 +718,9 @@ async function runExecutionPhase(): Promise<void> {
       toolId: options.toolUseID,
       input: (input as Record<string, unknown>) ?? {},
     });
+
+    // Detect file-modifying tools and emit file_changed event
+    emitFileChangeIfApplicable(toolName, input, events);
 
     // Allow all tools in execution mode
     return { behavior: 'allow' as const, toolUseID: options.toolUseID };

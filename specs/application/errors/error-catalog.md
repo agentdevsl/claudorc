@@ -485,6 +485,31 @@ export type GitHubError =
 
 ---
 
+### Sandbox Worktree Errors
+
+| Code | Message | HTTP Status | When |
+|------|---------|-------------|------|
+| `SANDBOX_WORKTREE_CREATION_FAILED` | Failed to create worktree in sandbox | 500 | Host-side `git worktree add` fails during container agent startup |
+| `SANDBOX_WORKTREE_COMMIT_FAILED` | Failed to commit worktree changes | 500 | Auto-commit of agent changes fails on completion/turn limit |
+
+```typescript
+// lib/errors/sandbox-errors.ts (subset)
+export const SandboxErrors = {
+  WORKTREE_CREATION_FAILED: (message: string) => createError(
+    'SANDBOX_WORKTREE_CREATION_FAILED',
+    `Failed to create worktree in sandbox: ${message}`,
+    500
+  ),
+  WORKTREE_COMMIT_FAILED: (message: string) => createError(
+    'SANDBOX_WORKTREE_COMMIT_FAILED',
+    `Failed to commit worktree changes: ${message}`,
+    500
+  ),
+} as const;
+```
+
+---
+
 ### Validation Errors
 
 | Code | Message | HTTP Status | When |
@@ -813,6 +838,9 @@ export type ErrorCode =
   | 'GITHUB_WEBHOOK_INVALID'
   | 'GITHUB_RATE_LIMITED'
   | 'GITHUB_PR_CREATION_FAILED'
+  // Sandbox Worktree
+  | 'SANDBOX_WORKTREE_CREATION_FAILED'
+  | 'SANDBOX_WORKTREE_COMMIT_FAILED'
   // Validation
   | 'VALIDATION_ERROR'
   | 'INVALID_ID'

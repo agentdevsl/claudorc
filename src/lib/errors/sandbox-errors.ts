@@ -187,29 +187,25 @@ export const SandboxErrors = {
     401
   ),
 
-  SESSION_CREATE_FAILED: (message: string): SandboxError => ({
-    code: 'SESSION_CREATE_FAILED',
-    message: `Failed to create agent session: ${message}`,
-    status: 500,
-  }),
+  SESSION_CREATE_FAILED: (message: string) =>
+    createError('SANDBOX_SESSION_CREATE_FAILED', `Failed to create agent session: ${message}`, 500),
 
-  STREAM_CREATE_FAILED: (message: string): SandboxError => ({
-    code: 'STREAM_CREATE_FAILED',
-    message: `Failed to create event stream: ${message}`,
-    status: 500,
-  }),
+  STREAM_CREATE_FAILED: (message: string) =>
+    createError('SANDBOX_STREAM_CREATE_FAILED', `Failed to create event stream: ${message}`, 500),
 
-  STREAM_PUBLISH_FAILED: (message: string): SandboxError => ({
-    code: 'STREAM_PUBLISH_FAILED',
-    message: `Failed to publish event to stream: ${message}`,
-    status: 500,
-  }),
+  STREAM_PUBLISH_FAILED: (message: string) =>
+    createError(
+      'SANDBOX_STREAM_PUBLISH_FAILED',
+      `Failed to publish event to stream: ${message}`,
+      500
+    ),
 
-  AGENT_RECORD_FAILED: (message: string): SandboxError => ({
-    code: 'AGENT_RECORD_FAILED',
-    message: `Failed to create agent database record: ${message}`,
-    status: 500,
-  }),
+  AGENT_RECORD_FAILED: (message: string) =>
+    createError(
+      'SANDBOX_AGENT_RECORD_FAILED',
+      `Failed to create agent database record: ${message}`,
+      500
+    ),
 
   // Plan errors
   PLAN_NOT_FOUND: (taskId: string) =>
@@ -217,9 +213,26 @@ export const SandboxErrors = {
       taskId,
     }),
 
-  PLAN_REJECTION_FAILED: (taskId: string, message: string): SandboxError => ({
-    code: 'SANDBOX_PLAN_REJECTION_FAILED',
-    message: `Failed to reject plan for task ${taskId}: ${message}`,
-    status: 500,
-  }),
+  PLAN_REJECTION_FAILED: (taskId: string, message: string) =>
+    createError(
+      'SANDBOX_PLAN_REJECTION_FAILED',
+      `Failed to reject plan for task ${taskId}: ${message}`,
+      500,
+      { taskId }
+    ),
+
+  // Worktree errors (container flow)
+  WORKTREE_CREATION_FAILED: (message: string) =>
+    createError(
+      'SANDBOX_WORKTREE_CREATION_FAILED',
+      `Failed to create worktree in sandbox: ${message}`,
+      500
+    ),
+
+  WORKTREE_COMMIT_FAILED: (message: string) =>
+    createError(
+      'SANDBOX_WORKTREE_COMMIT_FAILED',
+      `Failed to commit worktree changes: ${message}`,
+      500
+    ),
 };

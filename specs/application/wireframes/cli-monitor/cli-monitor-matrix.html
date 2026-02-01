@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Monitor - Matrix Console Wireframe</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ========================================
+       Design Tokens (base + matrix overrides)
+       ======================================== */
+    :root {
+      /* Standard AgentPane tokens */
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+
+      /* Matrix-specific tokens */
+      --matrix-green: #00ff41;
+      --matrix-green-dim: #00cc33;
+      --matrix-green-faint: rgba(0, 255, 65, 0.08);
+      --matrix-green-glow: rgba(0, 255, 65, 0.3);
+      --matrix-bg: #020a02;
+      --matrix-surface: #061206;
+      --matrix-border: rgba(0, 255, 65, 0.12);
+      --matrix-text: #00ff41;
+      --matrix-text-dim: #009926;
+      --matrix-text-faint: #004d13;
+      --matrix-amber: #ffb000;
+      --matrix-red: #ff3333;
+      --matrix-cyan: #00e5ff;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+    /* Matrix-specific animations */
+    @keyframes matrixRain {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(calc(100vh + 100%)); }
+    }
+    @keyframes columnGlow {
+      0%, 100% { text-shadow: 0 0 4px rgba(0, 255, 65, 0.4); }
+      50% { text-shadow: 0 0 12px rgba(0, 255, 65, 0.7), 0 0 24px rgba(0, 255, 65, 0.3); }
+    }
+    @keyframes scanDown {
+      0% { top: 0; opacity: 0.6; }
+      100% { top: 100%; opacity: 0; }
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes hudSlideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes hudSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      92% { opacity: 1; }
+      93% { opacity: 0.7; }
+      94% { opacity: 1; }
+      96% { opacity: 0.85; }
+      97% { opacity: 1; }
+    }
+    @keyframes glitch {
+      0%, 100% { transform: translate(0); }
+      20% { transform: translate(-1px, 1px); }
+      40% { transform: translate(1px, -1px); }
+      60% { transform: translate(-1px, 0); }
+      80% { transform: translate(1px, 1px); }
+    }
+    @keyframes typeIn {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* ========================================
+       Sidebar (standard AgentPane)
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+    }
+    .sidebar-header { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4); border-bottom: 1px solid var(--border-default); }
+    .logo {
+      width: 44px; height: 44px; position: relative;
+      display: flex; align-items: center; justify-content: center; border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .logo::before { content: ''; position: absolute; inset: 0; border-radius: 12px; background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%); animation: logoGlow 4s ease-in-out infinite; }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+    .project-switcher { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); margin: var(--space-3); background-color: var(--bg-subtle); border: 1px solid var(--border-default); border-radius: var(--radius); cursor: pointer; transition: border-color var(--duration-fast) var(--ease-out); }
+    .project-switcher:hover { border-color: var(--fg-subtle); }
+    .project-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent-fg), var(--done-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .project-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .project-name { font-size: 14px; font-weight: 500; color: var(--fg-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-path-text { font-size: 12px; font-family: var(--font-mono); color: var(--fg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-switcher kbd { padding: 2px 6px; background-color: var(--bg-muted); border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 12px; color: var(--fg-muted); }
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section:last-child { margin-bottom: 0; }
+    .nav-section-title { display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2); font-size: 12px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .nav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); margin-bottom: 2px; font-size: 14px; font-weight: 500; color: var(--fg-muted); border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out); cursor: pointer; }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 10px; min-width: 20px; text-align: center; }
+    .nav-badge.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--success-fg), var(--accent-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout — Matrix Console
+       ======================================== */
+    .app-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--matrix-bg);
+      position: relative;
+    }
+
+    /* CRT scanline overlay */
+    .app-layout::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(0, 255, 65, 0.015) 1px,
+        rgba(0, 255, 65, 0.015) 2px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Vignette effect */
+    .app-layout::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    /* Header — Minimal terminal style */
+    .matrix-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--matrix-border);
+      background: rgba(0, 255, 65, 0.02);
+      z-index: 10;
+      position: relative;
+    }
+    .matrix-header-left { display: flex; align-items: center; gap: var(--space-4); }
+    .matrix-title {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--matrix-green);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px var(--matrix-green-glow);
+    }
+    .matrix-status {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--matrix-green-dim);
+      animation: flicker 8s infinite;
+    }
+    .matrix-header-right {
+      display: flex; align-items: center; gap: var(--space-3);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--matrix-text-dim);
+    }
+    .matrix-toggle {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 8px;
+      border: 1px solid var(--matrix-border);
+      border-radius: 3px;
+      color: var(--matrix-green);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      transition: all 0.2s;
+    }
+    .matrix-toggle:hover {
+      background: var(--matrix-green-faint);
+      border-color: var(--matrix-green-dim);
+    }
+    .matrix-toggle-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--matrix-green);
+      box-shadow: 0 0 6px var(--matrix-green-glow);
+      animation: pulse 2s infinite;
+    }
+
+    /* ========================================
+       Matrix Rain Columns
+       ======================================== */
+    .matrix-viewport {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rain-column {
+      flex: 1;
+      position: relative;
+      border-right: 1px solid rgba(0, 255, 65, 0.04);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s var(--ease-out);
+    }
+    .rain-column:last-child { border-right: none; }
+
+    .rain-column:hover {
+      background: rgba(0, 255, 65, 0.03);
+    }
+
+    /* Focused column expands */
+    .rain-column.focused {
+      flex: 3;
+      background: rgba(0, 255, 65, 0.02);
+      border-right: 1px solid rgba(0, 255, 65, 0.1);
+      border-left: 1px solid rgba(0, 255, 65, 0.1);
+    }
+
+    /* Column header — session identity */
+    .column-header {
+      padding: var(--space-3) var(--space-3);
+      border-bottom: 1px solid var(--matrix-border);
+      background: rgba(0, 255, 65, 0.03);
+      position: relative;
+      z-index: 5;
+    }
+    .column-project {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--matrix-green);
+      text-shadow: 0 0 6px var(--matrix-green-glow);
+      margin-bottom: 2px;
+    }
+    .column-branch {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--matrix-text-dim);
+    }
+    .column-status-line {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 6px;
+    }
+    .column-status-indicator {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .column-status-indicator.working {
+      background: var(--matrix-green);
+      box-shadow: 0 0 8px var(--matrix-green-glow);
+      animation: pulse 2s infinite;
+    }
+    .column-status-indicator.waiting {
+      background: var(--matrix-amber);
+      box-shadow: 0 0 8px rgba(255, 176, 0, 0.3);
+      animation: pulse 1.5s infinite;
+    }
+    .column-status-indicator.idle {
+      background: var(--matrix-text-dim);
+    }
+    .column-status-text {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .column-status-text.working { color: var(--matrix-green); }
+    .column-status-text.waiting { color: var(--matrix-amber); }
+    .column-status-text.idle { color: var(--matrix-text-dim); }
+
+    /* Streaming output — the "rain" */
+    .column-stream {
+      padding: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.7;
+      color: var(--matrix-text-dim);
+      overflow: hidden;
+      position: relative;
+      height: calc(100% - 80px);
+    }
+
+    /* Scrolling text effect */
+    .stream-content {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: var(--space-2);
+    }
+
+    .stream-line {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 1px;
+      animation: fadeIn 0.3s var(--ease-out);
+    }
+
+    .stream-line .role {
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .stream-line .role-system { color: var(--matrix-cyan); }
+    .stream-line .role-user { color: var(--matrix-amber); }
+    .stream-line .role-assistant { color: var(--matrix-green); text-shadow: 0 0 4px var(--matrix-green-glow); }
+    .stream-line .role-tool { color: var(--done-fg); }
+    .stream-line .text { color: var(--matrix-text-dim); }
+    .stream-line .file-path { color: var(--matrix-cyan); text-decoration: underline; text-decoration-color: rgba(0, 229, 255, 0.3); }
+
+    .stream-cursor {
+      display: inline-block;
+      width: 7px; height: 14px;
+      background: var(--matrix-green);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      box-shadow: 0 0 6px var(--matrix-green-glow);
+    }
+
+    /* Approval overlay for waiting columns */
+    .approval-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(2, 10, 2, 0.85);
+      z-index: 6;
+      gap: var(--space-3);
+    }
+    .approval-icon {
+      width: 48px; height: 48px;
+      border: 2px solid var(--matrix-amber);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 20px rgba(255, 176, 0, 0.2);
+      animation: pulse 2s infinite;
+    }
+    .approval-icon svg { width: 24px; height: 24px; color: var(--matrix-amber); }
+    .approval-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--matrix-amber);
+      text-align: center;
+    }
+    .approval-tool {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--matrix-amber);
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 176, 0, 0.2);
+      border-radius: 3px;
+      background: rgba(255, 176, 0, 0.05);
+    }
+    .approval-actions {
+      display: flex; gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+    .matrix-btn {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 6px 12px;
+      border: 1px solid;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .matrix-btn-approve {
+      border-color: var(--matrix-green);
+      color: var(--matrix-green);
+      background: transparent;
+    }
+    .matrix-btn-approve:hover {
+      background: var(--matrix-green-faint);
+      box-shadow: 0 0 12px var(--matrix-green-glow);
+    }
+    .matrix-btn-reject {
+      border-color: var(--matrix-red);
+      color: var(--matrix-red);
+      background: transparent;
+    }
+    .matrix-btn-reject:hover {
+      background: rgba(255, 51, 51, 0.08);
+      box-shadow: 0 0 12px rgba(255, 51, 51, 0.3);
+    }
+
+    /* ========================================
+       HUD Overlay Panels
+       ======================================== */
+    .hud-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+    }
+
+    .hud-panel {
+      position: absolute;
+      background: rgba(2, 10, 2, 0.75);
+      border: 1px solid var(--matrix-border);
+      border-radius: 3px;
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+      font-family: var(--font-mono);
+    }
+
+    /* Top-right: Session summary */
+    .hud-sessions {
+      top: 60px; right: var(--space-4);
+      padding: var(--space-3);
+      min-width: 200px;
+      animation: hudSlideIn 0.5s var(--ease-out) 0.2s backwards;
+    }
+    .hud-title {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--matrix-green-dim);
+      margin-bottom: var(--space-2);
+      padding-bottom: var(--space-1);
+      border-bottom: 1px solid var(--matrix-border);
+    }
+    .hud-stat {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 0;
+    }
+    .hud-stat-label {
+      font-size: 10px;
+      color: var(--matrix-text-dim);
+    }
+    .hud-stat-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--matrix-green);
+      text-shadow: 0 0 4px var(--matrix-green-glow);
+    }
+    .hud-stat-value.amber { color: var(--matrix-amber); text-shadow: 0 0 4px rgba(255, 176, 0, 0.3); }
+    .hud-stat-value.dim { color: var(--matrix-text-dim); text-shadow: none; }
+
+    /* Bottom-right: Token counter */
+    .hud-tokens {
+      bottom: var(--space-4); right: var(--space-4);
+      padding: var(--space-3);
+      min-width: 220px;
+      animation: hudSlideUp 0.5s var(--ease-out) 0.4s backwards;
+    }
+    .token-big-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--matrix-green);
+      text-shadow: 0 0 12px var(--matrix-green-glow);
+      line-height: 1;
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+      animation: columnGlow 4s infinite;
+    }
+    .token-cost {
+      font-size: 12px;
+      color: var(--matrix-amber);
+      margin-bottom: var(--space-2);
+    }
+    .token-breakdown-row {
+      display: flex; justify-content: space-between;
+      padding: 2px 0;
+      font-size: 10px;
+    }
+    .token-breakdown-label { color: var(--matrix-text-dim); }
+    .token-breakdown-value { color: var(--matrix-green-dim); }
+    .token-bar-matrix {
+      margin-top: 6px;
+      height: 4px;
+      display: flex;
+      gap: 1px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .token-bar-seg {
+      height: 100%;
+      border-radius: 1px;
+    }
+    .token-bar-seg.input { background: var(--matrix-green); flex: 60; }
+    .token-bar-seg.output { background: var(--matrix-cyan); flex: 9; }
+    .token-bar-seg.cache { background: var(--matrix-text-dim); flex: 31; }
+
+    /* Bottom-left: Git activity */
+    .hud-git {
+      bottom: var(--space-4); left: var(--space-4);
+      padding: var(--space-3);
+      min-width: 200px;
+      animation: hudSlideUp 0.5s var(--ease-out) 0.6s backwards;
+    }
+    .git-stat-big {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--matrix-cyan);
+      text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+      line-height: 1;
+    }
+    .git-stat-label {
+      font-size: 10px;
+      color: var(--matrix-text-dim);
+      margin-top: 2px;
+    }
+    .git-branches {
+      margin-top: var(--space-2);
+      font-size: 10px;
+    }
+    .git-branch-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 2px 0;
+      color: var(--matrix-text-dim);
+    }
+    .git-branch-dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--matrix-cyan);
+    }
+    .git-branch-name {
+      color: var(--matrix-cyan);
+    }
+
+    /* Top-left: Rate limit */
+    .hud-rate {
+      top: 60px; left: var(--space-4);
+      padding: var(--space-3);
+      min-width: 180px;
+      animation: hudSlideIn 0.5s var(--ease-out) 0.8s backwards;
+    }
+    .rate-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--matrix-amber);
+      text-shadow: 0 0 8px rgba(255, 176, 0, 0.3);
+      line-height: 1;
+    }
+    .rate-bar {
+      margin-top: 6px;
+      height: 3px;
+      background: rgba(255, 176, 0, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .rate-bar-fill {
+      height: 100%;
+      background: var(--matrix-amber);
+      border-radius: 2px;
+      box-shadow: 0 0 6px rgba(255, 176, 0, 0.4);
+    }
+
+    /* ========================================
+       Design Notes
+       ======================================== */
+    .design-notes {
+      position: fixed; bottom: 0; left: 240px; width: 320px;
+      background-color: var(--bg-default); border: 1px solid var(--border-default);
+      border-bottom: none; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      z-index: 200; max-height: 60vh; overflow-y: auto;
+      transform: translateY(calc(100% - 40px));
+      transition: transform 0.3s var(--ease-out);
+    }
+    .design-notes:hover { transform: translateY(0); }
+    .design-notes-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--accent-muted); border-bottom: 1px solid var(--accent-fg);
+      cursor: pointer;
+    }
+    .design-notes-header h3 { font-size: 12px; font-weight: 600; color: var(--accent-fg); text-transform: uppercase; letter-spacing: 0.5px; }
+    .design-notes-content { padding: var(--space-4); }
+    .design-note { margin-bottom: var(--space-4); }
+    .design-note:last-child { margin-bottom: 0; }
+    .design-note h4 { font-size: 13px; font-weight: 600; color: var(--fg-default); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+    .design-note h4 .icon { width: 14px; height: 14px; color: var(--accent-fg); }
+    .design-note p { font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
+    .design-note ul { margin-top: var(--space-2); padding-left: var(--space-4); }
+    .design-note li { font-size: 12px; color: var(--fg-muted); line-height: 1.6; margin-bottom: var(--space-1); list-style: disc; }
+    .design-note code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-muted); padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- ============================================
+       Sidebar (standard AgentPane)
+       ============================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+          <defs><radialGradient id="coreGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#3fb950"/><stop offset="100%" stop-color="#3fb950" stop-opacity="0"/></radialGradient></defs>
+          <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+          <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+          <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+          <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+          <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+          <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+          <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+          <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/><circle cx="14" cy="14" r="2" fill="#fff"/>
+        </svg>
+      </div>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">AgentPane</span>
+        <span class="project-path-text">~/git/agentpane</span>
+      </div>
+      <kbd>&#8984;P</kbd>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Organization</span>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Projects</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Sessions</a>
+        <a class="nav-item active" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>CLI Monitor<span class="nav-badge active">4</span></a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Content</span>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>Org Templates</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>Designer</a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Admin</span>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></svg>Settings</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">Simon Lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================
+       Main Application — Matrix Console
+       ============================================ -->
+  <div class="app-layout">
+    <!-- Terminal-style header -->
+    <div class="matrix-header">
+      <div class="matrix-header-left">
+        <span class="matrix-title">&#9608; CLI Monitor</span>
+        <span class="matrix-status">// daemon active &mdash; 4 streams &mdash; 284K tokens</span>
+      </div>
+      <div class="matrix-header-right">
+        <span style="color: var(--matrix-text-dim);">uptime: 02:14:33</span>
+        <button class="matrix-toggle">
+          <span class="matrix-toggle-dot"></span>
+          daemon on
+        </button>
+      </div>
+    </div>
+
+    <!-- Rain columns — one per session -->
+    <div class="matrix-viewport">
+
+      <!-- Column 1: Working — AgentPane / feat/cli-monitor -->
+      <div class="rain-column focused">
+        <div class="column-header">
+          <div class="column-project">agentpane</div>
+          <div class="column-branch">feat/cli-monitor &middot; a1b2c3d</div>
+          <div class="column-status-line">
+            <span class="column-status-indicator working"></span>
+            <span class="column-status-text working">working</span>
+            <span style="font-family: var(--font-mono); font-size: 9px; color: var(--matrix-text-dim); margin-left: auto;">42 msgs &middot; 12s</span>
+          </div>
+        </div>
+        <div class="column-stream">
+          <div class="stream-content">
+            <div class="stream-line"><span class="role role-system">[sys]</span> <span class="text">Session init. cwd: ~/git/agentpane</span></div>
+            <div class="stream-line"><span class="role role-user">[usr]</span> <span class="text">Implement CLI monitor daemon with JSONL parsing</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">I'll start by examining the service patterns...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Read]</span> <span class="file-path">src/services/durable-streams.service.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">The durable streams service uses InMemoryDurableStreamsServer...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Read]</span> <span class="file-path">src/services/container-agent.service.ts</span></div>
+            <div class="stream-line"><span class="role role-tool">[Read]</span> <span class="file-path">src/server/routes/sessions.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Now I understand the SSE endpoint pattern...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Write]</span> <span class="file-path">src/services/cli-monitor/types.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Types defined. Creating main service with chokidar...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Write]</span> <span class="file-path">src/services/cli-monitor/cli-monitor.service.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Creating session card component with CVA variants</span><span class="stream-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2: Waiting — AgentPane / fix/auth-redirect -->
+      <div class="rain-column">
+        <div class="column-header">
+          <div class="column-project">agentpane</div>
+          <div class="column-branch">fix/auth-redirect &middot; e4f5g6h</div>
+          <div class="column-status-line">
+            <span class="column-status-indicator waiting"></span>
+            <span class="column-status-text waiting">approval</span>
+            <span style="font-family: var(--font-mono); font-size: 9px; color: var(--matrix-text-dim); margin-left: auto;">18 msgs &middot; 2m</span>
+          </div>
+        </div>
+        <div class="column-stream" style="position: relative;">
+          <div class="stream-content" style="opacity: 0.3;">
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Found the redirect loop in auth middleware...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Edit]</span> <span class="file-path">src/middleware/auth.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Running tests to verify fix...</span></div>
+          </div>
+          <!-- Approval overlay -->
+          <div class="approval-overlay">
+            <div class="approval-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="approval-text">awaiting approval</div>
+            <div class="approval-tool">Bash: npm test --coverage</div>
+            <div class="approval-actions">
+              <button class="matrix-btn matrix-btn-approve">&#10003; approve</button>
+              <button class="matrix-btn matrix-btn-reject">&#10007; reject</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 3: Working — payment-service / main -->
+      <div class="rain-column">
+        <div class="column-header">
+          <div class="column-project">payment-service</div>
+          <div class="column-branch">main &middot; i7j8k9l</div>
+          <div class="column-status-line">
+            <span class="column-status-indicator working"></span>
+            <span class="column-status-text working">working</span>
+            <span style="font-family: var(--font-mono); font-size: 9px; color: var(--matrix-text-dim); margin-left: auto;">67 msgs &middot; 5s</span>
+          </div>
+        </div>
+        <div class="column-stream">
+          <div class="stream-content">
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Adding webhook verification...</span></div>
+            <div class="stream-line"><span class="role role-tool">[Write]</span> <span class="file-path">src/middleware/stripe-webhook.ts</span></div>
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">HMAC-SHA256 verification impl</span><span class="stream-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 4: Idle — docs-site / docs/api-ref -->
+      <div class="rain-column">
+        <div class="column-header">
+          <div class="column-project" style="color: var(--matrix-text-dim);">docs-site</div>
+          <div class="column-branch">docs/api-ref &middot; m0n1o2p</div>
+          <div class="column-status-line">
+            <span class="column-status-indicator idle"></span>
+            <span class="column-status-text idle">idle</span>
+            <span style="font-family: var(--font-mono); font-size: 9px; color: var(--matrix-text-dim); margin-left: auto;">31 msgs &middot; 23m</span>
+          </div>
+        </div>
+        <div class="column-stream" style="opacity: 0.4;">
+          <div class="stream-content">
+            <div class="stream-line"><span class="role role-assistant">[claude]</span> <span class="text">Documentation updates complete.</span></div>
+            <div class="stream-line"><span class="role role-tool">[result]</span> <span class="text" style="color: var(--matrix-text-dim);">success</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HUD Overlay Panels -->
+      <div class="hud-layer">
+        <!-- Sessions summary -->
+        <div class="hud-panel hud-sessions">
+          <div class="hud-title">Sessions</div>
+          <div class="hud-stat">
+            <span class="hud-stat-label">Total active</span>
+            <span class="hud-stat-value">4</span>
+          </div>
+          <div class="hud-stat">
+            <span class="hud-stat-label">Working</span>
+            <span class="hud-stat-value">2</span>
+          </div>
+          <div class="hud-stat">
+            <span class="hud-stat-label">Awaiting</span>
+            <span class="hud-stat-value amber">1</span>
+          </div>
+          <div class="hud-stat">
+            <span class="hud-stat-label">Idle</span>
+            <span class="hud-stat-value dim">1</span>
+          </div>
+        </div>
+
+        <!-- Token counter -->
+        <div class="hud-panel hud-tokens">
+          <div class="hud-title">Token Usage</div>
+          <div class="token-big-value">284,192</div>
+          <div class="token-cost">$4.27 estimated</div>
+          <div class="token-breakdown-row">
+            <span class="token-breakdown-label">input</span>
+            <span class="token-breakdown-value">89,432</span>
+          </div>
+          <div class="token-breakdown-row">
+            <span class="token-breakdown-label">output</span>
+            <span class="token-breakdown-value">12,891</span>
+          </div>
+          <div class="token-breakdown-row">
+            <span class="token-breakdown-label">cache</span>
+            <span class="token-breakdown-value">45,210</span>
+          </div>
+          <div class="token-bar-matrix">
+            <div class="token-bar-seg input"></div>
+            <div class="token-bar-seg output"></div>
+            <div class="token-bar-seg cache"></div>
+          </div>
+        </div>
+
+        <!-- Git activity -->
+        <div class="hud-panel hud-git">
+          <div class="hud-title">Git Activity</div>
+          <div class="git-stat-big">17</div>
+          <div class="git-stat-label">files changed</div>
+          <div class="git-branches">
+            <div class="git-branch-item"><span class="git-branch-dot"></span> <span class="git-branch-name">feat/cli-monitor</span> <span style="margin-left:auto;">+8</span></div>
+            <div class="git-branch-item"><span class="git-branch-dot"></span> <span class="git-branch-name">fix/auth-redirect</span> <span style="margin-left:auto;">+3</span></div>
+            <div class="git-branch-item"><span class="git-branch-dot"></span> <span class="git-branch-name">main</span> <span style="margin-left:auto;">+6</span></div>
+          </div>
+        </div>
+
+        <!-- Rate limit -->
+        <div class="hud-panel hud-rate">
+          <div class="hud-title">API Rate</div>
+          <div class="rate-value">76%</div>
+          <div style="font-size: 10px; color: var(--matrix-text-dim); margin-top: 2px;">3,800 / 5,000</div>
+          <div class="rate-bar">
+            <div class="rate-bar-fill" style="width: 24%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       Design Notes
+       ============================================ -->
+  <aside class="design-notes">
+    <div class="design-notes-header">
+      <h3>Design Notes — Matrix Console</h3>
+    </div>
+    <div class="design-notes-content">
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Matrix Rain Concept
+        </h4>
+        <p>Full-screen terminal aesthetic inspired by the Matrix. Each session occupies a vertical column showing its live output stream. The "rain" effect comes from streaming text flowing downward with fading opacity. The focused (clicked) column expands to 3x width.</p>
+        <ul>
+          <li><strong>Columns:</strong> Equal-width vertical panes, one per session</li>
+          <li><strong>Focus:</strong> Click a column to expand it (<code>flex: 3</code>)</li>
+          <li><strong>Stream:</strong> Lines anchored to bottom, new content pushes up</li>
+          <li><strong>Idle:</strong> Column content fades to 40% opacity</li>
+        </ul>
+      </div>
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/></svg>
+          CRT / Cyberpunk Effects
+        </h4>
+        <p>Multiple layers create the retro-terminal feel:</p>
+        <ul>
+          <li><strong>Scanlines:</strong> CSS repeating-linear-gradient on <code>::before</code></li>
+          <li><strong>Vignette:</strong> Radial gradient darkening edges on <code>::after</code></li>
+          <li><strong>Flicker:</strong> Subtle <code>flicker</code> animation on status text</li>
+          <li><strong>Glow:</strong> <code>text-shadow</code> with green glow on key elements</li>
+          <li><strong>Color:</strong> Custom <code>--matrix-green</code> (#00ff41) palette with dim/faint variants</li>
+        </ul>
+      </div>
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          HUD Overlay Panels
+        </h4>
+        <p>Floating transparent panels overlaid on the matrix viewport:</p>
+        <ul>
+          <li><strong>Sessions:</strong> Top-right, summary of active/waiting/idle</li>
+          <li><strong>Tokens:</strong> Bottom-right, large counter with breakdown bar</li>
+          <li><strong>Git:</strong> Bottom-left, file changes with branch breakdown</li>
+          <li><strong>Rate:</strong> Top-left, API rate limit with progress bar</li>
+          <li>All panels use <code>backdrop-filter: blur</code> and staggered <code>hudSlideIn</code>/<code>hudSlideUp</code> animations</li>
+        </ul>
+      </div>
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Approval UX
+        </h4>
+        <p>When a session needs approval, its column shows a semi-transparent overlay with pulsing shield icon, tool name, and approve/reject buttons in matrix-styled UI. Uses amber color for contrast against the green theme.</p>
+      </div>
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+          Typography
+        </h4>
+        <p>Uses <strong>JetBrains Mono</strong> throughout the matrix viewport for a sharper, more modern monospace feel compared to Fira Code. The standard AgentPane sidebar retains Mona Sans for contrast — the sidebar feels like a "normal" app while the main viewport is the immersive terminal.</p>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

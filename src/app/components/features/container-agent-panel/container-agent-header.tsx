@@ -1,6 +1,7 @@
 import {
   ArrowsClockwise,
   CircleNotch,
+  GitBranch,
   Robot,
   Timer,
   WifiHigh,
@@ -22,6 +23,7 @@ export type ContainerAgentStatus =
 interface ContainerAgentHeaderProps {
   status: ContainerAgentStatus;
   model?: string;
+  branch?: string;
   currentTurn: number;
   maxTurns?: number;
   startedAt?: number;
@@ -91,6 +93,7 @@ function formatElapsedTime(startTime: number): string {
 export function ContainerAgentHeader({
   status,
   model,
+  branch,
   currentTurn,
   maxTurns,
   startedAt,
@@ -136,6 +139,18 @@ export function ContainerAgentHeader({
         <span className={statusDotVariants({ status })} />
         {statusLabels[status]}
       </div>
+
+      {/* Branch indicator */}
+      {branch && (
+        <div
+          className="flex items-center gap-1.5 text-sm text-fg-muted"
+          data-testid="branch-indicator"
+          title={branch}
+        >
+          <GitBranch className="h-4 w-4" />
+          <span className="max-w-[160px] truncate font-mono text-xs">{branch}</span>
+        </div>
+      )}
 
       {/* Turn counter */}
       {maxTurns && (

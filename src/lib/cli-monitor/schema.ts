@@ -1,0 +1,73 @@
+/**
+ * Schema for CLI monitor session collection
+ */
+
+import { z } from 'zod';
+
+/**
+ * CLI session schema - source of truth for the TanStack DB collection
+ */
+export const cliSessionSchema = z.object({
+  sessionId: z.string(),
+  filePath: z.string(),
+  cwd: z.string(),
+  projectName: z.string(),
+  projectHash: z.string(),
+  gitBranch: z.string().optional(),
+  status: z.enum(['working', 'waiting_for_approval', 'waiting_for_input', 'idle']),
+  messageCount: z.number(),
+  turnCount: z.number(),
+  goal: z.string().optional(),
+  recentOutput: z.string().optional(),
+  pendingToolUse: z.object({ toolName: z.string(), toolId: z.string() }).optional(),
+  tokenUsage: z.object({
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    cacheCreationTokens: z.number(),
+    cacheReadTokens: z.number(),
+    ephemeral5mTokens: z.number().optional(),
+    ephemeral1hTokens: z.number().optional(),
+  }),
+  model: z.string().optional(),
+  startedAt: z.number(),
+  lastActivityAt: z.number(),
+  lastReadOffset: z.number(),
+  isSubagent: z.boolean(),
+  parentSessionId: z.string().optional(),
+  performanceMetrics: z
+    .object({
+      compactionCount: z.number(),
+      lastCompactionAt: z.number().nullable(),
+      compactionEvents: z
+        .array(
+          z.object({
+            type: z.enum(['compact', 'microcompact']),
+            timestamp: z.number(),
+            trigger: z.string(),
+            preTokens: z.number(),
+            tokensSaved: z.number().optional(),
+            sessionId: z.string(),
+            parentSessionId: z.string().optional(),
+          })
+        )
+        .default([]),
+      recentTurns: z.array(
+        z.object({
+          turnNumber: z.number(),
+          inputTokens: z.number(),
+          outputTokens: z.number(),
+          cacheReadTokens: z.number(),
+          cacheCreationTokens: z.number(),
+          timestamp: z.number(),
+        })
+      ),
+      cacheHitRatio: z.number(),
+      contextWindowUsed: z.number(),
+      contextWindowLimit: z.number(),
+      contextPressure: z.number(),
+      healthStatus: z.enum(['healthy', 'warning', 'critical']),
+    })
+    .optional(),
+});
+
+export type CliSession = z.infer<typeof cliSessionSchema>;

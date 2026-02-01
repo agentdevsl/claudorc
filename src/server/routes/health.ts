@@ -130,5 +130,32 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
     });
   });
 
+  // Liveness probe — confirms the process is running
+  app.get('/liveness', (_c) => {
+    return json({ ok: true, status: 'alive' });
+  });
+
+  // Readiness probe — confirms the service can handle requests (DB is reachable)
+  app.get('/readiness', async (_c) => {
+    try {
+      const dbStart = Date.now();
+      await db.query.projects.findFirst();
+      return json({
+        ok: true,
+        status: 'ready',
+        dbLatencyMs: Date.now() - dbStart,
+      });
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          status: 'not_ready',
+          error: error instanceof Error ? error.message : 'Database unreachable',
+        },
+        503
+      );
+    }
+  });
+
   return app;
 }

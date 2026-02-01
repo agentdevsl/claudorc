@@ -21,7 +21,7 @@ import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/data
 
 // Helper: create a Readable stream from JSON-line events
 function jsonLinesToStream(events: Array<Record<string, unknown>>): Readable {
-  const lines = events.map((e) => JSON.stringify(e)).join('\n') + '\n';
+  const lines = `${events.map((e) => JSON.stringify(e)).join('\n')}\n`;
   return Readable.from([lines]);
 }
 

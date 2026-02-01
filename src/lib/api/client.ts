@@ -1072,4 +1072,39 @@ export const apiClient = {
      */
     getCategories: () => apiServerFetch<{ categories: string[] }>('/api/marketplaces/categories'),
   },
+
+  cliMonitor: {
+    status: () =>
+      apiServerFetch<{
+        connected: boolean;
+        daemon: {
+          daemonId: string;
+          pid: number;
+          version: string;
+          watchPath: string;
+          capabilities: string[];
+          registeredAt: number;
+          lastHeartbeatAt: number;
+        } | null;
+        sessionCount: number;
+      }>('/api/cli-monitor/status'),
+    listSessions: () =>
+      apiServerFetch<{
+        sessions: Array<{
+          sessionId: string;
+          cwd: string;
+          projectName: string;
+          status: 'working' | 'waiting_for_approval' | 'waiting_for_input' | 'idle';
+          messageCount: number;
+          turnCount: number;
+          goal?: string;
+          model?: string;
+          startedAt: number;
+          lastActivityAt: number;
+          isSubagent: boolean;
+        }>;
+        connected: boolean;
+      }>('/api/cli-monitor/sessions'),
+    getStreamUrl: () => `${API_BASE}/api/cli-monitor/stream`,
+  },
 };

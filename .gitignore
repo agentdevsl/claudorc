@@ -126,3 +126,9 @@ data/agentpane.db-wal
 
 # Submodules
 submodule/*
+
+# Worktrees (managed outside repo)
+.worktrees/
+
+# Bun build artifacts
+*.bun-build

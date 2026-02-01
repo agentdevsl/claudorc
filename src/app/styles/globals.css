@@ -728,6 +728,43 @@
     animation: statusPulse 2s ease-in-out infinite;
   }
 
+  /* Terminal pane glow border for working sessions */
+  @keyframes glowBorder {
+    0%, 100% { border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 0 8px rgba(63, 185, 80, 0.05); }
+    50% { border-color: rgba(63, 185, 80, 0.6); box-shadow: 0 0 12px rgba(63, 185, 80, 0.1); }
+  }
+
+  /* Token counter tick animation */
+  @keyframes tokenTick {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); color: var(--accent-fg); }
+    100% { transform: scale(1); }
+  }
+
+  /* Timeline NOW line pulse */
+  @keyframes nowLinePulse {
+    0%, 100% { opacity: 0.7; box-shadow: 0 0 6px rgba(248, 81, 73, 0.3); }
+    50% { opacity: 1; box-shadow: 0 0 12px rgba(248, 81, 73, 0.6); }
+  }
+
+  /* Timeline session bar entry animation */
+  @keyframes slideInRight {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Timeline session bar shimmer overlay for working sessions */
+  @keyframes timelineShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Terminal pane line entry animation */
+  @keyframes fadeInLine {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* ==========================================
      SESSION HISTORY ANIMATIONS (Phase 6)
      ========================================== */
@@ -791,6 +828,93 @@
 
   .progress-bar-smooth.dragging {
     transition: none;
+  }
+
+  /* ==========================================
+     DIFF VIEWER - CSS Grid Layout
+     Inspired by diffs.com design philosophy:
+     bar indicators, sticky line numbers, data-attribute styling
+     ========================================== */
+
+  .diff-grid {
+    display: contents;
+  }
+
+  .diff-line {
+    display: grid;
+    grid-template-columns: 3px 48px 48px 1fr;
+    min-height: 24px;
+    line-height: 24px;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  /* Line type backgrounds via data-attribute styling */
+  .diff-line-added {
+    background-color: color-mix(in srgb, var(--syntax-added) 8%, transparent);
+  }
+
+  .diff-line-deleted {
+    background-color: color-mix(in srgb, var(--syntax-removed) 8%, transparent);
+  }
+
+  .diff-line-context {
+    background-color: transparent;
+  }
+
+  .diff-line-context:hover {
+    background-color: var(--bg-subtle);
+  }
+
+  /* Bar indicator — 3px colored left edge */
+  .diff-bar {
+    grid-column: 1;
+    width: 3px;
+    min-height: 100%;
+  }
+
+  /* Line numbers — sticky gutters */
+  .diff-line-number {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--fg-subtle);
+    user-select: none;
+    white-space: nowrap;
+    position: sticky;
+    left: 0;
+    background: inherit;
+  }
+
+  .diff-line-number[data-line-type="addition"] {
+    color: color-mix(in srgb, var(--syntax-added) 70%, var(--fg-subtle));
+    background-color: color-mix(in srgb, var(--syntax-added) 15%, transparent);
+  }
+
+  .diff-line-number[data-line-type="deletion"] {
+    color: color-mix(in srgb, var(--syntax-removed) 70%, var(--fg-subtle));
+    background-color: color-mix(in srgb, var(--syntax-removed) 15%, transparent);
+  }
+
+  /* Line content */
+  .diff-line-content {
+    grid-column: 4;
+    padding: 0 16px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .diff-line-content[data-line-type="addition"] {
+    color: var(--syntax-added);
+  }
+
+  .diff-line-content[data-line-type="deletion"] {
+    color: var(--syntax-removed);
+  }
+
+  .diff-line-content[data-line-type="context"] {
+    color: var(--fg-muted);
   }
 }
 

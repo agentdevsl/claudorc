@@ -2,8 +2,8 @@
  * Authentication Middleware for API Routes
  *
  * Provides authentication context extraction and validation.
- * Phase 1: Basic cookie/header check with dev mode bypass
- * Phase 2: Full validation against auth service (when implemented)
+ * Supports session cookie, Bearer token, and dev mode bypass.
+ * When validators are provided, tokens are validated against the database.
  *
  * @module lib/api/auth-middleware
  */
@@ -30,6 +30,16 @@ export interface AuthError {
 }
 
 /**
+ * Options for auth context extraction, allowing real token validation.
+ */
+export interface AuthOptions {
+  /** Validate a session token against the database. Return userId if valid, null if invalid. */
+  validateSessionToken?: (token: string) => Promise<string | null>;
+  /** Validate a Bearer API key against the database. Return userId if valid, null if invalid. */
+  validateApiKey?: (key: string) => Promise<string | null>;
+}
+
+/**
  * Extract user context from request
  *
  * Authentication methods (checked in order):
@@ -38,18 +48,33 @@ export interface AuthError {
  * 3. Development mode bypass (when SKIP_AUTH=true)
  *
  * @param request - The incoming request
+ * @param options - Optional validators for real token checking
  * @returns Authentication context or error
  */
-export async function getAuthContext(request: Request): Promise<Result<AuthContext, AuthError>> {
+export async function getAuthContext(
+  request: Request,
+  options?: AuthOptions
+): Promise<Result<AuthContext, AuthError>> {
   // 1. Check session cookie
   const cookies = request.headers.get('Cookie') ?? '';
   const sessionMatch = cookies.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
 
   if (sessionMatch?.[1]) {
     const sessionToken = sessionMatch[1];
-    // TODO Phase 2: Validate session token against database
-    // For now, extract userId from token or use placeholder
-    // In production, this would query the sessions table
+
+    if (options?.validateSessionToken) {
+      const userId = await options.validateSessionToken(sessionToken);
+      if (!userId) {
+        return err({
+          code: 'UNAUTHORIZED',
+          message: 'Invalid or expired session token.',
+          status: 401,
+        });
+      }
+      return ok({ userId, authMethod: 'session' });
+    }
+
+    // Fallback: accept token without DB validation (dev / no validators configured)
     return ok({
       userId: `session:${sessionToken.substring(0, 8)}`,
       authMethod: 'session',
@@ -60,8 +85,20 @@ export async function getAuthContext(request: Request): Promise<Result<AuthConte
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
-    // TODO Phase 2: Validate API token against database
-    // For now, use token prefix as userId placeholder
+
+    if (options?.validateApiKey) {
+      const userId = await options.validateApiKey(token);
+      if (!userId) {
+        return err({
+          code: 'UNAUTHORIZED',
+          message: 'Invalid API key.',
+          status: 401,
+        });
+      }
+      return ok({ userId, authMethod: 'api_token' });
+    }
+
+    // Fallback: accept token without DB validation (dev / no validators configured)
     return ok({
       userId: `token:${token.substring(0, 8)}`,
       authMethod: 'api_token',
@@ -69,7 +106,9 @@ export async function getAuthContext(request: Request): Promise<Result<AuthConte
   }
 
   // 3. Development mode: Allow unauthenticated requests
-  if (process.env.NODE_ENV === 'development') {
+  // Treat unset NODE_ENV as development (matches api.ts convention)
+  const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+  if (isDev) {
     // Check for explicit skip or default dev user
     const skipAuth = process.env.SKIP_AUTH === 'true';
     if (skipAuth) {

@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { TaskService } from '../../services/task.service.js';
 import { isValidId, json } from '../shared.js';
+import { createTaskSchema, moveTaskSchema, parseBody, updateTaskSchema } from '../validation.js';
 
 interface TasksDeps {
   taskService: TaskService;
@@ -65,30 +66,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
   // POST /api/tasks
   app.post('/', async (c) => {
     try {
-      const body = (await c.req.json()) as {
-        projectId: string;
-        title: string;
-        description?: string;
-        labels?: string[];
-        priority?: 'high' | 'medium' | 'low';
-      };
-
-      if (!body.projectId || !body.title) {
-        return json(
-          {
-            ok: false,
-            error: { code: 'MISSING_PARAMS', message: 'projectId and title are required' },
-          },
-          400
-        );
-      }
-
-      if (!isValidId(body.projectId)) {
-        return json(
-          { ok: false, error: { code: 'INVALID_ID', message: 'Invalid projectId format' } },
-          400
-        );
-      }
+      const rawBody = await c.req.json();
+      const parsed = parseBody(createTaskSchema, rawBody);
+      if (!parsed.ok) return parsed.response;
+      const body = parsed.data;
 
       const result = await taskService.create({
         projectId: body.projectId,
@@ -143,12 +124,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
 
     try {
-      const body = (await c.req.json()) as {
-        title?: string;
-        description?: string;
-        labels?: string[];
-        priority?: 'high' | 'medium' | 'low';
-      };
+      const rawBody = await c.req.json();
+      const parsed = parseBody(updateTaskSchema, rawBody);
+      if (!parsed.ok) return parsed.response;
+      const body = parsed.data;
 
       const result = await taskService.update(id, {
         title: body.title,
@@ -231,26 +210,10 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
     }
 
     try {
-      const body = (await c.req.json()) as {
-        column: 'backlog' | 'queued' | 'in_progress' | 'waiting_approval' | 'verified';
-        position?: number;
-        startAgent?: boolean; // Auto-start agent when moving to in_progress (default: true)
-      };
-
-      if (!body.column) {
-        return json(
-          { ok: false, error: { code: 'MISSING_PARAMS', message: 'column is required' } },
-          400
-        );
-      }
-
-      const validColumns = ['backlog', 'queued', 'in_progress', 'waiting_approval', 'verified'];
-      if (!validColumns.includes(body.column)) {
-        return json(
-          { ok: false, error: { code: 'INVALID_PARAMS', message: 'Invalid column value' } },
-          400
-        );
-      }
+      const rawBody = await c.req.json();
+      const parsed = parseBody(moveTaskSchema, rawBody);
+      if (!parsed.ok) return parsed.response;
+      const body = parsed.data;
 
       // Move the task - this will trigger container agent if sandbox is enabled for the project
       const result = await taskService.moveColumn(id, body.column, body.position);

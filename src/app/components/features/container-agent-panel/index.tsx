@@ -1,3 +1,4 @@
+export { ContainerAgentChangesTab } from './container-agent-changes-tab';
 export { ContainerAgentHeader } from './container-agent-header';
 export type { ContainerAgentPanelProps } from './container-agent-panel';
 export { ContainerAgentPanel } from './container-agent-panel';

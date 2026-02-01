@@ -1,0 +1,10 @@
+src/
+dist/cli-monitor-*
+Formula/
+scripts/
+*.test.ts
+*.spec.ts
+__tests__/
+vitest.config.ts
+tsconfig.json
+.gitignore

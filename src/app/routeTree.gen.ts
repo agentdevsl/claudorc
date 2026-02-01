@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as CliMonitorRouteImport } from './routes/cli-monitor'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorktreesIndexRouteImport } from './routes/worktrees/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
@@ -18,6 +19,7 @@ import { Route as QueueIndexRouteImport } from './routes/queue/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace/index'
 import { Route as DesignerIndexRouteImport } from './routes/designer/index'
+import { Route as CliMonitorIndexRouteImport } from './routes/cli-monitor/index'
 import { Route as CatalogIndexRouteImport } from './routes/catalog/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
@@ -28,10 +30,13 @@ import { Route as SettingsProjectsRouteImport } from './routes/settings/projects
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
 import { Route as SettingsModelOptimizationsRouteImport } from './routes/settings/model-optimizations'
 import { Route as SettingsGithubRouteImport } from './routes/settings/github'
+import { Route as SettingsCliMonitorRouteImport } from './routes/settings/cli-monitor'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
+import { Route as CliMonitorTimelineRouteImport } from './routes/cli-monitor/timeline'
+import { Route as CliMonitorTerminalRouteImport } from './routes/cli-monitor/terminal'
 import { Route as CatalogWorkflowIdRouteImport } from './routes/catalog/$workflowId'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
@@ -43,6 +48,11 @@ import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/proje
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CliMonitorRoute = CliMonitorRouteImport.update({
+  id: '/cli-monitor',
+  path: '/cli-monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -84,6 +94,11 @@ const DesignerIndexRoute = DesignerIndexRouteImport.update({
   id: '/designer/',
   path: '/designer/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CliMonitorIndexRoute = CliMonitorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CliMonitorRoute,
 } as any)
 const CatalogIndexRoute = CatalogIndexRouteImport.update({
   id: '/catalog/',
@@ -136,6 +151,11 @@ const SettingsGithubRoute = SettingsGithubRouteImport.update({
   path: '/github',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsCliMonitorRoute = SettingsCliMonitorRouteImport.update({
+  id: '/cli-monitor',
+  path: '/cli-monitor',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -155,6 +175,16 @@ const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/sessions/$sessionId',
   path: '/sessions/$sessionId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CliMonitorTimelineRoute = CliMonitorTimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => CliMonitorRoute,
+} as any)
+const CliMonitorTerminalRoute = CliMonitorTerminalRouteImport.update({
+  id: '/terminal',
+  path: '/terminal',
+  getParentRoute: () => CliMonitorRoute,
 } as any)
 const CatalogWorkflowIdRoute = CatalogWorkflowIdRouteImport.update({
   id: '/catalog/$workflowId',
@@ -197,13 +227,17 @@ const ProjectsProjectIdTasksTaskIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cli-monitor': typeof CliMonitorRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
+  '/cli-monitor/terminal': typeof CliMonitorTerminalRoute
+  '/cli-monitor/timeline': typeof CliMonitorTimelineRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -214,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
+  '/cli-monitor/': typeof CliMonitorIndexRoute
   '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -231,10 +266,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
+  '/cli-monitor/terminal': typeof CliMonitorTerminalRoute
+  '/cli-monitor/timeline': typeof CliMonitorTimelineRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -245,6 +283,7 @@ export interface FileRoutesByTo {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents': typeof AgentsIndexRoute
   '/catalog': typeof CatalogIndexRoute
+  '/cli-monitor': typeof CliMonitorIndexRoute
   '/designer': typeof DesignerIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
   '/projects': typeof ProjectsIndexRoute
@@ -261,13 +300,17 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cli-monitor': typeof CliMonitorRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/catalog/$workflowId': typeof CatalogWorkflowIdRoute
+  '/cli-monitor/terminal': typeof CliMonitorTerminalRoute
+  '/cli-monitor/timeline': typeof CliMonitorTimelineRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/cli-monitor': typeof SettingsCliMonitorRoute
   '/settings/github': typeof SettingsGithubRoute
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
@@ -278,6 +321,7 @@ export interface FileRoutesById {
   '/templates/project': typeof TemplatesProjectRoute
   '/agents/': typeof AgentsIndexRoute
   '/catalog/': typeof CatalogIndexRoute
+  '/cli-monitor/': typeof CliMonitorIndexRoute
   '/designer/': typeof DesignerIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/projects/': typeof ProjectsIndexRoute
@@ -295,13 +339,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/cli-monitor'
     | '/settings'
     | '/agents/$agentId'
     | '/catalog/$workflowId'
+    | '/cli-monitor/terminal'
+    | '/cli-monitor/timeline'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -312,6 +360,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents/'
     | '/catalog/'
+    | '/cli-monitor/'
     | '/designer/'
     | '/marketplace/'
     | '/projects/'
@@ -329,10 +378,13 @@ export interface FileRouteTypes {
     | '/'
     | '/agents/$agentId'
     | '/catalog/$workflowId'
+    | '/cli-monitor/terminal'
+    | '/cli-monitor/timeline'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -343,6 +395,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents'
     | '/catalog'
+    | '/cli-monitor'
     | '/designer'
     | '/marketplace'
     | '/projects'
@@ -358,13 +411,17 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/cli-monitor'
     | '/settings'
     | '/agents/$agentId'
     | '/catalog/$workflowId'
+    | '/cli-monitor/terminal'
+    | '/cli-monitor/timeline'
     | '/sessions/$sessionId'
     | '/settings/agents'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/cli-monitor'
     | '/settings/github'
     | '/settings/model-optimizations'
     | '/settings/preferences'
@@ -375,6 +432,7 @@ export interface FileRouteTypes {
     | '/templates/project'
     | '/agents/'
     | '/catalog/'
+    | '/cli-monitor/'
     | '/designer/'
     | '/marketplace/'
     | '/projects/'
@@ -391,6 +449,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CliMonitorRoute: typeof CliMonitorRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   CatalogWorkflowIdRoute: typeof CatalogWorkflowIdRoute
@@ -419,6 +478,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cli-monitor': {
+      id: '/cli-monitor'
+      path: '/cli-monitor'
+      fullPath: '/cli-monitor'
+      preLoaderRoute: typeof CliMonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -476,6 +542,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/designer/'
       preLoaderRoute: typeof DesignerIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/cli-monitor/': {
+      id: '/cli-monitor/'
+      path: '/'
+      fullPath: '/cli-monitor/'
+      preLoaderRoute: typeof CliMonitorIndexRouteImport
+      parentRoute: typeof CliMonitorRoute
     }
     '/catalog/': {
       id: '/catalog/'
@@ -547,6 +620,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGithubRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/cli-monitor': {
+      id: '/settings/cli-monitor'
+      path: '/cli-monitor'
+      fullPath: '/settings/cli-monitor'
+      preLoaderRoute: typeof SettingsCliMonitorRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -574,6 +654,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/sessions/$sessionId'
       preLoaderRoute: typeof SessionsSessionIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/cli-monitor/timeline': {
+      id: '/cli-monitor/timeline'
+      path: '/timeline'
+      fullPath: '/cli-monitor/timeline'
+      preLoaderRoute: typeof CliMonitorTimelineRouteImport
+      parentRoute: typeof CliMonitorRoute
+    }
+    '/cli-monitor/terminal': {
+      id: '/cli-monitor/terminal'
+      path: '/terminal'
+      fullPath: '/cli-monitor/terminal'
+      preLoaderRoute: typeof CliMonitorTerminalRouteImport
+      parentRoute: typeof CliMonitorRoute
     }
     '/catalog/$workflowId': {
       id: '/catalog/$workflowId'
@@ -627,10 +721,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CliMonitorRouteChildren {
+  CliMonitorTerminalRoute: typeof CliMonitorTerminalRoute
+  CliMonitorTimelineRoute: typeof CliMonitorTimelineRoute
+  CliMonitorIndexRoute: typeof CliMonitorIndexRoute
+}
+
+const CliMonitorRouteChildren: CliMonitorRouteChildren = {
+  CliMonitorTerminalRoute: CliMonitorTerminalRoute,
+  CliMonitorTimelineRoute: CliMonitorTimelineRoute,
+  CliMonitorIndexRoute: CliMonitorIndexRoute,
+}
+
+const CliMonitorRouteWithChildren = CliMonitorRoute._addFileChildren(
+  CliMonitorRouteChildren,
+)
+
 interface SettingsRouteChildren {
   SettingsAgentsRoute: typeof SettingsAgentsRoute
   SettingsApiKeysRoute: typeof SettingsApiKeysRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsCliMonitorRoute: typeof SettingsCliMonitorRoute
   SettingsGithubRoute: typeof SettingsGithubRoute
   SettingsModelOptimizationsRoute: typeof SettingsModelOptimizationsRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
@@ -644,6 +755,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAgentsRoute: SettingsAgentsRoute,
   SettingsApiKeysRoute: SettingsApiKeysRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsCliMonitorRoute: SettingsCliMonitorRoute,
   SettingsGithubRoute: SettingsGithubRoute,
   SettingsModelOptimizationsRoute: SettingsModelOptimizationsRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
@@ -659,6 +771,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CliMonitorRoute: CliMonitorRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   CatalogWorkflowIdRoute: CatalogWorkflowIdRoute,

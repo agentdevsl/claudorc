@@ -5,25 +5,68 @@
  * Runs alongside Vite dev server.
  */
 
+import { createLogger } from '../lib/logging/logger.js';
+
+const log = createLogger('APIServer');
+
 // Global error handlers to prevent crashes
 process.on('uncaughtException', (error) => {
-  console.error('[API Server] Uncaught Exception:', error);
+  log.error('Uncaught Exception', { error });
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[API Server] Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason, _promise) => {
+  log.error('Unhandled Rejection', { error: reason });
 });
+
+// Validate required environment variables at startup
+function validateEnv() {
+  const warnings: string[] = [];
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_OAUTH_TOKEN) {
+    const msg =
+      'Neither ANTHROPIC_API_KEY nor CLAUDE_OAUTH_TOKEN is set — agent execution will fail';
+    if (isProduction) {
+      log.error(msg);
+      process.exit(1);
+    }
+    warnings.push(msg);
+  }
+
+  if (isProduction && !process.env.CORS_ORIGIN) {
+    warnings.push('CORS_ORIGIN not set — defaulting to http://localhost:3000');
+  }
+
+  for (const w of warnings) {
+    log.warn(w);
+  }
+
+  log.info('Environment validated', {
+    data: {
+      nodeEnv: process.env.NODE_ENV ?? 'development',
+      hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      hasOAuthToken: !!process.env.CLAUDE_OAUTH_TOKEN,
+      corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    },
+  });
+}
+
+validateEnv();
 
 import { Database as BunSQLite } from 'bun:sqlite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { agents } from '../db/schema/agents.js';
 import * as schema from '../db/schema/index.js';
 import { settings } from '../db/schema/settings.js';
+import { tasks } from '../db/schema/tasks.js';
 import {
+  CLI_SESSIONS_MIGRATION_SQL,
+  CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL,
   MIGRATION_SQL,
+  PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
@@ -31,6 +74,7 @@ import { createDockerProvider } from '../lib/sandbox/index.js';
 import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
 import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
+import { CliMonitorService } from '../services/cli-monitor/index.js';
 import { createContainerAgentService } from '../services/container-agent.service.js';
 import { DurableStreamsService } from '../services/durable-streams.service.js';
 import { GitHubTokenService } from '../services/github-token.service.js';
@@ -61,17 +105,23 @@ declare const Bun: {
 };
 
 // Initialize SQLite database using Bun's native SQLite
-const DB_PATH = './data/agentpane.db';
+const DB_PATH = process.env.DB_PATH ?? './data/agentpane.db';
 const sqlite = new BunSQLite(DB_PATH);
+
+// Enable WAL mode for better concurrent read performance and crash recovery
+sqlite.exec('PRAGMA journal_mode=WAL');
+sqlite.exec('PRAGMA busy_timeout=5000');
+sqlite.exec('PRAGMA foreign_keys=ON');
+log.info('SQLite WAL mode enabled', { data: { dbPath: DB_PATH } });
 
 // Run migrations to ensure schema is up to date
 sqlite.exec(MIGRATION_SQL);
-console.log('[API Server] Schema migrations applied');
+log.info('Schema migrations applied');
 
 // Run sandbox migration (may fail if column already exists)
 try {
   sqlite.exec(SANDBOX_MIGRATION_SQL);
-  console.log('[API Server] Sandbox migration applied');
+  log.info('[API Server] Sandbox migration applied');
 } catch (error) {
   // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
@@ -86,7 +136,7 @@ try {
 // Run template sync interval migration (may fail if columns already exist)
 try {
   sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
-  console.log('[API Server] Template sync interval migration applied');
+  log.info('[API Server] Template sync interval migration applied');
 } catch (error) {
   // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
   if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
@@ -96,6 +146,27 @@ try {
     );
   }
   // Silently ignore duplicate column errors (expected when migration already applied)
+}
+
+// Apply performance indexes (idempotent — uses IF NOT EXISTS)
+sqlite.exec(PERFORMANCE_INDEXES_MIGRATION_SQL);
+log.info('Performance indexes applied');
+
+// Apply CLI sessions migration (idempotent — uses IF NOT EXISTS)
+sqlite.exec(CLI_SESSIONS_MIGRATION_SQL);
+log.info('CLI sessions migration applied');
+
+// Add performance_metrics column to cli_sessions (may fail if column already exists)
+try {
+  sqlite.exec(CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL);
+  log.info('CLI sessions performance_metrics migration applied');
+} catch (error) {
+  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+    console.warn(
+      '[API Server] CLI sessions performance_metrics migration error (unexpected):',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
 }
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
@@ -122,6 +193,76 @@ try {
 } catch (error) {
   console.error(
     '[API Server] Failed to reset stale agents:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+// Recover orphaned tasks from previous server runs
+// Tasks stuck in 'in_progress' with a non-null agentId cannot be legitimately running
+// after a restart — move them back to 'backlog' and clear stale references.
+// Uses direct DB update (not taskService.moveColumn) to avoid triggering agent auto-start.
+try {
+  const result = db
+    .update(tasks)
+    .set({
+      column: 'backlog',
+      agentId: null,
+      sessionId: null,
+      lastAgentStatus: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(tasks.column, 'in_progress'), isNotNull(tasks.agentId)))
+    .run();
+  const changes = (result as { changes?: number }).changes ?? 0;
+  if (changes > 0) {
+    console.log(`[API Server] Recovered ${changes} orphaned task(s) back to backlog`);
+  }
+} catch (error) {
+  console.error(
+    '[API Server] Failed to recover orphaned tasks:',
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+// Clean up orphaned worktrees from tasks where agents are no longer running (Gap 2)
+// After a server crash, tasks may still reference worktrees that should be cleaned up.
+try {
+  const orphanedTasks = db
+    .select({ id: tasks.id, worktreeId: tasks.worktreeId })
+    .from(tasks)
+    .where(isNotNull(tasks.worktreeId))
+    .all() as Array<{ id: string; worktreeId: string | null }>;
+
+  // Filter to tasks whose agent is not actively running (after restart, none are)
+  const tasksToClean = orphanedTasks.filter(
+    (t) => t.worktreeId && (t as { lastAgentStatus?: string }).lastAgentStatus !== 'planning'
+  );
+
+  if (tasksToClean.length > 0) {
+    console.log(`[API Server] Found ${tasksToClean.length} task(s) with orphaned worktrees`);
+    for (const t of tasksToClean) {
+      try {
+        db.update(tasks)
+          .set({
+            worktreeId: null,
+            branch: null,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, t.id))
+          .run();
+      } catch (cleanErr) {
+        console.error(
+          `[API Server] Failed to clear worktree refs for task ${t.id}:`,
+          cleanErr instanceof Error ? cleanErr.message : String(cleanErr)
+        );
+      }
+    }
+    console.log(`[API Server] Cleared worktree references from ${tasksToClean.length} task(s)`);
+    // Note: actual worktree removal happens via WorktreeService after it's initialized below
+  }
+} catch (error) {
+  console.error(
+    '[API Server] Failed to clean orphaned worktrees:',
     error instanceof Error ? error.message : String(error)
   );
 }
@@ -168,7 +309,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
     if (!this.streams.has(id)) {
       this.streams.set(id, []);
       this.subscribers.set(id, new Set());
-      console.log(`[InMemoryStreams] Created stream: ${id}`);
+      log.debug(`[InMemoryStreams] Created stream: ${id}`);
     }
   }
 
@@ -199,7 +340,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
         try {
           callback({ type, data, offset });
         } catch (err) {
-          console.error(`[InMemoryStreams] Subscriber error for ${id}:`, err);
+          log.error(`[InMemoryStreams] Subscriber error for ${id}`, { error: err });
         }
       }
     }
@@ -238,7 +379,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
     this.streams.delete(id);
     this.subscribers.delete(id);
     if (existed) {
-      console.log(`[InMemoryStreams] Deleted stream: ${id}`);
+      log.debug(`[InMemoryStreams] Deleted stream: ${id}`);
     }
     return existed;
   }
@@ -246,7 +387,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
   // Get all events for a stream (for SSE endpoint)
   getEvents(id: string): StoredEvent[] {
     const events = this.streams.get(id) ?? [];
-    console.log(`[InMemoryStreams] getEvents called for ${id}: ${events.length} events available`);
+    log.debug(`[InMemoryStreams] getEvents called for ${id}: ${events.length} events available`);
     return events;
   }
 
@@ -261,7 +402,7 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
       this.subscribers.set(id, subs);
     }
     subs.add(callback);
-    console.log(`[InMemoryStreams] Added real-time subscriber for ${id} (total: ${subs.size})`);
+    log.debug(`[InMemoryStreams] Added real-time subscriber for ${id} (total: ${subs.size})`);
     return () => {
       subs.delete(callback);
       console.log(
@@ -273,7 +414,11 @@ class InMemoryDurableStreamsServer implements DurableStreamsServer {
 
 // Create in-memory streams server for local development
 const inMemoryStreamsServer = new InMemoryDurableStreamsServer();
-console.log('[API Server] Using in-memory DurableStreamsServer for local development');
+log.info('[API Server] Using in-memory DurableStreamsServer for local development');
+
+// CLI Monitor service for monitoring Claude Code CLI sessions (with DB persistence)
+const cliMonitorService = new CliMonitorService(inMemoryStreamsServer, db);
+log.info('[API Server] CLI Monitor receiver ready (waiting for daemon)');
 
 // DurableStreamsService for SSE and container agent events
 // Pass db for event persistence to session_events table
@@ -331,7 +476,7 @@ let containerAgentService: ReturnType<typeof createContainerAgentService> | null
 // Step 1: Initialize Docker provider
 try {
   dockerProvider = createDockerProvider();
-  console.log('[API Server] Docker provider initialized');
+  log.info('[API Server] Docker provider initialized');
 
   // Recover existing containers from previous runs
   const { recovered, removed } = await dockerProvider.recover();
@@ -350,9 +495,9 @@ try {
     message.includes('Cannot connect to Docker'); // Docker daemon offline
 
   if (isExpectedError) {
-    console.log('[API Server] Docker not available (expected), container agent service disabled');
+    log.info('[API Server] Docker not available (expected), container agent service disabled');
   } else {
-    console.error('[API Server] Docker initialization failed with unexpected error:', message);
+    log.error(`[API Server] Docker initialization failed with unexpected error: ${message}`);
   }
 }
 
@@ -410,9 +555,9 @@ if (dockerProvider) {
             idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
             volumeMounts: [],
           });
-          console.log('[API Server] Default global sandbox created');
+          log.info('[API Server] Default global sandbox created');
         } catch (createErr) {
-          console.warn('[API Server] Failed to create default sandbox:', createErr);
+          log.warn('[API Server] Failed to create default sandbox', { error: createErr });
         }
       } else {
         console.log(
@@ -420,7 +565,7 @@ if (dockerProvider) {
         );
       }
     } else {
-      console.log('[API Server] Default global sandbox already exists');
+      log.info('[API Server] Default global sandbox already exists');
     }
   } catch (sandboxErr) {
     // Sandbox setup failed but Docker is still available - container agent can still work
@@ -438,12 +583,13 @@ if (dockerProvider) {
       db,
       dockerProvider,
       durableStreamsService,
-      apiKeyService
+      apiKeyService,
+      worktreeService
     );
 
     // Wire up container agent service to task service
     taskService.setContainerAgentService(containerAgentService);
-    console.log('[API Server] ContainerAgentService wired up to TaskService');
+    log.info('[API Server] ContainerAgentService wired up to TaskService');
   } catch (serviceErr) {
     console.error(
       '[API Server] Failed to create ContainerAgentService:',
@@ -474,6 +620,7 @@ const app = createRouter({
   commandRunner: bunCommandRunner,
   durableStreamsService,
   dockerProvider,
+  cliMonitorService,
 });
 
 // Start server
@@ -488,4 +635,51 @@ console.log(`[API Server] Running on http://localhost:${PORT}`);
 
 // Start the template sync scheduler
 startSyncScheduler(db, templateService);
-console.log('[API Server] Template sync scheduler started');
+log.info('[API Server] Template sync scheduler started');
+
+// Graceful shutdown: stop accepting requests, clean up services, close DB
+let isShuttingDown = false;
+
+function shutdownServer(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  log.info(`[API Server] Received ${signal}, shutting down gracefully...`);
+
+  // Force-exit safety net after 30 seconds
+  const forceExitTimer = setTimeout(() => {
+    log.error('[API Server] Graceful shutdown timed out after 30s, forcing exit');
+    process.exit(1);
+  }, 30_000);
+  forceExitTimer.unref();
+
+  // Stop running agents
+  if (containerAgentService) {
+    const runningAgents = containerAgentService.getRunningAgents();
+    for (const agent of runningAgents) {
+      containerAgentService.stopAgent(agent.taskId).catch((stopErr) => {
+        log.warn('[API Server] Failed to stop agent during shutdown', {
+          data: { taskId: agent.taskId, error: String(stopErr) },
+        });
+      });
+    }
+    containerAgentService.dispose();
+  }
+
+  // Clean up services
+  cliMonitorService.destroy();
+
+  // Close database
+  try {
+    sqlite.close();
+    log.info('[API Server] Database closed');
+  } catch (dbErr) {
+    log.warn('[API Server] Failed to close database', { error: dbErr });
+  }
+
+  log.info('[API Server] Shutdown complete');
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdownServer('SIGINT'));
+process.on('SIGTERM', () => shutdownServer('SIGTERM'));

@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Monitor - Audio Mixer Console Wireframe</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --secondary-muted: rgba(247, 120, 186, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+    /* VU Meter Bounce Animations */
+    @keyframes vuBounce1 {
+      0% { height: 72%; } 10% { height: 88%; } 20% { height: 65%; }
+      30% { height: 92%; } 40% { height: 70%; } 50% { height: 85%; }
+      60% { height: 60%; } 70% { height: 78%; } 80% { height: 90%; }
+      90% { height: 68%; } 100% { height: 72%; }
+    }
+    @keyframes vuBounce2 {
+      0% { height: 55%; } 15% { height: 70%; } 30% { height: 48%; }
+      45% { height: 65%; } 60% { height: 52%; } 75% { height: 72%; }
+      90% { height: 50%; } 100% { height: 55%; }
+    }
+    @keyframes vuBounce3 {
+      0% { height: 35%; } 20% { height: 45%; } 40% { height: 30%; }
+      60% { height: 42%; } 80% { height: 28%; } 100% { height: 35%; }
+    }
+    @keyframes vuBounceMaster {
+      0% { height: 60%; } 8% { height: 78%; } 16% { height: 55%; }
+      24% { height: 82%; } 32% { height: 62%; } 40% { height: 75%; }
+      48% { height: 58%; } 56% { height: 80%; } 64% { height: 65%; }
+      72% { height: 70%; } 80% { height: 85%; } 88% { height: 63%; }
+      100% { height: 60%; }
+    }
+    @keyframes vuPeak {
+      0%, 80% { opacity: 1; } 100% { opacity: 0.3; }
+    }
+    @keyframes ledGlow {
+      0%, 100% { box-shadow: 0 0 4px currentColor, 0 0 8px currentColor; }
+      50% { box-shadow: 0 0 6px currentColor, 0 0 12px currentColor, 0 0 20px currentColor; }
+    }
+    @keyframes recordBlink {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
+    }
+    @keyframes faderPulse {
+      0%, 100% { box-shadow: 0 0 4px rgba(88, 166, 255, 0.3); }
+      50% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.6); }
+    }
+    @keyframes knobGlow {
+      0%, 100% { filter: drop-shadow(0 0 2px rgba(163, 113, 247, 0.3)); }
+      50% { filter: drop-shadow(0 0 6px rgba(163, 113, 247, 0.6)); }
+    }
+
+    /* ========================================
+       Sidebar
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%), linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset, 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .logo::before {
+      content: '';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+
+    .project-switcher {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-3); margin: var(--space-3);
+      background-color: var(--bg-subtle); border: 1px solid var(--border-default);
+      border-radius: var(--radius); cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .project-switcher:hover { border-color: var(--fg-subtle); }
+    .project-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .project-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .project-name { font-size: 14px; font-weight: 500; color: var(--fg-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-path-text { font-size: 12px; font-family: var(--font-mono); color: var(--fg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-switcher kbd { padding: 2px 6px; background-color: var(--bg-muted); border: 1px solid var(--border-default); border-radius: var(--radius-sm); font-size: 12px; color: var(--fg-muted); }
+
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section:last-child { margin-bottom: 0; }
+    .nav-section-title { display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2); font-size: 12px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .nav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); margin-bottom: 2px; font-size: 14px; font-weight: 500; color: var(--fg-muted); border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out); cursor: pointer; }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 10px; min-width: 20px; text-align: center; }
+    .nav-badge.active { background-color: var(--success-muted); color: var(--success-fg); }
+    .nav-badge.default { background-color: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--success-fg), var(--accent-fg)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout
+       ======================================== */
+    .app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ========================================
+       Transport Controls Bar (Top Strip)
+       ======================================== */
+    .transport-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-2) var(--space-4);
+      background: linear-gradient(180deg, #1e2430 0%, var(--bg-default) 100%);
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .transport-left { display: flex; align-items: center; gap: var(--space-4); }
+
+    .transport-title {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 15px; font-weight: 600; color: var(--fg-default);
+      letter-spacing: var(--tracking-tight);
+    }
+    .transport-title .icon { width: 18px; height: 18px; color: var(--fg-muted); }
+
+    .transport-buttons {
+      display: flex; align-items: center; gap: var(--space-1);
+    }
+    .transport-btn {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      color: var(--fg-muted);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .transport-btn:hover { background: var(--bg-emphasis); color: var(--fg-default); }
+    .transport-btn.active { background: var(--success-muted); color: var(--success-fg); border-color: var(--success-fg); }
+    .transport-btn .icon { width: 16px; height: 16px; }
+
+    .transport-center { display: flex; align-items: center; gap: var(--space-4); }
+
+    .timecode {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--success-fg);
+      background: #0a0e14;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-default);
+      letter-spacing: 2px;
+      text-shadow: 0 0 8px rgba(63, 185, 80, 0.4);
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .record-indicator {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 12px; font-weight: 600;
+      color: var(--danger-fg);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .record-dot {
+      width: 10px; height: 10px;
+      background: var(--danger-fg);
+      border-radius: 50%;
+      animation: recordBlink 1.2s ease-in-out infinite;
+      box-shadow: 0 0 6px var(--danger-fg), 0 0 12px rgba(248, 81, 73, 0.4);
+    }
+
+    .transport-right { display: flex; align-items: center; gap: var(--space-3); }
+
+    .session-counter {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: 13px; color: var(--fg-muted);
+    }
+    .session-counter-value {
+      font-weight: 600; color: var(--accent-fg);
+      background: var(--accent-muted);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ========================================
+       Mixer Console Area
+       ======================================== */
+    .mixer-console {
+      flex: 1;
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: var(--space-3);
+      gap: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 3px),
+        linear-gradient(180deg, #0e1318 0%, #0a0d11 30%, #0d1117 100%);
+    }
+
+    /* Channel Group */
+    .channel-group {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .channel-group-label {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: var(--space-1) var(--space-2);
+      background: var(--bg-muted);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      margin: 0 var(--space-1);
+      border: 1px solid var(--border-default);
+      border-bottom: none;
+    }
+    .channel-group-strips {
+      display: flex;
+      flex: 1;
+    }
+    .channel-divider {
+      width: 3px;
+      background: linear-gradient(180deg, var(--bg-emphasis), var(--border-default), var(--bg-emphasis));
+      margin: 0 var(--space-1);
+      flex-shrink: 0;
+      border-radius: 2px;
+    }
+
+    /* ========================================
+       Channel Strip
+       ======================================== */
+    .channel-strip {
+      width: 160px;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, #171c24 0%, #12161e 40%, #0e1218 100%);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin: 0 var(--space-1);
+      flex-shrink: 0;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        0 4px 12px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      transition: border-color var(--duration-normal) var(--ease-out);
+    }
+    .channel-strip:hover { border-color: var(--fg-subtle); }
+    .channel-strip.working { border-color: rgba(63, 185, 80, 0.3); }
+    .channel-strip.waiting { border-color: rgba(210, 153, 34, 0.3); }
+
+    /* Master strip */
+    .channel-strip.master {
+      width: 200px;
+      background: linear-gradient(180deg, #1a1f2a 0%, #141820 40%, #0f1318 100%);
+      border-color: var(--accent-fg);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 0 12px rgba(88, 166, 255, 0.1),
+        0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Channel Name */
+    .channel-name {
+      padding: var(--space-2) var(--space-3);
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--fg-muted);
+      background: var(--bg-muted);
+      border-bottom: 1px solid var(--border-default);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .channel-strip.master .channel-name {
+      color: var(--accent-fg);
+      background: rgba(56, 139, 253, 0.1);
+    }
+
+    /* VU Meter */
+    .vu-meter-container {
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      justify-content: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .vu-meter {
+      width: 14px;
+      height: 120px;
+      background: #080a0e;
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+    .vu-meter-fill {
+      width: 100%;
+      position: absolute;
+      bottom: 0;
+      border-radius: 1px;
+      transition: height 0.08s linear;
+    }
+    /* Green-yellow-red gradient segments via CSS */
+    .vu-meter-fill.left {
+      background: linear-gradient(to top,
+        var(--success-fg) 0%,
+        var(--success-fg) 55%,
+        var(--attention-fg) 55%,
+        var(--attention-fg) 80%,
+        var(--danger-fg) 80%,
+        var(--danger-fg) 100%
+      );
+    }
+    .vu-meter-fill.right {
+      background: linear-gradient(to top,
+        var(--success-fg) 0%,
+        var(--success-fg) 55%,
+        var(--attention-fg) 55%,
+        var(--attention-fg) 80%,
+        var(--danger-fg) 80%,
+        var(--danger-fg) 100%
+      );
+    }
+    /* LED segment lines overlay */
+    .vu-meter::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to top,
+        transparent 0px,
+        transparent 4px,
+        #080a0e 4px,
+        #080a0e 5px
+      );
+      z-index: 1;
+      pointer-events: none;
+    }
+    .vu-peak {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--danger-fg);
+      box-shadow: 0 0 4px var(--danger-fg);
+      animation: vuPeak 2s ease-out infinite;
+      z-index: 2;
+    }
+
+    /* Animation classes */
+    .vu-active-1 .vu-meter-fill.left { animation: vuBounce1 1.8s ease-in-out infinite; }
+    .vu-active-1 .vu-meter-fill.right { animation: vuBounce1 1.8s ease-in-out infinite 0.15s; }
+    .vu-active-2 .vu-meter-fill.left { animation: vuBounce2 2.2s ease-in-out infinite; }
+    .vu-active-2 .vu-meter-fill.right { animation: vuBounce2 2.2s ease-in-out infinite 0.2s; }
+    .vu-active-3 .vu-meter-fill.left { animation: vuBounce3 3s ease-in-out infinite; }
+    .vu-active-3 .vu-meter-fill.right { animation: vuBounce3 3s ease-in-out infinite 0.25s; }
+    .vu-idle .vu-meter-fill { height: 8% !important; animation: none !important; }
+    .vu-master .vu-meter-fill.left { animation: vuBounceMaster 2.5s ease-in-out infinite; }
+    .vu-master .vu-meter-fill.right { animation: vuBounceMaster 2.5s ease-in-out infinite 0.12s; }
+
+    .vu-meter-labels {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--fg-subtle);
+      padding: 2px 0;
+      height: 120px;
+    }
+
+    /* Status LED */
+    .status-led-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+    }
+    .status-led {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-led.working {
+      background: var(--success-fg);
+      box-shadow: 0 0 6px var(--success-fg), 0 0 12px rgba(63, 185, 80, 0.4);
+      animation: ledGlow 2s ease-in-out infinite;
+      color: var(--success-fg);
+    }
+    .status-led.waiting {
+      background: var(--attention-fg);
+      box-shadow: 0 0 6px var(--attention-fg), 0 0 10px rgba(210, 153, 34, 0.3);
+      animation: ledGlow 3s ease-in-out infinite;
+      color: var(--attention-fg);
+    }
+    .status-led.idle {
+      background: var(--fg-subtle);
+      box-shadow: 0 0 3px rgba(110, 118, 129, 0.3);
+      color: var(--fg-subtle);
+    }
+    .status-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: inherit;
+    }
+
+    /* LCD Display */
+    .lcd-display {
+      margin: var(--space-1) var(--space-2);
+      padding: var(--space-2);
+      background: #060a0e;
+      border: 1px solid var(--border-default);
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--accent-fg);
+      line-height: 1.4;
+      min-height: 38px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      text-shadow: 0 0 4px rgba(88, 166, 255, 0.3);
+      position: relative;
+    }
+    .lcd-display::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(88, 166, 255, 0.03) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    /* Mute/Solo Buttons */
+    .mute-solo-row {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+    }
+    .mixer-btn {
+      padding: 3px 10px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 3px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-muted);
+      color: var(--fg-subtle);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .mixer-btn:hover { background: var(--bg-emphasis); color: var(--fg-muted); }
+    .mixer-btn.mute-active {
+      background: var(--danger-muted);
+      color: var(--danger-fg);
+      border-color: var(--danger-fg);
+    }
+    .mixer-btn.solo-active {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+      border-color: var(--attention-fg);
+    }
+
+    /* Pan Knob */
+    .pan-knob-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: var(--space-2) var(--space-3);
+    }
+    .pan-label {
+      font-size: 8px;
+      font-weight: 600;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pan-knob {
+      width: 36px; height: 36px;
+      position: relative;
+    }
+    .pan-knob-outer {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2a2f3a 0%, #16191f 50%, #1e2330 100%);
+      border: 2px solid var(--border-default);
+      position: relative;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .pan-knob-indicator {
+      position: absolute;
+      width: 3px; height: 10px;
+      background: var(--done-fg);
+      border-radius: 1px;
+      top: 3px;
+      left: 50%;
+      transform-origin: bottom center;
+      transform: translateX(-50%);
+      box-shadow: 0 0 4px var(--done-fg);
+    }
+    .pan-knob-center {
+      position: absolute;
+      width: 8px; height: 8px;
+      background: var(--bg-emphasis);
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid var(--fg-subtle);
+    }
+    .pan-knob-text {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--done-fg);
+      text-align: center;
+    }
+
+    /* Fader */
+    .fader-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--space-2) var(--space-3);
+      min-height: 120px;
+    }
+    .fader-track {
+      width: 8px;
+      flex: 1;
+      background: #080a0e;
+      border: 1px solid var(--border-default);
+      border-radius: 4px;
+      position: relative;
+      min-height: 90px;
+    }
+    .fader-fill {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, var(--accent-fg), rgba(88, 166, 255, 0.4));
+      border-radius: 0 0 3px 3px;
+      transition: height var(--duration-slow) var(--ease-out);
+    }
+    .fader-thumb {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 12px;
+      background: linear-gradient(180deg, #3a4050 0%, #252a35 50%, #3a4050 100%);
+      border: 1px solid var(--fg-subtle);
+      border-radius: 2px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+    }
+    .fader-thumb::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 4px; right: 4px;
+      height: 1px;
+      background: var(--accent-fg);
+      transform: translateY(-50%);
+      box-shadow: 0 0 4px rgba(88, 166, 255, 0.4);
+    }
+    .fader-value {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--fg-subtle);
+      margin-top: var(--space-1);
+    }
+
+    /* Fader positions */
+    .fader-high .fader-fill { height: 85%; }
+    .fader-high .fader-thumb { bottom: calc(85% - 6px); }
+    .fader-mid .fader-fill { height: 55%; }
+    .fader-mid .fader-thumb { bottom: calc(55% - 6px); }
+    .fader-low .fader-fill { height: 25%; }
+    .fader-low .fader-thumb { bottom: calc(25% - 6px); }
+
+    /* Branch Label */
+    .branch-label {
+      padding: var(--space-2) var(--space-3);
+      text-align: center;
+      border-top: 1px solid var(--border-default);
+      background: var(--bg-muted);
+    }
+    .branch-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--done-fg);
+      background: var(--done-muted);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .branch-tag .icon { width: 10px; height: 10px; }
+
+    /* ========================================
+       Master Channel Extras
+       ======================================== */
+    .master-stats {
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .master-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+    }
+    .master-stat-label {
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .master-stat-value {
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .master-cost {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      padding: var(--space-2);
+      background: #060a0e;
+      border: 1px solid var(--border-default);
+      border-radius: 3px;
+      color: var(--success-fg);
+      text-shadow: 0 0 6px rgba(63, 185, 80, 0.4);
+      letter-spacing: 1px;
+      margin: var(--space-1) var(--space-2);
+    }
+
+    /* ========================================
+       Design Notes
+       ======================================== */
+    .design-notes {
+      position: fixed; bottom: var(--space-4); left: 256px;
+      width: 380px; background: var(--bg-default);
+      border: 1px solid var(--accent-fg); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg); overflow: hidden; z-index: 1000;
+    }
+    .design-notes-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--accent-muted); border-bottom: 1px solid var(--accent-fg);
+    }
+    .design-notes-header h3 { font-size: 12px; font-weight: 600; color: var(--accent-fg); text-transform: uppercase; letter-spacing: 0.5px; }
+    .design-notes-content { padding: var(--space-4); max-height: 400px; overflow-y: auto; }
+    .design-note { margin-bottom: var(--space-4); }
+    .design-note:last-child { margin-bottom: 0; }
+    .design-note h4 { font-size: 13px; font-weight: 600; color: var(--fg-default); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+    .design-note h4 .icon { width: 14px; height: 14px; color: var(--accent-fg); }
+    .design-note p { font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
+    .design-note ul { margin-top: var(--space-2); padding-left: var(--space-4); }
+    .design-note li { font-size: 12px; color: var(--fg-muted); line-height: 1.6; margin-bottom: var(--space-1); list-style: disc; }
+    .design-note code { font-family: var(--font-mono); font-size: 11px; color: var(--accent-fg); background: var(--accent-muted); padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- ============================================
+       Sidebar
+       ============================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+          <defs><radialGradient id="coreGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#3fb950"/><stop offset="100%" stop-color="#3fb950" stop-opacity="0"/></radialGradient></defs>
+          <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+          <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+          <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+          <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+          <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+          <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+          <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+          <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+          <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/><circle cx="14" cy="14" r="2" fill="#fff"/>
+        </svg>
+      </div>
+      <span class="sidebar-title">AgentPane</span>
+    </div>
+
+    <div class="project-switcher">
+      <div class="project-avatar">AP</div>
+      <div class="project-info">
+        <span class="project-name">AgentPane</span>
+        <span class="project-path-text">~/git/agentpane</span>
+      </div>
+      <kbd>&#8984;P</kbd>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <span class="nav-section-title">Organization</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Projects
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          Sessions
+        </a>
+        <a class="nav-item active" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          CLI Monitor
+          <span class="nav-badge active">4</span>
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Content</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Org Templates
+        </a>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>
+          Designer
+        </a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-title">Admin</span>
+        <a class="nav-item" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="user-avatar">SL</div>
+        <span class="user-name">Simon Lynch</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================
+       Main Application
+       ============================================ -->
+  <div class="app-layout">
+
+    <!-- Transport Controls Bar -->
+    <div class="transport-bar">
+      <div class="transport-left">
+        <div class="transport-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          CLI Monitor
+        </div>
+
+        <div class="transport-buttons">
+          <!-- Rewind -->
+          <button class="transport-btn" title="Previous Session">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19,20 9,12 19,4"/><line x1="5" y1="4" x2="5" y2="20"/></svg>
+          </button>
+          <!-- Play -->
+          <button class="transport-btn active" title="Resume All">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <!-- Pause -->
+          <button class="transport-btn" title="Pause All">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <!-- Stop -->
+          <button class="transport-btn" title="Stop All">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          </button>
+          <!-- Forward -->
+          <button class="transport-btn" title="Next Session">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,4 15,12 5,20"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="transport-center">
+        <div class="record-indicator">
+          <div class="record-dot"></div>
+          LIVE
+        </div>
+        <div class="timecode">01:24:37</div>
+      </div>
+
+      <div class="transport-right">
+        <div class="session-counter">
+          Sessions <span class="session-counter-value">4</span>
+        </div>
+        <div class="session-counter">
+          Working <span class="session-counter-value" style="background: var(--success-muted); color: var(--success-fg);">2</span>
+        </div>
+        <div class="session-counter">
+          Waiting <span class="session-counter-value" style="background: var(--attention-muted); color: var(--attention-fg);">1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mixer Console -->
+    <div class="mixer-console">
+
+      <!-- ========== Project Group 1: AgentPane ========== -->
+      <div class="channel-group">
+        <div class="channel-group-label">AgentPane</div>
+        <div class="channel-group-strips">
+
+          <!-- Channel 1: Working session -->
+          <div class="channel-strip working">
+            <div class="channel-name">CH 1 &middot; a3f8c2</div>
+
+            <div class="vu-meter-container vu-active-1">
+              <div class="vu-meter-labels">
+                <span>+6</span><span>0</span><span>-6</span><span>-12</span><span>-24</span>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill left" style="height: 75%;"></div>
+                <div class="vu-peak" style="top: 8%;"></div>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill right" style="height: 70%;"></div>
+                <div class="vu-peak" style="top: 12%;"></div>
+              </div>
+            </div>
+
+            <div class="status-led-row">
+              <div class="status-led working"></div>
+              <span class="status-label" style="color: var(--success-fg);">Working</span>
+            </div>
+
+            <div class="lcd-display">Refactor auth middleware to support OAuth 2.1 PKCE flow</div>
+
+            <div class="mute-solo-row">
+              <button class="mixer-btn">Mute</button>
+              <button class="mixer-btn solo-active">Solo</button>
+            </div>
+
+            <div class="pan-knob-container">
+              <span class="pan-label">Project</span>
+              <div class="pan-knob">
+                <div class="pan-knob-outer" style="animation: knobGlow 3s ease-in-out infinite;">
+                  <div class="pan-knob-indicator" style="transform: translateX(-50%) rotate(-30deg);"></div>
+                  <div class="pan-knob-center"></div>
+                </div>
+              </div>
+              <span class="pan-knob-text">AgentPane</span>
+            </div>
+
+            <div class="fader-container">
+              <div class="fader-track fader-high">
+                <div class="fader-fill"></div>
+                <div class="fader-thumb" style="animation: faderPulse 2s ease-in-out infinite;"></div>
+              </div>
+              <span class="fader-value">0.0 dB</span>
+            </div>
+
+            <div class="branch-label">
+              <span class="branch-tag">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                feat/oauth-pkce
+              </span>
+            </div>
+          </div>
+
+          <!-- Channel 2: Waiting for approval -->
+          <div class="channel-strip waiting">
+            <div class="channel-name">CH 2 &middot; b7d1e4</div>
+
+            <div class="vu-meter-container vu-active-3">
+              <div class="vu-meter-labels">
+                <span>+6</span><span>0</span><span>-6</span><span>-12</span><span>-24</span>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill left" style="height: 35%;"></div>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill right" style="height: 30%;"></div>
+              </div>
+            </div>
+
+            <div class="status-led-row">
+              <div class="status-led waiting"></div>
+              <span class="status-label" style="color: var(--attention-fg);">Approval</span>
+            </div>
+
+            <div class="lcd-display">Add error boundary components with retry logic</div>
+
+            <div class="mute-solo-row">
+              <button class="mixer-btn">Mute</button>
+              <button class="mixer-btn">Solo</button>
+            </div>
+
+            <div class="pan-knob-container">
+              <span class="pan-label">Project</span>
+              <div class="pan-knob">
+                <div class="pan-knob-outer">
+                  <div class="pan-knob-indicator" style="transform: translateX(-50%) rotate(-30deg);"></div>
+                  <div class="pan-knob-center"></div>
+                </div>
+              </div>
+              <span class="pan-knob-text">AgentPane</span>
+            </div>
+
+            <div class="fader-container">
+              <div class="fader-track fader-mid">
+                <div class="fader-fill"></div>
+                <div class="fader-thumb"></div>
+              </div>
+              <span class="fader-value">-6.0 dB</span>
+            </div>
+
+            <div class="branch-label">
+              <span class="branch-tag">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                fix/error-boundary
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="channel-divider"></div>
+
+      <!-- ========== Project Group 2: DataPipeline ========== -->
+      <div class="channel-group">
+        <div class="channel-group-label">DataPipeline</div>
+        <div class="channel-group-strips">
+
+          <!-- Channel 3: Working session -->
+          <div class="channel-strip working">
+            <div class="channel-name">CH 3 &middot; c9e5a1</div>
+
+            <div class="vu-meter-container vu-active-2">
+              <div class="vu-meter-labels">
+                <span>+6</span><span>0</span><span>-6</span><span>-12</span><span>-24</span>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill left" style="height: 58%;"></div>
+                <div class="vu-peak" style="top: 18%;"></div>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill right" style="height: 52%;"></div>
+                <div class="vu-peak" style="top: 22%;"></div>
+              </div>
+            </div>
+
+            <div class="status-led-row">
+              <div class="status-led working"></div>
+              <span class="status-label" style="color: var(--success-fg);">Working</span>
+            </div>
+
+            <div class="lcd-display">Migrate ETL jobs to async queue with backpressure</div>
+
+            <div class="mute-solo-row">
+              <button class="mixer-btn">Mute</button>
+              <button class="mixer-btn">Solo</button>
+            </div>
+
+            <div class="pan-knob-container">
+              <span class="pan-label">Project</span>
+              <div class="pan-knob">
+                <div class="pan-knob-outer">
+                  <div class="pan-knob-indicator" style="transform: translateX(-50%) rotate(15deg);"></div>
+                  <div class="pan-knob-center"></div>
+                </div>
+              </div>
+              <span class="pan-knob-text">DataPipe</span>
+            </div>
+
+            <div class="fader-container">
+              <div class="fader-track fader-high">
+                <div class="fader-fill"></div>
+                <div class="fader-thumb" style="animation: faderPulse 2.3s ease-in-out infinite;"></div>
+              </div>
+              <span class="fader-value">-2.0 dB</span>
+            </div>
+
+            <div class="branch-label">
+              <span class="branch-tag">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                feat/async-etl
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="channel-divider"></div>
+
+      <!-- ========== Project Group 3: WebUI ========== -->
+      <div class="channel-group">
+        <div class="channel-group-label">WebUI</div>
+        <div class="channel-group-strips">
+
+          <!-- Channel 4: Idle session -->
+          <div class="channel-strip">
+            <div class="channel-name">CH 4 &middot; d2f6b8</div>
+
+            <div class="vu-meter-container vu-idle">
+              <div class="vu-meter-labels">
+                <span>+6</span><span>0</span><span>-6</span><span>-12</span><span>-24</span>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill left" style="height: 8%;"></div>
+              </div>
+              <div class="vu-meter">
+                <div class="vu-meter-fill right" style="height: 5%;"></div>
+              </div>
+            </div>
+
+            <div class="status-led-row">
+              <div class="status-led idle"></div>
+              <span class="status-label" style="color: var(--fg-subtle);">Idle</span>
+            </div>
+
+            <div class="lcd-display" style="color: var(--fg-subtle); text-shadow: none;">Update Tailwind v4 design tokens across components</div>
+
+            <div class="mute-solo-row">
+              <button class="mixer-btn mute-active">Mute</button>
+              <button class="mixer-btn">Solo</button>
+            </div>
+
+            <div class="pan-knob-container">
+              <span class="pan-label">Project</span>
+              <div class="pan-knob">
+                <div class="pan-knob-outer">
+                  <div class="pan-knob-indicator" style="transform: translateX(-50%) rotate(50deg);"></div>
+                  <div class="pan-knob-center"></div>
+                </div>
+              </div>
+              <span class="pan-knob-text">WebUI</span>
+            </div>
+
+            <div class="fader-container">
+              <div class="fader-track fader-low">
+                <div class="fader-fill"></div>
+                <div class="fader-thumb"></div>
+              </div>
+              <span class="fader-value">-18.0 dB</span>
+            </div>
+
+            <div class="branch-label">
+              <span class="branch-tag">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                chore/tw4-tokens
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="channel-divider"></div>
+
+      <!-- ========== Master Channel ========== -->
+      <div class="channel-group" style="margin-left: auto;">
+        <div class="channel-group-label" style="background: rgba(56, 139, 253, 0.15); color: var(--accent-fg); border-color: var(--accent-fg);">Master</div>
+        <div class="channel-group-strips">
+
+          <div class="channel-strip master">
+            <div class="channel-name">MASTER</div>
+
+            <div class="vu-meter-container vu-master">
+              <div class="vu-meter-labels">
+                <span>+6</span><span>0</span><span>-6</span><span>-12</span><span>-24</span>
+              </div>
+              <div class="vu-meter" style="width: 18px; height: 140px;">
+                <div class="vu-meter-fill left" style="height: 62%;"></div>
+                <div class="vu-peak" style="top: 10%;"></div>
+              </div>
+              <div class="vu-meter" style="width: 18px; height: 140px;">
+                <div class="vu-meter-fill right" style="height: 58%;"></div>
+                <div class="vu-peak" style="top: 14%;"></div>
+              </div>
+            </div>
+
+            <!-- Master Cost LCD -->
+            <div class="master-cost">$12.47</div>
+
+            <div class="master-stats">
+              <div class="master-stat">
+                <span class="master-stat-label">Sessions</span>
+                <span class="master-stat-value" style="color: var(--accent-fg);">4</span>
+              </div>
+              <div class="master-stat">
+                <span class="master-stat-label">Tokens In</span>
+                <span class="master-stat-value" style="color: var(--success-fg);">847K</span>
+              </div>
+              <div class="master-stat">
+                <span class="master-stat-label">Tokens Out</span>
+                <span class="master-stat-value" style="color: var(--secondary-fg);">312K</span>
+              </div>
+              <div class="master-stat">
+                <span class="master-stat-label">Turns</span>
+                <span class="master-stat-value" style="color: var(--attention-fg);">127</span>
+              </div>
+              <div class="master-stat">
+                <span class="master-stat-label">Projects</span>
+                <span class="master-stat-value" style="color: var(--done-fg);">3</span>
+              </div>
+            </div>
+
+            <div class="mute-solo-row">
+              <button class="mixer-btn" style="flex: 1;">Mute All</button>
+            </div>
+
+            <div class="fader-container">
+              <div class="fader-track fader-high" style="min-height: 100px;">
+                <div class="fader-fill"></div>
+                <div class="fader-thumb" style="width: 36px; animation: faderPulse 1.8s ease-in-out infinite;"></div>
+              </div>
+              <span class="fader-value">0.0 dB</span>
+            </div>
+
+            <div class="branch-label" style="background: rgba(56, 139, 253, 0.08);">
+              <span style="font-family: var(--font-mono); font-size: 9px; color: var(--accent-fg);">AGGREGATE</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /mixer-console -->
+
+  </div><!-- /app-layout -->
+
+  <!-- ============================================
+       Design Notes
+       ============================================ -->
+  <aside class="design-notes">
+    <div class="design-notes-header">
+      <h3>Design Notes &mdash; Audio Mixer Console Variation</h3>
+    </div>
+    <div class="design-notes-content">
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="6" x2="12" y2="18"/><circle cx="12" cy="14" r="2"/></svg>
+          Mixer Console Metaphor
+        </h4>
+        <p>This variation reimagines the CLI Monitor as a professional audio mixing console. Each Claude Code session is represented as a "channel strip" &mdash; the fundamental unit of a mixing board. This metaphor maps naturally to monitoring parallel agent sessions:</p>
+        <ul>
+          <li><strong>VU meters</strong> show real-time token throughput with LED-style segmented bars that bounce dynamically</li>
+          <li><strong>Faders</strong> represent activity level: high (working), mid (waiting), low (idle)</li>
+          <li><strong>Status LEDs</strong> give instant visual status with colored glow effects</li>
+          <li><strong>LCD displays</strong> show the session goal text in a retro backlit style</li>
+          <li><strong>Pan knobs</strong> indicate project assignment with rotary position</li>
+          <li><strong>Mute/Solo</strong> buttons map to pause (mute) and focus (solo) actions</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+          Transport Controls
+        </h4>
+        <p>The top "transport bar" borrows from DAW (Digital Audio Workstation) conventions:</p>
+        <ul>
+          <li><strong>Play/Pause/Stop</strong> control all sessions simultaneously</li>
+          <li><strong>Timecode display</strong> shows total monitoring uptime in HH:MM:SS format</li>
+          <li><strong>LIVE indicator</strong> with pulsing red dot confirms real-time monitoring is active</li>
+          <li><strong>Session counters</strong> show breakdown by status (working/waiting)</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Master Channel
+        </h4>
+        <ul>
+          <li><strong>Master VU</strong> shows aggregate token throughput across all sessions</li>
+          <li><strong>Cost LCD</strong> displays total spend in LED-style green numerals</li>
+          <li><strong>Stats panel</strong> shows session count, token I/O, turns, and project count</li>
+          <li>Master channel is right-aligned and wider, matching console conventions</li>
+          <li>Channel groups are separated by dividers and labeled by project name</li>
+        </ul>
+      </div>
+
+      <div class="design-note">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          Animation System
+        </h4>
+        <ul>
+          <li>VU meters use <code>vuBounce</code> keyframes with varied timing per channel for organic feel</li>
+          <li>Status LEDs use <code>ledGlow</code> with expanding box-shadows</li>
+          <li>Active fader thumbs pulse with <code>faderPulse</code> blue glow</li>
+          <li>Record dot uses <code>recordBlink</code> for classic recording indicator</li>
+          <li>Brushed metal surface achieved via subtle repeating gradient and dark backgrounds</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>
