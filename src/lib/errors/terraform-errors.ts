@@ -26,6 +26,11 @@ export const TerraformErrors = {
     createError('TERRAFORM_SYNC_FAILED', `Failed to sync Terraform registry: ${reason}`, 500, {
       reason,
     }),
+  REGISTRY_CREATE_FAILED: createError(
+    'TERRAFORM_REGISTRY_CREATE_FAILED',
+    'Failed to create registry',
+    500
+  ),
   COMPOSE_FAILED: (reason: string) =>
     createError(
       'TERRAFORM_COMPOSE_FAILED',
@@ -43,5 +48,6 @@ export type TerraformError =
   | typeof TerraformErrors.REGISTRY_ALREADY_EXISTS
   | typeof TerraformErrors.INVALID_TOKEN
   | typeof TerraformErrors.NO_MODULES_SYNCED
+  | typeof TerraformErrors.REGISTRY_CREATE_FAILED
   | ReturnType<typeof TerraformErrors.SYNC_FAILED>
   | ReturnType<typeof TerraformErrors.COMPOSE_FAILED>;

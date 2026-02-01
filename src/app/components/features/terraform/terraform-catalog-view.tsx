@@ -1,14 +1,7 @@
 import { Cube, MagnifyingGlass } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
+import { PROVIDER_COLORS } from '@/lib/terraform/types';
 import { useTerraform } from './terraform-context';
-
-const PROVIDER_COLORS: Record<string, string> = {
-  aws: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  azure: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  azurerm: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  google: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  gcp: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-};
 
 export function TerraformCatalogView(): React.JSX.Element {
   const { modules, setSelectedModuleId } = useTerraform();

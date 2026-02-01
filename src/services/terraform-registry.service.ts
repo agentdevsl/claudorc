@@ -86,7 +86,7 @@ export class TerraformRegistryService {
 
     if (!created) {
       console.error('[TerraformRegistryService] Failed to create registry');
-      return err(TerraformErrors.REGISTRY_NOT_FOUND);
+      return err(TerraformErrors.REGISTRY_CREATE_FAILED);
     }
 
     console.log('[TerraformRegistryService] Created registry:', created.id);
@@ -244,18 +244,16 @@ export class TerraformRegistryService {
 
       const now = this.updateTimestamp();
       // Batch insert all modules at once for performance
-      if (modules.length > 0) {
-        await this.db.insert(terraformModules).values(
-          modules.map((module) => ({
-            ...module,
-            registryId: id,
-            createdAt: now,
-            updatedAt: now,
-          }))
-        );
-      }
+      await this.db.insert(terraformModules).values(
+        modules.map((module) => ({
+          ...module,
+          registryId: id,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
 
-      // Update registry status and reset nextSyncAt for scheduled syncs
+      // Update registry status (nextSyncAt is managed by the sync scheduler)
       await this.db
         .update(terraformRegistries)
         .set({
@@ -264,9 +262,6 @@ export class TerraformRegistryService {
           syncError: null,
           moduleCount: modules.length,
           updatedAt: now,
-          nextSyncAt: registry.syncIntervalMinutes
-            ? new Date(Date.now() + registry.syncIntervalMinutes * 60 * 1000).toISOString()
-            : null,
         })
         .where(eq(terraformRegistries.id, id));
 

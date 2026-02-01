@@ -1,67 +1,38 @@
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { apiClient } from '@/lib/api/client';
-
-export interface ComposeMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-export interface ModuleMatch {
-  moduleId: string;
-  name: string;
-  provider: string;
-  version: string;
-  source: string;
-  confidence: number;
-  matchReason: string;
-}
-
-export interface TerraformRegistry {
-  id: string;
-  name: string;
-  orgName: string;
-  status: 'active' | 'syncing' | 'error';
-  lastSyncedAt: string | null;
-  syncError: string | null;
-  moduleCount: number;
-  syncIntervalMinutes: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TerraformModule {
-  id: string;
-  registryId: string;
-  name: string;
-  namespace: string;
-  provider: string;
-  version: string;
-  source: string;
-  description: string | null;
-  readme?: string | null;
-  inputs: unknown[] | null;
-  outputs: unknown[] | null;
-  dependencies: string[] | null;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import type {
+  ComposeEvent,
+  ComposeMessage,
+  ModuleMatch,
+  TerraformModuleView,
+  TerraformRegistryView,
+} from '@/lib/terraform/types';
 
 interface TerraformContextValue {
   messages: ComposeMessage[];
   matchedModules: ModuleMatch[];
   generatedCode: string | null;
-  registries: TerraformRegistry[];
-  modules: TerraformModule[];
+  registries: TerraformRegistryView[];
+  modules: TerraformModuleView[];
   syncStatus: { lastSynced: string | null; moduleCount: number };
   isStreaming: boolean;
+  error: string | null;
   selectedModuleId: string | null;
   sendMessage: (content: string) => Promise<void>;
   resetConversation: () => void;
   setSelectedModuleId: (id: string | null) => void;
   refreshModules: () => Promise<void>;
   syncRegistry: (id: string) => Promise<void>;
+  clearError: () => void;
 }
 
 const TerraformContext = createContext<TerraformContextValue | null>(null);
@@ -78,33 +49,47 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
   const [messages, setMessages] = useState<ComposeMessage[]>([]);
   const [matchedModules, setMatchedModules] = useState<ModuleMatch[]>([]);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [registries, setRegistries] = useState<TerraformRegistry[]>([]);
-  const [modules, setModules] = useState<TerraformModule[]>([]);
+  const [registries, setRegistries] = useState<TerraformRegistryView[]>([]);
+  const [modules, setModules] = useState<TerraformModuleView[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const sessionIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ComposeMessage[]>([]);
+  const isStreamingRef = useRef(false);
   messagesRef.current = messages;
 
   const loadRegistries = useCallback(async () => {
-    const result = await apiClient.terraform.listRegistries();
-    if (result.ok) {
-      setRegistries(result.data.items as TerraformRegistry[]);
+    try {
+      const result = await apiClient.terraform.listRegistries();
+      if (result.ok) {
+        setRegistries(result.data.items as TerraformRegistryView[]);
+      } else {
+        console.error('[Terraform] Failed to load registries:', result.error);
+      }
+    } catch (err) {
+      console.error('[Terraform] Network error loading registries:', err);
     }
   }, []);
 
   const loadModules = useCallback(async () => {
-    const result = await apiClient.terraform.listModules({ limit: 200 });
-    if (result.ok) {
-      setModules(result.data.items as TerraformModule[]);
+    try {
+      const result = await apiClient.terraform.listModules({ limit: 200 });
+      if (result.ok) {
+        setModules(result.data.items as TerraformModuleView[]);
+      } else {
+        console.error('[Terraform] Failed to load modules:', result.error);
+      }
+    } catch (err) {
+      console.error('[Terraform] Network error loading modules:', err);
     }
   }, []);
 
   // Load registries and modules on mount
   useEffect(() => {
-    loadRegistries();
-    loadModules();
+    void loadRegistries();
+    void loadModules();
   }, [loadRegistries, loadModules]);
 
   const refreshModules = useCallback(async () => {
@@ -114,116 +99,133 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
 
   const syncRegistry = useCallback(
     async (id: string) => {
-      await apiClient.terraform.syncRegistry(id);
-      await refreshModules();
+      try {
+        const result = await apiClient.terraform.syncRegistry(id);
+        if (!result.ok) {
+          setError(`Sync failed: ${result.error?.message ?? 'Unknown error'}`);
+          return;
+        }
+        await refreshModules();
+      } catch (err) {
+        setError(`Sync failed: ${err instanceof Error ? err.message : String(err)}`);
+        console.error('[Terraform] Sync error:', err);
+      }
     },
     [refreshModules]
   );
 
-  const sendMessage = useCallback(
-    async (content: string) => {
-      if (isStreaming) return;
+  const sendMessage = useCallback(async (content: string) => {
+    if (isStreamingRef.current) return;
 
-      const userMessage: ComposeMessage = { role: 'user', content };
-      const updatedMessages = [...messagesRef.current, userMessage];
-      setMessages(updatedMessages);
-      setIsStreaming(true);
-      setMatchedModules([]);
-      setGeneratedCode(null);
+    setError(null);
 
-      // Cancel any existing stream
-      if (abortRef.current) {
-        abortRef.current.abort();
+    const userMessage: ComposeMessage = { role: 'user', content };
+    const updatedMessages = [...messagesRef.current, userMessage];
+    setMessages(updatedMessages);
+    setIsStreaming(true);
+    isStreamingRef.current = true;
+    setMatchedModules([]);
+    setGeneratedCode(null);
+
+    // Cancel any existing stream
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    abortRef.current = new AbortController();
+
+    try {
+      const composeUrl = apiClient.terraform.getComposeUrl();
+      const response = await fetch(composeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          messages: updatedMessages,
+        }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`Compose request failed: ${response.status}`);
       }
-      abortRef.current = new AbortController();
 
-      try {
-        const composeUrl = apiClient.terraform.getComposeUrl();
-        const response = await fetch(composeUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId: sessionIdRef.current,
-            messages: updatedMessages,
-          }),
-          signal: abortRef.current.signal,
-        });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = '';
+      let buffer = '';
 
-        if (!response.ok || !response.body) {
-          throw new Error(`Compose request failed: ${response.status}`);
-        }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let assistantContent = '';
-        let buffer = '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
+          let event: ComposeEvent;
+          try {
+            event = JSON.parse(jsonStr) as ComposeEvent;
+          } catch {
+            // Expected for partial SSE lines, will be completed in next chunk
+            continue;
+          }
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const jsonStr = line.slice(6);
-            if (!jsonStr) continue;
+          try {
+            switch (event.type) {
+              case 'text':
+                assistantContent += event.content;
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMsg,
+                      content: assistantContent,
+                    };
+                  } else {
+                    newMessages.push({ role: 'assistant', content: assistantContent });
+                  }
+                  return newMessages;
+                });
+                break;
 
-            try {
-              const event = JSON.parse(jsonStr);
+              case 'modules':
+                setMatchedModules(event.modules);
+                break;
 
-              switch (event.type) {
-                case 'text':
-                  assistantContent += event.content;
-                  setMessages((prev) => {
-                    const newMessages = [...prev];
-                    const lastMsg = newMessages[newMessages.length - 1];
-                    if (lastMsg?.role === 'assistant') {
-                      newMessages[newMessages.length - 1] = {
-                        ...lastMsg,
-                        content: assistantContent,
-                      };
-                    } else {
-                      newMessages.push({ role: 'assistant', content: assistantContent });
-                    }
-                    return newMessages;
-                  });
-                  break;
+              case 'code':
+                setGeneratedCode(event.code);
+                break;
 
-                case 'modules':
-                  setMatchedModules(event.modules);
-                  break;
+              case 'done':
+                sessionIdRef.current = event.sessionId;
+                if (event.matchedModules) setMatchedModules(event.matchedModules);
+                if (event.generatedCode) setGeneratedCode(event.generatedCode);
+                break;
 
-                case 'code':
-                  setGeneratedCode(event.code);
-                  break;
-
-                case 'done':
-                  sessionIdRef.current = event.sessionId;
-                  if (event.matchedModules) setMatchedModules(event.matchedModules);
-                  if (event.generatedCode) setGeneratedCode(event.generatedCode);
-                  break;
-
-                case 'error':
-                  console.error('[Terraform] Compose error:', event.error);
-                  break;
-              }
-            } catch {
-              // Ignore parse errors for partial lines
+              case 'error':
+                console.error('[Terraform] Compose error:', event.error);
+                setError(event.error);
+                break;
             }
+          } catch (processingError) {
+            console.error('[Terraform] Error processing SSE event:', processingError);
           }
         }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('[Terraform] Stream error:', error);
-      } finally {
-        setIsStreaming(false);
       }
-    },
-    [isStreaming]
-  );
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      console.error('[Terraform] Stream error:', error);
+    } finally {
+      isStreamingRef.current = false;
+      setIsStreaming(false);
+    }
+  }, []);
 
   const resetConversation = useCallback(() => {
     setMessages([]);
@@ -236,30 +238,48 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     }
   }, []);
 
-  const syncStatus = {
-    lastSynced: registries[0]?.lastSyncedAt ?? null,
-    moduleCount: modules.length,
-  };
-
-  return (
-    <TerraformContext.Provider
-      value={{
-        messages,
-        matchedModules,
-        generatedCode,
-        registries,
-        modules,
-        syncStatus,
-        isStreaming,
-        selectedModuleId,
-        sendMessage,
-        resetConversation,
-        setSelectedModuleId,
-        refreshModules,
-        syncRegistry,
-      }}
-    >
-      {children}
-    </TerraformContext.Provider>
+  const syncStatus = useMemo(
+    () => ({
+      lastSynced: registries[0]?.lastSyncedAt ?? null,
+      moduleCount: modules.length,
+    }),
+    [registries, modules.length]
   );
+
+  const contextValue = useMemo(
+    () => ({
+      messages,
+      matchedModules,
+      generatedCode,
+      registries,
+      modules,
+      syncStatus,
+      isStreaming,
+      error,
+      selectedModuleId,
+      sendMessage,
+      resetConversation,
+      setSelectedModuleId,
+      refreshModules,
+      syncRegistry,
+      clearError: () => setError(null),
+    }),
+    [
+      messages,
+      matchedModules,
+      generatedCode,
+      registries,
+      modules,
+      syncStatus,
+      isStreaming,
+      error,
+      selectedModuleId,
+      sendMessage,
+      resetConversation,
+      refreshModules,
+      syncRegistry,
+    ]
+  );
+
+  return <TerraformContext.Provider value={contextValue}>{children}</TerraformContext.Provider>;
 }

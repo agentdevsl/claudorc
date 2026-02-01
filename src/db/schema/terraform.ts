@@ -2,11 +2,9 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-// Terraform registry status enum
 export const TERRAFORM_REGISTRY_STATUSES = ['active', 'syncing', 'error'] as const;
 export type TerraformRegistryStatus = (typeof TERRAFORM_REGISTRY_STATUSES)[number];
 
-// Terraform variable definition
 export interface TerraformVariable {
   name: string;
   type: string;
@@ -16,7 +14,6 @@ export interface TerraformVariable {
   sensitive?: boolean;
 }
 
-// Terraform output definition
 export interface TerraformOutput {
   name: string;
   description?: string;
@@ -29,7 +26,7 @@ export const terraformRegistries = sqliteTable('terraform_registries', {
   name: text('name').notNull(),
   orgName: text('org_name').notNull(),
   tokenSettingKey: text('token_setting_key').notNull(),
-  status: text('status').default('active').$type<TerraformRegistryStatus>(),
+  status: text('status').notNull().default('active').$type<TerraformRegistryStatus>(),
   lastSyncedAt: text('last_synced_at'),
   syncError: text('sync_error'),
   moduleCount: integer('module_count').default(0),

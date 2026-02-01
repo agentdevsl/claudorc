@@ -648,11 +648,11 @@ Bun.serve({
 console.log(`[API Server] Running on http://localhost:${PORT}`);
 
 // Start the template sync scheduler
-startSyncScheduler(db, templateService);
+const stopTemplateSync = startSyncScheduler(db, templateService);
 log.info('[API Server] Template sync scheduler started');
 
 // Start the Terraform sync scheduler
-startTerraformSyncScheduler(db, terraformRegistryService);
+const stopTerraformSync = startTerraformSyncScheduler(db, terraformRegistryService);
 log.info('[API Server] Terraform sync scheduler started');
 
 // Graceful shutdown: stop accepting requests, clean up services, close DB
@@ -683,6 +683,10 @@ function shutdownServer(signal: string) {
     }
     containerAgentService.dispose();
   }
+
+  // Stop schedulers
+  stopTemplateSync();
+  stopTerraformSync();
 
   // Clean up services
   cliMonitorService.destroy();

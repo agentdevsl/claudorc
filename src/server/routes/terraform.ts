@@ -3,6 +3,7 @@
  */
 
 import { Hono } from 'hono';
+import { composeRequestSchema, createRegistrySchema } from '../../lib/terraform/schema.js';
 import type { TerraformComposeService } from '../../services/terraform-compose.service.js';
 import type { TerraformRegistryService } from '../../services/terraform-registry.service.js';
 import { isValidId, json } from '../shared.js';
@@ -33,7 +34,6 @@ export function createTerraformRoutes({
             id: r.id,
             name: r.name,
             orgName: r.orgName,
-            tokenSettingKey: r.tokenSettingKey,
             status: r.status,
             lastSyncedAt: r.lastSyncedAt,
             syncError: r.syncError,
@@ -73,32 +73,21 @@ export function createTerraformRoutes({
     }
 
     try {
-      if (!body.name) {
-        return json(
-          { ok: false, error: { code: 'MISSING_NAME', message: 'Name is required' } },
-          400
-        );
-      }
-      if (!body.orgName) {
+      const parsed = createRegistrySchema.safeParse(body);
+      if (!parsed.success) {
         return json(
           {
             ok: false,
-            error: { code: 'MISSING_ORG', message: 'Organization name is required' },
-          },
-          400
-        );
-      }
-      if (!body.tokenSettingKey) {
-        return json(
-          {
-            ok: false,
-            error: { code: 'MISSING_TOKEN_KEY', message: 'Token setting key is required' },
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: parsed.error.issues[0]?.message ?? 'Invalid request',
+            },
           },
           400
         );
       }
 
-      const result = await terraformRegistryService.createRegistry(body);
+      const result = await terraformRegistryService.createRegistry(parsed.data);
       if (!result.ok) {
         return json({ ok: false, error: result.error }, result.error.status);
       }
@@ -203,7 +192,8 @@ export function createTerraformRoutes({
       const search = c.req.query('search') ?? undefined;
       const provider = c.req.query('provider') ?? undefined;
       const registryId = c.req.query('registryId') ?? undefined;
-      const limit = parseInt(c.req.query('limit') ?? '50', 10);
+      const rawLimit = parseInt(c.req.query('limit') ?? '50', 10);
+      const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(1, rawLimit), 200) : 50;
 
       const result = await terraformRegistryService.listModules({
         search,
@@ -271,21 +261,25 @@ export function createTerraformRoutes({
       );
     }
 
-    if (!body.messages || body.messages.length === 0) {
-      return json(
-        {
-          ok: false,
-          error: { code: 'MISSING_MESSAGES', message: 'At least one message is required' },
-        },
-        400
-      );
-    }
-
     try {
+      const parsed = composeRequestSchema.safeParse(body);
+      if (!parsed.success) {
+        return json(
+          {
+            ok: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: parsed.error.issues[0]?.message ?? 'Invalid request',
+            },
+          },
+          400
+        );
+      }
+
       const result = await terraformComposeService.compose(
-        body.sessionId,
-        body.messages,
-        body.registryId
+        parsed.data.sessionId,
+        parsed.data.messages,
+        parsed.data.registryId
       );
 
       if (!result.ok) {

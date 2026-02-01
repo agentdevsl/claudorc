@@ -1,11 +1,13 @@
 import { Code, Copy, Cube, DownloadSimple } from '@phosphor-icons/react';
 import { useCallback, useState } from 'react';
+import type { ModuleMatch } from '@/lib/terraform/types';
+import { PROVIDER_COLORS } from '@/lib/terraform/types';
 import { useTerraform } from './terraform-context';
 
 type Tab = 'modules' | 'code';
 
 export function TerraformRightPanel(): React.JSX.Element {
-  const { matchedModules, generatedCode, modules, setSelectedModuleId } = useTerraform();
+  const { matchedModules, generatedCode, setSelectedModuleId } = useTerraform();
   const [activeTab, setActiveTab] = useState<Tab>('modules');
 
   return (
@@ -47,11 +49,7 @@ export function TerraformRightPanel(): React.JSX.Element {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'modules' ? (
-          <ModulesTab
-            matchedModules={matchedModules}
-            allModules={modules}
-            onSelect={setSelectedModuleId}
-          />
+          <ModulesTab matchedModules={matchedModules} onSelect={setSelectedModuleId} />
         ) : (
           <CodeTab code={generatedCode} />
         )}
@@ -60,29 +58,11 @@ export function TerraformRightPanel(): React.JSX.Element {
   );
 }
 
-const PROVIDER_COLORS: Record<string, string> = {
-  aws: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  azure: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  azurerm: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  google: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  gcp: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-};
-
 function ModulesTab({
   matchedModules,
-  allModules: _allModules,
   onSelect,
 }: {
-  matchedModules: Array<{
-    moduleId: string;
-    name: string;
-    provider: string;
-    version: string;
-    source: string;
-    confidence: number;
-    matchReason: string;
-  }>;
-  allModules: unknown[];
+  matchedModules: ModuleMatch[];
   onSelect: (id: string | null) => void;
 }): React.JSX.Element {
   if (matchedModules.length === 0) {
@@ -183,6 +163,7 @@ function CodeTab({ code }: { code: string | null }): React.JSX.Element {
           onClick={handleCopy}
           className="rounded p-1.5 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
           title="Copy to clipboard"
+          aria-label="Copy to clipboard"
         >
           <Copy className="h-3.5 w-3.5" />
           {copied && <span className="ml-1 text-[10px] text-success">Copied</span>}
@@ -192,6 +173,7 @@ function CodeTab({ code }: { code: string | null }): React.JSX.Element {
           onClick={handleDownload}
           className="rounded p-1.5 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
           title="Download as .tf file"
+          aria-label="Download as .tf file"
         >
           <DownloadSimple className="h-3.5 w-3.5" />
         </button>

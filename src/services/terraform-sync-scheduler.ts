@@ -61,7 +61,7 @@ async function checkAndSyncRegistries(
     // Find registries where:
     // - syncIntervalMinutes is set (auto-sync enabled)
     // - nextSyncAt is in the past or now
-    // - status is not 'syncing' (prevent overlapping syncs)
+    // Note: status='syncing' check happens in the loop below
     const dueRegistries = await db.query.terraformRegistries.findMany({
       where: and(
         isNotNull(terraformRegistries.syncIntervalMinutes),
@@ -103,7 +103,8 @@ async function checkAndSyncRegistries(
           );
         }
 
-        // Update nextSyncAt for next scheduled sync (only if interval is still set)
+        // Update nextSyncAt for next scheduled sync regardless of sync result
+        // This is the single source of truth for scheduling — the registry service does not set nextSyncAt
         if (registry.syncIntervalMinutes) {
           try {
             const nextSyncAt = calculateNextSyncAt(registry.syncIntervalMinutes);

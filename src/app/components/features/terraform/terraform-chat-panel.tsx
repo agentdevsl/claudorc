@@ -43,13 +43,6 @@ export function TerraformChatPanel(): React.JSX.Element {
     [handleSubmit]
   );
 
-  const handleQuickStart = useCallback(
-    async (prompt: string) => {
-      await sendMessage(prompt);
-    },
-    [sendMessage]
-  );
-
   // Welcome state
   if (messages.length === 0) {
     return (
@@ -70,7 +63,7 @@ export function TerraformChatPanel(): React.JSX.Element {
               <button
                 key={prompt}
                 type="button"
-                onClick={() => handleQuickStart(prompt)}
+                onClick={() => sendMessage(prompt)}
                 className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-fg-muted transition-colors hover:border-accent hover:text-accent"
               >
                 {prompt}
@@ -95,9 +88,9 @@ export function TerraformChatPanel(): React.JSX.Element {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-2xl space-y-4">
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <div
-              key={`msg-${msg.role}-${i}-${msg.content.slice(0, 20)}`}
+              key={`${msg.role}-${msg.content.length}-${msg.content.slice(0, 40)}`}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
@@ -140,6 +133,7 @@ export function TerraformChatPanel(): React.JSX.Element {
           onClick={resetConversation}
           className="rounded-md p-2 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
           title="New conversation"
+          aria-label="New conversation"
         >
           <Eraser className="h-4 w-4" />
         </button>
@@ -191,6 +185,7 @@ function ChatInput({
         onClick={onSubmit}
         disabled={!input.trim() || isStreaming}
         className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
+        aria-label="Send message"
       >
         <ArrowUp className="h-4 w-4" />
       </button>

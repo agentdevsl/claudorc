@@ -97,7 +97,8 @@ async function apiRequest<T>(config: RegistryConfig, path: string): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`HCP Terraform API error (${response.status}): ${body}`);
+    const safeBody = body.length > 200 ? `${body.slice(0, 200)}...` : body;
+    throw new Error(`HCP Terraform API error (${response.status}): ${safeBody}`);
   }
 
   return response.json() as Promise<T>;
@@ -250,11 +251,7 @@ export async function syncAllModules(config: RegistryConfig): Promise<NewTerrafo
       })
     );
 
-    for (const result of batchResults) {
-      if (result) {
-        results.push(result);
-      }
-    }
+    results.push(...batchResults.filter((r): r is NewTerraformModule => r !== null));
   }
 
   return results;

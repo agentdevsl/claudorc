@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Note: ComposeMessage and ModuleMatch TS interfaces live in ./types.ts.
+// The Zod schemas here are used for runtime request validation only.
+
 export const composeMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().min(1),

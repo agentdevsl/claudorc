@@ -3,21 +3,21 @@ import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { TerraformErrors } from '../lib/errors/terraform-errors.js';
-import { buildCompositionSystemPrompt, type ModuleMatch } from '../lib/terraform/compose-prompt.js';
+import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
+import type { ComposeMessage, ModuleMatch } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
-export interface ComposeMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+const MAX_SESSIONS = 100;
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export interface ComposeSession {
   id: string;
   messages: ComposeMessage[];
   matchedModules: ModuleMatch[];
   generatedCode: string | null;
+  lastAccessedAt: number;
 }
 
 export class TerraformComposeService {
@@ -25,13 +25,34 @@ export class TerraformComposeService {
 
   constructor(private registryService: TerraformRegistryService) {}
 
+  private cleanupSessions(): void {
+    const now = Date.now();
+    for (const [id, session] of this.sessions) {
+      if (now - session.lastAccessedAt > SESSION_TTL_MS) {
+        this.sessions.delete(id);
+      }
+    }
+    // Evict oldest if over max
+    if (this.sessions.size > MAX_SESSIONS) {
+      const sorted = [...this.sessions.entries()].sort(
+        (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt
+      );
+      const toRemove = sorted.slice(0, this.sessions.size - MAX_SESSIONS);
+      for (const [id] of toRemove) {
+        this.sessions.delete(id);
+      }
+    }
+  }
+
   async compose(
     sessionId: string | undefined,
     messages: ComposeMessage[],
     registryId?: string
   ): Promise<Result<ReadableStream<Uint8Array>, TerraformError>> {
-    // Get or create session
+    // Use provided session ID or generate a new one (caller must provide full conversation history)
     const sid = sessionId || createId();
+
+    this.cleanupSessions();
 
     // Get module context
     const contextResult = await this.registryService.getModuleContext(registryId);
@@ -45,6 +66,12 @@ export class TerraformComposeService {
     const modulesResult = await this.registryService.listModules(
       registryId ? { registryId } : undefined
     );
+    if (!modulesResult.ok) {
+      console.error(
+        '[TerraformComposeService] Failed to load modules for matching:',
+        modulesResult.error
+      );
+    }
     const allModules = modulesResult.ok ? modulesResult.value : [];
 
     // Create Anthropic client
@@ -55,10 +82,7 @@ export class TerraformComposeService {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8192,
         system: systemPrompt,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        messages,
       });
 
       // Transform to SSE stream
@@ -121,6 +145,7 @@ export class TerraformComposeService {
               messages: [...messages, { role: 'assistant', content: fullResponse }],
               matchedModules,
               generatedCode,
+              lastAccessedAt: Date.now(),
             };
             sessionsMap.set(sid, session);
 
@@ -128,6 +153,7 @@ export class TerraformComposeService {
           } catch (streamError) {
             const errorMessage =
               streamError instanceof Error ? streamError.message : String(streamError);
+            console.error('[TerraformComposeService] Stream error:', errorMessage);
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`)
             );
@@ -173,55 +199,39 @@ function matchModulesInResponse(response: string, modules: TerraformModule[]): M
   const seen = new Set<string>();
 
   for (const mod of modules) {
-    // Check if module source or name appears in the response
+    if (seen.has(mod.id)) continue;
+
     const sourceInResponse = response.includes(mod.source);
     const nameInResponse = response.toLowerCase().includes(mod.name.toLowerCase());
-    const providerInResponse = response.toLowerCase().includes(mod.provider.toLowerCase());
+
+    let confidence: number | null = null;
+    let matchReason = '';
 
     if (sourceInResponse) {
-      if (!seen.has(mod.id)) {
-        seen.add(mod.id);
-        matched.push({
-          moduleId: mod.id,
-          name: mod.name,
-          provider: mod.provider,
-          version: mod.version,
-          source: mod.source,
-          confidence: 1.0,
-          matchReason: 'Module source used in generated code',
-        });
-      }
-    } else if (nameInResponse && providerInResponse) {
-      if (!seen.has(mod.id)) {
-        seen.add(mod.id);
-        matched.push({
-          moduleId: mod.id,
-          name: mod.name,
-          provider: mod.provider,
-          version: mod.version,
-          source: mod.source,
-          confidence: 0.8,
-          matchReason: 'Module name and provider referenced in response',
-        });
-      }
+      confidence = 1.0;
+      matchReason = 'Module source used in generated code';
+    } else if (nameInResponse && response.toLowerCase().includes(mod.provider.toLowerCase())) {
+      confidence = 0.8;
+      matchReason = 'Module name and provider referenced in response';
     } else if (nameInResponse) {
-      if (!seen.has(mod.id)) {
-        seen.add(mod.id);
-        matched.push({
-          moduleId: mod.id,
-          name: mod.name,
-          provider: mod.provider,
-          version: mod.version,
-          source: mod.source,
-          confidence: 0.5,
-          matchReason: 'Module name mentioned in response',
-        });
-      }
+      confidence = 0.5;
+      matchReason = 'Module name mentioned in response';
+    }
+
+    if (confidence !== null) {
+      seen.add(mod.id);
+      matched.push({
+        moduleId: mod.id,
+        name: mod.name,
+        provider: mod.provider,
+        version: mod.version,
+        source: mod.source,
+        confidence,
+        matchReason,
+      });
     }
   }
 
-  // Sort by confidence descending
   matched.sort((a, b) => b.confidence - a.confidence);
-
   return matched;
 }
