@@ -93,7 +93,7 @@ export function CliMonitorProvider({ children }: { children: ReactNode }) {
       onDaemonConnected: () => setDaemonConnected(true),
       onDaemonDisconnected: () => {
         setDaemonConnected(false);
-        setPageState('install');
+        // Don't reset to 'install' — historical sessions from DB may still be available
       },
       onPageStateChange: setPageState,
       onConnectionOpen: () => setConnectionError(false),
@@ -144,12 +144,17 @@ export function CliMonitorProvider({ children }: { children: ReactNode }) {
     return cleanup;
   }, [addAlert]);
 
-  // Derive page state from sessions when sessions change (for removal case)
+  // Derive page state from sessions (including historical DB data)
   useEffect(() => {
-    if (daemonConnected && sessions.length === 0 && pageState === 'active') {
+    if (sessions.length > 0) {
+      // Always show active view when sessions exist (live or historical from DB)
+      setPageState('active');
+    } else if (daemonConnected) {
+      // Daemon connected but no sessions yet — show waiting state
       setPageState('waiting');
     }
-  }, [sessions.length, daemonConnected, pageState]);
+    // When no sessions and no daemon, keep current state (install by default)
+  }, [sessions.length, daemonConnected]);
 
   const aggregateStatus = deriveAggregateStatus(sessions);
 
