@@ -7,6 +7,21 @@ interface TerminalGridProps {
   sessions: CliSession[];
 }
 
+function getGridLayout(assignedCount: number): { gridClass: string; paneIndices: number[] } {
+  switch (assignedCount) {
+    case 0:
+      return { gridClass: '', paneIndices: [] };
+    case 1:
+      return { gridClass: 'grid grid-cols-1 grid-rows-1', paneIndices: [0] };
+    case 2:
+      return { gridClass: 'grid grid-cols-2 grid-rows-1', paneIndices: [0, 1] };
+    case 3:
+      return { gridClass: 'grid grid-cols-2 grid-rows-2', paneIndices: [0, 1, 2] };
+    default:
+      return { gridClass: 'grid grid-cols-2 grid-rows-2', paneIndices: [0, 1, 2, 3] };
+  }
+}
+
 export function TerminalGrid({ paneAssignments, sessions }: TerminalGridProps) {
   const [maximizedPane, setMaximizedPane] = useState<number | null>(null);
 
@@ -19,6 +34,10 @@ export function TerminalGrid({ paneAssignments, sessions }: TerminalGridProps) {
   const handleToggleMaximize = (paneIndex: number) => {
     setMaximizedPane((prev) => (prev === paneIndex ? null : paneIndex));
   };
+
+  const assignedPanes = [0, 1, 2, 3].filter((i) => paneAssignments.has(i));
+  const assignedCount = assignedPanes.length;
+  const { gridClass, paneIndices } = getGridLayout(assignedCount);
 
   if (maximizedPane !== null) {
     return (
@@ -35,14 +54,25 @@ export function TerminalGrid({ paneAssignments, sessions }: TerminalGridProps) {
     );
   }
 
+  if (assignedCount === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-emphasis text-muted">
+        No active sessions
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-px bg-emphasis overflow-hidden">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="group/pane min-h-0 min-w-0">
+    <div className={`flex-1 ${gridClass} gap-px bg-emphasis overflow-hidden`}>
+      {assignedPanes.slice(0, paneIndices.length).map((paneIdx, i) => (
+        <div
+          key={paneIdx}
+          className={`group/pane min-h-0 min-w-0 ${i === 0 && assignedCount === 3 ? 'col-span-2' : ''}`}
+        >
           <TerminalPane
-            session={getSession(i)}
-            paneIndex={i}
-            onToggleMaximize={() => handleToggleMaximize(i)}
+            session={getSession(paneIdx)}
+            paneIndex={paneIdx}
+            onToggleMaximize={() => handleToggleMaximize(paneIdx)}
           />
         </div>
       ))}
