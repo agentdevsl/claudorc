@@ -1,4 +1,4 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
 import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../lib/constants/models.js';
@@ -16,6 +16,7 @@ import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const KEEPALIVE_MS = 15_000;
 
 export interface ComposeSession {
   id: string;
@@ -26,17 +27,33 @@ export interface ComposeSession {
 }
 
 /**
- * In-memory event log for a running compose job.
- * Subscribers wait on the `waiting` promise which resolves whenever new events arrive.
- * The `notify` function resolves the current `waiting` promise; both are replaced after each notification.
+ * Streaming compose job.
+ * The SSE controller is stored directly so `runPipeline` can push events
+ * via `controller.enqueue()` — matching the pattern used by sessions,
+ * task-creation, and cli-monitor SSE endpoints.
  */
 interface ComposeJob {
-  events: ComposeEvent[];
+  controller: ReadableStreamDefaultController<Uint8Array> | null;
   finished: boolean;
-  /** Resolve function that wakes up any waiting subscriber */
-  notify: () => void;
-  /** Promise that subscribers await; replaced after each notification */
-  waiting: Promise<void>;
+  keepaliveInterval: ReturnType<typeof setInterval> | null;
+}
+
+const encoder = new TextEncoder();
+
+/** Shape of the raw stream event from the Agent SDK. */
+interface AgentStreamEvent {
+  type: string;
+  delta?: { type: string; text?: string };
+  message?: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+/** Shape of a raw assistant message from the Agent SDK. */
+interface AgentAssistantMessage {
+  message?: {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
 }
 
 export class TerraformComposeService {
@@ -79,52 +96,22 @@ export class TerraformComposeService {
 
     this.cleanupSessions();
 
-    // Create the job event buffer
-    let notifyFn: () => void = () => {};
-    let waitingPromise = new Promise<void>((resolve) => {
-      notifyFn = resolve;
-    });
-
+    // Create the job — controller will be set when subscriber connects
     const job: ComposeJob = {
-      events: [],
+      controller: null,
       finished: false,
-      notify: notifyFn,
-      waiting: waitingPromise,
+      keepaliveInterval: null,
     };
     this.jobs.set(sid, job);
 
-    const pushEvent = (event: ComposeEvent) => {
-      job.events.push(event);
-      // Wake up any waiting subscriber
-      job.notify();
-      // Create a fresh promise for the next wait
-      waitingPromise = new Promise<void>((resolve) => {
-        notifyFn = resolve;
-      });
-      job.waiting = waitingPromise;
-      job.notify = notifyFn;
-    };
-
-    const pushStatus = (stage: ComposeStage) => {
-      pushEvent({ type: 'status', stage });
-    };
-
-    // Run pipeline without awaiting -- the caller returns the session ID immediately.
-    // Errors are normally reported via pushEvent() inside runPipeline's try/catch/finally.
-    // This outer .catch() handles the unlikely case where the finally block itself throws.
-    this.runPipeline(sid, messages, registryId, pushEvent, pushStatus, job).catch((pipelineErr) => {
+    // Run pipeline without awaiting — the caller returns the session ID immediately.
+    this.runPipeline(sid, messages, registryId, job).catch((pipelineErr) => {
       console.error('[TerraformCompose] Unhandled pipeline error:', pipelineErr);
-      try {
-        pushEvent({ type: 'error', error: 'An unexpected error occurred. Please try again.' });
-      } catch {
-        /* pushEvent may fail if job state is corrupt */
-      }
-      job.finished = true;
-      try {
-        job.notify();
-      } catch {
-        /* best effort */
-      }
+      this.sendEvent(job, {
+        type: 'error',
+        error: 'An unexpected error occurred. Please try again.',
+      });
+      this.finishJob(job);
     });
 
     return ok({ sessionId: sid });
@@ -133,88 +120,103 @@ export class TerraformComposeService {
   /**
    * Subscribe to a compose job's event stream.
    * Returns a ReadableStream of SSE-formatted bytes.
-   * The stream replays any buffered events, then waits for new ones.
+   * The controller is stored on the job so runPipeline can push events directly.
    */
   subscribeToJob(sessionId: string): ReadableStream<Uint8Array> | null {
     const job = this.jobs.get(sessionId);
     if (!job) return null;
 
-    const encoder = new TextEncoder();
-    const KEEPALIVE_MS = 15_000;
-    let cancelled = false;
-
     return new ReadableStream<Uint8Array>({
-      async start(controller) {
-        let cursor = 0;
+      start(controller) {
+        job.controller = controller;
 
-        try {
-          while (!cancelled) {
-            // Drain any buffered events
-            while (cursor < job.events.length) {
-              if (cancelled) return;
-              const event = job.events[cursor++];
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-            }
-
-            // If the job is done, close the stream
-            if (job.finished) {
-              controller.close();
-              return;
-            }
-
-            // Capture a local reference to the waiting promise BEFORE checking,
-            // to avoid a race where pushEvent replaces job.waiting between
-            // the drain loop above and this await.
-            const currentWaiting = job.waiting;
-
-            // Race event arrival against a keepalive timer so the HTTP
-            // connection isn't killed by proxies during long Agent SDK calls.
-            let keepaliveTimer: ReturnType<typeof setTimeout> | undefined;
-            const keepalive = new Promise<'keepalive'>((r) => {
-              keepaliveTimer = setTimeout(() => r('keepalive'), KEEPALIVE_MS);
-            });
-            const winner = await Promise.race([
-              currentWaiting.then(() => 'event' as const),
-              keepalive,
-            ]);
-            if (keepaliveTimer) clearTimeout(keepaliveTimer);
-
-            if (winner === 'keepalive' && !cancelled) {
-              controller.enqueue(encoder.encode(': keepalive\n\n'));
-            }
+        // Keep-alive ping every 15s to prevent proxy/Bun idle timeouts
+        job.keepaliveInterval = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': keepalive\n\n'));
+          } catch {
+            // Stream may be closed
           }
-        } catch (err) {
-          console.error('[TerraformCompose] Subscriber stream error:', err);
-          if (!cancelled) {
-            try {
-              controller.close();
-            } catch {
-              // controller may already be closed
-            }
-          }
+        }, KEEPALIVE_MS);
+
+        // If the job already finished before subscriber connected, close immediately
+        if (job.finished) {
+          if (job.keepaliveInterval) clearInterval(job.keepaliveInterval);
+          controller.close();
         }
       },
       cancel() {
-        cancelled = true;
+        if (job.keepaliveInterval) clearInterval(job.keepaliveInterval);
+        job.controller = null;
       },
     });
+  }
+
+  private sendEvent(job: ComposeJob, event: ComposeEvent): void {
+    if (!job.controller) return;
+    try {
+      job.controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+    } catch {
+      // Stream may be closed
+    }
+  }
+
+  private sendStatus(job: ComposeJob, stage: ComposeStage): void {
+    this.sendEvent(job, { type: 'status', stage });
+  }
+
+  private finishJob(job: ComposeJob): void {
+    job.finished = true;
+    if (job.keepaliveInterval) {
+      clearInterval(job.keepaliveInterval);
+      job.keepaliveInterval = null;
+    }
+    if (job.controller) {
+      try {
+        job.controller.close();
+      } catch {
+        // controller may already be closed
+      }
+      job.controller = null;
+    }
+  }
+
+  /**
+   * Wait for the subscriber to connect before pushing events.
+   * The POST /compose returns the sessionId, then the client connects
+   * to GET /compose/:sessionId/events which sets job.controller.
+   */
+  private async waitForSubscriber(job: ComposeJob, maxWaitMs = 10_000): Promise<boolean> {
+    const start = Date.now();
+    while (!job.controller && Date.now() - start < maxWaitMs) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return !!job.controller;
   }
 
   private async runPipeline(
     sid: string,
     messages: ComposeMessage[],
     registryId: string | undefined,
-    pushEvent: (event: ComposeEvent) => void,
-    pushStatus: (stage: ComposeStage) => void,
     job: ComposeJob
   ): Promise<void> {
+    // Wait for the SSE subscriber to connect before pushing events
+    const subscriberReady = await this.waitForSubscriber(job);
+    if (!subscriberReady) {
+      console.warn('[TerraformCompose] No subscriber connected within timeout, aborting pipeline');
+      this.finishJob(job);
+      return;
+    }
+
+    let session: ReturnType<typeof unstable_v2_createSession> | null = null;
+
     try {
       // Stage 1: Load module catalog
-      pushStatus('loading_catalog');
+      this.sendStatus(job, 'loading_catalog');
 
       const contextResult = await this.registryService.getModuleContext(registryId);
       if (!contextResult.ok) {
-        pushEvent({
+        this.sendEvent(job, {
           type: 'error',
           error: contextResult.error.message ?? 'Failed to load module catalog',
         });
@@ -234,86 +236,99 @@ export class TerraformComposeService {
       }
       const allModules = modulesResult.ok ? modulesResult.value : [];
 
-      // Stage 2: Analyzing requirements
-      pushStatus('analyzing');
+      // Stage 2: Analyzing requirements (streaming with Agent SDK)
+      this.sendStatus(job, 'analyzing');
 
-      const prompt = formatPromptForAgentSdk(systemPrompt, messages);
-
+      const prompt = formatPrompt(systemPrompt, messages);
       const composeModel = getFullModelId(
         process.env.TERRAFORM_COMPOSE_MODEL ?? DEFAULT_TASK_CREATION_MODEL
       );
 
-      const q = query({
-        prompt,
-        options: {
-          model: composeModel,
-          env: { ...process.env },
-          permissionMode: 'acceptEdits',
-          tools: [],
-          maxTurns: 1,
-        },
+      session = unstable_v2_createSession({
+        model: composeModel,
+        env: { ...process.env },
       });
 
+      await session.send(prompt);
+
       let fullResponse = '';
-      let usage: { input_tokens?: number; output_tokens?: number } | undefined;
+      let inputTokens = 0;
+      let outputTokens = 0;
 
-      for await (const msg of q) {
-        if (msg.type === 'assistant') {
-          // biome-ignore lint/suspicious/noExplicitAny: Agent SDK message type lacks typed `message` field
-          const assistantMsg = (msg as any).message as {
-            content?: Array<{ type: string; text?: string }>;
-            usage?: { input_tokens?: number; output_tokens?: number };
-          };
+      for await (const msg of session.stream()) {
+        if (msg.type === 'stream_event') {
+          const event = msg.event as AgentStreamEvent;
 
-          if (assistantMsg.usage) {
-            usage = assistantMsg.usage;
+          // Capture usage from message_start
+          if (event.type === 'message_start' && event.message?.usage) {
+            inputTokens = event.message.usage.input_tokens ?? 0;
           }
 
-          if (assistantMsg.content) {
-            fullResponse = assistantMsg.content
+          // Capture output token usage from message_delta
+          if (event.type === 'message_delta' && event.usage) {
+            outputTokens = event.usage.output_tokens ?? 0;
+          }
+
+          // Stream text deltas to the client as they arrive
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta?.type === 'text_delta' &&
+            event.delta.text
+          ) {
+            fullResponse += event.delta.text;
+          }
+        }
+
+        // Handle complete assistant messages (fallback)
+        if (msg.type === 'assistant') {
+          const { message } = msg as AgentAssistantMessage;
+          if (message?.usage) {
+            inputTokens = message.usage.input_tokens ?? inputTokens;
+            outputTokens = message.usage.output_tokens ?? outputTokens;
+          }
+          if (message?.content) {
+            const text = message.content
               .filter((b) => b.type === 'text' && b.text)
               .map((b) => b.text)
               .join('');
+            if (text) fullResponse = text;
           }
-
-          break;
         }
 
+        // Handle result with usage
         if (msg.type === 'result') {
-          const result = msg as {
-            usage?: { input_tokens?: number; output_tokens?: number };
-          };
-          if (result.usage) usage = result.usage;
-          break;
+          const result = msg as { usage?: { input_tokens?: number; output_tokens?: number } };
+          if (result.usage) {
+            inputTokens = result.usage.input_tokens ?? inputTokens;
+            outputTokens = result.usage.output_tokens ?? outputTokens;
+          }
         }
       }
 
-      q.close();
-
       // Stage 3: Match modules
-      pushStatus('matching_modules');
+      this.sendStatus(job, 'matching_modules');
 
       const matchedModules = matchModulesInResponse(fullResponse, allModules);
 
       if (matchedModules.length > 0) {
-        pushEvent({ type: 'modules', modules: matchedModules });
+        this.sendEvent(job, { type: 'modules', modules: matchedModules });
       }
 
       // Stage 4: Extract code
-      pushStatus('generating_code');
+      this.sendStatus(job, 'generating_code');
 
       const generatedCode = extractHclCode(fullResponse);
 
       if (fullResponse) {
-        pushEvent({ type: 'text', content: fullResponse });
+        this.sendEvent(job, { type: 'text', content: fullResponse });
       }
 
       if (generatedCode) {
-        pushEvent({ type: 'code', code: generatedCode });
+        this.sendEvent(job, { type: 'code', code: generatedCode });
       }
 
       // Stage 5: Finalize
-      pushStatus('finalizing');
+      this.sendStatus(job, 'finalizing');
 
       this.sessions.set(sid, {
         id: sid,
@@ -323,14 +338,14 @@ export class TerraformComposeService {
         lastAccessedAt: Date.now(),
       });
 
-      pushEvent({
+      this.sendEvent(job, {
         type: 'done',
         sessionId: sid,
         matchedModules,
         generatedCode: generatedCode ?? undefined,
         usage: {
-          inputTokens: usage?.input_tokens ?? 0,
-          outputTokens: usage?.output_tokens ?? 0,
+          inputTokens,
+          outputTokens,
         },
       });
     } catch (error) {
@@ -343,22 +358,27 @@ export class TerraformComposeService {
         reason.includes('credentials');
 
       if (isAuthError) {
-        pushEvent({
+        this.sendEvent(job, {
           type: 'error',
           error:
             'Claude authentication failed. Please run "claude login" or check your credentials file.',
         });
       } else {
         console.error('[TerraformCompose] Pipeline error:', reason);
-        pushEvent({
+        this.sendEvent(job, {
           type: 'error',
           error: 'An error occurred during Terraform composition. Please try again.',
         });
       }
     } finally {
-      job.finished = true;
-      // Final notification to wake any subscriber so it sees finished=true
-      job.notify();
+      if (session) {
+        try {
+          session.close();
+        } catch {
+          // session may already be closed
+        }
+      }
+      this.finishJob(job);
     }
   }
 
@@ -372,7 +392,7 @@ export class TerraformComposeService {
   }
 }
 
-function formatPromptForAgentSdk(systemPrompt: string, messages: ComposeMessage[]): string {
+function formatPrompt(systemPrompt: string, messages: ComposeMessage[]): string {
   const parts: string[] = [systemPrompt, ''];
   for (const msg of messages) {
     const role = msg.role === 'user' ? 'User' : 'Assistant';

@@ -105,7 +105,11 @@ declare const Bun: {
     stdout: ReadableStream<Uint8Array>;
     stderr: ReadableStream<Uint8Array>;
   };
-  serve: (options: { port: number; fetch: (req: Request) => Response | Promise<Response> }) => void;
+  serve: (options: {
+    port: number;
+    fetch: (req: Request) => Response | Promise<Response>;
+    idleTimeout?: number;
+  }) => void;
 };
 
 // Initialize SQLite database using Bun's native SQLite
@@ -643,6 +647,7 @@ const PORT = 3001;
 Bun.serve({
   port: PORT,
   fetch: app.fetch,
+  idleTimeout: 0, // Disable idle timeout to prevent Bun from killing long-lived SSE connections
 });
 
 console.log(`[API Server] Running on http://localhost:${PORT}`);

@@ -3,7 +3,6 @@
  */
 
 import { Hono } from 'hono';
-import { stream as honoStream } from 'hono/streaming';
 import {
   composeRequestSchema,
   createRegistrySchema,
@@ -384,41 +383,16 @@ export function createTerraformRoutes({
       );
     }
 
-    c.header('Content-Type', 'text/event-stream');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-
-    return honoStream(c, async (stream) => {
-      const reader = readable.getReader();
-
-      // Cancel the ReadableStream if the client disconnects
-      const onAbort = () => {
-        reader.cancel().catch(() => {});
-      };
-      stream.onAbort(onAbort);
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          await stream.write(value);
-        }
-      } catch (err) {
-        console.error('[Terraform] SSE stream error:', err);
-        // Try to send an error event to the client before closing
-        const encoder = new TextEncoder();
-        try {
-          await stream.write(
-            encoder.encode(
-              `data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`
-            )
-          );
-        } catch {
-          // Stream may already be closed
-        }
-      } finally {
-        reader.releaseLock();
-      }
+    // Return a native Response with the ReadableStream directly,
+    // matching the pattern used by sessions, task-creation, and cli-monitor SSE endpoints.
+    // Using Hono's stream() helper caused ERR_INCOMPLETE_CHUNKED_ENCODING on Bun.
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
     });
   });
 

@@ -60,8 +60,9 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        // Disable proxy timeout for long-lived SSE connections
+        // Disable both incoming and outgoing proxy timeouts for long-lived SSE connections
         timeout: 0,
+        proxyTimeout: 0,
       },
     },
   },

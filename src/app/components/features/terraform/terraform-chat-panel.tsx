@@ -9,6 +9,7 @@ import {
   MagnifyingGlass,
   Stack,
   TreeStructure,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClarifyingQuestion, ComposeStage, ModuleMatch } from '@/lib/terraform/types';
@@ -256,6 +257,32 @@ function ComposeProgress({
   );
 }
 
+function ErrorBubble({
+  error,
+  onDismiss,
+}: {
+  error: string;
+  onDismiss: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex gap-3 animate-slide-up">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-danger-muted text-[11px] font-semibold text-danger">
+        <WarningCircle className="h-4 w-4" weight="bold" />
+      </div>
+      <div className="max-w-[85%] rounded-xl border border-danger/20 bg-danger-muted/50 px-4 py-2.5 text-sm text-fg">
+        <p>{error}</p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-2 text-xs text-fg-muted hover:text-fg underline"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface ChatInputProps {
   input: string;
   setInput: (v: string) => void;
@@ -301,8 +328,16 @@ function ChatInput({
 }
 
 export function TerraformChatPanel(): React.JSX.Element {
-  const { messages, isStreaming, composeStage, matchedModules, sendMessage, resetConversation } =
-    useTerraform();
+  const {
+    messages,
+    isStreaming,
+    composeStage,
+    matchedModules,
+    error,
+    sendMessage,
+    resetConversation,
+    clearError,
+  } = useTerraform();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -437,6 +472,7 @@ export function TerraformChatPanel(): React.JSX.Element {
           {isStreaming && composeStage && messages[messages.length - 1]?.role === 'user' && (
             <ComposeProgress currentStage={composeStage} matchedModules={matchedModules} />
           )}
+          {error && !isStreaming && <ErrorBubble error={error} onDismiss={clearError} />}
           <div ref={messagesEndRef} />
         </div>
       </div>
