@@ -1,8 +1,9 @@
-import { ArrowsClockwise, Cube, Eye, EyeSlash, Trash, WarningCircle } from '@phosphor-icons/react';
+import { ArrowsClockwise, Eye, EyeSlash, Trash, WarningCircle } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { useTerraform } from './terraform-context';
+import { formatTimeAgo } from './terraform-utils';
 
 const SYNC_INTERVALS = [
   { value: null, label: 'Manual only' },
@@ -11,17 +12,6 @@ const SYNC_INTERVALS = [
   { value: 60, label: 'Every 1 hour' },
   { value: 240, label: 'Every 4 hours' },
 ] as const;
-
-function formatTimeAgo(dateStr: string | null): string {
-  if (!dateStr) return 'Never';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 function formatTimeUntil(dateStr: string | null): string {
   if (!dateStr) return 'Manual';
@@ -35,7 +25,13 @@ function formatTimeUntil(dateStr: string | null): string {
 
 export function TerraformSettingsPanel(): React.JSX.Element {
   const navigate = useNavigate();
-  const { registries, syncRegistry, refreshModules } = useTerraform();
+  const {
+    registries,
+    syncRegistry,
+    refreshModules,
+    error: contextError,
+    clearError,
+  } = useTerraform();
   const registry = registries[0];
 
   const [token, setToken] = useState('');
@@ -44,8 +40,9 @@ export function TerraformSettingsPanel(): React.JSX.Element {
   const [showToken, setShowToken] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Initialize form from registry data
+  // Initialize form from registry data. Token is masked -- the real value is never sent to the client.
   useEffect(() => {
     if (registry) {
       setOrgName(registry.orgName);
@@ -61,16 +58,18 @@ export function TerraformSettingsPanel(): React.JSX.Element {
   const handleSync = useCallback(async () => {
     if (!registry || isSyncing) return;
     setIsSyncing(true);
+    clearError();
     try {
       await syncRegistry(registry.id);
     } finally {
       setIsSyncing(false);
     }
-  }, [registry, isSyncing, syncRegistry]);
+  }, [registry, isSyncing, syncRegistry, clearError]);
 
   const handleSave = useCallback(async () => {
     if (!registry || isSaving) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch(`/api/terraform/registries/${registry.id}`, {
         method: 'PATCH',
@@ -79,7 +78,14 @@ export function TerraformSettingsPanel(): React.JSX.Element {
       });
       if (res.ok) {
         await refreshModules();
+      } else {
+        const body = await res.json().catch(() => null);
+        const message = body?.error?.message ?? `Save failed (HTTP ${res.status})`;
+        setSaveError(message);
       }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Network error saving settings');
+      console.error('[Terraform] Save error:', err);
     } finally {
       setIsSaving(false);
     }
@@ -87,9 +93,17 @@ export function TerraformSettingsPanel(): React.JSX.Element {
 
   const handleDelete = useCallback(async () => {
     if (!registry) return;
-    const res = await apiClient.terraform.deleteRegistry(registry.id);
-    if (res.ok) {
-      void navigate({ to: '/terraform' });
+    if (!window.confirm('Remove this registry? This action cannot be undone.')) return;
+    try {
+      const res = await apiClient.terraform.deleteRegistry(registry.id);
+      if (res.ok) {
+        void navigate({ to: '/terraform' });
+      } else {
+        setSaveError('Failed to remove registry. Please try again.');
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Network error removing registry');
+      console.error('[Terraform] Delete error:', err);
     }
   }, [registry, navigate]);
 
@@ -97,40 +111,17 @@ export function TerraformSettingsPanel(): React.JSX.Element {
     void navigate({ to: '/terraform' });
   }, [navigate]);
 
-  const handleBackToComposer = useCallback(() => {
-    void navigate({ to: '/terraform' });
-  }, [navigate]);
-
-  // Status card border color
+  // Border color priority: error (danger) > syncing (accent) > default
   const statusCardBorder = isError
     ? 'border-danger'
     : isSyncingStatus
       ? 'border-accent'
       : 'border-border';
 
+  const displayError = saveError ?? contextError;
+
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <header className="flex min-h-[52px] items-center justify-between border-b border-border bg-surface px-6">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">
-            Terraform
-            <span className="mx-1 text-fg-subtle">/</span>
-            Settings
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleBackToComposer}
-            className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg"
-          >
-            <Cube size={14} />
-            Back to Composer
-          </button>
-        </div>
-      </header>
-
       {/* Content */}
       <div className="flex flex-1 justify-center overflow-y-auto p-8">
         <div className="w-full max-w-[600px]">
@@ -138,6 +129,15 @@ export function TerraformSettingsPanel(): React.JSX.Element {
           <p className="mb-6 text-[13px] leading-relaxed text-fg-muted">
             Connect to your HCP Terraform private registry to sync modules for the no-code composer.
           </p>
+
+          {displayError && (
+            <div className="mb-4 rounded-md border border-danger bg-danger-muted p-3">
+              <div className="flex items-center gap-2 text-sm text-danger">
+                <WarningCircle size={16} />
+                {displayError}
+              </div>
+            </div>
+          )}
 
           {/* Status Card */}
           {registry && (
@@ -196,11 +196,7 @@ export function TerraformSettingsPanel(): React.JSX.Element {
                           Next Sync
                         </div>
                         <div className="font-mono text-sm font-semibold text-fg">
-                          {formatTimeUntil(
-                            'nextSyncAt' in registry
-                              ? (registry as { nextSyncAt: string | null }).nextSyncAt
-                              : null
-                          )}
+                          {formatTimeUntil(registry.nextSyncAt)}
                         </div>
                       </div>
                     </>
@@ -225,15 +221,10 @@ export function TerraformSettingsPanel(): React.JSX.Element {
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-transparent border-t-current" />
                   Syncing...
                 </>
-              ) : isError ? (
-                <>
-                  <ArrowsClockwise size={16} />
-                  Retry Sync
-                </>
               ) : (
                 <>
                   <ArrowsClockwise size={16} />
-                  Sync Now
+                  {isError ? 'Retry Sync' : 'Sync Now'}
                 </>
               )}
             </button>

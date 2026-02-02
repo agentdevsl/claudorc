@@ -158,7 +158,7 @@ export function TerraformChatPanel(): React.JSX.Element {
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        handleSubmit();
+        void handleSubmit();
       }
     },
     [handleSubmit]
@@ -167,8 +167,8 @@ export function TerraformChatPanel(): React.JSX.Element {
   // Welcome state
   if (messages.length === 0) {
     return (
-      <div className="flex h-full flex-col">
-        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-auto px-8">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgba(132,79,186,0.15)]">
             <Cube className="h-8 w-8 text-[#844fba]" weight="duotone" />
           </div>
@@ -184,7 +184,7 @@ export function TerraformChatPanel(): React.JSX.Element {
               <button
                 key={prompt.text}
                 type="button"
-                onClick={() => sendMessage(prompt.text)}
+                onClick={() => void sendMessage(prompt.text)}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-fg-muted transition-colors hover:border-accent hover:text-accent"
               >
                 <PromptIcon type={prompt.icon} className="h-3 w-3" />
@@ -212,7 +212,7 @@ export function TerraformChatPanel(): React.JSX.Element {
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => (
             <div
-              key={`${msg.role}-${msg.content.length}-${msg.content.slice(0, 40)}`}
+              key={`${msg.role}-${messages.indexOf(msg)}`}
               className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
               {/* Avatar */}
@@ -248,9 +248,9 @@ export function TerraformChatPanel(): React.JSX.Element {
                         const answerText = Object.entries(answers)
                           .map(([q, a]) => `${q}: ${a}`)
                           .join('\n');
-                        sendMessage(answerText);
+                        void sendMessage(answerText);
                       }}
-                      onSkip={() => sendMessage('Skip clarifying questions')}
+                      onSkip={() => void sendMessage('Skip clarifying questions')}
                     />
                   )}
                 {msg.role === 'assistant' && msg.successBanner && (
@@ -311,9 +311,9 @@ export function TerraformChatPanel(): React.JSX.Element {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe the infrastructure you need..."
+              placeholder="Describe your infrastructure needs..."
               rows={1}
-              className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-muted outline-none"
+              className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
               disabled={isStreaming}
             />
             <button
@@ -348,16 +348,16 @@ function ChatInput({
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }): React.JSX.Element {
   return (
-    <div className="px-4 pb-4">
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
+    <div className="border-t border-border bg-surface px-6 py-4">
+      <div className="flex items-end gap-3 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
         <textarea
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Describe the infrastructure you need..."
+          placeholder="Describe your infrastructure needs..."
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-muted outline-none"
+          className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
           disabled={isStreaming}
         />
         <button

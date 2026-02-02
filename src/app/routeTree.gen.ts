@@ -29,6 +29,7 @@ import { Route as TerraformModulesRouteImport } from './routes/terraform/modules
 import { Route as TerraformHistoryRouteImport } from './routes/terraform/history'
 import { Route as TemplatesProjectRouteImport } from './routes/templates/project'
 import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
+import { Route as SettingsTerraformRouteImport } from './routes/settings/terraform'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsSandboxRouteImport } from './routes/settings/sandbox'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
@@ -150,6 +151,11 @@ const TemplatesOrgRoute = TemplatesOrgRouteImport.update({
   id: '/templates/org',
   path: '/templates/org',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsTerraformRoute = SettingsTerraformRouteImport.update({
+  id: '/terraform',
+  path: '/terraform',
+  getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
   id: '/system',
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/terraform': typeof SettingsTerraformRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/terraform/history': typeof TerraformHistoryRoute
@@ -322,6 +329,7 @@ export interface FileRoutesByTo {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/terraform': typeof SettingsTerraformRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/terraform/history': typeof TerraformHistoryRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/terraform': typeof SettingsTerraformRoute
   '/templates/org': typeof TemplatesOrgRoute
   '/templates/project': typeof TemplatesProjectRoute
   '/terraform/history': typeof TerraformHistoryRoute
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/sandbox'
     | '/settings/system'
+    | '/settings/terraform'
     | '/templates/org'
     | '/templates/project'
     | '/terraform/history'
@@ -451,6 +461,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/sandbox'
     | '/settings/system'
+    | '/settings/terraform'
     | '/templates/org'
     | '/templates/project'
     | '/terraform/history'
@@ -494,6 +505,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/sandbox'
     | '/settings/system'
+    | '/settings/terraform'
     | '/templates/org'
     | '/templates/project'
     | '/terraform/history'
@@ -685,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TemplatesOrgRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/terraform': {
+      id: '/settings/terraform'
+      path: '/terraform'
+      fullPath: '/settings/terraform'
+      preLoaderRoute: typeof SettingsTerraformRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/system': {
       id: '/settings/system'
       path: '/system'
@@ -862,6 +881,7 @@ interface SettingsRouteChildren {
   SettingsProjectsRoute: typeof SettingsProjectsRoute
   SettingsSandboxRoute: typeof SettingsSandboxRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
+  SettingsTerraformRoute: typeof SettingsTerraformRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
@@ -876,6 +896,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsProjectsRoute: SettingsProjectsRoute,
   SettingsSandboxRoute: SettingsSandboxRoute,
   SettingsSystemRoute: SettingsSystemRoute,
+  SettingsTerraformRoute: SettingsTerraformRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

@@ -70,6 +70,7 @@ export interface TerraformRegistryView {
   syncError: string | null;
   moduleCount: number;
   syncIntervalMinutes: number | null;
+  nextSyncAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

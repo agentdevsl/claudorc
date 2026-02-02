@@ -1,16 +1,17 @@
 import {
   Code,
   Copy,
-  Cube,
   DownloadSimple,
   LinkSimple,
+  MagnifyingGlass,
   SignIn,
   SignOut,
 } from '@phosphor-icons/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ModuleMatch } from '@/lib/terraform/types';
 import { PROVIDER_COLORS } from '@/lib/terraform/types';
 import { useTerraform } from './terraform-context';
+import { downloadAsFile, getConfidenceColor } from './terraform-utils';
 
 type Tab = 'modules' | 'code';
 
@@ -19,43 +20,38 @@ export function TerraformRightPanel(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<Tab>('modules');
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col bg-surface">
       {/* Tabs */}
       <div className="flex border-b border-border">
         <button
           type="button"
           onClick={() => setActiveTab('modules')}
-          className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors ${
+          className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold transition-colors ${
             activeTab === 'modules'
               ? 'border-b-2 border-accent text-accent'
-              : 'text-fg-muted hover:text-fg'
+              : 'border-b-2 border-transparent text-fg-muted hover:text-fg hover:bg-surface-subtle'
           }`}
         >
-          <Cube className="h-3.5 w-3.5" />
           Matched Modules
           {matchedModules.length > 0 && (
-            <span className="rounded-full bg-accent-muted px-1.5 text-[10px] text-accent">
-              {matchedModules.length}
-            </span>
+            <span className="text-[10px]">({matchedModules.length})</span>
           )}
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('code')}
-          className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors ${
+          className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold transition-colors ${
             activeTab === 'code'
               ? 'border-b-2 border-accent text-accent'
-              : 'text-fg-muted hover:text-fg'
+              : 'border-b-2 border-transparent text-fg-muted hover:text-fg hover:bg-surface-subtle'
           }`}
         >
-          <Code className="h-3.5 w-3.5" />
           Code Preview
-          {generatedCode && <span className="h-2 w-2 rounded-full bg-success" />}
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto">
         {activeTab === 'modules' ? (
           <ModulesTab matchedModules={matchedModules} onSelect={setSelectedModuleId} />
         ) : (
@@ -83,10 +79,12 @@ function ModulesTab({
 
   if (matchedModules.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-        <Cube className="h-8 w-8 text-fg-subtle" />
-        <p className="text-sm text-fg-muted">
-          Matched modules will appear here as you compose infrastructure.
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 py-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-surface-emphasis">
+          <MagnifyingGlass className="h-6 w-6 text-fg-subtle" />
+        </div>
+        <p className="max-w-[200px] text-[13px] text-fg-subtle">
+          Start a conversation to see matched modules here
         </p>
       </div>
     );
@@ -104,10 +102,10 @@ function ModulesTab({
             key={mod.moduleId}
             type="button"
             onClick={() => handleSelect(mod.moduleId)}
-            className={`w-full rounded-lg border p-3 text-left transition-colors ${
+            className={`w-full rounded-lg border p-3 text-left transition-all ${
               isSelected
-                ? 'border-accent shadow-[0_0_0_1px_var(--accent)] bg-surface'
-                : 'border-border bg-surface hover:border-accent'
+                ? 'border-accent bg-surface shadow-[0_0_0_1px_var(--accent),0_0_8px_rgba(31,111,235,0.15)]'
+                : 'border-border bg-surface hover:border-accent/60'
             }`}
           >
             <div className="flex items-start justify-between gap-2">
@@ -124,11 +122,11 @@ function ModulesTab({
               </div>
               <div className="flex items-center gap-1.5">
                 <div
-                  className="h-1.5 w-8 overflow-hidden rounded-full bg-surface-emphasis"
+                  className="h-1.5 w-10 overflow-hidden rounded-full bg-surface-emphasis"
                   title={`${Math.round(mod.confidence * 100)}% confidence`}
                 >
                   <div
-                    className="h-full rounded-full bg-accent"
+                    className={`h-full rounded-full ${getConfidenceColor(mod.confidence)}`}
                     style={{ width: `${mod.confidence * 100}%` }}
                   />
                 </div>
@@ -180,27 +178,55 @@ function ModulesTab({
   );
 }
 
+function useHighlightedCode(code: string | null): string | null {
+  const [html, setHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!code) {
+      setHtml(null);
+      return;
+    }
+    let cancelled = false;
+    import('shiki')
+      .then(({ codeToHtml }) =>
+        codeToHtml(code, {
+          lang: 'hcl',
+          theme: 'github-dark-default',
+        }).then((result) => {
+          if (!cancelled) setHtml(result);
+        })
+      )
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('[Terraform] Failed to load syntax highlighting:', err);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
+  return html;
+}
+
 function CodeTab({ code }: { code: string | null }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
+  const highlightedHtml = useHighlightedCode(code);
 
   const handleCopy = useCallback(async () => {
     if (!code) return;
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('[Terraform] Failed to copy to clipboard:', err);
+    }
   }, [code]);
 
   const handleDownload = useCallback(() => {
     if (!code) return;
-    const blob = new Blob([code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'main.tf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadAsFile(code, 'main.tf');
   }, [code]);
 
   if (!code) {
@@ -213,7 +239,7 @@ function CodeTab({ code }: { code: string | null }): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col">
       {/* Filename bar + actions */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-3 py-2">
         <span className="font-mono text-xs text-fg-muted">main.tf</span>
@@ -240,11 +266,19 @@ function CodeTab({ code }: { code: string | null }): React.JSX.Element {
         </div>
       </div>
 
-      {/* Code */}
+      {/* Code block with optional syntax highlighting */}
       <div className="flex-1 overflow-auto">
-        <pre className="p-3 font-mono text-xs leading-relaxed text-fg">
-          <code>{code}</code>
-        </pre>
+        {highlightedHtml ? (
+          <div
+            className="terraform-code-preview p-3 text-xs leading-relaxed [&_pre]:!bg-transparent [&_code]:font-mono"
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: shiki escapes code input and produces safe HTML
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+          />
+        ) : (
+          <pre className="p-3 font-mono text-xs leading-relaxed text-fg">
+            <code>{code}</code>
+          </pre>
+        )}
       </div>
     </div>
   );

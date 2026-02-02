@@ -5,6 +5,7 @@ import {
   Gear,
   GithubLogo,
   Heartbeat,
+  Hexagon,
   Key,
   Robot,
   Swatches,
@@ -94,6 +95,11 @@ function useSettingsSections(): SettingsSection[] {
           badgeVariant: githubConnected ? 'success' : undefined,
         },
       ],
+    },
+    {
+      id: 'integrations',
+      title: 'Integrations',
+      items: [{ id: 'terraform', label: 'Terraform', to: '/terraform/settings', icon: Hexagon }],
     },
     {
       id: 'navigation',

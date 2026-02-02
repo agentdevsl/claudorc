@@ -170,8 +170,8 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           let event: ComposeEvent;
           try {
             event = JSON.parse(jsonStr) as ComposeEvent;
-          } catch {
-            // Expected for partial SSE lines, will be completed in next chunk
+          } catch (parseErr) {
+            console.warn('[Terraform] Failed to parse SSE data:', jsonStr.slice(0, 100), parseErr);
             continue;
           }
 
@@ -221,6 +221,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       console.error('[Terraform] Stream error:', error);
+      setError('Failed to get a response. Please check your connection and try again.');
     } finally {
       isStreamingRef.current = false;
       setIsStreaming(false);
