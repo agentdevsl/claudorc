@@ -1,7 +1,9 @@
 import {
+  ArrowRight,
   ArrowUp,
   Book,
   Check,
+  CheckCircle,
   CircleNotch,
   Code,
   Cube,
@@ -14,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClarifyingQuestion, ComposeStage, ModuleMatch } from '@/lib/terraform/types';
 import { COMPOSE_STAGE_LABELS, PROVIDER_COLORS } from '@/lib/terraform/types';
+import { cn } from '@/lib/utils/cn';
 import { useTerraform } from './terraform-context';
 
 const QUICK_START_PROMPTS = [
@@ -72,6 +75,26 @@ function InlineModuleMatches({ modules }: { modules: ModuleMatch[] }) {
   );
 }
 
+/** Map well-known clarifying question categories to accent color classes. */
+const CATEGORY_COLORS: Record<string, string> = {
+  domain: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  dns: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  region: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  zone: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  security: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  iam: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  networking: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  storage: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+};
+
+function getCategoryColor(category: string): string {
+  const key = category.toLowerCase();
+  for (const [k, v] of Object.entries(CATEGORY_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return 'bg-surface-emphasis text-fg-muted';
+}
+
 function ClarifyingQuestionsUI({
   questions,
   onSubmit,
@@ -86,11 +109,13 @@ function ClarifyingQuestionsUI({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [customMode, setCustomMode] = useState<Record<string, boolean>>({});
 
-  const allAnswered = questions.every((q) => answers[q.question]?.trim());
+  const answeredCount = questions.filter((q) => answers[q.question]?.trim()).length;
+  const allAnswered = answeredCount === questions.length;
 
   return (
-    <div className="mt-3 rounded-md border border-accent/20 bg-accent-muted/30 p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="mt-3 rounded-lg border border-accent/20 bg-accent-muted/30 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <span className="text-xs font-semibold text-fg">
           {questions.length} question{questions.length > 1 ? 's' : ''} to refine your configuration
         </span>
@@ -98,79 +123,148 @@ function ClarifyingQuestionsUI({
           Use defaults
         </button>
       </div>
-      <div className="space-y-3">
-        {questions.map((q) => (
-          <div key={q.question} className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              {q.category !== 'General' && (
-                <span className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
-                  {q.category}
-                </span>
-              )}
-              <div className="text-xs font-medium text-fg">{q.question}</div>
+
+      {/* Questions */}
+      <div>
+        {questions.map((q, idx) => (
+          <div key={q.question} className={cn('px-4 py-3', idx > 0 && 'border-t border-border/30')}>
+            {/* Question header with step number */}
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">
+                {idx + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {q.category !== 'General' && (
+                    <span
+                      className={cn(
+                        'rounded-md px-2 py-0.5 text-[11px] font-semibold',
+                        getCategoryColor(q.category)
+                      )}
+                    >
+                      {q.category}
+                    </span>
+                  )}
+                  <div className="text-[13px] font-medium text-fg">{q.question}</div>
+                </div>
+
+                {/* Options or custom input */}
+                <div className="mt-2">
+                  {customMode[q.question] ? (
+                    <div className="flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={answers[q.question] ?? ''}
+                        onChange={(e) =>
+                          setAnswers((prev) => ({ ...prev, [q.question]: e.target.value }))
+                        }
+                        placeholder="Type your answer..."
+                        className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] text-fg placeholder:text-fg-subtle outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                        // biome-ignore lint/a11y/noAutofocus: intentional focus on custom input expansion
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (answers[q.question]?.trim()) {
+                            // Confirm custom answer — just close custom mode, keep the value
+                            setCustomMode((prev) => ({ ...prev, [q.question]: false }));
+                          }
+                        }}
+                        disabled={!answers[q.question]?.trim()}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-white disabled:opacity-40"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomMode((prev) => ({ ...prev, [q.question]: false }));
+                          setAnswers((prev) => {
+                            const next = { ...prev };
+                            delete next[q.question];
+                            return next;
+                          });
+                        }}
+                        className="text-xs text-fg-muted hover:text-fg px-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {q.options.map((opt) => {
+                        const isSelected = answers[q.question] === opt;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() =>
+                              setAnswers((prev) =>
+                                prev[q.question] === opt
+                                  ? (() => {
+                                      const next = { ...prev };
+                                      delete next[q.question];
+                                      return next;
+                                    })()
+                                  : { ...prev, [q.question]: opt }
+                              )
+                            }
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] transition-colors',
+                              isSelected
+                                ? 'border-accent bg-accent/15 text-accent'
+                                : 'border-border bg-surface text-fg-muted hover:border-accent hover:text-accent'
+                            )}
+                          >
+                            {isSelected && <Check className="h-3 w-3 shrink-0" weight="bold" />}
+                            {opt}
+                          </button>
+                        );
+                      })}
+                      {/* Show custom answer as a selected pill when not in custom mode */}
+                      {answers[q.question] &&
+                        !q.options.includes(answers[q.question] as string) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCustomMode((prev) => ({ ...prev, [q.question]: true }))
+                            }
+                            className="flex items-center gap-1.5 rounded-md border border-accent bg-accent/15 px-3 py-1.5 text-[13px] text-accent"
+                          >
+                            <Check className="h-3 w-3 shrink-0" weight="bold" />
+                            {answers[q.question]}
+                          </button>
+                        )}
+                      <button
+                        type="button"
+                        onClick={() => setCustomMode((prev) => ({ ...prev, [q.question]: true }))}
+                        className="rounded-md border border-dashed border-border px-3 py-1.5 text-[13px] text-fg-subtle transition-colors hover:border-accent hover:text-accent"
+                      >
+                        Other...
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            {customMode[q.question] ? (
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={answers[q.question] ?? ''}
-                  onChange={(e) =>
-                    setAnswers((prev) => ({ ...prev, [q.question]: e.target.value }))
-                  }
-                  placeholder="Type your answer..."
-                  className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-subtle outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomMode((prev) => ({ ...prev, [q.question]: false }));
-                    setAnswers((prev) => {
-                      const next = { ...prev };
-                      delete next[q.question];
-                      return next;
-                    });
-                  }}
-                  className="rounded-md px-2 py-1.5 text-xs text-fg-muted hover:text-fg"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {q.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setAnswers((prev) => ({ ...prev, [q.question]: opt }))}
-                    className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-                      answers[q.question] === opt
-                        ? 'bg-accent text-white'
-                        : 'border border-border bg-surface text-fg-muted hover:border-accent hover:text-accent'
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCustomMode((prev) => ({ ...prev, [q.question]: true }))}
-                  className="rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-fg-subtle transition-colors hover:border-accent hover:text-accent"
-                >
-                  Other...
-                </button>
-              </div>
-            )}
           </div>
         ))}
       </div>
-      <div className="mt-3 flex justify-end">
+
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-border/30 px-4 py-3 bg-surface/30">
+        <span className="text-xs text-fg-muted">
+          {answeredCount} of {questions.length} answered
+        </span>
         <button
           type="button"
           onClick={() => onSubmit(answers)}
           disabled={!allAnswered}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90 disabled:opacity-40 transition-colors"
         >
           Submit Answers
+          <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -205,6 +299,7 @@ const COMPOSE_STAGES: ComposeStage[] = [
   'analyzing',
   'matching_modules',
   'generating_code',
+  'validating_hcl',
   'finalizing',
 ];
 
@@ -213,6 +308,7 @@ const STAGE_ICONS: Record<ComposeStage, React.ElementType> = {
   analyzing: TreeStructure,
   matching_modules: MagnifyingGlass,
   generating_code: Code,
+  validating_hcl: CheckCircle,
   finalizing: Check,
 };
 

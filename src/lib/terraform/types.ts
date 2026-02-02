@@ -52,6 +52,7 @@ export type ComposeStage =
   | 'analyzing'
   | 'matching_modules'
   | 'generating_code'
+  | 'validating_hcl'
   | 'finalizing';
 
 /** Human-readable labels for each compose stage */
@@ -60,6 +61,7 @@ export const COMPOSE_STAGE_LABELS: Record<ComposeStage, string> = {
   analyzing: 'Analyzing requirements…',
   matching_modules: 'Matching modules…',
   generating_code: 'Generating Terraform code…',
+  validating_hcl: 'Validating HCL…',
   finalizing: 'Finalizing configuration…',
 };
 
