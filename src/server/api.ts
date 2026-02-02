@@ -82,6 +82,7 @@ import { GitHubTokenService } from '../services/github-token.service.js';
 import { MarketplaceService } from '../services/marketplace.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
 import { type DurableStreamsServer, SessionService } from '../services/session.service.js';
+import { SettingsService } from '../services/settings.service.js';
 import { TaskService } from '../services/task.service.js';
 import {
   createTaskCreationService,
@@ -615,7 +616,11 @@ const marketplaceService = new MarketplaceService(db);
 
 // Terraform services
 const terraformRegistryService = new TerraformRegistryService(db);
-const terraformComposeService = new TerraformComposeService(terraformRegistryService);
+const settingsService = new SettingsService(db);
+const terraformComposeService = new TerraformComposeService(
+  terraformRegistryService,
+  settingsService
+);
 
 // AgentService for agent lifecycle management
 const agentService = new AgentService(db, worktreeService, taskService, sessionService);

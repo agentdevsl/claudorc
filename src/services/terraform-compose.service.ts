@@ -1,7 +1,7 @@
 import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
-import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../lib/constants/models.js';
+import { getFullModelId } from '../lib/constants/models.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
 import type {
@@ -12,6 +12,7 @@ import type {
 } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { ok } from '../lib/utils/result.js';
+import type { SettingsService } from './settings.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -31,11 +32,15 @@ export interface ComposeSession {
  * The SSE controller is stored directly so `runPipeline` can push events
  * via `controller.enqueue()` — matching the pattern used by sessions,
  * task-creation, and cli-monitor SSE endpoints.
+ *
+ * `pendingEvents` buffers critical events (error, done) that arrive before
+ * a subscriber connects, so late subscribers still receive them.
  */
 interface ComposeJob {
   controller: ReadableStreamDefaultController<Uint8Array> | null;
   finished: boolean;
   keepaliveInterval: ReturnType<typeof setInterval> | null;
+  pendingEvents: ComposeEvent[];
 }
 
 const encoder = new TextEncoder();
@@ -60,7 +65,10 @@ export class TerraformComposeService {
   private sessions = new Map<string, ComposeSession>();
   private jobs = new Map<string, ComposeJob>();
 
-  constructor(private registryService: TerraformRegistryService) {}
+  constructor(
+    private registryService: TerraformRegistryService,
+    private settingsService: SettingsService
+  ) {}
 
   private cleanupSessions(): void {
     const now = Date.now();
@@ -101,6 +109,7 @@ export class TerraformComposeService {
       controller: null,
       finished: false,
       keepaliveInterval: null,
+      pendingEvents: [],
     };
     this.jobs.set(sid, job);
 
@@ -126,38 +135,67 @@ export class TerraformComposeService {
     const job = this.jobs.get(sessionId);
     if (!job) return null;
 
+    // Prevent multiple subscribers from overwriting the controller
+    if (job.controller) return null;
+
     return new ReadableStream<Uint8Array>({
       start(controller) {
         job.controller = controller;
+
+        // Replay any events that were buffered before the subscriber connected
+        for (const event of job.pendingEvents) {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+          } catch {
+            break;
+          }
+        }
+        job.pendingEvents = [];
+
+        // If the job already finished before subscriber connected, close immediately
+        if (job.finished) {
+          try {
+            controller.close();
+          } catch {
+            // controller may already be closed
+          }
+          job.controller = null;
+          return;
+        }
 
         // Keep-alive ping every 15s to prevent proxy/Bun idle timeouts
         job.keepaliveInterval = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(': keepalive\n\n'));
           } catch {
-            // Stream may be closed
+            // Enqueue failed — stream is likely closed, clear interval to stop retrying
+            if (job.keepaliveInterval) {
+              clearInterval(job.keepaliveInterval);
+              job.keepaliveInterval = null;
+            }
           }
         }, KEEPALIVE_MS);
-
-        // If the job already finished before subscriber connected, close immediately
-        if (job.finished) {
-          if (job.keepaliveInterval) clearInterval(job.keepaliveInterval);
-          controller.close();
-        }
       },
       cancel() {
         if (job.keepaliveInterval) clearInterval(job.keepaliveInterval);
+        job.keepaliveInterval = null;
         job.controller = null;
       },
     });
   }
 
   private sendEvent(job: ComposeJob, event: ComposeEvent): void {
-    if (!job.controller) return;
+    if (!job.controller) {
+      // Buffer critical events so late subscribers can replay them
+      if (event.type === 'error' || event.type === 'done') {
+        job.pendingEvents.push(event);
+      }
+      return;
+    }
     try {
       job.controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-    } catch {
-      // Stream may be closed
+    } catch (err) {
+      console.warn('[TerraformCompose] Failed to send event:', event.type, err);
     }
   }
 
@@ -204,6 +242,11 @@ export class TerraformComposeService {
     const subscriberReady = await this.waitForSubscriber(job);
     if (!subscriberReady) {
       console.warn('[TerraformCompose] No subscriber connected within timeout, aborting pipeline');
+      // Buffer an error so late subscribers get feedback instead of an empty stream
+      this.sendEvent(job, {
+        type: 'error',
+        error: 'Compose session timed out waiting for connection. Please try again.',
+      });
       this.finishJob(job);
       return;
     }
@@ -240,9 +283,8 @@ export class TerraformComposeService {
       this.sendStatus(job, 'analyzing');
 
       const prompt = formatPrompt(systemPrompt, messages);
-      const composeModel = getFullModelId(
-        process.env.TERRAFORM_COMPOSE_MODEL ?? DEFAULT_TASK_CREATION_MODEL
-      );
+      const settingsModel = await this.settingsService.getTaskCreationModel();
+      const composeModel = getFullModelId(process.env.TERRAFORM_COMPOSE_MODEL ?? settingsModel);
 
       session = unstable_v2_createSession({
         model: composeModel,
