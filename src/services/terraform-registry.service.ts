@@ -236,12 +236,15 @@ export class TerraformRegistryService {
       const modules = await syncAllModules(config);
 
       if (modules.length === 0) {
+        const now = this.updateTimestamp();
         await this.db
           .update(terraformRegistries)
           .set({
-            status: 'error',
-            syncError: 'No modules found in the registry',
-            updatedAt: this.updateTimestamp(),
+            status: 'active',
+            lastSyncedAt: now,
+            syncError: 'No modules with published versions found',
+            moduleCount: 0,
+            updatedAt: now,
           })
           .where(eq(terraformRegistries.id, id));
         return err(TerraformErrors.NO_MODULES_SYNCED);

@@ -611,7 +611,10 @@ const marketplaceService = new MarketplaceService(db);
 
 // Terraform services
 const terraformRegistryService = new TerraformRegistryService(db);
-const terraformComposeService = new TerraformComposeService(terraformRegistryService);
+const terraformComposeService = new TerraformComposeService(
+  terraformRegistryService,
+  apiKeyService
+);
 
 // AgentService for agent lifecycle management
 const agentService = new AgentService(db, worktreeService, taskService, sessionService);

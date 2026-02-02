@@ -24,49 +24,41 @@ interface RawModule {
   };
 }
 
-/** Raw module version detail from the API */
-interface RawModuleVersion {
+/** Response shape from the Registry v1 API (/api/registry/v1/modules/...) */
+interface RegistryV1ModuleDetail {
   id: string;
-  type: string;
-  attributes: {
-    version: string;
-    source: string;
-    description?: string;
-    readme?: string;
-    published_at?: string;
-    dependencies?: string[];
-  };
-  relationships?: {
-    'root-module'?: {
-      data?: { id: string };
-    };
-  };
-}
-
-/** Root module detail containing inputs/outputs */
-interface RawRootModule {
-  id: string;
-  type: string;
-  attributes: {
+  description?: string;
+  source?: string;
+  published_at?: string;
+  root?: {
     inputs?: Array<{
       name: string;
       type: string;
       description?: string;
-      default?: unknown;
+      default?: string;
       required: boolean;
-      sensitive?: boolean;
     }>;
     outputs?: Array<{
       name: string;
       description?: string;
     }>;
+    provider_dependencies?: Array<{
+      name: string;
+      namespace: string;
+      source: string;
+      version: string;
+    }>;
+    resources?: Array<{
+      name: string;
+      type: string;
+    }>;
+    readme?: string;
   };
 }
 
-/** JSONAPI response envelope */
+/** JSONAPI response envelope (used by v2 API) */
 interface JsonApiResponse<T> {
   data: T;
-  included?: Array<RawModuleVersion | RawRootModule>;
   links?: {
     self?: string;
     next?: string;
@@ -93,14 +85,18 @@ function sleep(ms: number): Promise<void> {
  * Make an authenticated request to the HCP Terraform API.
  * Retries on 429 (rate limit) using the Retry-After header with exponential backoff.
  */
-async function apiRequest<T>(config: RegistryConfig, path: string): Promise<T> {
+async function apiRequest<T>(
+  config: RegistryConfig,
+  path: string,
+  contentType = 'application/vnd.api+json'
+): Promise<T> {
   const url = `${config.baseUrl}${path}`;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${config.token}`,
-        'Content-Type': 'application/vnd.api+json',
+        'Content-Type': contentType,
       },
     });
 
@@ -158,6 +154,7 @@ export async function listRegistryModules(config: RegistryConfig): Promise<RawMo
 
 /**
  * Get full detail for a specific module version, including inputs and outputs.
+ * Uses the Registry v1 API which works with team tokens.
  */
 export async function getModuleDetail(
   config: RegistryConfig,
@@ -174,47 +171,37 @@ export async function getModuleDetail(
   dependencies: string[];
   publishedAt: string | null;
 }> {
-  const response = await apiRequest<JsonApiResponse<RawModuleVersion>>(
+  const response = await apiRequest<RegistryV1ModuleDetail>(
     config,
-    `/api/v2/organizations/${encodeURIComponent(config.orgName)}/registry-modules/private/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/${encodeURIComponent(provider)}/${encodeURIComponent(version)}?include=root-module`
+    `/api/registry/v1/modules/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/${encodeURIComponent(provider)}/${encodeURIComponent(version)}`,
+    'application/json'
   );
 
-  const versionData = response.data;
-  const attributes = versionData.attributes;
+  const root = response.root;
 
-  // Extract root module from included resources for inputs/outputs
-  let inputs: TerraformVariable[] = [];
-  let outputs: TerraformOutput[] = [];
+  const inputs: TerraformVariable[] = (root?.inputs ?? []).map((input) => ({
+    name: input.name,
+    type: input.type,
+    description: input.description,
+    default: input.default,
+    required: input.required,
+  }));
 
-  if (response.included) {
-    for (const included of response.included) {
-      if (included.type === 'root-modules' || included.type === 'root-module') {
-        const rootModule = included as RawRootModule;
-        inputs = (rootModule.attributes.inputs ?? []).map((input) => ({
-          name: input.name,
-          type: input.type,
-          description: input.description,
-          default: input.default,
-          required: input.required,
-          sensitive: input.sensitive,
-        }));
-        outputs = (rootModule.attributes.outputs ?? []).map((output) => ({
-          name: output.name,
-          description: output.description,
-        }));
-        break;
-      }
-    }
-  }
+  const outputs: TerraformOutput[] = (root?.outputs ?? []).map((output) => ({
+    name: output.name,
+    description: output.description,
+  }));
+
+  const dependencies: string[] = (root?.provider_dependencies ?? []).map((dep) => dep.source);
 
   return {
-    source: attributes.source ?? '',
-    description: attributes.description ?? null,
-    readme: attributes.readme ?? null,
+    source: response.source ?? '',
+    description: response.description ?? null,
+    readme: root?.readme ?? null,
     inputs,
     outputs,
-    dependencies: attributes.dependencies ?? [],
-    publishedAt: attributes.published_at ?? null,
+    dependencies,
+    publishedAt: response.published_at ?? null,
   };
 }
 

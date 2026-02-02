@@ -7,6 +7,7 @@ import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js
 import type { ComposeMessage, ModuleMatch } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
+import type { ApiKeyService } from './api-key.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -23,7 +24,10 @@ export interface ComposeSession {
 export class TerraformComposeService {
   private sessions = new Map<string, ComposeSession>();
 
-  constructor(private registryService: TerraformRegistryService) {}
+  constructor(
+    private registryService: TerraformRegistryService,
+    private apiKeyService: ApiKeyService
+  ) {}
 
   private cleanupSessions(): void {
     const now = Date.now();
@@ -74,8 +78,25 @@ export class TerraformComposeService {
     }
     const allModules = modulesResult.ok ? modulesResult.value : [];
 
-    // Create Anthropic client
-    const anthropic = new Anthropic();
+    // Resolve API key: database first, then env var fallback
+    let apiKey: string | null = null;
+    try {
+      apiKey = await this.apiKeyService.getDecryptedKey('anthropic');
+    } catch {
+      // Fall through to env var
+    }
+    if (!apiKey) {
+      apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+    }
+    if (!apiKey) {
+      return err(
+        TerraformErrors.COMPOSE_FAILED(
+          'Anthropic API key not configured. Set via Admin Settings or ANTHROPIC_API_KEY environment variable.'
+        )
+      );
+    }
+
+    const anthropic = new Anthropic({ apiKey });
 
     try {
       const stream = anthropic.messages.stream({
