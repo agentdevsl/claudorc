@@ -266,6 +266,56 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           }
         }
       }
+
+      // Flush any remaining data left in the buffer after stream ends
+      if (buffer.trim()) {
+        const remaining = buffer.trim();
+        if (remaining.startsWith('data: ')) {
+          try {
+            const event = JSON.parse(remaining.slice(6)) as ComposeEvent;
+            switch (event.type) {
+              case 'done':
+                receivedDone = true;
+                sessionIdRef.current = event.sessionId;
+                setComposeStage(null);
+                if (event.matchedModules) setMatchedModules(event.matchedModules);
+                if (event.generatedCode) setGeneratedCode(event.generatedCode);
+                break;
+              case 'error':
+                console.error('[Terraform] Compose error (buffered):', event.error);
+                setComposeStage(null);
+                setError(event.error);
+                break;
+              case 'code':
+                setGeneratedCode(event.code);
+                break;
+              case 'modules':
+                setMatchedModules(event.modules);
+                receivedPartialData = true;
+                break;
+              case 'text':
+                assistantContent += event.content;
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    newMessages[newMessages.length - 1] = { ...lastMsg, content: assistantContent };
+                  } else {
+                    newMessages.push({ role: 'assistant', content: assistantContent });
+                  }
+                  return newMessages;
+                });
+                break;
+              case 'status':
+                setComposeStage(event.stage);
+                receivedPartialData = true;
+                break;
+            }
+          } catch {
+            // Ignore parse errors on final buffer remnant
+          }
+        }
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('[Terraform] Stream error:', err);

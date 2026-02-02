@@ -376,11 +376,30 @@ export function createTerraformRoutes({
     return honoStream(c, async (stream) => {
       const reader = readable.getReader();
 
+      // Cancel the ReadableStream if the client disconnects
+      const onAbort = () => {
+        reader.cancel().catch(() => {});
+      };
+      stream.onAbort(onAbort);
+
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           await stream.write(value);
+        }
+      } catch (err) {
+        console.error('[Terraform] SSE stream error:', err);
+        // Try to send an error event to the client before closing
+        const encoder = new TextEncoder();
+        try {
+          await stream.write(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`
+            )
+          );
+        } catch {
+          // Stream may already be closed
         }
       } finally {
         reader.releaseLock();

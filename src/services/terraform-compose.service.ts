@@ -123,15 +123,17 @@ export class TerraformComposeService {
     if (!job) return null;
 
     const encoder = new TextEncoder();
+    let cancelled = false;
 
     return new ReadableStream<Uint8Array>({
       async start(controller) {
         let cursor = 0;
 
         try {
-          while (true) {
+          while (!cancelled) {
             // Drain any buffered events
             while (cursor < job.events.length) {
+              if (cancelled) return;
               const event = job.events[cursor++];
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
             }
@@ -142,13 +144,25 @@ export class TerraformComposeService {
               return;
             }
 
-            // Wait for new events
-            await job.waiting;
+            // Capture a local reference to the waiting promise BEFORE checking,
+            // to avoid a race where pushEvent replaces job.waiting between
+            // the drain loop above and this await.
+            const currentWaiting = job.waiting;
+            await currentWaiting;
           }
-        } catch {
-          // Client disconnected — that's fine, the job continues in the background
-          controller.close();
+        } catch (err) {
+          console.error('[TerraformCompose] Subscriber stream error:', err);
+          if (!cancelled) {
+            try {
+              controller.close();
+            } catch {
+              // controller may already be closed
+            }
+          }
         }
+      },
+      cancel() {
+        cancelled = true;
       },
     });
   }
