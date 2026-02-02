@@ -219,10 +219,18 @@ export class TerraformRegistryService {
       .where(eq(terraformRegistries.id, id));
 
     try {
+      // Settings values are stored JSON-encoded in the DB; parse to get the raw token string
+      let token: string;
+      try {
+        token = JSON.parse(tokenSetting.value) as string;
+      } catch {
+        token = tokenSetting.value;
+      }
+
       const config: RegistryConfig = {
         baseUrl: 'https://app.terraform.io',
         orgName: registry.orgName,
-        token: tokenSetting.value,
+        token,
       };
 
       const modules = await syncAllModules(config);

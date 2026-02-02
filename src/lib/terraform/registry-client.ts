@@ -248,32 +248,43 @@ export async function syncAllModules(config: RegistryConfig): Promise<NewTerrafo
           return null;
         }
 
+        let detail: {
+          source: string;
+          description: string | null;
+          readme: string | null;
+          inputs: TerraformVariable[];
+          outputs: TerraformOutput[];
+          dependencies: string[];
+          publishedAt: string | null;
+        } | null = null;
+
         try {
-          const detail = await getModuleDetail(config, namespace, name, provider, latestVersion);
-
-          const module: NewTerraformModule = {
-            name,
-            namespace,
-            provider,
-            version: latestVersion,
-            source: detail.source || `${namespace}/${name}/${provider}`,
-            description: detail.description,
-            readme: detail.readme,
-            inputs: detail.inputs,
-            outputs: detail.outputs,
-            dependencies: detail.dependencies,
-            publishedAt: detail.publishedAt,
-            registryId: '', // Will be set by the service
-          };
-
-          return module;
+          detail = await getModuleDetail(config, namespace, name, provider, latestVersion);
         } catch (error) {
-          console.error(
-            `[RegistryClient] Failed to fetch details for ${namespace}/${name}/${provider}@${latestVersion}:`,
+          // Version-specific endpoint may not be accessible with team tokens;
+          // fall back to basic module info from the list response.
+          console.warn(
+            `[RegistryClient] Detail fetch failed for ${namespace}/${name}/${provider}@${latestVersion} (using basic info):`,
             error instanceof Error ? error.message : String(error)
           );
-          return null;
         }
+
+        const module: NewTerraformModule = {
+          name,
+          namespace,
+          provider,
+          version: latestVersion,
+          source: detail?.source || `${namespace}/${name}/${provider}`,
+          description: detail?.description ?? null,
+          readme: detail?.readme ?? null,
+          inputs: detail?.inputs ?? [],
+          outputs: detail?.outputs ?? [],
+          dependencies: detail?.dependencies ?? [],
+          publishedAt: detail?.publishedAt ?? null,
+          registryId: '', // Will be set by the service
+        };
+
+        return module;
       })
     );
 
