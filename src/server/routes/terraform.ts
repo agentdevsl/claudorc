@@ -3,7 +3,11 @@
  */
 
 import { Hono } from 'hono';
-import { composeRequestSchema, createRegistrySchema } from '../../lib/terraform/schema.js';
+import {
+  composeRequestSchema,
+  createRegistrySchema,
+  updateRegistrySchema,
+} from '../../lib/terraform/schema.js';
 import type { TerraformComposeService } from '../../services/terraform-compose.service.js';
 import type { TerraformRegistryService } from '../../services/terraform-registry.service.js';
 import { isValidId, json } from '../shared.js';
@@ -151,6 +155,62 @@ export function createTerraformRoutes({
       console.error('[Terraform] Delete registry error:', error);
       return json(
         { ok: false, error: { code: 'DB_ERROR', message: 'Failed to delete registry' } },
+        500
+      );
+    }
+  });
+
+  // PATCH /registries/:id — update registry settings
+  app.patch('/registries/:id', async (c) => {
+    const id = c.req.param('id');
+
+    if (!isValidId(id)) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid registry ID format' } },
+        400
+      );
+    }
+
+    let body: {
+      name?: string;
+      orgName?: string;
+      tokenSettingKey?: string;
+      syncIntervalMinutes?: number | null;
+    };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
+
+    try {
+      const parsed = updateRegistrySchema.safeParse(body);
+      if (!parsed.success) {
+        return json(
+          {
+            ok: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: parsed.error.issues[0]?.message ?? 'Invalid request',
+            },
+          },
+          400
+        );
+      }
+
+      const result = await terraformRegistryService.updateRegistry(id, parsed.data);
+      if (!result.ok) {
+        return json({ ok: false, error: result.error }, result.error.status);
+      }
+
+      return json({ ok: true, data: result.value });
+    } catch (error) {
+      console.error('[Terraform] Update registry error:', error);
+      return json(
+        { ok: false, error: { code: 'DB_ERROR', message: 'Failed to update registry' } },
         500
       );
     }

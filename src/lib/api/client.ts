@@ -1131,6 +1131,27 @@ export const apiClient = {
         method: 'DELETE',
       }),
 
+    updateRegistry: (
+      id: string,
+      data: {
+        name?: string;
+        orgName?: string;
+        tokenSettingKey?: string;
+        syncIntervalMinutes?: number | null;
+      }
+    ) =>
+      apiServerFetch<{
+        id: string;
+        name: string;
+        orgName: string;
+        status: string;
+        syncIntervalMinutes: number | null;
+        updatedAt: string;
+      }>(`/api/terraform/registries/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: data,
+      }),
+
     syncRegistry: (id: string) =>
       apiServerFetch<{
         registryId: string;

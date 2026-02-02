@@ -9,10 +9,30 @@ export const PROVIDER_COLORS: Record<string, string> = {
   gcp: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 };
 
+/** A clarifying question posed by the AI during composition */
+export interface ClarifyingQuestion {
+  category: string;
+  question: string;
+  options: string[];
+}
+
 /** Message in a compose conversation */
 export interface ComposeMessage {
   role: 'user' | 'assistant';
   content: string;
+  modules?: ModuleMatch[];
+  clarifyingQuestions?: ClarifyingQuestion[];
+  successBanner?: { moduleCount: number; variableCount: number; outputCount: number };
+}
+
+/** A saved composition entry for history */
+export interface CompositionEntry {
+  id: string;
+  title: string;
+  timestamp: number;
+  moduleCount: number;
+  status: 'completed' | 'in_progress' | 'failed';
+  messages?: ComposeMessage[];
 }
 
 /** A matched module from AI composition */

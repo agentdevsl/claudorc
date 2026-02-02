@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useMatches, useNavigate } from '@tanstack/react-router';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import {
   TerraformProvider,
@@ -21,6 +21,9 @@ function TerraformLayout(): React.JSX.Element {
 
 function TerraformLayoutInner(): React.JSX.Element {
   const { registries, syncRegistry, generatedCode } = useTerraform();
+  const matches = useMatches();
+  const navigate = useNavigate();
+  const isHistoryView = matches.some((m) => m.fullPath === '/terraform/history');
 
   const handleSync = async () => {
     for (const reg of registries) {
@@ -47,7 +50,16 @@ function TerraformLayoutInner(): React.JSX.Element {
       centerAction={<TerraformViewSwitcher />}
       actions={
         <div className="flex items-center gap-2">
-          {registries.length > 0 && (
+          {isHistoryView && (
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/terraform' })}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent/90"
+            >
+              + New Composition
+            </button>
+          )}
+          {registries.length > 0 && !isHistoryView && (
             <button
               type="button"
               onClick={handleSync}
@@ -56,7 +68,7 @@ function TerraformLayoutInner(): React.JSX.Element {
               Sync Registry
             </button>
           )}
-          {generatedCode && (
+          {generatedCode && !isHistoryView && (
             <button
               type="button"
               onClick={handleDownload}

@@ -8,10 +8,17 @@ export function TerraformCatalogView(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [providerFilter, setProviderFilter] = useState<string | null>(null);
 
-  const providers = useMemo(() => {
-    const set = new Set(modules.map((m) => m.provider));
-    return Array.from(set).sort();
+  const providerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of modules) {
+      counts[m.provider] = (counts[m.provider] ?? 0) + 1;
+    }
+    return counts;
   }, [modules]);
+
+  const providers = useMemo(() => {
+    return Object.keys(providerCounts).sort();
+  }, [providerCounts]);
 
   const filtered = useMemo(() => {
     return modules.filter((m) => {
@@ -44,18 +51,22 @@ export function TerraformCatalogView(): React.JSX.Element {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Search and filters */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <div className="relative flex-1">
-          <MagnifyingGlass className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search modules..."
-            className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
+      {/* Title + Search */}
+      <div className="border-b border-border px-4 py-3">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-fg">Private Module Registry</h2>
+          <div className="relative w-64">
+            <MagnifyingGlass className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search modules..."
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-fg placeholder:text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </div>
         </div>
+        {/* Filters */}
         <div className="flex gap-1">
           <button
             type="button"
@@ -66,7 +77,7 @@ export function TerraformCatalogView(): React.JSX.Element {
                 : 'text-fg-muted hover:bg-surface-subtle'
             }`}
           >
-            All
+            All ({modules.length})
           </button>
           {providers.map((p) => {
             const colorClass =
@@ -80,7 +91,7 @@ export function TerraformCatalogView(): React.JSX.Element {
                   providerFilter === p ? colorClass : 'text-fg-muted hover:bg-surface-subtle'
                 }`}
               >
-                {p}
+                {p} ({providerCounts[p]})
               </button>
             );
           })}
@@ -94,7 +105,6 @@ export function TerraformCatalogView(): React.JSX.Element {
             const colorClass =
               PROVIDER_COLORS[mod.provider.toLowerCase()] ?? 'bg-surface-emphasis text-fg-muted';
             const inputCount = (mod.inputs as unknown[] | null)?.length ?? 0;
-            const outputCount = (mod.outputs as unknown[] | null)?.length ?? 0;
 
             return (
               <button
@@ -115,9 +125,16 @@ export function TerraformCatalogView(): React.JSX.Element {
                 {mod.description && (
                   <p className="mt-2 line-clamp-2 text-xs text-fg-muted">{mod.description}</p>
                 )}
-                <div className="mt-3 flex gap-3 text-[11px] text-fg-subtle">
-                  <span>{inputCount} inputs</span>
-                  <span>{outputCount} outputs</span>
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex gap-1">
+                    <span className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[11px] text-fg-subtle">
+                      {mod.namespace ?? 'module'}
+                    </span>
+                    <span className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[11px] text-fg-subtle">
+                      v{mod.version}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-fg-subtle">{inputCount} inputs</span>
                 </div>
               </button>
             );
