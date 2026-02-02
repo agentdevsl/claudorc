@@ -2,6 +2,8 @@ import {
   ArrowRight,
   ArrowUp,
   Book,
+  CaretDown,
+  CaretUp,
   Check,
   CheckCircle,
   CircleNotch,
@@ -62,20 +64,61 @@ function InlineModuleMatches({ modules }: { modules: ModuleMatch[] }) {
       {modules.map((mod) => (
         <div
           key={mod.moduleId}
-          className="flex items-center gap-2 rounded border border-border-muted bg-surface-subtle px-3 py-2 text-xs"
+          className="flex flex-col gap-1 rounded border border-border-muted bg-surface-subtle px-3 py-2 text-xs"
         >
-          <span
-            className={`h-2 w-2 shrink-0 rounded-full ${mod.confidence >= 0.8 ? 'bg-success' : 'bg-attention'}`}
-          />
-          <span className="font-mono font-medium text-fg">{mod.name}</span>
-          <span
-            className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${PROVIDER_COLORS[mod.provider.toLowerCase()] ?? 'bg-surface-emphasis text-fg-muted'}`}
-          >
-            {mod.provider}
-          </span>
-          <span className="ml-auto text-[11px] text-fg-subtle">{mod.matchReason}</span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${mod.confidence >= 0.8 ? 'bg-success' : 'bg-attention'}`}
+            />
+            <span className="font-mono font-medium text-fg">{mod.name}</span>
+            <span
+              className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${PROVIDER_COLORS[mod.provider.toLowerCase()] ?? 'bg-surface-emphasis text-fg-muted'}`}
+            >
+              {mod.provider}
+            </span>
+            {mod.version && <span className="text-[11px] text-fg-subtle">v{mod.version}</span>}
+          </div>
+          <span className="font-mono text-[11px] text-fg-muted pl-4">{mod.source}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Collapsible text for long assistant responses.
+ * Shows first paragraph with a toggle to expand/collapse the rest.
+ */
+function CollapsibleText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Split on double newline to get first paragraph
+  const splitIdx = text.indexOf('\n\n');
+  const hasMore = splitIdx > 0 && splitIdx < text.length - 2;
+  const firstParagraph = hasMore ? text.slice(0, splitIdx) : text;
+
+  if (!hasMore) {
+    return <div className="whitespace-pre-wrap break-words">{text}</div>;
+  }
+
+  return (
+    <div>
+      <div className="whitespace-pre-wrap break-words">{expanded ? text : firstParagraph}</div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="mt-1 flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg transition-colors"
+      >
+        {expanded ? (
+          <>
+            <CaretUp className="h-3 w-3" /> Show less
+          </>
+        ) : (
+          <>
+            <CaretDown className="h-3 w-3" /> Show more
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -615,9 +658,11 @@ export function TerraformChatPanel(): React.JSX.Element {
                     : 'border border-border bg-surface text-fg'
                 }`}
               >
-                <div className="whitespace-pre-wrap break-words">
-                  {msg.role === 'assistant' ? stripAssistantContent(msg) : msg.content}
-                </div>
+                {msg.role === 'assistant' ? (
+                  <CollapsibleText text={stripAssistantContent(msg)} />
+                ) : (
+                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                )}
                 {msg.role === 'assistant' && msg.modules && msg.modules.length > 0 && (
                   <InlineModuleMatches modules={msg.modules} />
                 )}
