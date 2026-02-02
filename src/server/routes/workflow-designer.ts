@@ -21,7 +21,7 @@ interface WorkflowDesignerDeps {
   templateService: TemplateService;
 }
 
-const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-sonnet-4-20250514';
+const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 
 // Request schema for workflow analysis
 const analyzeWorkflowRequestSchema = z

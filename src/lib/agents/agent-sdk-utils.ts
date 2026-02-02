@@ -34,7 +34,7 @@ export interface AgentQueryResult {
 // Default Configuration
 // =============================================================================
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
 
 // =============================================================================
 // Main Function

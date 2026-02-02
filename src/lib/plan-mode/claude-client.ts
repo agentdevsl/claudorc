@@ -74,7 +74,7 @@ export type TokenCallback = (delta: string, accumulated: string) => void;
  */
 export type ClaudeResult = TextResult | ToolCallResult;
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
 const DEFAULT_MAX_TOKENS = 8192;
 
 /**

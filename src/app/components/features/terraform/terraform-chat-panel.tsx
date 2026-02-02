@@ -176,9 +176,11 @@ const STAGE_ICONS: Record<ComposeStage, React.ElementType> = {
 function ComposeProgress({
   currentStage,
   matchedModules,
+  isComplete,
 }: {
   currentStage: ComposeStage;
   matchedModules: ModuleMatch[];
+  isComplete: boolean;
 }) {
   const currentIdx = COMPOSE_STAGES.indexOf(currentStage);
 
@@ -188,12 +190,17 @@ function ComposeProgress({
         AI
       </div>
       <div className="max-w-[85%] rounded-xl border border-border bg-surface px-4 py-3">
+        {isComplete && (
+          <div className="mb-3 text-sm font-semibold text-success">
+            {'\u{1F389}'} Configuration Ready
+          </div>
+        )}
         <div className="space-y-2">
           {COMPOSE_STAGES.map((stage, idx) => {
             const Icon = STAGE_ICONS[stage];
-            const isActive = idx === currentIdx;
-            const isDone = idx < currentIdx;
-            const isPending = idx > currentIdx;
+            const isActive = !isComplete && idx === currentIdx;
+            const isDone = isComplete || idx < currentIdx;
+            const isPending = !isComplete && idx > currentIdx;
 
             return (
               <div
@@ -203,7 +210,9 @@ function ComposeProgress({
                 }`}
               >
                 {isDone ? (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-success" weight="bold" />
+                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[13px]">
+                    {'\u2705'}
+                  </span>
                 ) : isActive ? (
                   <CircleNotch className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
                 ) : (
@@ -221,35 +230,51 @@ function ComposeProgress({
           })}
         </div>
 
-        {/* Show matched modules inline as they arrive */}
-        {matchedModules.length > 0 && currentIdx >= COMPOSE_STAGES.indexOf('matching_modules') && (
-          <div className="mt-3 border-t border-border-muted pt-3">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">
-              Matched Modules
-            </div>
-            <div className="space-y-1">
-              {matchedModules.map((mod) => (
-                <div
-                  key={mod.moduleId}
-                  className="flex items-center gap-2 text-xs animate-slide-up"
-                >
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      mod.confidence >= 0.8 ? 'bg-success' : 'bg-attention'
-                    }`}
-                  />
-                  <span className="font-mono font-medium text-fg">{mod.name}</span>
-                  <span
-                    className={`rounded px-1 py-0.5 text-[10px] font-medium ${
-                      PROVIDER_COLORS[mod.provider.toLowerCase()] ??
-                      'bg-surface-emphasis text-fg-muted'
-                    }`}
+        {/* Show matched modules inline */}
+        {matchedModules.length > 0 &&
+          (isComplete || currentIdx >= COMPOSE_STAGES.indexOf('matching_modules')) && (
+            <div className="mt-3 border-t border-border-muted pt-3">
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">
+                Matched Modules
+              </div>
+              <div className="space-y-1">
+                {matchedModules.map((mod) => (
+                  <div
+                    key={mod.moduleId}
+                    className="flex items-center gap-2 text-xs animate-slide-up"
                   >
-                    {mod.provider}
-                  </span>
-                </div>
-              ))}
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        mod.confidence >= 0.8 ? 'bg-success' : 'bg-attention'
+                      }`}
+                    />
+                    <span className="font-mono font-medium text-fg">{mod.name}</span>
+                    <span
+                      className={`rounded px-1 py-0.5 text-[10px] font-medium ${
+                        PROVIDER_COLORS[mod.provider.toLowerCase()] ??
+                        'bg-surface-emphasis text-fg-muted'
+                      }`}
+                    >
+                      {mod.provider}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
+
+        {/* Deploy CTA on completion */}
+        {isComplete && (
+          <div className="mt-3 border-t border-border-muted pt-3">
+            <p className="text-xs text-fg-muted">
+              {'\u{1F680}'} Would you like to deploy this to your project?
+            </p>
+            <button
+              type="button"
+              className="mt-2 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
+            >
+              Deploy to Project
+            </button>
           </div>
         )}
       </div>
@@ -332,6 +357,7 @@ export function TerraformChatPanel(): React.JSX.Element {
     messages,
     isStreaming,
     composeStage,
+    composeComplete,
     matchedModules,
     error,
     sendMessage,
@@ -346,7 +372,7 @@ export function TerraformChatPanel(): React.JSX.Element {
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll must trigger on message/stage changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, composeStage, matchedModules]);
+  }, [messages, composeStage, composeComplete, matchedModules]);
 
   // Auto-focus input
   useEffect(() => {
@@ -439,7 +465,11 @@ export function TerraformChatPanel(): React.JSX.Element {
                     : 'border border-border bg-surface text-fg'
                 }`}
               >
-                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                {msg.role === 'user' ? (
+                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                ) : (
+                  <div className="text-xs text-fg-muted">Terraform configuration generated</div>
+                )}
                 {msg.role === 'assistant' && msg.modules && msg.modules.length > 0 && (
                   <InlineModuleMatches modules={msg.modules} />
                 )}
@@ -469,8 +499,12 @@ export function TerraformChatPanel(): React.JSX.Element {
               </div>
             </div>
           ))}
-          {isStreaming && composeStage && messages[messages.length - 1]?.role === 'user' && (
-            <ComposeProgress currentStage={composeStage} matchedModules={matchedModules} />
+          {((isStreaming && composeStage) || (composeComplete && composeStage)) && (
+            <ComposeProgress
+              currentStage={composeStage}
+              matchedModules={matchedModules}
+              isComplete={composeComplete}
+            />
           )}
           {error && !isStreaming && <ErrorBubble error={error} onDismiss={clearError} />}
           <div ref={messagesEndRef} />

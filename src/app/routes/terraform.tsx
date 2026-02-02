@@ -45,7 +45,7 @@ function TerraformLayoutInner(): React.JSX.Element {
   return (
     <LayoutShell
       breadcrumbs={[
-        { label: 'Terraform', to: '/terraform' },
+        { label: 'Terraform No Code (AI assisted)', to: '/terraform' },
         ...(isSettingsView ? [{ label: 'Settings' }] : []),
       ]}
       centerAction={isSettingsView ? undefined : <TerraformViewSwitcher />}

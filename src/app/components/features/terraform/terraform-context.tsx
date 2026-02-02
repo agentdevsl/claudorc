@@ -27,6 +27,7 @@ interface TerraformContextValue {
   syncStatus: { lastSynced: string | null; moduleCount: number };
   isStreaming: boolean;
   composeStage: ComposeStage | null;
+  composeComplete: boolean;
   error: string | null;
   selectedModuleId: string | null;
   sendMessage: (content: string) => Promise<void>;
@@ -55,6 +56,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
   const [modules, setModules] = useState<TerraformModuleView[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [composeStage, setComposeStage] = useState<ComposeStage | null>(null);
+  const [composeComplete, setComposeComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const sessionIdRef = useRef<string | undefined>(undefined);
@@ -125,6 +127,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     if (isStreamingRef.current) return;
 
     setError(null);
+    setComposeComplete(false);
 
     const userMessage: ComposeMessage = { role: 'user', content };
     const updatedMessages = [...messagesRef.current, userMessage];
@@ -254,7 +257,8 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
               case 'done':
                 receivedDone = true;
                 sessionIdRef.current = event.sessionId;
-                setComposeStage(null);
+                setComposeStage('finalizing');
+                setComposeComplete(true);
                 if (event.matchedModules) setMatchedModules(event.matchedModules);
                 if (event.generatedCode) setGeneratedCode(event.generatedCode);
                 break;
@@ -262,6 +266,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
               case 'error':
                 console.error('[Terraform] Compose error:', event.error);
                 setComposeStage(null);
+                setComposeComplete(false);
                 setError(event.error);
                 break;
             }
@@ -281,13 +286,15 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
               case 'done':
                 receivedDone = true;
                 sessionIdRef.current = event.sessionId;
-                setComposeStage(null);
+                setComposeStage('finalizing');
+                setComposeComplete(true);
                 if (event.matchedModules) setMatchedModules(event.matchedModules);
                 if (event.generatedCode) setGeneratedCode(event.generatedCode);
                 break;
               case 'error':
                 console.error('[Terraform] Compose error (buffered):', event.error);
                 setComposeStage(null);
+                setComposeComplete(false);
                 setError(event.error);
                 break;
               case 'code':
@@ -350,6 +357,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       setIsStreaming(false);
       if (!receivedDone) {
         setComposeStage(null);
+        setComposeComplete(false);
       }
     }
   }, []);
@@ -359,6 +367,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     setMatchedModules([]);
     setGeneratedCode(null);
     setComposeStage(null);
+    setComposeComplete(false);
     sessionIdRef.current = undefined;
     isStreamingRef.current = false;
     setIsStreaming(false);
@@ -386,6 +395,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       syncStatus,
       isStreaming,
       composeStage,
+      composeComplete,
       error,
       selectedModuleId,
       sendMessage,
@@ -404,6 +414,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       syncStatus,
       isStreaming,
       composeStage,
+      composeComplete,
       error,
       selectedModuleId,
       sendMessage,

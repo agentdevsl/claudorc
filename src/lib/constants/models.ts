@@ -30,22 +30,16 @@ export const AVAILABLE_MODELS = [
     description: 'Most capable, best for complex tasks',
   },
   {
-    id: 'claude-sonnet-4',
-    name: 'Claude Sonnet 4',
-    fullId: 'claude-sonnet-4-20250514',
-    description: 'Balanced speed and capability',
-  },
-  {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
-    fullId: 'claude-opus-4-20250514',
-    description: 'Strong reasoning and analysis',
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    fullId: 'claude-sonnet-4-5-20250929',
+    description: 'Smart model for complex agents and coding',
   },
   {
     id: 'claude-haiku-4-5',
     name: 'Claude Haiku 4.5',
-    fullId: 'claude-haiku-4-5-20250414',
-    description: 'Fast and efficient',
+    fullId: 'claude-haiku-4-5-20251001',
+    description: 'Fastest with near-frontier intelligence',
   },
 ] as const;
 
@@ -56,7 +50,7 @@ export const DEFAULT_AGENT_MODEL = 'claude-opus-4-5';
 export const DEFAULT_WORKFLOW_MODEL = 'claude-haiku-4-5';
 
 /** Default model for task creation AI */
-export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4';
+export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4-5';
 
 /**
  * Get the task creation model from environment or localStorage.
