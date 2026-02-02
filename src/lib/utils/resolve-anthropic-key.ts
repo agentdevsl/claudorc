@@ -33,7 +33,19 @@ export async function readCredentialsFile(): Promise<OAuthCredentials | null> {
     }
 
     return credentials;
-  } catch {
+  } catch (error) {
+    // Only suppress ENOENT (file not found); log other errors
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      return null;
+    }
+    console.warn(
+      '[resolveAnthropicKey] Failed to read credentials file:',
+      error instanceof Error ? error.message : String(error)
+    );
     return null;
   }
 }

@@ -16,12 +16,27 @@ import { COMPOSE_STAGE_LABELS, PROVIDER_COLORS } from '@/lib/terraform/types';
 import { useTerraform } from './terraform-context';
 
 const QUICK_START_PROMPTS = [
-  { icon: 'stack' as const, text: 'VPC with private subnets' },
-  { icon: 'cube' as const, text: 'EKS cluster with autoscaling' },
-  { icon: 'stack' as const, text: 'RDS PostgreSQL database' },
-  { icon: 'cube' as const, text: 'S3 bucket with encryption' },
-  { icon: 'stack' as const, text: 'Lambda with API Gateway' },
-  { icon: 'cube' as const, text: 'IAM roles and policies' },
+  {
+    icon: 'stack' as const,
+    text: 'VPC with security groups, ALB, and EC2 instances for a web app',
+  },
+  {
+    icon: 'cube' as const,
+    text: 'S3 bucket with CloudFront distribution and Route53 DNS for static hosting',
+  },
+  {
+    icon: 'stack' as const,
+    text: 'Lambda function with SQS queue, SNS topic, and CloudWatch alarms',
+  },
+  { icon: 'cube' as const, text: 'EC2 instances with autoscaling, ALB, and DynamoDB backend' },
+  {
+    icon: 'stack' as const,
+    text: 'VPC with KMS encryption, IAM roles, and S3 bucket for a secure data pipeline',
+  },
+  {
+    icon: 'cube' as const,
+    text: 'Landing zone with VPC, security groups, IAM, and CloudWatch monitoring',
+  },
 ];
 
 function PromptIcon({ type, className }: { type: 'stack' | 'cube'; className?: string }) {
@@ -401,7 +416,7 @@ export function TerraformChatPanel(): React.JSX.Element {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Describe your infrastructure needs..."
-              rows={4}
+              rows={6}
               className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
               disabled={isStreaming}
             />
@@ -445,7 +460,7 @@ function ChatInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Describe your infrastructure needs..."
-          rows={3}
+          rows={6}
           className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
           disabled={isStreaming}
         />

@@ -123,6 +123,7 @@ export class TerraformComposeService {
     if (!job) return null;
 
     const encoder = new TextEncoder();
+    const KEEPALIVE_INTERVAL_MS = 15_000;
     let cancelled = false;
 
     return new ReadableStream<Uint8Array>({
@@ -148,7 +149,21 @@ export class TerraformComposeService {
             // to avoid a race where pushEvent replaces job.waiting between
             // the drain loop above and this await.
             const currentWaiting = job.waiting;
-            await currentWaiting;
+
+            // Race the event promise against a keepalive timer to prevent
+            // the HTTP connection from being killed due to inactivity.
+            const keepalive = new Promise<'keepalive'>((resolve) =>
+              setTimeout(() => resolve('keepalive'), KEEPALIVE_INTERVAL_MS)
+            );
+            const result = await Promise.race([
+              currentWaiting.then(() => 'event' as const),
+              keepalive,
+            ]);
+
+            if (result === 'keepalive' && !cancelled) {
+              // Send SSE comment to keep the connection alive
+              controller.enqueue(encoder.encode(': keepalive\n\n'));
+            }
           }
         } catch (err) {
           console.error('[TerraformCompose] Subscriber stream error:', err);
