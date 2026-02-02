@@ -1,11 +1,9 @@
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { z } from 'zod';
 import type { OAuthCredentials } from '../../types/credentials.js';
 import { PlanModeErrors } from '../errors/plan-mode-errors.js';
+import { readCredentialsFile } from '../utils/resolve-anthropic-key.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 import type { ClaudeMessage, PlanTurn, UserInteraction } from './types.js';
@@ -80,55 +78,17 @@ const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 const DEFAULT_MAX_TOKENS = 8192;
 
 /**
- * Path to OAuth credentials file
- */
-function getCredentialsPath(): string {
-  return path.join(os.homedir(), '.claude', '.credentials.json');
-}
-
-/**
- * Load OAuth credentials from disk
+ * Load OAuth credentials from disk using the shared credential reader.
+ * Wraps readCredentialsFile() with Result-based error types for plan mode.
  */
 export async function loadCredentials(): Promise<
-  Result<
-    OAuthCredentials,
-    | typeof PlanModeErrors.CREDENTIALS_NOT_FOUND
-    | typeof PlanModeErrors.CREDENTIALS_EXPIRED
-    | ReturnType<typeof PlanModeErrors.API_ERROR>
-  >
+  Result<OAuthCredentials, typeof PlanModeErrors.CREDENTIALS_NOT_FOUND>
 > {
-  const credPath = getCredentialsPath();
-
-  try {
-    const content = await fs.promises.readFile(credPath, 'utf-8');
-    const credentials = JSON.parse(content) as OAuthCredentials;
-
-    if (!credentials.accessToken) {
-      return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
-    }
-
-    // Check if credentials are expired
-    if (credentials.expiresAt && Date.now() > credentials.expiresAt) {
-      return err(PlanModeErrors.CREDENTIALS_EXPIRED);
-    }
-
-    return ok(credentials);
-  } catch (error) {
-    // Differentiate between error types for better debugging
-    if (error instanceof SyntaxError) {
-      return err(PlanModeErrors.API_ERROR('Credentials file is malformed JSON'));
-    }
-    if (error && typeof error === 'object' && 'code' in error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
-        return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
-      }
-      if (nodeError.code === 'EACCES') {
-        return err(PlanModeErrors.API_ERROR('Cannot read credentials file: permission denied'));
-      }
-    }
+  const credentials = await readCredentialsFile();
+  if (!credentials) {
     return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
   }
+  return ok(credentials);
 }
 
 /**

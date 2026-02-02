@@ -1,20 +1,11 @@
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import type { SandboxError } from '../errors/sandbox-errors.js';
 import { SandboxErrors } from '../errors/sandbox-errors.js';
+import { readCredentialsFile } from '../utils/resolve-anthropic-key.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 import type { Sandbox } from './providers/sandbox-provider.js';
 import type { OAuthCredentials } from './types.js';
 import { SANDBOX_DEFAULTS } from './types.js';
-
-/**
- * Path to OAuth credentials file on host
- */
-function getHostCredentialsPath(): string {
-  return path.join(os.homedir(), '.claude', '.credentials.json');
-}
 
 /**
  * Path to OAuth credentials file inside container
@@ -24,40 +15,15 @@ function getContainerCredentialsPath(): string {
 }
 
 /**
- * Load OAuth credentials from host filesystem
+ * Load OAuth credentials from host filesystem using the shared credential reader.
+ * Wraps readCredentialsFile() with sandbox-specific error types.
  */
 export async function loadHostCredentials(): Promise<Result<OAuthCredentials, SandboxError>> {
-  const credPath = getHostCredentialsPath();
-
-  try {
-    const content = await fs.promises.readFile(credPath, 'utf-8');
-    const credentials = JSON.parse(content) as OAuthCredentials;
-
-    if (!credentials.accessToken) {
-      return err(SandboxErrors.CREDENTIALS_NOT_FOUND);
-    }
-
-    return ok(credentials);
-  } catch (error) {
-    // Differentiate between error types for better debugging
-    if (error instanceof SyntaxError) {
-      return err(SandboxErrors.CREDENTIALS_INJECTION_FAILED('Credentials file is malformed JSON'));
-    }
-    if (error && typeof error === 'object' && 'code' in error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
-        return err(SandboxErrors.CREDENTIALS_NOT_FOUND);
-      }
-      if (nodeError.code === 'EACCES') {
-        return err(
-          SandboxErrors.CREDENTIALS_INJECTION_FAILED(
-            'Cannot read credentials file: permission denied'
-          )
-        );
-      }
-    }
+  const credentials = await readCredentialsFile();
+  if (!credentials) {
     return err(SandboxErrors.CREDENTIALS_NOT_FOUND);
   }
+  return ok(credentials);
 }
 
 /**

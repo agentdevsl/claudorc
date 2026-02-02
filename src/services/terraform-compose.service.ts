@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
@@ -7,7 +7,6 @@ import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js
 import type { ComposeMessage, ModuleMatch } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';
-import type { ApiKeyService } from './api-key.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -24,10 +23,7 @@ export interface ComposeSession {
 export class TerraformComposeService {
   private sessions = new Map<string, ComposeSession>();
 
-  constructor(
-    private registryService: TerraformRegistryService,
-    private apiKeyService: ApiKeyService
-  ) {}
+  constructor(private registryService: TerraformRegistryService) {}
 
   private cleanupSessions(): void {
     const now = Date.now();
@@ -78,35 +74,20 @@ export class TerraformComposeService {
     }
     const allModules = modulesResult.ok ? modulesResult.value : [];
 
-    // Resolve API key: database first, then env var fallback
-    let apiKey: string | null = null;
-    try {
-      apiKey = await this.apiKeyService.getDecryptedKey('anthropic');
-    } catch {
-      // Fall through to env var
-    }
-    if (!apiKey) {
-      apiKey = process.env.ANTHROPIC_API_KEY ?? null;
-    }
-    if (!apiKey) {
-      return err(
-        TerraformErrors.COMPOSE_FAILED(
-          'Anthropic API key not configured. Set via Admin Settings or ANTHROPIC_API_KEY environment variable.'
-        )
-      );
-    }
-
-    const anthropic = new Anthropic({ apiKey });
+    // Build a single prompt from system prompt + conversation history for the Agent SDK
+    const prompt = formatPromptForAgentSdk(systemPrompt, messages);
 
     try {
-      const stream = anthropic.messages.stream({
+      // Create an Agent SDK session — handles auth via ~/.claude/.credentials.json and env
+      const session = unstable_v2_createSession({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages,
+        env: { ...process.env },
+        permissionMode: 'plan', // Read-only, no tool use needed for compose
       });
 
-      // Transform to SSE stream
+      await session.send(prompt);
+
+      // Transform Agent SDK stream to SSE stream
       const encoder = new TextEncoder();
       let fullResponse = '';
       const sessionsMap = this.sessions;
@@ -114,15 +95,40 @@ export class TerraformComposeService {
       const readable = new ReadableStream<Uint8Array>({
         async start(controller) {
           try {
-            stream.on('text', (text) => {
-              fullResponse += text;
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`)
-              );
-            });
+            let usage: { input_tokens?: number; output_tokens?: number } | undefined;
 
-            // Wait for completion
-            const finalMessage = await stream.finalMessage();
+            for await (const msg of session.stream()) {
+              // Handle token-by-token streaming
+              if (msg.type === 'stream_event') {
+                const event = msg.event as {
+                  type: string;
+                  delta?: { type: string; text?: string };
+                };
+
+                if (
+                  event.type === 'content_block_delta' &&
+                  event.delta?.type === 'text_delta' &&
+                  event.delta.text
+                ) {
+                  fullResponse += event.delta.text;
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: 'text', content: event.delta.text })}\n\n`
+                    )
+                  );
+                }
+              }
+
+              // Handle result (session finished)
+              if (msg.type === 'result') {
+                const result = msg as {
+                  usage?: { input_tokens?: number; output_tokens?: number };
+                };
+                usage = result.usage;
+              }
+            }
+
+            session.close();
 
             // Extract code blocks and module matches from the full response
             const generatedCode = extractHclCode(fullResponse);
@@ -152,31 +158,47 @@ export class TerraformComposeService {
                   sessionId: sid,
                   matchedModules,
                   generatedCode,
-                  usage: {
-                    inputTokens: finalMessage.usage.input_tokens,
-                    outputTokens: finalMessage.usage.output_tokens,
-                  },
+                  usage: usage
+                    ? {
+                        inputTokens: usage.input_tokens ?? 0,
+                        outputTokens: usage.output_tokens ?? 0,
+                      }
+                    : undefined,
                 })}\n\n`
               )
             );
 
             // Update session
-            const session: ComposeSession = {
+            const composeSession: ComposeSession = {
               id: sid,
               messages: [...messages, { role: 'assistant', content: fullResponse }],
               matchedModules,
               generatedCode,
               lastAccessedAt: Date.now(),
             };
-            sessionsMap.set(sid, session);
+            sessionsMap.set(sid, composeSession);
 
             controller.close();
           } catch (streamError) {
+            session.close();
             const errorMessage =
               streamError instanceof Error ? streamError.message : String(streamError);
             console.error('[TerraformComposeService] Stream error:', errorMessage);
+
+            // Detect authentication errors
+            let userMessage = errorMessage;
+            const isAuthError =
+              errorMessage.includes('authentication_error') ||
+              errorMessage.includes('invalid x-api-key') ||
+              errorMessage.includes('invalid api key') ||
+              errorMessage.includes('credentials');
+            if (isAuthError) {
+              userMessage =
+                'Claude authentication failed. Please run "claude login" or check your credentials file.';
+            }
+
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`)
+              encoder.encode(`data: ${JSON.stringify({ type: 'error', error: userMessage })}\n\n`)
             );
             controller.close();
           }
@@ -197,6 +219,16 @@ export class TerraformComposeService {
   resetSession(sessionId: string): void {
     this.sessions.delete(sessionId);
   }
+}
+
+function formatPromptForAgentSdk(systemPrompt: string, messages: ComposeMessage[]): string {
+  const parts: string[] = [systemPrompt, ''];
+  for (const msg of messages) {
+    const role = msg.role === 'user' ? 'User' : 'Assistant';
+    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    parts.push(`${role}: ${content}`);
+  }
+  return parts.join('\n\n');
 }
 
 function extractHclCode(text: string): string | null {

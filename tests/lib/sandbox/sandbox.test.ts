@@ -929,7 +929,7 @@ describe('CredentialsInjector', () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe('SANDBOX_CREDENTIALS_INJECTION_FAILED');
+        expect(result.error.code).toBe('SANDBOX_CREDENTIALS_NOT_FOUND');
       }
     });
 
@@ -953,7 +953,7 @@ describe('CredentialsInjector', () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe('SANDBOX_CREDENTIALS_INJECTION_FAILED');
+        expect(result.error.code).toBe('SANDBOX_CREDENTIALS_NOT_FOUND');
       }
     });
 
