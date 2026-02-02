@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { z } from 'zod';
 import type { OAuthCredentials } from '../../types/credentials.js';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../constants/models.js';
 import { PlanModeErrors } from '../errors/plan-mode-errors.js';
 import { readCredentialsFile } from '../utils/resolve-anthropic-key.js';
 import type { Result } from '../utils/result.js';
@@ -74,7 +75,7 @@ export type TokenCallback = (delta: string, accumulated: string) => void;
  */
 export type ClaudeResult = TextResult | ToolCallResult;
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+const DEFAULT_MODEL = getFullModelId(DEFAULT_TASK_CREATION_MODEL);
 const DEFAULT_MAX_TOKENS = 8192;
 
 /**

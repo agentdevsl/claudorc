@@ -732,6 +732,20 @@
     animation: scaleIn var(--duration-normal) var(--ease-out);
   }
 
+  .animate-fade-slide-in {
+    animation: fadeSlideIn var(--duration-normal, 200ms) var(--ease-out, ease-out) both;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Terraform dependency edge: animated flowing dashes for implicit edges */
+  @keyframes tf-dash-flow {
+    to { stroke-dashoffset: -20; }
+  }
+
   /* Status dot with pulse */
   .status-dot-pulse {
     animation: statusPulse 2s ease-in-out infinite;

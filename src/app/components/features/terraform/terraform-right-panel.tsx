@@ -1,24 +1,53 @@
-import { Code, Copy, DownloadSimple, FileCode } from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
+import { Code, Copy, DownloadSimple, FileCode, GitBranch } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useTerraform } from './terraform-context';
+import { TerraformDependencyDiagram } from './terraform-dependency-diagram';
 import { downloadAsFile } from './terraform-utils';
 
 export function TerraformRightPanel(): React.JSX.Element {
   const { generatedCode } = useTerraform();
+  const [activeTab, setActiveTab] = useState('code');
+  const prevCodeRef = useRef<string | null>(null);
+
+  // Auto-switch to dependencies tab when code is first generated
+  useEffect(() => {
+    if (generatedCode && !prevCodeRef.current) {
+      setActiveTab('dependencies');
+    }
+    prevCodeRef.current = generatedCode;
+  }, [generatedCode]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-surface">
-      {/* Header */}
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-border bg-gradient-to-r from-surface to-surface-subtle px-3 py-3 text-xs font-semibold text-fg-muted">
-        <Code className="h-3.5 w-3.5" />
-        Code Preview
+    <Tabs
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className="flex min-h-0 flex-1 flex-col bg-surface"
+    >
+      {/* Header with tabs */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-gradient-to-r from-surface to-surface-subtle px-3 py-2">
+        <TabsList className="h-7 border-0 bg-transparent p-0">
+          <TabsTrigger value="code" className="h-6 gap-1 px-2 text-[11px]">
+            <Code className="h-3 w-3" />
+            Code
+          </TabsTrigger>
+          <TabsTrigger value="dependencies" className="h-6 gap-1 px-2 text-[11px]">
+            <GitBranch className="h-3 w-3" />
+            Dependencies
+          </TabsTrigger>
+        </TabsList>
       </div>
 
-      {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Code tab */}
+      <TabsContent value="code" className="mt-0 min-h-0 flex-1 overflow-y-auto">
         <CodePreview code={generatedCode} />
-      </div>
-    </div>
+      </TabsContent>
+
+      {/* Dependencies tab */}
+      <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
+        <TerraformDependencyDiagram />
+      </TabsContent>
+    </Tabs>
   );
 }
 

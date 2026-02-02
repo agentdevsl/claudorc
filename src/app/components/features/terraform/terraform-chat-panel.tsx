@@ -74,50 +74,92 @@ function InlineModuleMatches({ modules }: { modules: ModuleMatch[] }) {
 
 function ClarifyingQuestionsUI({
   questions,
-  round,
-  totalRounds,
   onSubmit,
   onSkip,
 }: {
   questions: ClarifyingQuestion[];
-  round: number;
-  totalRounds: number;
+  round?: number;
+  totalRounds?: number;
   onSubmit: (answers: Record<string, string>) => void;
   onSkip: () => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [customMode, setCustomMode] = useState<Record<string, boolean>>({});
+
+  const allAnswered = questions.every((q) => answers[q.question]?.trim());
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-surface-subtle p-4">
+    <div className="mt-3 rounded-md border border-accent/20 bg-accent-muted/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold text-fg">
-          Clarifying Questions ({round}/{totalRounds})
+          {questions.length} question{questions.length > 1 ? 's' : ''} to refine your configuration
         </span>
         <button type="button" onClick={onSkip} className="text-xs text-fg-muted hover:text-fg">
-          Skip
+          Use defaults
         </button>
       </div>
       <div className="space-y-3">
         {questions.map((q) => (
           <div key={q.question} className="space-y-1.5">
-            <div className="text-xs font-medium text-fg">{q.question}</div>
-            <div className="text-[11px] text-fg-subtle">{q.category}</div>
-            <div className="flex flex-wrap gap-1.5">
-              {q.options.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setAnswers((prev) => ({ ...prev, [q.question]: opt }))}
-                  className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-                    answers[q.question] === opt
-                      ? 'bg-accent text-white'
-                      : 'border border-border bg-surface text-fg-muted hover:border-accent hover:text-accent'
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              {q.category !== 'General' && (
+                <span className="rounded bg-surface-emphasis px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
+                  {q.category}
+                </span>
+              )}
+              <div className="text-xs font-medium text-fg">{q.question}</div>
             </div>
+            {customMode[q.question] ? (
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={answers[q.question] ?? ''}
+                  onChange={(e) =>
+                    setAnswers((prev) => ({ ...prev, [q.question]: e.target.value }))
+                  }
+                  placeholder="Type your answer..."
+                  className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-subtle outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomMode((prev) => ({ ...prev, [q.question]: false }));
+                    setAnswers((prev) => {
+                      const next = { ...prev };
+                      delete next[q.question];
+                      return next;
+                    });
+                  }}
+                  className="rounded-md px-2 py-1.5 text-xs text-fg-muted hover:text-fg"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {q.options.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setAnswers((prev) => ({ ...prev, [q.question]: opt }))}
+                    className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+                      answers[q.question] === opt
+                        ? 'bg-accent text-white'
+                        : 'border border-border bg-surface text-fg-muted hover:border-accent hover:text-accent'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCustomMode((prev) => ({ ...prev, [q.question]: true }))}
+                  className="rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-fg-subtle transition-colors hover:border-accent hover:text-accent"
+                >
+                  Other...
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -125,7 +167,8 @@ function ClarifyingQuestionsUI({
         <button
           type="button"
           onClick={() => onSubmit(answers)}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
+          disabled={!allAnswered}
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
         >
           Submit Answers
         </button>
@@ -262,21 +305,6 @@ function ComposeProgress({
               </div>
             </div>
           )}
-
-        {/* Deploy CTA on completion */}
-        {isComplete && (
-          <div className="mt-3 border-t border-border-muted pt-3">
-            <p className="text-xs text-fg-muted">
-              {'\u{1F680}'} Would you like to deploy this to your project?
-            </p>
-            <button
-              type="button"
-              className="mt-2 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
-            >
-              Deploy to Project
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -465,11 +493,11 @@ export function TerraformChatPanel(): React.JSX.Element {
                     : 'border border-border bg-surface text-fg'
                 }`}
               >
-                {msg.role === 'user' ? (
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                ) : (
-                  <div className="text-xs text-fg-muted">Terraform configuration generated</div>
-                )}
+                <div className="whitespace-pre-wrap break-words">
+                  {msg.role === 'assistant'
+                    ? msg.content.replace(/```hcl[\s\S]*?```/g, '').trim()
+                    : msg.content}
+                </div>
                 {msg.role === 'assistant' && msg.modules && msg.modules.length > 0 && (
                   <InlineModuleMatches modules={msg.modules} />
                 )}

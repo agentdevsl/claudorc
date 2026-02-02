@@ -452,6 +452,23 @@ function extractHclCode(text: string): string | null {
   return matches.length > 0 ? matches.join('\n\n') : null;
 }
 
+/** Names too generic to match by name alone — they appear in every Terraform response. */
+const GENERIC_MODULE_NAMES = new Set([
+  'module',
+  'test',
+  'main',
+  'example',
+  'default',
+  'resource',
+  'variable',
+  'output',
+  'provider',
+  'terraform',
+  'data',
+  'local',
+  'locals',
+]);
+
 function matchModulesInResponse(response: string, modules: TerraformModule[]): ModuleMatch[] {
   const matched: ModuleMatch[] = [];
   const seen = new Set<string>();
@@ -460,8 +477,12 @@ function matchModulesInResponse(response: string, modules: TerraformModule[]): M
   for (const mod of modules) {
     if (seen.has(mod.id)) continue;
 
+    const nameLower = mod.name.toLowerCase();
+    const isGenericName = GENERIC_MODULE_NAMES.has(nameLower) || nameLower.length < 3;
+
     const sourceInResponse = response.includes(mod.source);
-    const nameInResponse = responseLower.includes(mod.name.toLowerCase());
+    const namePattern = new RegExp(`\\b${nameLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+    const nameInResponse = !isGenericName && namePattern.test(responseLower);
 
     let confidence: number | null = null;
     let matchReason = '';

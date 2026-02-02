@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { apiClient } from '@/lib/api/client';
 import type {
+  ClarifyingQuestion,
   ComposeEvent,
   ComposeMessage,
   ComposeStage,
@@ -17,6 +18,98 @@ import type {
   TerraformModuleView,
   TerraformRegistryView,
 } from '@/lib/terraform/types';
+
+/** Infer clickable options from a question's text based on common patterns. */
+function inferOptions(question: string): string[] {
+  const q = question.toLowerCase();
+
+  // Extract inline examples: (e.g., `us-east-1`, `eu-west-1`)
+  const backtickExamples = [...question.matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? '');
+  if (backtickExamples.length >= 2) return backtickExamples.slice(0, 4);
+
+  // Yes/no patterns: "Should I include...", "Do you want..."
+  if (/\b(should i|do you want|would you like|do you need|include)\b/i.test(q)) {
+    return ['Yes', 'No'];
+  }
+
+  // Region questions
+  if (/\b(region|where.*(?:bucket|deploy|host|live))\b/i.test(q)) {
+    return ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-2'];
+  }
+
+  // Domain questions
+  if (/\b(domain|hostname|url|site)\b/i.test(q)) {
+    return ['example.com', 'Use placeholder'];
+  }
+
+  // SSL/certificate questions
+  if (/\b(ssl|certificate|https|tls|acm)\b/i.test(q)) {
+    return ['Yes, include ACM', 'No, skip SSL'];
+  }
+
+  // Environment questions
+  if (/\b(environment|env|stage)\b/i.test(q)) {
+    return ['Production', 'Staging', 'Development'];
+  }
+
+  // Instance type / size questions
+  if (/\b(instance.*type|size|capacity)\b/i.test(q)) {
+    return ['t3.micro', 't3.small', 't3.medium', 't3.large'];
+  }
+
+  // Fallback: use placeholder values
+  return ['Use placeholder values'];
+}
+
+/** Parse numbered clarifying questions from assistant text.
+ *  Matches patterns like:
+ *  - "1. **Domain name** – What domain will this...?"
+ *  - "1. What domain will this...?"
+ *  - "- **Region** - Where should the bucket...?"
+ */
+function parseClarifyingQuestions(text: string): ClarifyingQuestion[] {
+  // Only look for questions if there are no HCL code blocks (i.e. AI is asking, not generating)
+  if (/```(?:hcl|terraform|tf)\n/i.test(text)) return [];
+
+  const questions: ClarifyingQuestion[] = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match "1. ...", "- ...", "* ..." patterns ending with "?"
+    const match = trimmed.match(/^(?:\d+[.)]\s*|-\s*|\*\s*)(.+\?)\s*$/);
+    if (!match) continue;
+
+    const raw = match[1] ?? '';
+    // Extract category from bold markers: **Category** or **Category:**
+    const categoryMatch = raw.match(/\*\*(.+?)\*\*\s*[-–:]\s*/);
+    const category = categoryMatch ? (categoryMatch[1] ?? 'General') : 'General';
+    // Clean question text: remove bold markers
+    const question = raw.replace(/\*\*(.+?)\*\*\s*[-–:]\s*/, '').trim();
+
+    if (question.length > 10) {
+      const options = inferOptions(question);
+      questions.push({ category, question, options });
+    }
+  }
+  return questions;
+}
+
+/** Client-side fallback: extract HCL code from fenced code blocks in assistant text. */
+function extractHclFromText(text: string): string | null {
+  // Try ```hcl, ```terraform, ```tf first
+  const hclMatches = [...text.matchAll(/```(?:hcl|terraform|tf)\n([\s\S]*?)```/g)]
+    .map((m) => m[1]?.trim())
+    .filter(Boolean);
+  if (hclMatches.length > 0) return hclMatches.join('\n\n');
+
+  // Fallback: plain ``` blocks that contain module/resource/variable blocks
+  const plainMatches = [...text.matchAll(/```\n([\s\S]*?)```/g)]
+    .map((m) => m[1]?.trim())
+    .filter((block) => block && /\b(module|resource|variable|terraform)\s/.test(block));
+  if (plainMatches.length > 0) return plainMatches.join('\n\n');
+
+  return null;
+}
 
 interface TerraformContextValue {
   messages: ComposeMessage[];
@@ -146,6 +239,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
 
     let receivedDone = false;
     let receivedPartialData = false;
+    let assistantContent = '';
 
     try {
       // Step 1: POST to start the compose job (returns immediately with sessionId)
@@ -185,7 +279,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
 
       const reader = eventsResponse.body.getReader();
       const decoder = new TextDecoder();
-      let assistantContent = '';
+      assistantContent = '';
       let buffer = '';
 
       while (true) {
@@ -358,6 +452,25 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       if (!receivedDone) {
         setComposeStage(null);
         setComposeComplete(false);
+      }
+      // Client-side fallback: extract HCL from assistant content if server didn't send a code event
+      setGeneratedCode((prev) => {
+        if (prev) return prev;
+        return extractHclFromText(assistantContent);
+      });
+      // Parse clarifying questions from assistant text and attach to message
+      if (assistantContent) {
+        const questions = parseClarifyingQuestions(assistantContent);
+        if (questions.length > 0) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastMsg = updated[updated.length - 1];
+            if (lastMsg?.role === 'assistant') {
+              updated[updated.length - 1] = { ...lastMsg, clarifyingQuestions: questions };
+            }
+            return updated;
+          });
+        }
       }
     }
   }, []);

@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema/templates.js';
 import { agentQuery } from '../../lib/agents/agent-sdk-utils.js';
+import { DEFAULT_WORKFLOW_MODEL, getFullModelId } from '../../lib/constants/models.js';
 import {
   createWorkflowAnalysisPrompt,
   WORKFLOW_GENERATION_SYSTEM_PROMPT,
@@ -21,7 +22,7 @@ interface WorkflowDesignerDeps {
   templateService: TemplateService;
 }
 
-const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? getFullModelId(DEFAULT_WORKFLOW_MODEL);
 
 // Request schema for workflow analysis
 const analyzeWorkflowRequestSchema = z

@@ -18,7 +18,9 @@ import type { Position, WorkflowEdge, WorkflowNode } from './types.js';
 // Lazy-initialize ELK instance to avoid server-side worker issues
 let elkInstance: typeof import('elkjs/lib/elk.bundled.js').default.prototype | null = null;
 
-async function getElk(): Promise<typeof import('elkjs/lib/elk.bundled.js').default.prototype> {
+export async function getElk(): Promise<
+  typeof import('elkjs/lib/elk.bundled.js').default.prototype
+> {
   if (!elkInstance) {
     const ELKModule = await import('elkjs/lib/elk.bundled.js');
     elkInstance = new ELKModule.default();
