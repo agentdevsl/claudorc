@@ -1212,6 +1212,8 @@ export const apiClient = {
       }>(`/api/terraform/modules/${encodeURIComponent(id)}`),
 
     getComposeUrl: () => `${API_BASE}/api/terraform/compose`,
+    getComposeEventsUrl: (sessionId: string) =>
+      `${API_BASE}/api/terraform/compose/${encodeURIComponent(sessionId)}/events`,
   },
 
   cliMonitor: {

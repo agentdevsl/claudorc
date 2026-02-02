@@ -11,7 +11,13 @@ export function buildCompositionSystemPrompt(moduleContext: string): string {
 
 ## Rules:
 1. ONLY use modules from the catalog below. Never invent module sources.
-2. Use the exact \`source\` path from the catalog for each module block.
+2. Use the exact \`source\` path from the catalog for each module block, and include the \`version\` attribute. Example format:
+   \`\`\`hcl
+   module "example" {
+     source  = "app.terraform.io/org-name/module-name/provider"
+     version = "1.0.0"
+   }
+   \`\`\`
 3. Use \`module.X.output_name\` syntax for cross-module references.
 4. Always include a \`terraform {}\` block with \`required_providers\` when generating code.
 5. For required variables without defaults, ask the user before generating code.

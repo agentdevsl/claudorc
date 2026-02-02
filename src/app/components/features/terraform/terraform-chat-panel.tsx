@@ -1,7 +1,18 @@
-import { ArrowUp, Check, Cube, Eraser, Stack } from '@phosphor-icons/react';
+import {
+  ArrowUp,
+  Book,
+  Check,
+  CircleNotch,
+  Code,
+  Cube,
+  Eraser,
+  MagnifyingGlass,
+  Stack,
+  TreeStructure,
+} from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ClarifyingQuestion, ModuleMatch } from '@/lib/terraform/types';
-import { PROVIDER_COLORS } from '@/lib/terraform/types';
+import type { ClarifyingQuestion, ComposeStage, ModuleMatch } from '@/lib/terraform/types';
+import { COMPOSE_STAGE_LABELS, PROVIDER_COLORS } from '@/lib/terraform/types';
 import { useTerraform } from './terraform-context';
 
 const QUICK_START_PROMPTS = [
@@ -130,17 +141,118 @@ function SuccessBanner({
   );
 }
 
+const COMPOSE_STAGES: ComposeStage[] = [
+  'loading_catalog',
+  'analyzing',
+  'matching_modules',
+  'generating_code',
+  'finalizing',
+];
+
+const STAGE_ICONS: Record<ComposeStage, React.ElementType> = {
+  loading_catalog: Book,
+  analyzing: TreeStructure,
+  matching_modules: MagnifyingGlass,
+  generating_code: Code,
+  finalizing: Check,
+};
+
+function ComposeProgress({
+  currentStage,
+  matchedModules,
+}: {
+  currentStage: ComposeStage;
+  matchedModules: ModuleMatch[];
+}) {
+  const currentIdx = COMPOSE_STAGES.indexOf(currentStage);
+
+  return (
+    <div className="flex gap-3 animate-slide-up">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-done-muted text-[11px] font-semibold text-done">
+        AI
+      </div>
+      <div className="max-w-[85%] rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="space-y-2">
+          {COMPOSE_STAGES.map((stage, idx) => {
+            const Icon = STAGE_ICONS[stage];
+            const isActive = idx === currentIdx;
+            const isDone = idx < currentIdx;
+            const isPending = idx > currentIdx;
+
+            return (
+              <div
+                key={stage}
+                className={`flex items-center gap-2.5 text-xs transition-all ${
+                  isPending ? 'opacity-30' : 'opacity-100'
+                }`}
+              >
+                {isDone ? (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-success" weight="bold" />
+                ) : isActive ? (
+                  <CircleNotch className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
+                ) : (
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
+                )}
+                <span
+                  className={
+                    isActive ? 'font-medium text-fg' : isDone ? 'text-fg-muted' : 'text-fg-subtle'
+                  }
+                >
+                  {COMPOSE_STAGE_LABELS[stage]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Show matched modules inline as they arrive */}
+        {matchedModules.length > 0 && currentIdx >= COMPOSE_STAGES.indexOf('matching_modules') && (
+          <div className="mt-3 border-t border-border-muted pt-3">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">
+              Matched Modules
+            </div>
+            <div className="space-y-1">
+              {matchedModules.map((mod) => (
+                <div
+                  key={mod.moduleId}
+                  className="flex items-center gap-2 text-xs animate-slide-up"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      mod.confidence >= 0.8 ? 'bg-success' : 'bg-attention'
+                    }`}
+                  />
+                  <span className="font-mono font-medium text-fg">{mod.name}</span>
+                  <span
+                    className={`rounded px-1 py-0.5 text-[10px] font-medium ${
+                      PROVIDER_COLORS[mod.provider.toLowerCase()] ??
+                      'bg-surface-emphasis text-fg-muted'
+                    }`}
+                  >
+                    {mod.provider}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TerraformChatPanel(): React.JSX.Element {
-  const { messages, isStreaming, sendMessage, resetConversation } = useTerraform();
+  const { messages, isStreaming, composeStage, matchedModules, sendMessage, resetConversation } =
+    useTerraform();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when messages change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll must trigger on message changes
+  // Auto-scroll to bottom when messages or compose stage change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll must trigger on message/stage changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, composeStage, matchedModules]);
 
   // Auto-focus input
   useEffect(() => {
@@ -168,12 +280,12 @@ export function TerraformChatPanel(): React.JSX.Element {
   if (messages.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-auto px-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgba(132,79,186,0.15)]">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-auto px-8 animate-fade-in">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgba(132,79,186,0.15)] shadow-[0_0_24px_rgba(132,79,186,0.15)]">
             <Cube className="h-8 w-8 text-[#844fba]" weight="duotone" />
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-semibold text-fg">Compose Infrastructure</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-fg">Compose Infrastructure</h2>
             <p className="mt-1 max-w-md text-sm text-fg-muted">
               Describe what you need in plain English. We'll match your requirements to private
               modules and compose the Terraform configuration.
@@ -185,7 +297,7 @@ export function TerraformChatPanel(): React.JSX.Element {
                 key={prompt.text}
                 type="button"
                 onClick={() => void sendMessage(prompt.text)}
-                className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-fg-muted transition-colors hover:border-accent hover:text-accent"
+                className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-fg-muted transition-all hover:border-accent hover:text-accent hover:bg-accent-muted"
               >
                 <PromptIcon type={prompt.icon} className="h-3 w-3" />
                 {prompt.text}
@@ -213,7 +325,7 @@ export function TerraformChatPanel(): React.JSX.Element {
           {messages.map((msg) => (
             <div
               key={`${msg.role}-${messages.indexOf(msg)}`}
-              className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+              className={`flex gap-3 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
               {/* Avatar */}
               {msg.role === 'user' ? (
@@ -263,31 +375,8 @@ export function TerraformChatPanel(): React.JSX.Element {
               </div>
             </div>
           ))}
-          {isStreaming && messages[messages.length - 1]?.role === 'user' && (
-            <div className="flex gap-3">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-done-muted text-[11px] font-semibold text-done">
-                AI
-              </div>
-              <div className="rounded-xl border border-border bg-surface px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <span
-                      className="h-2 w-2 animate-bounce rounded-full bg-fg-muted"
-                      style={{ animationDelay: '0ms' }}
-                    />
-                    <span
-                      className="h-2 w-2 animate-bounce rounded-full bg-fg-muted"
-                      style={{ animationDelay: '150ms' }}
-                    />
-                    <span
-                      className="h-2 w-2 animate-bounce rounded-full bg-fg-muted"
-                      style={{ animationDelay: '300ms' }}
-                    />
-                  </div>
-                  <span className="text-xs text-fg-muted">Composing...</span>
-                </div>
-              </div>
-            </div>
+          {isStreaming && composeStage && messages[messages.length - 1]?.role === 'user' && (
+            <ComposeProgress currentStage={composeStage} matchedModules={matchedModules} />
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -312,8 +401,8 @@ export function TerraformChatPanel(): React.JSX.Element {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Describe your infrastructure needs..."
-              rows={1}
-              className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
+              rows={4}
+              className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
               disabled={isStreaming}
             />
             <button
@@ -356,8 +445,8 @@ function ChatInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Describe your infrastructure needs..."
-          rows={1}
-          className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
+          rows={3}
+          className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
           disabled={isStreaming}
         />
         <button

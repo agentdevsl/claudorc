@@ -256,12 +256,15 @@ export async function syncAllModules(config: RegistryConfig): Promise<NewTerrafo
           );
         }
 
+        // Private registry module source format: app.terraform.io/<org>/<name>/<provider>
+        const registrySource = `app.terraform.io/${config.orgName}/${name}/${provider}`;
+
         const module: NewTerraformModule = {
           name,
           namespace,
           provider,
           version: latestVersion,
-          source: detail?.source || `${namespace}/${name}/${provider}`,
+          source: registrySource,
           description: detail?.description ?? null,
           readme: detail?.readme ?? null,
           inputs: detail?.inputs ?? [],

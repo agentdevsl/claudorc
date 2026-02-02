@@ -46,8 +46,26 @@ export interface ModuleMatch {
   matchReason: string;
 }
 
+/** Compose pipeline stage identifiers */
+export type ComposeStage =
+  | 'loading_catalog'
+  | 'analyzing'
+  | 'matching_modules'
+  | 'generating_code'
+  | 'finalizing';
+
+/** Human-readable labels for each compose stage */
+export const COMPOSE_STAGE_LABELS: Record<ComposeStage, string> = {
+  loading_catalog: 'Loading module catalog…',
+  analyzing: 'Analyzing requirements…',
+  matching_modules: 'Matching modules…',
+  generating_code: 'Generating Terraform code…',
+  finalizing: 'Finalizing configuration…',
+};
+
 /** SSE event protocol — discriminated union for compose streaming */
 export type ComposeEvent =
+  | { type: 'status'; stage: ComposeStage }
   | { type: 'text'; content: string }
   | { type: 'modules'; modules: ModuleMatch[] }
   | { type: 'code'; code: string }

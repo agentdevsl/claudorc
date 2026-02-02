@@ -8,7 +8,7 @@ export const Route = createFileRoute('/terraform/')({
 });
 
 function TerraformComposeView(): React.JSX.Element {
-  const [rightWidth, setRightWidth] = useState(380);
+  const [rightWidth, setRightWidth] = useState(640);
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 

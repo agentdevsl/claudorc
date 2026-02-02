@@ -3,6 +3,7 @@
  */
 
 import { Hono } from 'hono';
+import { stream as honoStream } from 'hono/streaming';
 import {
   composeRequestSchema,
   createRegistrySchema,
@@ -305,7 +306,7 @@ export function createTerraformRoutes({
     }
   });
 
-  // POST /compose — streaming composition
+  // POST /compose — start a compose job (returns immediately with sessionId)
   app.post('/compose', async (c) => {
     let body: {
       messages: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -336,7 +337,7 @@ export function createTerraformRoutes({
         );
       }
 
-      const result = await terraformComposeService.compose(
+      const result = await terraformComposeService.startCompose(
         parsed.data.sessionId,
         parsed.data.messages,
         parsed.data.registryId
@@ -346,13 +347,7 @@ export function createTerraformRoutes({
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
-      return new Response(result.value, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
-      });
+      return json({ ok: true, data: result.value }, 202);
     } catch (error) {
       console.error('[Terraform] Compose error:', error);
       return json(
@@ -360,6 +355,37 @@ export function createTerraformRoutes({
         500
       );
     }
+  });
+
+  // GET /compose/:sessionId/events — SSE stream for a running compose job
+  app.get('/compose/:sessionId/events', (c) => {
+    const sessionId = c.req.param('sessionId');
+
+    const readable = terraformComposeService.subscribeToJob(sessionId);
+    if (!readable) {
+      return json(
+        { ok: false, error: { code: 'NOT_FOUND', message: 'Compose job not found' } },
+        404
+      );
+    }
+
+    c.header('Content-Type', 'text/event-stream');
+    c.header('Cache-Control', 'no-cache');
+    c.header('Connection', 'keep-alive');
+
+    return honoStream(c, async (stream) => {
+      const reader = readable.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await stream.write(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    });
   });
 
   return app;

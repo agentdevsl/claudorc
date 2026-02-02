@@ -1,12 +1,16 @@
-import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
-import { TerraformErrors } from '../lib/errors/terraform-errors.js';
 import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
-import type { ComposeMessage, ModuleMatch } from '../lib/terraform/types.js';
+import type {
+  ComposeEvent,
+  ComposeMessage,
+  ComposeStage,
+  ModuleMatch,
+} from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
-import { err, ok } from '../lib/utils/result.js';
+import { ok } from '../lib/utils/result.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -20,8 +24,22 @@ export interface ComposeSession {
   lastAccessedAt: number;
 }
 
+/**
+ * In-memory event log for a running compose job.
+ * Subscribers wait on the `notify` promise which resolves whenever new events arrive.
+ */
+interface ComposeJob {
+  events: ComposeEvent[];
+  finished: boolean;
+  /** Resolve function to wake up any waiting subscribers */
+  notify: () => void;
+  /** Promise that subscribers await; replaced after each notification */
+  waiting: Promise<void>;
+}
+
 export class TerraformComposeService {
   private sessions = new Map<string, ComposeSession>();
+  private jobs = new Map<string, ComposeJob>();
 
   constructor(private registryService: TerraformRegistryService) {}
 
@@ -30,6 +48,7 @@ export class TerraformComposeService {
     for (const [id, session] of this.sessions) {
       if (now - session.lastAccessedAt > SESSION_TTL_MS) {
         this.sessions.delete(id);
+        this.jobs.delete(id);
       }
     }
     // Evict oldest if over max
@@ -40,175 +59,253 @@ export class TerraformComposeService {
       const toRemove = sorted.slice(0, this.sessions.size - MAX_SESSIONS);
       for (const [id] of toRemove) {
         this.sessions.delete(id);
+        this.jobs.delete(id);
       }
     }
   }
 
-  async compose(
+  /**
+   * Start a compose job in the background and return the session ID immediately.
+   * The caller then connects to `subscribeToJob()` via a separate GET SSE endpoint.
+   */
+  async startCompose(
     sessionId: string | undefined,
     messages: ComposeMessage[],
     registryId?: string
-  ): Promise<Result<ReadableStream<Uint8Array>, TerraformError>> {
-    // Use provided session ID or generate a new one (caller must provide full conversation history)
+  ): Promise<Result<{ sessionId: string }, TerraformError>> {
     const sid = sessionId || createId();
 
     this.cleanupSessions();
 
-    // Get module context
-    const contextResult = await this.registryService.getModuleContext(registryId);
-    if (!contextResult.ok) {
-      return err(contextResult.error);
-    }
+    // Create the job event buffer
+    let notifyFn: () => void = () => {};
+    let waitingPromise = new Promise<void>((resolve) => {
+      notifyFn = resolve;
+    });
 
-    const systemPrompt = buildCompositionSystemPrompt(contextResult.value);
+    const job: ComposeJob = {
+      events: [],
+      finished: false,
+      notify: notifyFn,
+      waiting: waitingPromise,
+    };
+    this.jobs.set(sid, job);
 
-    // Get all modules for matching later
-    const modulesResult = await this.registryService.listModules(
-      registryId ? { registryId } : undefined
-    );
-    if (!modulesResult.ok) {
-      console.error(
-        '[TerraformComposeService] Failed to load modules for matching:',
-        modulesResult.error
-      );
-    }
-    const allModules = modulesResult.ok ? modulesResult.value : [];
-
-    // Build a single prompt from system prompt + conversation history for the Agent SDK
-    const prompt = formatPromptForAgentSdk(systemPrompt, messages);
-
-    try {
-      // Create an Agent SDK session — handles auth via ~/.claude/.credentials.json and env
-      const session = unstable_v2_createSession({
-        model: 'claude-sonnet-4-20250514',
-        env: { ...process.env },
-        permissionMode: 'plan', // Read-only, no tool use needed for compose
+    const pushEvent = (event: ComposeEvent) => {
+      job.events.push(event);
+      // Wake up any waiting subscriber
+      job.notify();
+      // Create a fresh promise for the next wait
+      waitingPromise = new Promise<void>((resolve) => {
+        notifyFn = resolve;
       });
+      job.waiting = waitingPromise;
+      job.notify = notifyFn;
+    };
 
-      await session.send(prompt);
+    const pushStatus = (stage: ComposeStage) => {
+      pushEvent({ type: 'status', stage });
+    };
 
-      // Transform Agent SDK stream to SSE stream
-      const encoder = new TextEncoder();
-      let fullResponse = '';
-      const sessionsMap = this.sessions;
+    // Run the pipeline in the background
+    void this.runPipeline(sid, messages, registryId, pushEvent, pushStatus, job);
 
-      const readable = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            let usage: { input_tokens?: number; output_tokens?: number } | undefined;
+    return ok({ sessionId: sid });
+  }
 
-            for await (const msg of session.stream()) {
-              // Handle token-by-token streaming
-              if (msg.type === 'stream_event') {
-                const event = msg.event as {
-                  type: string;
-                  delta?: { type: string; text?: string };
-                };
+  /**
+   * Subscribe to a compose job's event stream.
+   * Returns a ReadableStream of SSE-formatted bytes.
+   * The stream replays any buffered events, then waits for new ones.
+   */
+  subscribeToJob(sessionId: string): ReadableStream<Uint8Array> | null {
+    const job = this.jobs.get(sessionId);
+    if (!job) return null;
 
-                if (
-                  event.type === 'content_block_delta' &&
-                  event.delta?.type === 'text_delta' &&
-                  event.delta.text
-                ) {
-                  fullResponse += event.delta.text;
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({ type: 'text', content: event.delta.text })}\n\n`
-                    )
-                  );
-                }
-              }
+    const encoder = new TextEncoder();
 
-              // Handle result (session finished)
-              if (msg.type === 'result') {
-                const result = msg as {
-                  usage?: { input_tokens?: number; output_tokens?: number };
-                };
-                usage = result.usage;
-              }
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let cursor = 0;
+
+        try {
+          while (true) {
+            // Drain any buffered events
+            while (cursor < job.events.length) {
+              const event = job.events[cursor++];
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
             }
 
-            session.close();
-
-            // Extract code blocks and module matches from the full response
-            const generatedCode = extractHclCode(fullResponse);
-            const matchedModules = matchModulesInResponse(fullResponse, allModules);
-
-            // Send matched modules
-            if (matchedModules.length > 0) {
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: 'modules', modules: matchedModules })}\n\n`
-                )
-              );
+            // If the job is done, close the stream
+            if (job.finished) {
+              controller.close();
+              return;
             }
 
-            // Send generated code
-            if (generatedCode) {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: 'code', code: generatedCode })}\n\n`)
-              );
-            }
-
-            // Send done event
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({
-                  type: 'done',
-                  sessionId: sid,
-                  matchedModules,
-                  generatedCode,
-                  usage: usage
-                    ? {
-                        inputTokens: usage.input_tokens ?? 0,
-                        outputTokens: usage.output_tokens ?? 0,
-                      }
-                    : undefined,
-                })}\n\n`
-              )
-            );
-
-            // Update session
-            const composeSession: ComposeSession = {
-              id: sid,
-              messages: [...messages, { role: 'assistant', content: fullResponse }],
-              matchedModules,
-              generatedCode,
-              lastAccessedAt: Date.now(),
-            };
-            sessionsMap.set(sid, composeSession);
-
-            controller.close();
-          } catch (streamError) {
-            session.close();
-            const errorMessage =
-              streamError instanceof Error ? streamError.message : String(streamError);
-            console.error('[TerraformComposeService] Stream error:', errorMessage);
-
-            // Detect authentication errors
-            let userMessage = errorMessage;
-            const isAuthError =
-              errorMessage.includes('authentication_error') ||
-              errorMessage.includes('invalid x-api-key') ||
-              errorMessage.includes('invalid api key') ||
-              errorMessage.includes('credentials');
-            if (isAuthError) {
-              userMessage =
-                'Claude authentication failed. Please run "claude login" or check your credentials file.';
-            }
-
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'error', error: userMessage })}\n\n`)
-            );
-            controller.close();
+            // Wait for new events
+            await job.waiting;
           }
+        } catch {
+          // Client disconnected — that's fine, the job continues in the background
+          controller.close();
+        }
+      },
+    });
+  }
+
+  private async runPipeline(
+    sid: string,
+    messages: ComposeMessage[],
+    registryId: string | undefined,
+    pushEvent: (event: ComposeEvent) => void,
+    pushStatus: (stage: ComposeStage) => void,
+    job: ComposeJob
+  ): Promise<void> {
+    try {
+      // Stage 1: Load module catalog
+      pushStatus('loading_catalog');
+
+      const contextResult = await this.registryService.getModuleContext(registryId);
+      if (!contextResult.ok) {
+        pushEvent({
+          type: 'error',
+          error: contextResult.error.message ?? 'Failed to load module catalog',
+        });
+        return;
+      }
+
+      const systemPrompt = buildCompositionSystemPrompt(contextResult.value);
+
+      const modulesResult = await this.registryService.listModules(
+        registryId ? { registryId } : undefined
+      );
+      if (!modulesResult.ok) {
+        console.error(
+          '[TerraformComposeService] Failed to load modules for matching:',
+          modulesResult.error
+        );
+      }
+      const allModules = modulesResult.ok ? modulesResult.value : [];
+
+      // Stage 2: Analyzing requirements
+      pushStatus('analyzing');
+
+      const prompt = formatPromptForAgentSdk(systemPrompt, messages);
+
+      const q = query({
+        prompt,
+        options: {
+          model: 'claude-sonnet-4-20250514',
+          env: { ...process.env },
+          permissionMode: 'acceptEdits',
+          tools: [],
+          maxTurns: 1,
         },
       });
 
-      return ok(readable);
+      let fullResponse = '';
+      let usage: { input_tokens?: number; output_tokens?: number } | undefined;
+
+      for await (const msg of q) {
+        if (msg.type === 'assistant') {
+          // biome-ignore lint/suspicious/noExplicitAny: Agent SDK message type lacks typed `message` field
+          const assistantMsg = (msg as any).message as {
+            content?: Array<{ type: string; text?: string }>;
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+
+          if (assistantMsg.usage) {
+            usage = assistantMsg.usage;
+          }
+
+          if (assistantMsg.content) {
+            fullResponse = assistantMsg.content
+              .filter((b) => b.type === 'text' && b.text)
+              .map((b) => b.text)
+              .join('');
+          }
+
+          break;
+        }
+
+        if (msg.type === 'result') {
+          const result = msg as {
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+          if (result.usage) usage = result.usage;
+          break;
+        }
+      }
+
+      q.close();
+
+      // Stage 3: Match modules
+      pushStatus('matching_modules');
+
+      const matchedModules = matchModulesInResponse(fullResponse, allModules);
+
+      if (matchedModules.length > 0) {
+        pushEvent({ type: 'modules', modules: matchedModules });
+      }
+
+      // Stage 4: Extract code
+      pushStatus('generating_code');
+
+      const generatedCode = extractHclCode(fullResponse);
+
+      if (fullResponse) {
+        pushEvent({ type: 'text', content: fullResponse });
+      }
+
+      if (generatedCode) {
+        pushEvent({ type: 'code', code: generatedCode });
+      }
+
+      // Stage 5: Finalize
+      pushStatus('finalizing');
+
+      this.sessions.set(sid, {
+        id: sid,
+        messages: [...messages, { role: 'assistant', content: fullResponse }],
+        matchedModules,
+        generatedCode,
+        lastAccessedAt: Date.now(),
+      });
+
+      pushEvent({
+        type: 'done',
+        sessionId: sid,
+        matchedModules,
+        generatedCode: generatedCode ?? undefined,
+        usage: usage
+          ? {
+              inputTokens: usage.input_tokens ?? 0,
+              outputTokens: usage.output_tokens ?? 0,
+            }
+          : { inputTokens: 0, outputTokens: 0 },
+      });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      return err(TerraformErrors.COMPOSE_FAILED(reason));
+
+      const isAuthError =
+        reason.includes('authentication_error') ||
+        reason.includes('invalid x-api-key') ||
+        reason.includes('invalid api key') ||
+        reason.includes('credentials');
+
+      if (isAuthError) {
+        pushEvent({
+          type: 'error',
+          error:
+            'Claude authentication failed. Please run "claude login" or check your credentials file.',
+        });
+      } else {
+        pushEvent({ type: 'error', error: reason });
+      }
+    } finally {
+      job.finished = true;
+      // Final notification to wake any subscriber so it sees finished=true
+      job.notify();
     }
   }
 
@@ -218,6 +315,7 @@ export class TerraformComposeService {
 
   resetSession(sessionId: string): void {
     this.sessions.delete(sessionId);
+    this.jobs.delete(sessionId);
   }
 }
 

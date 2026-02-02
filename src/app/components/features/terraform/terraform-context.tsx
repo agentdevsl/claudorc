@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api/client';
 import type {
   ComposeEvent,
   ComposeMessage,
+  ComposeStage,
   ModuleMatch,
   TerraformModuleView,
   TerraformRegistryView,
@@ -25,6 +26,7 @@ interface TerraformContextValue {
   modules: TerraformModuleView[];
   syncStatus: { lastSynced: string | null; moduleCount: number };
   isStreaming: boolean;
+  composeStage: ComposeStage | null;
   error: string | null;
   selectedModuleId: string | null;
   sendMessage: (content: string) => Promise<void>;
@@ -52,6 +54,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
   const [registries, setRegistries] = useState<TerraformRegistryView[]>([]);
   const [modules, setModules] = useState<TerraformModuleView[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [composeStage, setComposeStage] = useState<ComposeStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const sessionIdRef = useRef<string | undefined>(undefined);
@@ -124,6 +127,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     setMessages(updatedMessages);
     setIsStreaming(true);
     isStreamingRef.current = true;
+    setComposeStage(null);
     setMatchedModules([]);
     setGeneratedCode(null);
 
@@ -133,9 +137,13 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     }
     abortRef.current = new AbortController();
 
+    let receivedDone = false;
+    let receivedPartialData = false;
+
     try {
+      // Step 1: POST to start the compose job (returns immediately with sessionId)
       const composeUrl = apiClient.terraform.getComposeUrl();
-      const response = await fetch(composeUrl, {
+      const startResponse = await fetch(composeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,11 +153,30 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
         signal: abortRef.current.signal,
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error(`Compose request failed: ${response.status}`);
+      if (!startResponse.ok) {
+        const errorBody = await startResponse.json().catch(() => null);
+        throw new Error(
+          errorBody?.error?.message ?? `Compose request failed: ${startResponse.status}`
+        );
       }
 
-      const reader = response.body.getReader();
+      const startData = (await startResponse.json()) as {
+        ok: boolean;
+        data: { sessionId: string };
+      };
+      const jobSessionId = startData.data.sessionId;
+
+      // Step 2: GET the SSE event stream for this job
+      const eventsUrl = apiClient.terraform.getComposeEventsUrl(jobSessionId);
+      const eventsResponse = await fetch(eventsUrl, {
+        signal: abortRef.current.signal,
+      });
+
+      if (!eventsResponse.ok || !eventsResponse.body) {
+        throw new Error(`Failed to connect to compose event stream: ${eventsResponse.status}`);
+      }
+
+      const reader = eventsResponse.body.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
       let buffer = '';
@@ -177,6 +204,11 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
 
           try {
             switch (event.type) {
+              case 'status':
+                setComposeStage(event.stage);
+                receivedPartialData = true;
+                break;
+
               case 'text':
                 assistantContent += event.content;
                 setMessages((prev) => {
@@ -196,6 +228,19 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
 
               case 'modules':
                 setMatchedModules(event.modules);
+                receivedPartialData = true;
+                // Attach modules to the current assistant message
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMsg,
+                      modules: event.modules,
+                    };
+                  }
+                  return newMessages;
+                });
                 break;
 
               case 'code':
@@ -203,13 +248,16 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
                 break;
 
               case 'done':
+                receivedDone = true;
                 sessionIdRef.current = event.sessionId;
+                setComposeStage(null);
                 if (event.matchedModules) setMatchedModules(event.matchedModules);
                 if (event.generatedCode) setGeneratedCode(event.generatedCode);
                 break;
 
               case 'error':
                 console.error('[Terraform] Compose error:', event.error);
+                setComposeStage(null);
                 setError(event.error);
                 break;
             }
@@ -218,13 +266,37 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           }
         }
       }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      console.error('[Terraform] Stream error:', error);
-      setError('Failed to get a response. Please check your connection and try again.');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('[Terraform] Stream error:', err);
+
+      const errorMessage = (() => {
+        if (err instanceof TypeError && err.message.includes('fetch')) {
+          return 'Unable to reach the server. Please check your connection and try again.';
+        }
+        if (
+          err instanceof Error &&
+          (err.message.includes('INCOMPLETE_CHUNKED') || err.message.includes('network'))
+        ) {
+          return receivedPartialData
+            ? 'The connection was interrupted, but partial results are shown below.'
+            : 'The connection was interrupted before any data was received. Please try again.';
+        }
+        if (err instanceof Error && err.message.includes('timeout')) {
+          return 'The request timed out. The server may be under heavy load — please try again shortly.';
+        }
+        return receivedPartialData
+          ? 'The stream ended unexpectedly, but partial results are shown below.'
+          : 'Failed to get a response. Please check your connection and try again.';
+      })();
+
+      setError(errorMessage);
     } finally {
       isStreamingRef.current = false;
       setIsStreaming(false);
+      if (!receivedDone) {
+        setComposeStage(null);
+      }
     }
   }, []);
 
@@ -232,7 +304,10 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
     setMessages([]);
     setMatchedModules([]);
     setGeneratedCode(null);
+    setComposeStage(null);
     sessionIdRef.current = undefined;
+    isStreamingRef.current = false;
+    setIsStreaming(false);
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
@@ -256,6 +331,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       modules,
       syncStatus,
       isStreaming,
+      composeStage,
       error,
       selectedModuleId,
       sendMessage,
@@ -273,6 +349,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       modules,
       syncStatus,
       isStreaming,
+      composeStage,
       error,
       selectedModuleId,
       sendMessage,

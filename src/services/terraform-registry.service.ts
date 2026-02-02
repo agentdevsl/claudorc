@@ -376,6 +376,7 @@ export class TerraformRegistryService {
     for (const module of modules) {
       lines.push(`## ${module.namespace}/${module.name}/${module.provider} v${module.version}`);
       lines.push(`Source: ${module.source}`);
+      lines.push(`Version: ${module.version}`);
 
       if (module.description) {
         lines.push(`Description: ${module.description}`);

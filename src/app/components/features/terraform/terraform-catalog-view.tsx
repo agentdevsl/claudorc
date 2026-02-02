@@ -111,7 +111,7 @@ export function TerraformCatalogView(): React.JSX.Element {
                 key={mod.id}
                 type="button"
                 onClick={() => setSelectedModuleId(mod.id)}
-                className="rounded-lg border border-border bg-surface p-4 text-left transition-colors hover:border-accent"
+                className="cursor-pointer rounded-md border border-border bg-surface p-4 text-left transition-all hover:-translate-y-px hover:border-accent hover:shadow-sm"
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-sm font-medium text-fg">{mod.name}</span>
