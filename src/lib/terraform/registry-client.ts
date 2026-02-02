@@ -122,7 +122,7 @@ async function apiRequest<T>(
     return response.json() as Promise<T>;
   }
 
-  throw new Error('Unreachable');
+  throw new Error('Exhausted all retry attempts');
 }
 
 /**
@@ -208,7 +208,7 @@ export async function getModuleDetail(
 /**
  * Sync all modules from a registry.
  * Lists all modules, then fetches details for each in batches of 2
- * with delays between batches to respect HCP Terraform's rate limits (30 req/s).
+ * with delays between batches to respect HCP Terraform's rate limits (~4 req/s effective throughput).
  */
 export async function syncAllModules(config: RegistryConfig): Promise<NewTerraformModule[]> {
   const rawModules = await listRegistryModules(config);

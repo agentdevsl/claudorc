@@ -1,6 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
 import type {
@@ -26,12 +27,13 @@ export interface ComposeSession {
 
 /**
  * In-memory event log for a running compose job.
- * Subscribers wait on the `notify` promise which resolves whenever new events arrive.
+ * Subscribers wait on the `waiting` promise which resolves whenever new events arrive.
+ * The `notify` function resolves the current `waiting` promise; both are replaced after each notification.
  */
 interface ComposeJob {
   events: ComposeEvent[];
   finished: boolean;
-  /** Resolve function to wake up any waiting subscribers */
+  /** Resolve function that wakes up any waiting subscriber */
   notify: () => void;
   /** Promise that subscribers await; replaced after each notification */
   waiting: Promise<void>;
@@ -107,8 +109,23 @@ export class TerraformComposeService {
       pushEvent({ type: 'status', stage });
     };
 
-    // Run the pipeline in the background
-    void this.runPipeline(sid, messages, registryId, pushEvent, pushStatus, job);
+    // Run pipeline without awaiting -- the caller returns the session ID immediately.
+    // Errors are normally reported via pushEvent() inside runPipeline's try/catch/finally.
+    // This outer .catch() handles the unlikely case where the finally block itself throws.
+    this.runPipeline(sid, messages, registryId, pushEvent, pushStatus, job).catch((pipelineErr) => {
+      console.error('[TerraformCompose] Unhandled pipeline error:', pipelineErr);
+      try {
+        pushEvent({ type: 'error', error: 'An unexpected error occurred. Please try again.' });
+      } catch {
+        /* pushEvent may fail if job state is corrupt */
+      }
+      job.finished = true;
+      try {
+        job.notify();
+      } catch {
+        /* best effort */
+      }
+    });
 
     return ok({ sessionId: sid });
   }
@@ -123,7 +140,7 @@ export class TerraformComposeService {
     if (!job) return null;
 
     const encoder = new TextEncoder();
-    const KEEPALIVE_INTERVAL_MS = 15_000;
+    const KEEPALIVE_MS = 15_000;
     let cancelled = false;
 
     return new ReadableStream<Uint8Array>({
@@ -150,18 +167,19 @@ export class TerraformComposeService {
             // the drain loop above and this await.
             const currentWaiting = job.waiting;
 
-            // Race the event promise against a keepalive timer to prevent
-            // the HTTP connection from being killed due to inactivity.
-            const keepalive = new Promise<'keepalive'>((resolve) =>
-              setTimeout(() => resolve('keepalive'), KEEPALIVE_INTERVAL_MS)
-            );
-            const result = await Promise.race([
+            // Race event arrival against a keepalive timer so the HTTP
+            // connection isn't killed by proxies during long Agent SDK calls.
+            let keepaliveTimer: ReturnType<typeof setTimeout> | undefined;
+            const keepalive = new Promise<'keepalive'>((r) => {
+              keepaliveTimer = setTimeout(() => r('keepalive'), KEEPALIVE_MS);
+            });
+            const winner = await Promise.race([
               currentWaiting.then(() => 'event' as const),
               keepalive,
             ]);
+            if (keepaliveTimer) clearTimeout(keepaliveTimer);
 
-            if (result === 'keepalive' && !cancelled) {
-              // Send SSE comment to keep the connection alive
+            if (winner === 'keepalive' && !cancelled) {
               controller.enqueue(encoder.encode(': keepalive\n\n'));
             }
           }
@@ -221,10 +239,14 @@ export class TerraformComposeService {
 
       const prompt = formatPromptForAgentSdk(systemPrompt, messages);
 
+      const composeModel = getFullModelId(
+        process.env.TERRAFORM_COMPOSE_MODEL ?? DEFAULT_TASK_CREATION_MODEL
+      );
+
       const q = query({
         prompt,
         options: {
-          model: 'claude-sonnet-4-20250514',
+          model: composeModel,
           env: { ...process.env },
           permissionMode: 'acceptEdits',
           tools: [],
@@ -306,12 +328,10 @@ export class TerraformComposeService {
         sessionId: sid,
         matchedModules,
         generatedCode: generatedCode ?? undefined,
-        usage: usage
-          ? {
-              inputTokens: usage.input_tokens ?? 0,
-              outputTokens: usage.output_tokens ?? 0,
-            }
-          : { inputTokens: 0, outputTokens: 0 },
+        usage: {
+          inputTokens: usage?.input_tokens ?? 0,
+          outputTokens: usage?.output_tokens ?? 0,
+        },
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -329,7 +349,11 @@ export class TerraformComposeService {
             'Claude authentication failed. Please run "claude login" or check your credentials file.',
         });
       } else {
-        pushEvent({ type: 'error', error: reason });
+        console.error('[TerraformCompose] Pipeline error:', reason);
+        pushEvent({
+          type: 'error',
+          error: 'An error occurred during Terraform composition. Please try again.',
+        });
       }
     } finally {
       job.finished = true;
@@ -359,30 +383,23 @@ function formatPromptForAgentSdk(systemPrompt: string, messages: ComposeMessage[
 }
 
 function extractHclCode(text: string): string | null {
-  const hclRegex = /```hcl\n([\s\S]*?)```/g;
-  const matches: string[] = [];
-  let match: RegExpExecArray | null = hclRegex.exec(text);
+  const matches = [...text.matchAll(/```hcl\n([\s\S]*?)```/g)]
+    .map((m) => m[1]?.trim())
+    .filter(Boolean);
 
-  while (match !== null) {
-    if (match[1]) {
-      matches.push(match[1].trim());
-    }
-    match = hclRegex.exec(text);
-  }
-
-  if (matches.length === 0) return null;
-  return matches.join('\n\n');
+  return matches.length > 0 ? matches.join('\n\n') : null;
 }
 
 function matchModulesInResponse(response: string, modules: TerraformModule[]): ModuleMatch[] {
   const matched: ModuleMatch[] = [];
   const seen = new Set<string>();
+  const responseLower = response.toLowerCase();
 
   for (const mod of modules) {
     if (seen.has(mod.id)) continue;
 
     const sourceInResponse = response.includes(mod.source);
-    const nameInResponse = response.toLowerCase().includes(mod.name.toLowerCase());
+    const nameInResponse = responseLower.includes(mod.name.toLowerCase());
 
     let confidence: number | null = null;
     let matchReason = '';
@@ -390,7 +407,7 @@ function matchModulesInResponse(response: string, modules: TerraformModule[]): M
     if (sourceInResponse) {
       confidence = 1.0;
       matchReason = 'Module source used in generated code';
-    } else if (nameInResponse && response.toLowerCase().includes(mod.provider.toLowerCase())) {
+    } else if (nameInResponse && responseLower.includes(mod.provider.toLowerCase())) {
       confidence = 0.8;
       matchReason = 'Module name and provider referenced in response';
     } else if (nameInResponse) {

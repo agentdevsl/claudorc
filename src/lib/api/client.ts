@@ -1080,7 +1080,6 @@ export const apiClient = {
           id: string;
           name: string;
           orgName: string;
-          tokenSettingKey: string;
           status: 'active' | 'syncing' | 'error';
           lastSyncedAt: string | null;
           syncError: string | null;
@@ -1103,7 +1102,6 @@ export const apiClient = {
         id: string;
         name: string;
         orgName: string;
-        tokenSettingKey: string;
         status: string;
         moduleCount: number;
         createdAt: string;
@@ -1115,7 +1113,6 @@ export const apiClient = {
         id: string;
         name: string;
         orgName: string;
-        tokenSettingKey: string;
         status: string;
         lastSyncedAt: string | null;
         syncError: string | null;

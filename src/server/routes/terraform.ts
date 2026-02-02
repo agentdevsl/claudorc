@@ -18,6 +18,14 @@ interface TerraformDeps {
   terraformComposeService: TerraformComposeService;
 }
 
+/** Strip the internal tokenSettingKey before returning registry data to the client. */
+function omitTokenKey<T extends { tokenSettingKey: string }>(
+  registry: T
+): Omit<T, 'tokenSettingKey'> {
+  const { tokenSettingKey: _, ...rest } = registry;
+  return rest;
+}
+
 export function createTerraformRoutes({
   terraformRegistryService,
   terraformComposeService,
@@ -97,7 +105,7 @@ export function createTerraformRoutes({
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
-      return json({ ok: true, data: result.value }, 201);
+      return json({ ok: true, data: omitTokenKey(result.value) }, 201);
     } catch (error) {
       console.error('[Terraform] Create registry error:', error);
       return json(
@@ -124,7 +132,7 @@ export function createTerraformRoutes({
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
-      return json({ ok: true, data: result.value });
+      return json({ ok: true, data: omitTokenKey(result.value) });
     } catch (error) {
       console.error('[Terraform] Get registry error:', error);
       return json(
@@ -207,7 +215,7 @@ export function createTerraformRoutes({
         return json({ ok: false, error: result.error }, result.error.status);
       }
 
-      return json({ ok: true, data: result.value });
+      return json({ ok: true, data: omitTokenKey(result.value) });
     } catch (error) {
       console.error('[Terraform] Update registry error:', error);
       return json(
@@ -360,6 +368,13 @@ export function createTerraformRoutes({
   // GET /compose/:sessionId/events — SSE stream for a running compose job
   app.get('/compose/:sessionId/events', (c) => {
     const sessionId = c.req.param('sessionId');
+
+    if (!sessionId || sessionId.length > 128) {
+      return json(
+        { ok: false, error: { code: 'INVALID_ID', message: 'Invalid session ID format' } },
+        400
+      );
+    }
 
     const readable = terraformComposeService.subscribeToJob(sessionId);
     if (!readable) {

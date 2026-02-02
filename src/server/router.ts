@@ -129,7 +129,7 @@ export function createRouter(deps: RouterDependencies) {
   app.use('*', logger());
   app.use('*', requestIdMiddleware);
   app.use('*', securityHeaders);
-  app.use('/api/*', rateLimiter({ max: 600, windowMs: 60_000 }));
+  app.use('/api/*', rateLimiter({ max: 200, windowMs: 60_000 }));
   app.use('/api/*', authMiddleware);
 
   app.route(

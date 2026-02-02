@@ -223,8 +223,21 @@ export class TerraformRegistryService {
       let token: string;
       try {
         token = JSON.parse(tokenSetting.value) as string;
-      } catch {
+      } catch (_parseError) {
+        console.warn('[TerraformRegistryService] Token value is not JSON-encoded, using raw value');
         token = tokenSetting.value;
+      }
+
+      if (!token || typeof token !== 'string' || token.trim().length === 0) {
+        await this.db
+          .update(terraformRegistries)
+          .set({
+            status: 'error',
+            syncError: 'API token is empty or invalid. Update the token in Settings.',
+            updatedAt: this.updateTimestamp(),
+          })
+          .where(eq(terraformRegistries.id, id));
+        return err(TerraformErrors.INVALID_TOKEN);
       }
 
       const config: RegistryConfig = {
@@ -287,16 +300,26 @@ export class TerraformRegistryService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[TerraformRegistryService] Sync error for ${id}:`, errorMessage);
 
+      const lowerMessage = errorMessage.toLowerCase();
+      const containsCredentials =
+        lowerMessage.includes('bearer') ||
+        lowerMessage.includes('token') ||
+        lowerMessage.includes('authorization') ||
+        lowerMessage.includes('sk-');
+      const safeMessage = containsCredentials
+        ? 'Sync failed due to an API error. Check your token and try again.'
+        : errorMessage;
+
       await this.db
         .update(terraformRegistries)
         .set({
           status: 'error',
-          syncError: errorMessage,
+          syncError: safeMessage,
           updatedAt: this.updateTimestamp(),
         })
         .where(eq(terraformRegistries.id, id));
 
-      return err(TerraformErrors.SYNC_FAILED(errorMessage));
+      return err(TerraformErrors.SYNC_FAILED(safeMessage));
     }
   }
 

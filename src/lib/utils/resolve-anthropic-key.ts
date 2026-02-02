@@ -65,8 +65,9 @@ export async function resolveAnthropicApiKey(
     try {
       const dbKey = await apiKeyService.getDecryptedKey('anthropic');
       if (dbKey) return dbKey;
-    } catch {
-      // Fall through to credentials file
+    } catch (dbError) {
+      const msg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.warn('[resolveAnthropicKey] Failed to read DB key:', msg);
     }
   }
 

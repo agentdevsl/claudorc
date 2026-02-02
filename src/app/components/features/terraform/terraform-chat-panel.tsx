@@ -256,6 +256,50 @@ function ComposeProgress({
   );
 }
 
+interface ChatInputProps {
+  input: string;
+  setInput: (v: string) => void;
+  isStreaming: boolean;
+  onSubmit: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+}
+
+function ChatInput({
+  input,
+  setInput,
+  isStreaming,
+  onSubmit,
+  onKeyDown,
+  inputRef,
+}: ChatInputProps): React.JSX.Element {
+  return (
+    <div className="border-t border-border bg-surface px-6 py-4">
+      <div className="flex items-end gap-3 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Describe your infrastructure needs..."
+          rows={6}
+          className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
+          disabled={isStreaming}
+        />
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={!input.trim() || isStreaming}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] text-white transition-colors hover:bg-[#1f6feb]/90 disabled:opacity-50"
+          aria-label="Send message"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TerraformChatPanel(): React.JSX.Element {
   const { messages, isStreaming, composeStage, matchedModules, sendMessage, resetConversation } =
     useTerraform();
@@ -337,9 +381,9 @@ export function TerraformChatPanel(): React.JSX.Element {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-2xl space-y-4">
-          {messages.map((msg) => (
+          {messages.map((msg, idx) => (
             <div
-              key={`${msg.role}-${messages.indexOf(msg)}`}
+              key={`${msg.role}-${idx}`}
               className={`flex gap-3 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
               {/* Avatar */}
@@ -398,81 +442,26 @@ export function TerraformChatPanel(): React.JSX.Element {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border bg-surface px-6 py-4">
-        <div className="mx-auto flex max-w-2xl items-center gap-2">
-          <button
-            type="button"
-            onClick={resetConversation}
-            className="rounded-md p-2 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
-            title="New conversation"
-            aria-label="New conversation"
-          >
-            <Eraser className="h-4 w-4" />
-          </button>
-          <div className="flex flex-1 items-end gap-2 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe your infrastructure needs..."
-              rows={6}
-              className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
-              disabled={isStreaming}
-            />
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!input.trim() || isStreaming}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] text-white transition-colors hover:bg-[#1f6feb]/90 disabled:opacity-50"
-              aria-label="Send message"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatInput({
-  input,
-  setInput,
-  isStreaming,
-  onSubmit,
-  onKeyDown,
-  inputRef,
-}: {
-  input: string;
-  setInput: (v: string) => void;
-  isStreaming: boolean;
-  onSubmit: () => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-  inputRef: React.RefObject<HTMLTextAreaElement | null>;
-}): React.JSX.Element {
-  return (
-    <div className="border-t border-border bg-surface px-6 py-4">
-      <div className="flex items-end gap-3 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Describe your infrastructure needs..."
-          rows={6}
-          className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
-          disabled={isStreaming}
-        />
+      <div className="flex items-center gap-2 px-2">
         <button
           type="button"
-          onClick={onSubmit}
-          disabled={!input.trim() || isStreaming}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] text-white transition-colors hover:bg-[#1f6feb]/90 disabled:opacity-50"
-          aria-label="Send message"
+          onClick={resetConversation}
+          className="rounded-md p-2 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg"
+          title="New conversation"
+          aria-label="New conversation"
         >
-          <ArrowUp className="h-4 w-4" />
+          <Eraser className="h-4 w-4" />
         </button>
+        <div className="flex-1">
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            isStreaming={isStreaming}
+            onSubmit={handleSubmit}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        </div>
       </div>
     </div>
   );

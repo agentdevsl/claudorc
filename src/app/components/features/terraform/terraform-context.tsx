@@ -70,9 +70,11 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
         setRegistries(result.data.items as TerraformRegistryView[]);
       } else {
         console.error('[Terraform] Failed to load registries:', result.error);
+        setError('Failed to load registries. The backend may be offline.');
       }
     } catch (err) {
       console.error('[Terraform] Network error loading registries:', err);
+      setError('Failed to load registries. The backend may be offline.');
     }
   }, []);
 
@@ -83,9 +85,11 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
         setModules(result.data.items as TerraformModuleView[]);
       } else {
         console.error('[Terraform] Failed to load modules:', result.error);
+        setError('Failed to load modules. The backend may be offline.');
       }
     } catch (err) {
       console.error('[Terraform] Network error loading modules:', err);
+      setError('Failed to load modules. The backend may be offline.');
     }
   }, []);
 
