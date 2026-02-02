@@ -14,7 +14,12 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ClarifyingQuestion, ComposeStage, ModuleMatch } from '@/lib/terraform/types';
+import type {
+  ClarifyingQuestion,
+  ComposeMessage,
+  ComposeStage,
+  ModuleMatch,
+} from '@/lib/terraform/types';
 import { COMPOSE_STAGE_LABELS, PROVIDER_COLORS } from '@/lib/terraform/types';
 import { cn } from '@/lib/utils/cn';
 import { useTerraform } from './terraform-context';
@@ -93,6 +98,27 @@ function getCategoryColor(category: string): string {
     if (key.includes(k)) return v;
   }
   return 'bg-surface-emphasis text-fg-muted';
+}
+
+/**
+ * Strip content from an assistant message for display.
+ * - Always removes HCL code blocks (shown in the code panel instead).
+ * - When clarifying questions are present, strips numbered/bulleted question lines
+ *   so only the introductory text remains (questions are shown in ClarifyingQuestionsUI).
+ */
+function stripAssistantContent(msg: ComposeMessage): string {
+  let text = msg.content.replace(/```hcl[\s\S]*?```/g, '').trim();
+
+  if (msg.clarifyingQuestions && msg.clarifyingQuestions.length > 0) {
+    // Keep only the introductory text before the first numbered/bulleted question.
+    // This avoids issues with multi-line questions or trailing parenthetical text.
+    const firstQuestionIdx = text.search(/^\s*(?:\d+[.)]\s*|-\s*|\*\s*)\*?\*?/m);
+    if (firstQuestionIdx > 0) {
+      text = text.slice(0, firstQuestionIdx).trim();
+    }
+  }
+
+  return text;
 }
 
 function ClarifyingQuestionsUI({
@@ -590,9 +616,7 @@ export function TerraformChatPanel(): React.JSX.Element {
                 }`}
               >
                 <div className="whitespace-pre-wrap break-words">
-                  {msg.role === 'assistant'
-                    ? msg.content.replace(/```hcl[\s\S]*?```/g, '').trim()
-                    : msg.content}
+                  {msg.role === 'assistant' ? stripAssistantContent(msg) : msg.content}
                 </div>
                 {msg.role === 'assistant' && msg.modules && msg.modules.length > 0 && (
                   <InlineModuleMatches modules={msg.modules} />

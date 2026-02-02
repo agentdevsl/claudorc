@@ -17,8 +17,8 @@ import { TerraformModuleNode } from './terraform-module-node';
 const nodeTypes = { terraformModule: TerraformModuleNode };
 const edgeTypes = { terraformDependency: TerraformDependencyEdge };
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 32;
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 36;
 
 async function layoutGraph(
   graph: TerraformGraph
@@ -31,31 +31,66 @@ async function layoutGraph(
     layoutOptions: {
       'elk.algorithm': 'layered',
       'elk.direction': 'DOWN',
-      'elk.spacing.nodeNode': '80',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '100',
-      'elk.edgeRouting': 'SPLINES',
+      'elk.spacing.nodeNode': '120',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '120',
+      'elk.edgeRouting': 'ORTHOGONAL',
       'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
       'elk.contentAlignment': 'H_CENTER V_TOP',
       'elk.layered.mergeEdges': 'false',
-      'elk.spacing.edgeNode': '40',
-      'elk.layered.spacing.edgeEdgeBetweenLayers': '25',
-      'elk.layered.spacing.edgeNodeBetweenLayers': '40',
+      'elk.spacing.edgeNode': '80',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '40',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '80',
+      'elk.layered.thoroughness': '10',
     },
     children: graph.nodes.map((n) => ({
       id: n.id,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
+      properties: {
+        'org.eclipse.elk.portConstraints': 'FIXED_POS',
+      },
+      ports: [
+        {
+          id: `${n.id}__target`,
+          properties: { 'org.eclipse.elk.port.side': 'NORTH' },
+          x: NODE_WIDTH / 2,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
+        {
+          id: `${n.id}__source`,
+          properties: { 'org.eclipse.elk.port.side': 'SOUTH' },
+          x: NODE_WIDTH / 2,
+          y: NODE_HEIGHT,
+          width: 1,
+          height: 1,
+        },
+      ],
     })),
     edges: graph.edges.map((e) => ({
       id: e.id,
-      sources: [e.source],
-      targets: [e.target],
+      sources: [`${e.source}__source`],
+      targets: [`${e.target}__target`],
     })),
   };
 
   const layouted = await elk.layout(elkGraph);
   const children = layouted.children ?? [];
+
+  // Extract ELK edge routing (bend points that avoid nodes)
+  const elkEdgeMap = new Map<string, Array<{ x: number; y: number }>>();
+  for (const elkEdge of layouted.edges ?? []) {
+    const section = elkEdge.sections?.[0];
+    if (section) {
+      elkEdgeMap.set(elkEdge.id, [
+        section.startPoint,
+        ...(section.bendPoints ?? []),
+        section.endPoint,
+      ]);
+    }
+  }
 
   const rfNodes: ReactFlowNode[] = children
     .map((child: ElkNode, index: number) => {
@@ -87,6 +122,7 @@ async function layoutGraph(
     data: {
       edgeType: e.type,
       outputs: e.label,
+      elkPoints: elkEdgeMap.get(e.id) ?? null,
     },
   }));
 
@@ -147,14 +183,21 @@ function DiagramInner(): React.JSX.Element {
   }
 
   return (
-    <div className="h-full w-full animate-fade-in">
+    <div
+      className="h-full w-full animate-fade-in"
+      style={{
+        backgroundImage:
+          'radial-gradient(circle, var(--color-border-subtle) 0.5px, transparent 0.5px)',
+        backgroundSize: '20px 20px',
+      }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.35 }}
         panOnDrag
         zoomOnScroll
         zoomOnPinch

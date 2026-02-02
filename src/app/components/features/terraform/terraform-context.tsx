@@ -344,6 +344,22 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
                 });
                 break;
 
+              case 'questions':
+                // Server detected AskUserQuestion tool call or parsed questions from text
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMsg,
+                      clarifyingQuestions: event.questions,
+                    };
+                  }
+                  return newMessages;
+                });
+                receivedPartialData = true;
+                break;
+
               case 'code':
                 setGeneratedCode(event.code);
                 break;
@@ -410,6 +426,20 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
                   }
                   return newMessages;
                 });
+                break;
+              case 'questions':
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMsg,
+                      clarifyingQuestions: event.questions,
+                    };
+                  }
+                  return newMessages;
+                });
+                receivedPartialData = true;
                 break;
               case 'status':
                 setComposeStage(event.stage);

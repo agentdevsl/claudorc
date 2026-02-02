@@ -1,10 +1,11 @@
-import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import { type CanUseTool, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
-import { getFullModelId } from '../lib/constants/models.js';
+import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
 import type {
+  ClarifyingQuestion,
   ComposeEvent,
   ComposeMessage,
   ComposeStage,
@@ -12,7 +13,8 @@ import type {
 } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
 import { ok } from '../lib/utils/result.js';
-import type { SettingsService } from './settings.service.js';
+import type { Database } from '../types/database.js';
+import { getGlobalDefaultModel } from './settings.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -67,7 +69,7 @@ export class TerraformComposeService {
 
   constructor(
     private registryService: TerraformRegistryService,
-    private settingsService: SettingsService
+    private db: Database
   ) {}
 
   private cleanupSessions(): void {
@@ -283,12 +285,43 @@ export class TerraformComposeService {
       this.sendStatus(job, 'analyzing');
 
       const prompt = formatPrompt(systemPrompt, messages);
-      const settingsModel = await this.settingsService.getTaskCreationModel();
-      const composeModel = getFullModelId(process.env.TERRAFORM_COMPOSE_MODEL ?? settingsModel);
+      // Model cascade: TERRAFORM_COMPOSE_MODEL env → global default_model setting → hardcoded default
+      const globalDefault = await getGlobalDefaultModel(this.db);
+      const composeModel = getFullModelId(
+        process.env.TERRAFORM_COMPOSE_MODEL ?? globalDefault ?? DEFAULT_AGENT_MODEL
+      );
+
+      // Capture AskUserQuestion tool calls so we can forward questions to the client
+      let capturedQuestions: Array<{
+        question: string;
+        options: Array<{ label: string; description?: string }>;
+      }> = [];
+
+      const canUseTool: CanUseTool = async (_toolName, input, toolOptions) => {
+        if (_toolName === 'AskUserQuestion') {
+          const askInput = input as {
+            questions?: Array<{
+              question: string;
+              header?: string;
+              options: Array<{ label: string; description?: string }>;
+            }>;
+          };
+          if (askInput?.questions) {
+            capturedQuestions = askInput.questions.map((q) => ({
+              question: q.question,
+              header: q.header,
+              options: q.options,
+            }));
+          }
+        }
+        return { behavior: 'allow' as const, toolUseID: toolOptions.toolUseID };
+      };
 
       session = unstable_v2_createSession({
         model: composeModel,
         env: { ...process.env },
+        permissionMode: 'plan',
+        canUseTool,
       });
 
       await session.send(prompt);
@@ -296,6 +329,7 @@ export class TerraformComposeService {
       let fullResponse = '';
       let inputTokens = 0;
       let outputTokens = 0;
+      let streamedTextToClient = false;
 
       for await (const msg of session.stream()) {
         if (msg.type === 'stream_event') {
@@ -318,10 +352,26 @@ export class TerraformComposeService {
             event.delta.text
           ) {
             fullResponse += event.delta.text;
+            this.sendEvent(job, { type: 'text', content: event.delta.text });
+            streamedTextToClient = true;
           }
         }
 
-        // Handle complete assistant messages (fallback)
+        // Handle tool_use_summary — detect AskUserQuestion completions
+        if (msg.type === 'tool_use_summary') {
+          const toolSummary = msg as { tool_name?: string; tool_input?: Record<string, unknown> };
+          if (toolSummary.tool_name === 'AskUserQuestion' && capturedQuestions.length > 0) {
+            const questions = capturedQuestions.map((q) => ({
+              category: (q as { header?: string }).header ?? 'General',
+              question: q.question,
+              options: q.options.map((o) => o.label),
+            }));
+            this.sendEvent(job, { type: 'questions', questions });
+            capturedQuestions = [];
+          }
+        }
+
+        // Handle complete assistant messages (fallback when stream_event deltas aren't available)
         if (msg.type === 'assistant') {
           const { message } = msg as AgentAssistantMessage;
           if (message?.usage) {
@@ -347,6 +397,12 @@ export class TerraformComposeService {
         }
       }
 
+      // If text was captured via assistant message but not streamed as deltas,
+      // send the full response as a single text event so the client can render it
+      if (fullResponse && !streamedTextToClient) {
+        this.sendEvent(job, { type: 'text', content: fullResponse });
+      }
+
       // Stage 3: Match modules
       this.sendStatus(job, 'matching_modules');
 
@@ -361,12 +417,17 @@ export class TerraformComposeService {
 
       const generatedCode = extractHclCode(fullResponse);
 
-      if (fullResponse) {
-        this.sendEvent(job, { type: 'text', content: fullResponse });
-      }
-
       if (generatedCode) {
         this.sendEvent(job, { type: 'code', code: generatedCode });
+      }
+
+      // Fallback: parse clarifying questions from assistant text if AskUserQuestion
+      // tool was not used (model wrote questions as plain text instead)
+      if (!generatedCode && fullResponse) {
+        const textQuestions = parseClarifyingQuestionsFromText(fullResponse);
+        if (textQuestions.length > 0) {
+          this.sendEvent(job, { type: 'questions', questions: textQuestions });
+        }
       }
 
       // Stage 5: Validate HCL
@@ -570,4 +631,50 @@ function matchModulesInResponse(response: string, modules: TerraformModule[]): M
 
   matched.sort((a, b) => b.confidence - a.confidence);
   return matched;
+}
+
+/**
+ * Server-side fallback: parse numbered clarifying questions from assistant text.
+ * Mirrors the client-side parser but runs on the backend for reliability.
+ */
+function parseClarifyingQuestionsFromText(text: string): ClarifyingQuestion[] {
+  // Skip if the response contains HCL code blocks (model generated code, not questions)
+  if (/```(?:hcl|terraform|tf)\n/i.test(text)) return [];
+
+  const questions: ClarifyingQuestion[] = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match "1. ...", "1) ...", "- ...", "* ..." patterns ending with "?"
+    const match = trimmed.match(/^(?:\d+[.)]\s*|-\s*|\*\s*)(.+\?)\s*$/);
+    if (!match) continue;
+
+    const raw = match[1] ?? '';
+    // Extract category from bold markers: **Category** or **Category:**
+    const categoryMatch = raw.match(/\*\*(.+?)\*\*\s*[-–:]\s*/);
+    const category = categoryMatch ? (categoryMatch[1] ?? 'General') : 'General';
+    const question = raw.replace(/\*\*(.+?)\*\*\s*[-–:]\s*/, '').trim();
+
+    if (question.length > 10) {
+      // Extract options from backtick-wrapped examples in the question text
+      const backtickOptions = [...question.matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? '');
+      const options =
+        backtickOptions.length > 0 ? backtickOptions : inferDefaultOptions(question, category);
+      questions.push({ category, question, options });
+    }
+  }
+  return questions;
+}
+
+/** Infer sensible default options based on question category/content. */
+function inferDefaultOptions(question: string, category: string): string[] {
+  const lower = `${question} ${category}`.toLowerCase();
+  if (/region|location|zone/.test(lower)) return ['us-east-1', 'us-west-2', 'eu-west-1'];
+  if (/environment|env/.test(lower)) return ['Production', 'Staging', 'Development'];
+  if (/domain|dns/.test(lower)) return ['example.com', 'Use placeholder'];
+  if (/ssl|tls|certificate|https/.test(lower)) return ['Yes, include ACM', 'No, skip SSL'];
+  if (/instance.type|sizing|capacity/.test(lower))
+    return ['t3.micro', 't3.small', 't3.medium', 't3.large'];
+  if (/should|do you want|would you like/.test(lower)) return ['Yes', 'No'];
+  return ['Use placeholder values'];
 }

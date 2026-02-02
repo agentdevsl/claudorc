@@ -71,6 +71,7 @@ export type ComposeEvent =
   | { type: 'text'; content: string }
   | { type: 'modules'; modules: ModuleMatch[] }
   | { type: 'code'; code: string }
+  | { type: 'questions'; questions: ClarifyingQuestion[] }
   | {
       type: 'done';
       sessionId: string;
