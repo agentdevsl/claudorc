@@ -1208,6 +1208,16 @@ export const apiClient = {
         updatedAt: string;
       }>(`/api/terraform/modules/${encodeURIComponent(id)}`),
 
+    validateCode: (data: { code: string; tfvars?: string }) =>
+      apiServerFetch<{
+        valid: boolean;
+        diagnostics: Array<{
+          severity: 'error' | 'warning';
+          summary: string;
+          detail?: string;
+        }>;
+      }>('/api/terraform/validate', { method: 'POST', body: data }),
+
     getComposeUrl: () => `${API_BASE}/api/terraform/compose`,
     getComposeEventsUrl: (sessionId: string) =>
       `${API_BASE}/api/terraform/compose/${encodeURIComponent(sessionId)}/events`,

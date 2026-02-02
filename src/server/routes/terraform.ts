@@ -313,6 +313,40 @@ export function createTerraformRoutes({
     }
   });
 
+  // POST /validate — validate generated HCL code using terraform CLI via Agent SDK
+  app.post('/validate', async (c) => {
+    let body: { code: string; tfvars?: string };
+    try {
+      body = await c.req.json();
+    } catch {
+      return json(
+        { ok: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON in request body' } },
+        400
+      );
+    }
+
+    if (!body.code || typeof body.code !== 'string') {
+      return json(
+        { ok: false, error: { code: 'VALIDATION_ERROR', message: 'code field is required' } },
+        400
+      );
+    }
+
+    try {
+      const result = await terraformComposeService.validateCode(body.code, body.tfvars);
+      return json({ ok: true, data: result });
+    } catch (error) {
+      console.error('[Terraform] Validate error:', error);
+      return json(
+        {
+          ok: false,
+          error: { code: 'VALIDATE_ERROR', message: 'Failed to validate Terraform code' },
+        },
+        500
+      );
+    }
+  });
+
   // POST /compose — start a compose job (returns immediately with sessionId)
   app.post('/compose', async (c) => {
     let body: {

@@ -432,6 +432,75 @@ export class TerraformComposeService {
     this.sessions.delete(sessionId);
     this.jobs.delete(sessionId);
   }
+
+  /**
+   * Validate generated HCL code (and optional tfvars) by writing to a temp dir
+   * and running `terraform init` + `terraform validate -json` directly.
+   */
+  async validateCode(
+    code: string,
+    tfvars?: string
+  ): Promise<{ valid: boolean; diagnostics: TerraformDiagnostic[] }> {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const { exec } = await import('node:child_process');
+
+    const execAsync = (cmd: string, cwd: string): Promise<{ stdout: string; stderr: string }> =>
+      new Promise((resolve, reject) => {
+        exec(cmd, { cwd, timeout: 60_000 }, (error, stdout, stderr) => {
+          // terraform validate exits non-zero on validation errors — that's expected
+          if (error && !stdout) {
+            reject(error);
+            return;
+          }
+          resolve({ stdout, stderr });
+        });
+      });
+
+    let tmpDir: string | null = null;
+
+    try {
+      tmpDir = await mkdtemp(join(tmpdir(), 'tf-validate-'));
+      await writeFile(join(tmpDir, 'main.tf'), code, 'utf-8');
+      if (tfvars) {
+        await writeFile(join(tmpDir, 'terraform.tfvars'), tfvars, 'utf-8');
+      }
+
+      // Init (download providers, no backend)
+      await execAsync('terraform init -backend=false -input=false -no-color', tmpDir);
+
+      // Validate with JSON output
+      const { stdout } = await execAsync('terraform validate -json -no-color', tmpDir);
+
+      return parseTerraformValidateOutput(stdout);
+    } catch (error) {
+      console.error('[TerraformCompose] Validation error:', error);
+
+      const message = error instanceof Error ? error.message : String(error);
+      const isMissing =
+        message.includes('ENOENT') ||
+        message.includes('not found') ||
+        message.includes('command not found');
+
+      return {
+        valid: false,
+        diagnostics: [
+          {
+            severity: 'error',
+            summary: isMissing
+              ? 'Terraform CLI not found — install terraform to enable validation'
+              : 'Validation failed',
+            detail: isMissing ? undefined : message,
+          },
+        ],
+      };
+    } finally {
+      if (tmpDir) {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      }
+    }
+  }
 }
 
 function formatPrompt(systemPrompt: string, messages: ComposeMessage[]): string {
@@ -468,6 +537,69 @@ const GENERIC_MODULE_NAMES = new Set([
   'local',
   'locals',
 ]);
+
+export interface TerraformDiagnostic {
+  severity: 'error' | 'warning';
+  summary: string;
+  detail?: string;
+}
+
+/**
+ * Parse the JSON output from `terraform validate -json`.
+ * The agent might wrap it in markdown fences or add commentary — extract the JSON.
+ */
+function parseTerraformValidateOutput(raw: string): {
+  valid: boolean;
+  diagnostics: TerraformDiagnostic[];
+} {
+  // Try to extract JSON from the response (may be wrapped in ```json fences)
+  const jsonMatch = raw.match(/\{[\s\S]*"valid"\s*:\s*(true|false)[\s\S]*\}/);
+  if (!jsonMatch) {
+    return {
+      valid: false,
+      diagnostics: [
+        {
+          severity: 'error',
+          summary: 'Could not parse validation output',
+          detail: raw.slice(0, 500),
+        },
+      ],
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      valid: boolean;
+      error_count?: number;
+      warning_count?: number;
+      diagnostics?: Array<{
+        severity: string;
+        summary: string;
+        detail?: string;
+        range?: { filename: string; start: { line: number; column: number } };
+      }>;
+    };
+
+    const diagnostics: TerraformDiagnostic[] = (parsed.diagnostics ?? []).map((d) => ({
+      severity: d.severity === 'warning' ? ('warning' as const) : ('error' as const),
+      summary: d.summary,
+      detail: d.detail ?? (d.range ? `${d.range.filename}:${d.range.start.line}` : undefined),
+    }));
+
+    return { valid: parsed.valid, diagnostics };
+  } catch {
+    return {
+      valid: false,
+      diagnostics: [
+        {
+          severity: 'error',
+          summary: 'Could not parse validation JSON',
+          detail: jsonMatch[0].slice(0, 500),
+        },
+      ],
+    };
+  }
+}
 
 function matchModulesInResponse(response: string, modules: TerraformModule[]): ModuleMatch[] {
   const matched: ModuleMatch[] = [];

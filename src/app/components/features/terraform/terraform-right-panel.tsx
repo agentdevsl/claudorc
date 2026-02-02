@@ -1,14 +1,20 @@
-import { Code, Copy, DownloadSimple, FileCode, GitBranch } from '@phosphor-icons/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Code, Copy, DownloadSimple, FileCode, GitBranch, Sliders } from '@phosphor-icons/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { parseHclVariables } from '@/lib/terraform/parse-hcl-variables';
 import { useTerraform } from './terraform-context';
 import { TerraformDependencyDiagram } from './terraform-dependency-diagram';
 import { downloadAsFile } from './terraform-utils';
+import { TerraformVariablesForm } from './terraform-variables-form';
 
 export function TerraformRightPanel(): React.JSX.Element {
   const { generatedCode } = useTerraform();
   const [activeTab, setActiveTab] = useState('code');
   const prevCodeRef = useRef<string | null>(null);
+  const variableCount = useMemo(
+    () => (generatedCode ? parseHclVariables(generatedCode).length : 0),
+    [generatedCode]
+  );
 
   // Auto-switch to dependencies tab when code is first generated
   useEffect(() => {
@@ -35,6 +41,15 @@ export function TerraformRightPanel(): React.JSX.Element {
             <GitBranch className="h-3 w-3" />
             Dependencies
           </TabsTrigger>
+          <TabsTrigger value="variables" className="h-6 gap-1 px-2 text-[11px]">
+            <Sliders className="h-3 w-3" />
+            Variables
+            {variableCount > 0 && (
+              <span className="ml-1 rounded-full bg-accent/15 px-1.5 text-[9px] font-medium text-accent">
+                {variableCount}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -46,6 +61,11 @@ export function TerraformRightPanel(): React.JSX.Element {
       {/* Dependencies tab */}
       <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
         <TerraformDependencyDiagram />
+      </TabsContent>
+
+      {/* Variables tab */}
+      <TabsContent value="variables" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+        <TerraformVariablesForm />
       </TabsContent>
     </Tabs>
   );
