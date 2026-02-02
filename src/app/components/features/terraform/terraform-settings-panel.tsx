@@ -1,9 +1,11 @@
-import { ArrowsClockwise, Eye, EyeSlash, Trash, WarningCircle } from '@phosphor-icons/react';
+import { ArrowsClockwise, Eye, EyeSlash, Plus, Trash, WarningCircle } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { useTerraform } from './terraform-context';
 import { formatTimeAgo } from './terraform-utils';
+
+const TOKEN_SETTING_KEY = 'tfe_api_token';
 
 const SYNC_INTERVALS = [
   { value: null, label: 'Manual only' },
@@ -67,29 +69,67 @@ export function TerraformSettingsPanel(): React.JSX.Element {
   }, [registry, isSyncing, syncRegistry, clearError]);
 
   const handleSave = useCallback(async () => {
-    if (!registry || isSaving) return;
+    if (isSaving) return;
+    if (!orgName.trim()) {
+      setSaveError('Organization name is required');
+      return;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch(`/api/terraform/registries/${registry.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgName, syncIntervalMinutes: syncInterval }),
-      });
-      if (res.ok) {
-        await refreshModules();
-      } else {
-        const body = await res.json().catch(() => null);
-        const message = body?.error?.message ?? `Save failed (HTTP ${res.status})`;
-        setSaveError(message);
+      // Store the token as a setting (if user entered a real token, not the masked placeholder)
+      const isRealToken = token && !token.startsWith('sk-tfe-xxxx');
+      if (isRealToken) {
+        const settingsRes = await apiClient.settings.update({ [TOKEN_SETTING_KEY]: token });
+        if (!settingsRes.ok) {
+          setSaveError('Failed to save API token');
+          return;
+        }
       }
+
+      if (registry) {
+        // Update existing registry
+        const updateData: {
+          orgName?: string;
+          syncIntervalMinutes?: number | null;
+          tokenSettingKey?: string;
+        } = {
+          orgName,
+          syncIntervalMinutes: syncInterval,
+        };
+        if (isRealToken) {
+          updateData.tokenSettingKey = TOKEN_SETTING_KEY;
+        }
+        const result = await apiClient.terraform.updateRegistry(registry.id, updateData);
+        if (!result.ok) {
+          setSaveError(result.error?.message ?? 'Failed to update registry');
+          return;
+        }
+      } else {
+        // Create new registry
+        if (!isRealToken) {
+          setSaveError('A valid TFE API token is required to connect a registry');
+          return;
+        }
+        const result = await apiClient.terraform.createRegistry({
+          name: orgName,
+          orgName,
+          tokenSettingKey: TOKEN_SETTING_KEY,
+          syncIntervalMinutes: syncInterval ?? undefined,
+        });
+        if (!result.ok) {
+          setSaveError(result.error?.message ?? 'Failed to create registry');
+          return;
+        }
+      }
+      await refreshModules();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Network error saving settings');
       console.error('[Terraform] Save error:', err);
     } finally {
       setIsSaving(false);
     }
-  }, [registry, isSaving, orgName, syncInterval, refreshModules]);
+  }, [registry, isSaving, orgName, token, syncInterval, refreshModules]);
 
   const handleDelete = useCallback(async () => {
     if (!registry) return;
@@ -121,7 +161,7 @@ export function TerraformSettingsPanel(): React.JSX.Element {
   const displayError = saveError ?? contextError;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Content */}
       <div className="flex flex-1 justify-center overflow-y-auto p-8">
         <div className="w-full max-w-[600px]">
@@ -207,28 +247,30 @@ export function TerraformSettingsPanel(): React.JSX.Element {
           )}
 
           {/* Sync Button */}
-          <div className="mb-6">
-            <button
-              type="button"
-              onClick={handleSync}
-              disabled={isSyncing || isSyncingStatus}
-              className={`inline-flex items-center gap-2 rounded-md border border-border bg-surface-hover px-3 py-2 text-sm font-medium text-fg transition-colors hover:border-fg-subtle hover:bg-surface-emphasis ${
-                isSyncing || isSyncingStatus ? 'cursor-not-allowed opacity-60' : ''
-              }`}
-            >
-              {isSyncing || isSyncingStatus ? (
-                <>
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-transparent border-t-current" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <ArrowsClockwise size={16} />
-                  {isError ? 'Retry Sync' : 'Sync Now'}
-                </>
-              )}
-            </button>
-          </div>
+          {registry && (
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handleSync}
+                disabled={isSyncing || isSyncingStatus}
+                className={`inline-flex items-center gap-2 rounded-md border border-border bg-surface-hover px-3 py-2 text-sm font-medium text-fg transition-colors hover:border-fg-subtle hover:bg-surface-emphasis ${
+                  isSyncing || isSyncingStatus ? 'cursor-not-allowed opacity-60' : ''
+                }`}
+              >
+                {isSyncing || isSyncingStatus ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-transparent border-t-current" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <ArrowsClockwise size={16} />
+                    {isError ? 'Retry Sync' : 'Sync Now'}
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           <hr className="my-6 border-border" />
 
@@ -318,14 +360,18 @@ export function TerraformSettingsPanel(): React.JSX.Element {
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="inline-flex items-center gap-2 rounded-md border border-danger bg-transparent px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger-muted"
-            >
-              <Trash size={16} />
-              Remove Registry
-            </button>
+            {registry ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="inline-flex items-center gap-2 rounded-md border border-danger bg-transparent px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger-muted"
+              >
+                <Trash size={16} />
+                Remove Registry
+              </button>
+            ) : (
+              <div />
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -340,7 +386,16 @@ export function TerraformSettingsPanel(): React.JSX.Element {
                 disabled={isSaving}
                 className="inline-flex items-center gap-2 rounded-md border border-transparent bg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-emphasis disabled:opacity-60"
               >
-                {isSaving ? 'Saving...' : 'Save Settings'}
+                {isSaving ? (
+                  'Saving...'
+                ) : registry ? (
+                  'Save Settings'
+                ) : (
+                  <>
+                    <Plus size={14} />
+                    Connect Registry
+                  </>
+                )}
               </button>
             </div>
           </div>

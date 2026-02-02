@@ -6,5 +6,9 @@ export const Route = createFileRoute('/terraform/settings')({
 });
 
 function TerraformSettingsView(): React.JSX.Element {
-  return <TerraformSettingsPanel />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <TerraformSettingsPanel />
+    </div>
+  );
 }

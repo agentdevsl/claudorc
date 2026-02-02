@@ -83,25 +83,50 @@ interface JsonApiResponse<T> {
   };
 }
 
+const MAX_RETRIES = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Make an authenticated request to the HCP Terraform API
+ * Make an authenticated request to the HCP Terraform API.
+ * Retries on 429 (rate limit) using the Retry-After header with exponential backoff.
  */
 async function apiRequest<T>(config: RegistryConfig, path: string): Promise<T> {
   const url = `${config.baseUrl}${path}`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      'Content-Type': 'application/vnd.api+json',
-    },
-  });
 
-  if (!response.ok) {
-    const body = await response.text();
-    const safeBody = body.length > 200 ? `${body.slice(0, 200)}...` : body;
-    throw new Error(`HCP Terraform API error (${response.status}): ${safeBody}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        'Content-Type': 'application/vnd.api+json',
+      },
+    });
+
+    if (response.status === 429) {
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`HCP Terraform API rate limit exceeded after ${MAX_RETRIES} retries`);
+      }
+      const retryAfter = response.headers.get('retry-after');
+      const waitMs = retryAfter ? Number(retryAfter) * 1000 : 1000 * 2 ** attempt;
+      console.warn(
+        `[RegistryClient] Rate limited, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+      );
+      await sleep(waitMs);
+      continue;
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      const safeBody = body.length > 200 ? `${body.slice(0, 200)}...` : body;
+      throw new Error(`HCP Terraform API error (${response.status}): ${safeBody}`);
+    }
+
+    return response.json() as Promise<T>;
   }
 
-  return response.json() as Promise<T>;
+  throw new Error('Unreachable');
 }
 
 /**
@@ -195,15 +220,16 @@ export async function getModuleDetail(
 
 /**
  * Sync all modules from a registry.
- * Lists all modules, then fetches details for each in batches of 5.
+ * Lists all modules, then fetches details for each in batches of 2
+ * with delays between batches to respect HCP Terraform's rate limits (30 req/s).
  */
 export async function syncAllModules(config: RegistryConfig): Promise<NewTerraformModule[]> {
   const rawModules = await listRegistryModules(config);
   const results: NewTerraformModule[] = [];
 
-  // Process modules in batches of 5 for concurrency
-  const batchSize = 5;
+  const batchSize = 2;
   for (let i = 0; i < rawModules.length; i += batchSize) {
+    if (i > 0) await sleep(500);
     const batch = rawModules.slice(i, i + batchSize);
 
     const batchResults = await Promise.all(
