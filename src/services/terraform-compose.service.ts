@@ -198,7 +198,7 @@ export class TerraformComposeService {
   private sendEvent(job: ComposeJob, event: ComposeEvent): void {
     if (!job.controller) {
       // Buffer critical events so late subscribers can replay them
-      if (event.type === 'error' || event.type === 'done') {
+      if (event.type === 'error' || event.type === 'done' || event.type === 'code') {
         job.pendingEvents.push(event);
       }
       return;
@@ -349,7 +349,6 @@ export class TerraformComposeService {
       session = unstable_v2_createSession({
         model: composeModel,
         env: filteredEnv,
-        permissionMode: 'plan',
         canUseTool,
       });
 
@@ -412,7 +411,9 @@ export class TerraformComposeService {
               .filter((b) => b.type === 'text' && b.text)
               .map((b) => b.text)
               .join('');
-            if (text) fullResponse = text;
+            // Only use assistant message content when stream deltas weren't available,
+            // otherwise the overwrite can lose HCL code accumulated from deltas
+            if (text && !streamedTextToClient) fullResponse = text;
           }
         }
 
@@ -633,7 +634,8 @@ function formatPrompt(systemPrompt: string, messages: ComposeMessage[]): string 
 }
 
 function extractHclCode(text: string): string | null {
-  const matches = [...text.matchAll(/```hcl\n([\s\S]*?)```/g)]
+  // Match ```hcl, ```terraform, and ```tf fenced code blocks
+  const matches = [...text.matchAll(/```(?:hcl|terraform|tf)\n([\s\S]*?)```/g)]
     .map((m) => m[1]?.trim())
     .filter(Boolean);
 

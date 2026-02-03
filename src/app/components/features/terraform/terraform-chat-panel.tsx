@@ -150,7 +150,7 @@ function getCategoryColor(category: string): string {
  *   so only the introductory text remains (questions are shown in ClarifyingQuestionsUI).
  */
 function stripAssistantContent(msg: ComposeMessage): string {
-  let text = msg.content.replace(/```hcl[\s\S]*?```/g, '').trim();
+  let text = msg.content.replace(/```(?:hcl|terraform|tf)[\s\S]*?```/g, '').trim();
 
   if (msg.clarifyingQuestions && msg.clarifyingQuestions.length > 0) {
     // Keep only the introductory text before the first numbered/bulleted question.
