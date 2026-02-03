@@ -18,5 +18,6 @@ export * from './settings';
 export * from './tasks';
 export * from './template-projects';
 export * from './templates';
+export * from './terraform';
 export * from './workflows';
 export * from './worktrees';

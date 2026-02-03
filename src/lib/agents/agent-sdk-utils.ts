@@ -6,6 +6,7 @@
  */
 
 import { unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../constants/models.js';
 
 // =============================================================================
 // Types
@@ -34,7 +35,7 @@ export interface AgentQueryResult {
 // Default Configuration
 // =============================================================================
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = getFullModelId(DEFAULT_TASK_CREATION_MODEL);
 
 // =============================================================================
 // Main Function

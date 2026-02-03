@@ -67,7 +67,7 @@ export function LayoutShell({
             )}
           </header>
         )}
-        <main className="flex-1 min-h-0 overflow-hidden" data-testid="layout-main">
+        <main className="flex flex-1 flex-col min-h-0 overflow-hidden" data-testid="layout-main">
           {children}
         </main>
       </div>

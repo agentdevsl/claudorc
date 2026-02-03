@@ -1,11 +1,12 @@
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { z } from 'zod';
+import type { SettingsService } from '../../services/settings.service.js';
 import type { OAuthCredentials } from '../../types/credentials.js';
+import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '../constants/models.js';
 import { PlanModeErrors } from '../errors/plan-mode-errors.js';
+import { getPromptDefaultText, resolvePromptServer } from '../prompts/index.js';
+import { readCredentialsFile } from '../utils/resolve-anthropic-key.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';
 import type { ClaudeMessage, PlanTurn, UserInteraction } from './types.js';
@@ -46,6 +47,7 @@ export interface ClaudeClientConfig {
   model?: string;
   maxTokens?: number;
   systemPrompt?: string;
+  settingsService?: SettingsService;
 }
 
 /**
@@ -76,59 +78,21 @@ export type TokenCallback = (delta: string, accumulated: string) => void;
  */
 export type ClaudeResult = TextResult | ToolCallResult;
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = getFullModelId(DEFAULT_TASK_CREATION_MODEL);
 const DEFAULT_MAX_TOKENS = 8192;
 
 /**
- * Path to OAuth credentials file
- */
-function getCredentialsPath(): string {
-  return path.join(os.homedir(), '.claude', '.credentials.json');
-}
-
-/**
- * Load OAuth credentials from disk
+ * Load OAuth credentials from disk using the shared credential reader.
+ * Wraps readCredentialsFile() with Result-based error types for plan mode.
  */
 export async function loadCredentials(): Promise<
-  Result<
-    OAuthCredentials,
-    | typeof PlanModeErrors.CREDENTIALS_NOT_FOUND
-    | typeof PlanModeErrors.CREDENTIALS_EXPIRED
-    | ReturnType<typeof PlanModeErrors.API_ERROR>
-  >
+  Result<OAuthCredentials, typeof PlanModeErrors.CREDENTIALS_NOT_FOUND>
 > {
-  const credPath = getCredentialsPath();
-
-  try {
-    const content = await fs.promises.readFile(credPath, 'utf-8');
-    const credentials = JSON.parse(content) as OAuthCredentials;
-
-    if (!credentials.accessToken) {
-      return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
-    }
-
-    // Check if credentials are expired
-    if (credentials.expiresAt && Date.now() > credentials.expiresAt) {
-      return err(PlanModeErrors.CREDENTIALS_EXPIRED);
-    }
-
-    return ok(credentials);
-  } catch (error) {
-    // Differentiate between error types for better debugging
-    if (error instanceof SyntaxError) {
-      return err(PlanModeErrors.API_ERROR('Credentials file is malformed JSON'));
-    }
-    if (error && typeof error === 'object' && 'code' in error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
-        return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
-      }
-      if (nodeError.code === 'EACCES') {
-        return err(PlanModeErrors.API_ERROR('Cannot read credentials file: permission denied'));
-      }
-    }
+  const credentials = await readCredentialsFile();
+  if (!credentials) {
     return err(PlanModeErrors.CREDENTIALS_NOT_FOUND);
   }
+  return ok(credentials);
 }
 
 /**
@@ -142,7 +106,9 @@ export class ClaudeClient {
   private client: Anthropic;
   private model: string;
   private maxTokens: number;
-  private systemPrompt: string;
+  private systemPrompt: string | null;
+  private settingsService?: SettingsService;
+  private resolvedPrompt: string | null = null;
 
   constructor(credentials: OAuthCredentials, config?: ClaudeClientConfig) {
     // The accessToken from Claude credentials file is used as the API key
@@ -151,15 +117,25 @@ export class ClaudeClient {
     });
     this.model = config?.model ?? DEFAULT_MODEL;
     this.maxTokens = config?.maxTokens ?? DEFAULT_MAX_TOKENS;
-    this.systemPrompt =
-      config?.systemPrompt ??
-      `You are helping to plan a software engineering task. Your goal is to:
-1. Understand the task requirements
-2. Ask clarifying questions using the AskUserQuestion tool when needed
-3. Create a detailed implementation plan
-4. When the plan is complete, use CreateGitHubIssue to create a trackable issue
+    this.systemPrompt = config?.systemPrompt ?? null;
+    this.settingsService = config?.settingsService;
+  }
 
-Be thorough but concise. Focus on actionable steps and clear requirements.`;
+  /**
+   * Lazily resolve the system prompt from settings or default.
+   * Caches the result after first resolution.
+   */
+  private async getSystemPrompt(): Promise<string> {
+    if (this.resolvedPrompt) return this.resolvedPrompt;
+
+    if (this.systemPrompt) {
+      this.resolvedPrompt = this.systemPrompt;
+    } else if (this.settingsService) {
+      this.resolvedPrompt = await resolvePromptServer('plan-mode-default', this.settingsService);
+    } else {
+      this.resolvedPrompt = getPromptDefaultText('plan-mode-default');
+    }
+    return this.resolvedPrompt;
   }
 
   /**
@@ -222,10 +198,11 @@ Be thorough but concise. Focus on actionable steps and clear requirements.`;
   private async sendNonStreaming(
     messages: ClaudeMessage[]
   ): Promise<Result<ClaudeResult, ReturnType<typeof PlanModeErrors.API_ERROR>>> {
+    const systemPrompt = await this.getSystemPrompt();
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: this.maxTokens,
-      system: this.systemPrompt,
+      system: systemPrompt,
       messages: messages as Anthropic.MessageParam[],
       tools: [askUserQuestionTool as Anthropic.Tool, createGitHubIssueTool as Anthropic.Tool],
     });
@@ -263,10 +240,11 @@ Be thorough but concise. Focus on actionable steps and clear requirements.`;
     let toolUse: ToolCallResult | null = null;
     let toolInputJson = '';
 
+    const systemPrompt = await this.getSystemPrompt();
     const stream = await this.client.messages.create({
       model: this.model,
       max_tokens: this.maxTokens,
-      system: this.systemPrompt,
+      system: systemPrompt,
       messages: messages as Anthropic.MessageParam[],
       tools: [askUserQuestionTool as Anthropic.Tool, createGitHubIssueTool as Anthropic.Tool],
       stream: true,

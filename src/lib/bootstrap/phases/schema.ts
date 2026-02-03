@@ -369,6 +369,46 @@ export const CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL = `
 ALTER TABLE cli_sessions ADD COLUMN performance_metrics TEXT;
 `;
 
+// Terraform registries and modules migration
+export const TERRAFORM_MIGRATION_SQL = `
+CREATE TABLE IF NOT EXISTS "terraform_registries" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "name" TEXT NOT NULL,
+  "org_name" TEXT NOT NULL,
+  "token_setting_key" TEXT NOT NULL,
+  "status" TEXT DEFAULT 'active',
+  "last_synced_at" TEXT,
+  "sync_error" TEXT,
+  "module_count" INTEGER DEFAULT 0,
+  "sync_interval_minutes" INTEGER,
+  "next_sync_at" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "terraform_modules" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "registry_id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "namespace" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "version" TEXT NOT NULL,
+  "source" TEXT NOT NULL,
+  "description" TEXT,
+  "readme" TEXT,
+  "inputs" TEXT,
+  "outputs" TEXT,
+  "dependencies" TEXT,
+  "published_at" TEXT,
+  "created_at" TEXT DEFAULT (datetime('now')) NOT NULL,
+  "updated_at" TEXT DEFAULT (datetime('now')) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tf_modules_registry ON terraform_modules(registry_id);
+CREATE INDEX IF NOT EXISTS idx_tf_modules_provider ON terraform_modules(provider);
+CREATE INDEX IF NOT EXISTS idx_tf_modules_name ON terraform_modules(name);
+`;
+
 // Performance indexes migration
 export const PERFORMANCE_INDEXES_MIGRATION_SQL = `
 -- Index for looking up tasks by agent

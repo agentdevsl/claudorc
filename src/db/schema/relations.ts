@@ -13,6 +13,7 @@ import { sessions } from './sessions';
 import { tasks } from './tasks';
 import { templateProjects } from './template-projects';
 import { templates } from './templates';
+import { terraformModules, terraformRegistries } from './terraform';
 import { worktrees } from './worktrees';
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -200,5 +201,18 @@ export const sessionSummariesRelations = relations(sessionSummaries, ({ one }) =
   session: one(sessions, {
     fields: [sessionSummaries.sessionId],
     references: [sessions.id],
+  }),
+}));
+
+// Terraform registries relations
+export const terraformRegistriesRelations = relations(terraformRegistries, ({ many }) => ({
+  modules: many(terraformModules),
+}));
+
+// Terraform modules relations
+export const terraformModulesRelations = relations(terraformModules, ({ one }) => ({
+  registry: one(terraformRegistries, {
+    fields: [terraformModules.registryId],
+    references: [terraformRegistries.id],
   }),
 }));

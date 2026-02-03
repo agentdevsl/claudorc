@@ -69,6 +69,7 @@ import {
   PERFORMANCE_INDEXES_MIGRATION_SQL,
   SANDBOX_MIGRATION_SQL,
   TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL,
+  TERRAFORM_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
 import { createDockerProvider } from '../lib/sandbox/index.js';
 import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
@@ -81,6 +82,7 @@ import { GitHubTokenService } from '../services/github-token.service.js';
 import { MarketplaceService } from '../services/marketplace.service.js';
 import { SandboxConfigService } from '../services/sandbox-config.service.js';
 import { type DurableStreamsServer, SessionService } from '../services/session.service.js';
+import { SettingsService } from '../services/settings.service.js';
 import { TaskService } from '../services/task.service.js';
 import {
   createTaskCreationService,
@@ -88,6 +90,9 @@ import {
 } from '../services/task-creation.service.js';
 import { TemplateService } from '../services/template.service.js';
 import { startSyncScheduler } from '../services/template-sync-scheduler.js';
+import { TerraformComposeService } from '../services/terraform-compose.service.js';
+import { TerraformRegistryService } from '../services/terraform-registry.service.js';
+import { startTerraformSyncScheduler } from '../services/terraform-sync-scheduler.js';
 import { type CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { createRouter } from './router.js';
@@ -101,7 +106,11 @@ declare const Bun: {
     stdout: ReadableStream<Uint8Array>;
     stderr: ReadableStream<Uint8Array>;
   };
-  serve: (options: { port: number; fetch: (req: Request) => Response | Promise<Response> }) => void;
+  serve: (options: {
+    port: number;
+    fetch: (req: Request) => Response | Promise<Response>;
+    idleTimeout?: number;
+  }) => void;
 };
 
 // Initialize SQLite database using Bun's native SQLite
@@ -168,6 +177,10 @@ try {
     );
   }
 }
+
+// Apply Terraform tables migration (idempotent — uses IF NOT EXISTS)
+sqlite.exec(TERRAFORM_MIGRATION_SQL);
+log.info('Terraform migration applied');
 
 const db = drizzle(sqlite, { schema }) as unknown as Database;
 
@@ -601,6 +614,15 @@ if (dockerProvider) {
 // MarketplaceService for plugin marketplace operations
 const marketplaceService = new MarketplaceService(db);
 
+// Terraform services
+const terraformRegistryService = new TerraformRegistryService(db);
+const settingsServiceForCompose = new SettingsService(db);
+const terraformComposeService = new TerraformComposeService(
+  terraformRegistryService,
+  db,
+  settingsServiceForCompose
+);
+
 // AgentService for agent lifecycle management
 const agentService = new AgentService(db, worktreeService, taskService, sessionService);
 
@@ -621,6 +643,9 @@ const app = createRouter({
   durableStreamsService,
   dockerProvider,
   cliMonitorService,
+  terraformRegistryService,
+  terraformComposeService,
+  settingsService: settingsServiceForCompose,
 });
 
 // Start server
@@ -629,13 +654,18 @@ const PORT = 3001;
 Bun.serve({
   port: PORT,
   fetch: app.fetch,
+  idleTimeout: 0, // Disable idle timeout to prevent Bun from killing long-lived SSE connections
 });
 
 console.log(`[API Server] Running on http://localhost:${PORT}`);
 
 // Start the template sync scheduler
-startSyncScheduler(db, templateService);
+const stopTemplateSync = startSyncScheduler(db, templateService);
 log.info('[API Server] Template sync scheduler started');
+
+// Start the Terraform sync scheduler
+const stopTerraformSync = startTerraformSyncScheduler(db, terraformRegistryService);
+log.info('[API Server] Terraform sync scheduler started');
 
 // Graceful shutdown: stop accepting requests, clean up services, close DB
 let isShuttingDown = false;
@@ -665,6 +695,10 @@ function shutdownServer(signal: string) {
     }
     containerAgentService.dispose();
   }
+
+  // Stop schedulers
+  stopTemplateSync();
+  stopTerraformSync();
 
   // Clean up services
   cliMonitorService.destroy();

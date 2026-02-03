@@ -30,22 +30,16 @@ export const AVAILABLE_MODELS = [
     description: 'Most capable, best for complex tasks',
   },
   {
-    id: 'claude-sonnet-4',
-    name: 'Claude Sonnet 4',
-    fullId: 'claude-sonnet-4-20250514',
-    description: 'Balanced speed and capability',
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    fullId: 'claude-sonnet-4-5-20250929',
+    description: 'Smart model for complex agents and coding',
   },
   {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
-    fullId: 'claude-opus-4-20250514',
-    description: 'Strong reasoning and analysis',
-  },
-  {
-    id: 'claude-haiku-4',
-    name: 'Claude Haiku 4',
-    fullId: 'claude-haiku-4-20250414',
-    description: 'Fast and efficient',
+    id: 'claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    fullId: 'claude-haiku-4-5-20251001',
+    description: 'Fastest with near-frontier intelligence',
   },
 ] as const;
 
@@ -53,10 +47,10 @@ export const AVAILABLE_MODELS = [
 export const DEFAULT_AGENT_MODEL = 'claude-opus-4-5';
 
 /** Default model for workflow designer AI */
-export const DEFAULT_WORKFLOW_MODEL = 'claude-haiku-4';
+export const DEFAULT_WORKFLOW_MODEL = 'claude-haiku-4-5';
 
 /** Default model for task creation AI */
-export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4';
+export const DEFAULT_TASK_CREATION_MODEL = 'claude-sonnet-4-5';
 
 /**
  * Get the task creation model from environment or localStorage.
@@ -105,11 +99,37 @@ export type ModelId = (typeof AVAILABLE_MODELS)[number]['id'];
 export type FullModelId = (typeof AVAILABLE_MODELS)[number]['fullId'];
 
 /**
+ * Migration map for deprecated model IDs.
+ * Maps old short/full IDs to their current replacements.
+ */
+const MODEL_MIGRATION_MAP: Record<string, string> = {
+  'claude-sonnet-4': 'claude-sonnet-4-5',
+  'claude-sonnet-4-20250514': 'claude-sonnet-4-5-20250929',
+  'claude-opus-4': 'claude-opus-4-5',
+  'claude-opus-4-20250514': 'claude-opus-4-5-20251101',
+  'claude-haiku-3-5': 'claude-haiku-4-5',
+  'claude-haiku-4-5-20250414': 'claude-haiku-4-5-20251001',
+};
+
+/**
  * Get the full API model ID from a short model ID.
+ * Handles migration of deprecated model IDs to their current replacements.
  */
 export function getFullModelId(shortId: string): string {
+  const migrated = MODEL_MIGRATION_MAP[shortId];
+  if (migrated) {
+    console.warn(`[Models] Migrating deprecated model ID '${shortId}' to '${migrated}'`);
+    return getFullModelId(migrated);
+  }
   const model = AVAILABLE_MODELS.find((m) => m.id === shortId);
-  return model?.fullId ?? shortId;
+  if (model) return model.fullId;
+
+  // Check if it's already a known full ID
+  const knownFull = AVAILABLE_MODELS.find((m) => m.fullId === shortId);
+  if (knownFull) return shortId;
+
+  console.warn(`[Models] Unknown model ID '${shortId}' — passing through as-is`);
+  return shortId;
 }
 
 /**

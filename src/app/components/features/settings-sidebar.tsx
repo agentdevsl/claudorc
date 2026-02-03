@@ -1,10 +1,12 @@
 import {
   Brain,
+  ChatText,
   Cube,
   Folder,
   Gear,
   GithubLogo,
   Heartbeat,
+  Hexagon,
   Key,
   Robot,
   Swatches,
@@ -77,6 +79,12 @@ function useSettingsSections(): SettingsSection[] {
           to: '/settings/model-optimizations',
           icon: Brain,
         },
+        {
+          id: 'prompts',
+          label: 'System Prompts',
+          to: '/settings/prompts',
+          icon: ChatText,
+        },
       ],
     },
     {
@@ -94,6 +102,11 @@ function useSettingsSections(): SettingsSection[] {
           badgeVariant: githubConnected ? 'success' : undefined,
         },
       ],
+    },
+    {
+      id: 'integrations',
+      title: 'Integrations',
+      items: [{ id: 'terraform', label: 'Terraform', to: '/terraform/settings', icon: Hexagon }],
     },
     {
       id: 'navigation',

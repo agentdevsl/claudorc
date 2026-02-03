@@ -20,9 +20,12 @@ import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
 import type { SandboxConfigService } from '../services/sandbox-config.service.js';
 import type { SessionService } from '../services/session.service.js';
+import type { SettingsService } from '../services/settings.service.js';
 import type { TaskService } from '../services/task.service.js';
 import type { TaskCreationService } from '../services/task-creation.service.js';
 import type { TemplateService } from '../services/template.service.js';
+import type { TerraformComposeService } from '../services/terraform-compose.service.js';
+import type { TerraformRegistryService } from '../services/terraform-registry.service.js';
 import type { CommandRunner, WorktreeService } from '../services/worktree.service.js';
 import type { Database } from '../types/database.js';
 import { createAgentsRoutes } from './routes/agents.js';
@@ -41,6 +44,7 @@ import { createSettingsRoutes } from './routes/settings.js';
 import { createTaskCreationRoutes } from './routes/task-creation.js';
 import { createTasksRoutes } from './routes/tasks.js';
 import { createTemplatesRoutes } from './routes/templates.js';
+import { createTerraformRoutes } from './routes/terraform.js';
 import { createWebhooksRoutes } from './routes/webhooks.js';
 import { createWorkflowDesignerRoutes } from './routes/workflow-designer.js';
 import { createWorkflowsRoutes } from './routes/workflows.js';
@@ -108,6 +112,9 @@ export interface RouterDependencies {
   durableStreamsService?: DurableStreamsService;
   dockerProvider?: EventEmittingSandboxProvider | null;
   cliMonitorService?: CliMonitorService | null;
+  terraformRegistryService?: TerraformRegistryService;
+  terraformComposeService?: TerraformComposeService;
+  settingsService?: SettingsService;
 }
 
 export function createRouter(deps: RouterDependencies) {
@@ -183,7 +190,10 @@ export function createRouter(deps: RouterDependencies) {
   app.route('/api/filesystem', createFilesystemRoutes());
   app.route(
     '/api/workflow-designer',
-    createWorkflowDesignerRoutes({ templateService: deps.templateService })
+    createWorkflowDesignerRoutes({
+      templateService: deps.templateService,
+      settingsService: deps.settingsService,
+    })
   );
   app.route('/api/webhooks', createWebhooksRoutes({ templateService: deps.templateService }));
 
@@ -191,6 +201,16 @@ export function createRouter(deps: RouterDependencies) {
     app.route(
       '/api/cli-monitor',
       createCliMonitorRoutes({ cliMonitorService: deps.cliMonitorService })
+    );
+  }
+
+  if (deps.terraformRegistryService && deps.terraformComposeService) {
+    app.route(
+      '/api/terraform',
+      createTerraformRoutes({
+        terraformRegistryService: deps.terraformRegistryService,
+        terraformComposeService: deps.terraformComposeService,
+      })
     );
   }
 

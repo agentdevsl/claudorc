@@ -7,21 +7,26 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema/templates.js';
 import { agentQuery } from '../../lib/agents/agent-sdk-utils.js';
+import { DEFAULT_WORKFLOW_MODEL, getFullModelId } from '../../lib/constants/models.js';
 import {
   createWorkflowAnalysisPrompt,
+  resolveWorkflowAnalysisPrompt,
+  resolveWorkflowGenerationSystemPrompt,
   WORKFLOW_GENERATION_SYSTEM_PROMPT,
 } from '../../lib/workflow-dsl/ai-prompts.js';
 import { layoutWorkflow } from '../../lib/workflow-dsl/layout.js';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '../../lib/workflow-dsl/types.js';
 import { workflowEdgeSchema, workflowNodeSchema } from '../../lib/workflow-dsl/types.js';
+import type { SettingsService } from '../../services/settings.service.js';
 import type { TemplateService } from '../../services/template.service.js';
 import { json } from '../shared.js';
 
 interface WorkflowDesignerDeps {
   templateService: TemplateService;
+  settingsService?: SettingsService;
 }
 
-const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? 'claude-sonnet-4-20250514';
+const WORKFLOW_AI_MODEL = process.env.WORKFLOW_AI_MODEL ?? getFullModelId(DEFAULT_WORKFLOW_MODEL);
 
 // Request schema for workflow analysis
 const analyzeWorkflowRequestSchema = z
@@ -231,7 +236,10 @@ function parseAIResponse(responseText: string): {
   };
 }
 
-export function createWorkflowDesignerRoutes({ templateService }: WorkflowDesignerDeps) {
+export function createWorkflowDesignerRoutes({
+  templateService,
+  settingsService,
+}: WorkflowDesignerDeps) {
   const app = new Hono();
 
   // POST /api/workflow-designer/analyze
@@ -308,7 +316,7 @@ export function createWorkflowDesignerRoutes({ templateService }: WorkflowDesign
     // Build template content and prompt
     const templateContent = buildTemplateContent(templateSkills, templateCommands, templateAgents);
 
-    const userPrompt = createWorkflowAnalysisPrompt({
+    const analysisInput = {
       name: templateName,
       description: templateDescription,
       content: templateContent,
@@ -328,12 +336,18 @@ export function createWorkflowDesignerRoutes({ templateService }: WorkflowDesign
         description: a.description,
         systemPrompt: a.content,
       })),
-    });
+    };
+    const userPrompt = settingsService
+      ? await resolveWorkflowAnalysisPrompt(analysisInput, settingsService)
+      : createWorkflowAnalysisPrompt(analysisInput);
 
     // Use Claude Agent SDK
     let aiResponse: string;
     try {
-      const fullPrompt = `${WORKFLOW_GENERATION_SYSTEM_PROMPT}\n\n---\n\n${userPrompt}`;
+      const systemPrompt = settingsService
+        ? await resolveWorkflowGenerationSystemPrompt(settingsService)
+        : WORKFLOW_GENERATION_SYSTEM_PROMPT;
+      const fullPrompt = `${systemPrompt}\n\n---\n\n${userPrompt}`;
       const result = await agentQuery(fullPrompt, { model: WORKFLOW_AI_MODEL });
       aiResponse = result.text;
 

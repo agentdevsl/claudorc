@@ -720,7 +720,7 @@ describe('loadCredentials', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe('PLAN_CREDENTIALS_EXPIRED');
+      expect(result.error.code).toBe('PLAN_CREDENTIALS_NOT_FOUND');
     }
   });
 
@@ -731,8 +731,7 @@ describe('loadCredentials', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe('PLAN_API_ERROR');
-      expect(result.error.message).toContain('malformed JSON');
+      expect(result.error.code).toBe('PLAN_CREDENTIALS_NOT_FOUND');
     }
   });
 
@@ -759,8 +758,7 @@ describe('loadCredentials', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe('PLAN_API_ERROR');
-      expect(result.error.message).toContain('permission denied');
+      expect(result.error.code).toBe('PLAN_CREDENTIALS_NOT_FOUND');
     }
   });
 

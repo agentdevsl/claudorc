@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Terraform Composition History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+    input { font: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --terraform-fg: #844fba;
+      --terraform-muted: rgba(132, 79, 186, 0.15);
+      --aws-fg: #ff9900;
+      --aws-muted: rgba(255, 153, 0, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ========================================
+       Layout
+       ======================================== */
+    .scenario { margin-bottom: 48px; }
+    .scenario-label {
+      display: inline-block;
+      margin: var(--space-4) var(--space-6);
+      padding: var(--space-1) var(--space-3);
+      background: var(--done-muted);
+      color: var(--done-fg);
+      font-size: 12px; font-weight: 600;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      height: 720px;
+      overflow: hidden;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin: 0 var(--space-6);
+    }
+
+    /* ========================================
+       Sidebar
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .sidebar-header {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-4); border-bottom: 1px solid var(--border-default);
+    }
+    .logo {
+      width: 44px; height: 44px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                  linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 -1px 0 0 rgba(0,0,0,0.3) inset,
+                  0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden; flex-shrink: 0;
+    }
+    .logo::before {
+      content: ''; position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section-title {
+      display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2);
+      font-size: 12px; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2); margin-bottom: 2px;
+      font-size: 14px; font-weight: 500; color: var(--fg-muted);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out); cursor: pointer;
+    }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2); border-radius: var(--radius); cursor: pointer;
+      transition: background-color var(--duration-fast) var(--ease-out);
+    }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout
+       ======================================== */
+    .app-main { display: flex; flex-direction: column; overflow: hidden; }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--bg-default); border-bottom: 1px solid var(--border-default);
+      min-height: 52px;
+    }
+    .header-left { display: flex; align-items: center; gap: var(--space-3); }
+    .header-breadcrumb { font-size: 14px; font-weight: 600; }
+    .header-breadcrumb-sep { color: var(--fg-subtle); margin: 0 var(--space-1); }
+    .header-right { display: flex; align-items: center; gap: var(--space-3); }
+
+    /* View Switcher */
+    .view-switcher {
+      display: flex; align-items: center; gap: 2px;
+      background: var(--bg-emphasis); border-radius: 8px; padding: 2px;
+    }
+    .view-tab {
+      display: flex; align-items: center; gap: var(--space-1);
+      padding: var(--space-1) var(--space-3); border-radius: 6px;
+      font-size: 12px; font-weight: 500; color: var(--fg-muted);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .view-tab:hover { color: var(--fg-default); }
+    .view-tab.active { background: var(--bg-default); color: var(--fg-default); box-shadow: var(--shadow-sm); }
+    .view-tab .icon { width: 14px; height: 14px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3); font-size: 14px; font-weight: 500;
+      border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out);
+    }
+    .btn-sm { padding: var(--space-1) var(--space-2); font-size: 12px; }
+    .btn-secondary { background-color: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); }
+    .btn-secondary:hover { background-color: var(--bg-muted); border-color: var(--fg-subtle); }
+    .btn-primary { background-color: var(--accent-emphasis); color: #fff; border: 1px solid transparent; }
+    .btn-primary:hover { background-color: var(--accent-fg); }
+    .btn-ghost { background: transparent; color: var(--fg-muted); border: 1px solid transparent; }
+    .btn-ghost:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .btn .icon { width: 16px; height: 16px; }
+    .btn-sm .icon { width: 14px; height: 14px; }
+
+    /* ========================================
+       History View
+       ======================================== */
+    .history-container {
+      flex: 1; overflow-y: auto; padding: var(--space-6);
+    }
+
+    .history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-6);
+    }
+    .history-title { font-size: 18px; font-weight: 600; letter-spacing: var(--tracking-tight); }
+    .history-count { font-size: 13px; color: var(--fg-muted); margin-left: var(--space-2); }
+
+    /* Search */
+    .search-input {
+      width: 320px; height: 36px;
+      padding: var(--space-2) var(--space-3) var(--space-2) 36px;
+      font-size: 14px; color: var(--fg-default);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .search-input:focus {
+      outline: none; border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+    .search-input::placeholder { color: var(--fg-subtle); }
+    .search-wrapper {
+      position: relative; display: inline-flex; align-items: center;
+    }
+    .search-wrapper .icon {
+      position: absolute; left: var(--space-3);
+      width: 14px; height: 14px; color: var(--fg-subtle); pointer-events: none;
+    }
+
+    /* Composition Cards */
+    .composition-list {
+      display: flex; flex-direction: column; gap: var(--space-3);
+    }
+    .composition-card {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out);
+      cursor: pointer;
+    }
+    .composition-card:hover { border-color: var(--fg-subtle); }
+
+    .composition-icon {
+      width: 40px; height: 40px; border-radius: var(--radius);
+      background: var(--terraform-muted);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .composition-icon .icon { width: 20px; height: 20px; color: var(--terraform-fg); }
+
+    .composition-body { flex: 1; min-width: 0; }
+    .composition-title-row {
+      display: flex; align-items: center; gap: var(--space-2);
+      margin-bottom: var(--space-1);
+    }
+    .composition-title {
+      font-size: 14px; font-weight: 500; color: var(--fg-default);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .composition-meta {
+      display: flex; align-items: center; gap: var(--space-3);
+      font-size: 12px; color: var(--fg-subtle);
+    }
+    .composition-meta-item { display: flex; align-items: center; gap: 4px; }
+    .composition-meta-item .icon { width: 12px; height: 12px; }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: var(--radius-full);
+      font-size: 11px; font-weight: 600; flex-shrink: 0;
+    }
+    .badge-completed { background: var(--success-muted); color: var(--success-fg); }
+    .badge-in-progress { background: var(--accent-muted); color: var(--accent-fg); }
+    .badge-failed { background: var(--danger-muted); color: var(--danger-fg); }
+    .badge-modules {
+      background: var(--bg-emphasis); color: var(--fg-muted);
+      font-family: var(--font-mono); font-size: 11px;
+    }
+
+    .composition-actions { flex-shrink: 0; }
+
+    /* In-progress dot animation */
+    .pulse-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-fg); display: inline-block;
+      animation: pulse 1.5s ease-in-out infinite;
+      margin-right: 4px; vertical-align: middle;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--space-4); padding: var(--space-8) 0;
+      text-align: center; flex: 1;
+    }
+    .empty-icon {
+      width: 56px; height: 56px;
+      background: var(--bg-muted);
+      border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .empty-icon .icon { width: 28px; height: 28px; color: var(--fg-subtle); }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--fg-default); }
+    .empty-desc { font-size: 13px; color: var(--fg-muted); max-width: 360px; line-height: 1.6; }
+
+    /* Date separator */
+    .date-separator {
+      font-size: 12px; font-weight: 600; color: var(--fg-subtle);
+      text-transform: uppercase; letter-spacing: var(--tracking-wide);
+      padding: var(--space-2) 0; margin-bottom: var(--space-2);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    hr.divider { border: none; border-top: 1px solid var(--border-default); margin: var(--space-8) 0; }
+  </style>
+</head>
+<body>
+
+<!-- SVG Defs -->
+<svg style="display:none">
+  <defs>
+    <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff"/>
+      <stop offset="50%" stop-color="#3fb950"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <symbol id="logo-svg" viewBox="0 0 32 32" fill="none">
+    <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+    <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+    <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+    <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+    <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+    <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+    <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+    <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/>
+    <circle cx="14" cy="14" r="2" fill="#fff"/>
+  </symbol>
+  <symbol id="icon-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></symbol>
+  <symbol id="icon-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></symbol>
+  <symbol id="icon-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></symbol>
+  <symbol id="icon-puzzle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0l1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="icon-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></symbol>
+  <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="icon-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></symbol>
+</svg>
+
+<!-- ==========================================
+     SCENARIO 1: History with Compositions
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 1: Composition History - With Entries</div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div>
+        <span class="sidebar-title">AgentPane</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <span class="nav-section-title">Organization</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a>
+        </div>
+        <div class="nav-section">
+          <span class="nav-section-title">Content</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a>
+          <a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a>
+        </div>
+        <div class="nav-section">
+          <span class="nav-section-title">Admin</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform</span></div>
+        <div class="header-center">
+          <div class="view-switcher">
+            <button class="view-tab"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button>
+            <button class="view-tab"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button>
+            <button class="view-tab active"><svg class="icon"><use href="#icon-clock"/></svg>History</button>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-primary btn-sm"><svg class="icon"><use href="#icon-plus"/></svg>New Composition</button>
+        </div>
+      </header>
+      <div class="history-container">
+        <div class="history-header">
+          <div style="display: flex; align-items: baseline; gap: var(--space-2);">
+            <span class="history-title">Composition History</span>
+            <span class="history-count">6 compositions</span>
+          </div>
+          <div class="search-wrapper">
+            <svg class="icon"><use href="#icon-search"/></svg>
+            <input type="text" class="search-input" placeholder="Search compositions...">
+          </div>
+        </div>
+
+        <div class="composition-list">
+          <!-- Today -->
+          <div class="date-separator">Today</div>
+
+          <div class="composition-card">
+            <div class="composition-icon"><svg class="icon"><use href="#icon-cube"/></svg></div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">VPC with 3 private subnets, EKS cluster, and RDS PostgreSQL database</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>2:34 PM</span>
+                <span class="badge badge-modules">3 modules</span>
+                <span class="badge badge-completed">Completed</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Reopen</button>
+            </div>
+          </div>
+
+          <div class="composition-card" style="border-color: var(--accent-fg);">
+            <div class="composition-icon" style="background: var(--accent-muted);">
+              <svg class="icon" style="color: var(--accent-fg);"><use href="#icon-cube"/></svg>
+            </div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">S3 bucket with versioning and CloudFront distribution</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>1:12 PM</span>
+                <span class="badge badge-modules">2 modules</span>
+                <span class="badge badge-in-progress"><span class="pulse-dot"></span>In Progress</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-primary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Resume</button>
+            </div>
+          </div>
+
+          <!-- Yesterday -->
+          <div class="date-separator" style="margin-top: var(--space-4);">Yesterday</div>
+
+          <div class="composition-card">
+            <div class="composition-icon"><svg class="icon"><use href="#icon-cube"/></svg></div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">Lambda functions with API Gateway and DynamoDB</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>4:56 PM</span>
+                <span class="badge badge-modules">4 modules</span>
+                <span class="badge badge-completed">Completed</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Reopen</button>
+            </div>
+          </div>
+
+          <div class="composition-card">
+            <div class="composition-icon" style="background: var(--danger-muted);">
+              <svg class="icon" style="color: var(--danger-fg);"><use href="#icon-cube"/></svg>
+            </div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">Multi-region disaster recovery setup with Route53 failover</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>11:23 AM</span>
+                <span class="badge badge-modules">6 modules</span>
+                <span class="badge badge-failed">Failed</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Reopen</button>
+            </div>
+          </div>
+
+          <!-- Last week -->
+          <div class="date-separator" style="margin-top: var(--space-4);">Last Week</div>
+
+          <div class="composition-card">
+            <div class="composition-icon"><svg class="icon"><use href="#icon-cube"/></svg></div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">IAM roles and policies for EKS service accounts</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>Jan 27, 3:15 PM</span>
+                <span class="badge badge-modules">2 modules</span>
+                <span class="badge badge-completed">Completed</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Reopen</button>
+            </div>
+          </div>
+
+          <div class="composition-card">
+            <div class="composition-icon"><svg class="icon"><use href="#icon-cube"/></svg></div>
+            <div class="composition-body">
+              <div class="composition-title-row">
+                <span class="composition-title">RDS Aurora cluster with read replicas and automated backups</span>
+              </div>
+              <div class="composition-meta">
+                <span class="composition-meta-item"><svg class="icon"><use href="#icon-clock"/></svg>Jan 26, 10:04 AM</span>
+                <span class="badge badge-modules">3 modules</span>
+                <span class="badge badge-completed">Completed</span>
+              </div>
+            </div>
+            <div class="composition-actions">
+              <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-external"/></svg>Reopen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ==========================================
+     SCENARIO 2: Empty State
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 2: Composition History - Empty State</div>
+  <div class="app" style="height: 560px;">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div>
+        <span class="sidebar-title">AgentPane</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section"><span class="nav-section-title">Organization</span><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a><a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a><a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a></div>
+        <div class="nav-section"><span class="nav-section-title">Content</span><a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a><a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a><a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a><a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a></div>
+        <div class="nav-section"><span class="nav-section-title">Admin</span><a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a></div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform</span></div>
+        <div class="header-center">
+          <div class="view-switcher">
+            <button class="view-tab"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button>
+            <button class="view-tab"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button>
+            <button class="view-tab active"><svg class="icon"><use href="#icon-clock"/></svg>History</button>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-primary btn-sm"><svg class="icon"><use href="#icon-plus"/></svg>New Composition</button>
+        </div>
+      </header>
+      <div class="history-container" style="display: flex; flex-direction: column;">
+        <div class="history-header">
+          <div style="display: flex; align-items: baseline; gap: var(--space-2);">
+            <span class="history-title">Composition History</span>
+          </div>
+        </div>
+        <div class="empty-state">
+          <div class="empty-icon"><svg class="icon"><use href="#icon-clock"/></svg></div>
+          <div class="empty-title">No compositions yet</div>
+          <div class="empty-desc">Start a new composition in the Compose view. Your past compositions will appear here so you can revisit and iterate on them.</div>
+          <button class="btn btn-primary"><svg class="icon"><use href="#icon-chat"/></svg>Start Composing</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

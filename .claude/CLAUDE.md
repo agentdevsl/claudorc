@@ -255,6 +255,39 @@ The stream handler publishes these events during execution:
 - **Frontend**: `DurableStreamsClient` connects via EventSource
 - Events are published through `sessionService.publish()`
 
+## Terraform Compose Architecture
+
+The Terraform No-Code Composer uses the Claude Agent SDK to generate HCL configurations from natural language.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/services/terraform-compose.service.ts` | Compose pipeline: Agent SDK session, streaming, code extraction |
+| `src/app/components/features/terraform/terraform-context.tsx` | Client-side state, SSE processing, fallback code extraction |
+| `src/app/components/features/terraform/terraform-chat-panel.tsx` | Chat UI with clarifying questions |
+| `src/app/components/features/terraform/terraform-right-panel.tsx` | Code/Dependencies/Variables panel |
+| `src/lib/terraform/compose-prompt.ts` | System prompt builder with settings override |
+| `src/lib/prompts/prompt-registry.ts` | Default prompt texts (terraform-compose) |
+
+### Critical: Do NOT use `permissionMode: 'plan'` for Compose
+
+The compose service creates an Agent SDK session via `unstable_v2_createSession()`. **Never set `permissionMode: 'plan'`** — this injects Claude Code's planning system instructions, causing the model to ask for approval ("The plan is ready for your review") instead of generating HCL code. The session should be created without a `permissionMode` so the model follows the compose system prompt directly.
+
+### Code Extraction Flow
+
+1. Agent SDK streams text deltas → accumulated into `fullResponse`
+2. After streaming, `extractHclCode(fullResponse)` extracts `` ```hcl ``, `` ```terraform ``, or `` ```tf `` fenced blocks
+3. If found, a `code` SSE event is sent to the client
+4. The `done` event also carries `generatedCode` as a redundant delivery path
+5. Client-side fallback (`extractHclFromText`) runs in the `finally` block if no server-side extraction succeeded
+
+### Common Pitfalls
+
+- **`fullResponse` overwrite**: The `assistant` message handler must only set `fullResponse` when stream deltas weren't available (`!streamedTextToClient`), otherwise it overwrites incrementally accumulated content containing HCL code
+- **HCL fence variants**: Server and client regex must both handle `hcl`, `terraform`, and `tf` fence types
+- **SSE event buffering**: `code` events must be buffered in `sendEvent()` alongside `error` and `done` to survive temporary controller disconnects
+
 ## Docker Container Agent Architecture
 
 AgentPane can run Claude agents inside isolated Docker containers for sandboxed execution. This provides security isolation and prevents agents from affecting the host system.

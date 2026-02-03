@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - Terraform No-Code Composer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       CSS Reset
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    ul, ol { list-style: none; }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    a { text-decoration: none; color: inherit; }
+    textarea { font: inherit; }
+
+    /* ========================================
+       Design Tokens
+       ======================================== */
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+      --success-fg: #3fb950;
+      --success-emphasis: #238636;
+      --success-muted: rgba(46, 160, 67, 0.15);
+      --danger-fg: #f85149;
+      --danger-muted: rgba(248, 81, 73, 0.15);
+      --attention-fg: #d29922;
+      --attention-muted: rgba(210, 153, 34, 0.15);
+      --done-fg: #a371f7;
+      --done-muted: rgba(163, 113, 247, 0.15);
+      --secondary-fg: #f778ba;
+      --secondary-muted: rgba(247, 120, 186, 0.15);
+      --terraform-fg: #844fba;
+      --terraform-muted: rgba(132, 79, 186, 0.15);
+      --aws-fg: #ff9900;
+      --aws-muted: rgba(255, 153, 0, 0.15);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 12px;
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --tracking-tight: -0.02em;
+      --tracking-wide: 0.02em;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms; --duration-normal: 200ms; --duration-slow: 300ms;
+      --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--fg-default);
+      background-color: var(--bg-canvas);
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes logoGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes nodePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideInUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes streamDots {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
+    /* ========================================
+       Layout
+       ======================================== */
+    .scenario { margin-bottom: 48px; }
+    .scenario-label {
+      display: inline-block;
+      margin: var(--space-4) var(--space-6);
+      padding: var(--space-1) var(--space-3);
+      background: var(--done-muted);
+      color: var(--done-fg);
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      height: 720px;
+      overflow: hidden;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin: 0 var(--space-6);
+    }
+
+    /* ========================================
+       Sidebar
+       ======================================== */
+    .sidebar {
+      background-color: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: radial-gradient(ellipse at 30% 30%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                  linear-gradient(165deg, #12161c 0%, #0a0d11 100%);
+      box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset,
+                  0 -1px 0 0 rgba(0,0,0,0.3) inset,
+                  0 4px 16px -2px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .logo::before {
+      content: ''; position: absolute; inset: 0; border-radius: 12px;
+      background: radial-gradient(circle at 50% 50%, rgba(163, 113, 247, 0.15) 0%, transparent 60%);
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+    .logo-icon { position: relative; z-index: 1; width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.4)); }
+    .logo-node { animation: nodePulse 2s ease-in-out infinite; }
+    .logo-node-1 { animation-delay: 0s; } .logo-node-2 { animation-delay: 0.4s; }
+    .logo-node-3 { animation-delay: 0.8s; } .logo-node-4 { animation-delay: 1.2s; }
+    .logo-node-5 { animation-delay: 1.6s; }
+    .logo-core { animation: corePulse 3s ease-in-out infinite; }
+
+    .sidebar-title { font-size: 16px; font-weight: 600; color: var(--fg-default); letter-spacing: var(--tracking-tight); }
+
+    .sidebar-nav { flex: 1; padding: var(--space-3); overflow-y: auto; }
+    .nav-section { margin-bottom: var(--space-4); }
+    .nav-section-title {
+      display: block; padding: 0 var(--space-2); margin-bottom: var(--space-2);
+      font-size: 12px; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2); margin-bottom: 2px;
+      font-size: 14px; font-weight: 500; color: var(--fg-muted);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out); cursor: pointer;
+    }
+    .nav-item:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .nav-item.active { background-color: var(--accent-muted); color: var(--accent-fg); }
+    .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; padding: 2px 6px; font-size: 12px; font-weight: 500;
+      border-radius: 10px; min-width: 20px; text-align: center;
+    }
+    .nav-badge.default { background-color: var(--bg-emphasis); color: var(--fg-muted); }
+
+    .sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-default); }
+    .user-menu {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2); border-radius: var(--radius); cursor: pointer;
+      transition: background-color var(--duration-fast) var(--ease-out);
+    }
+    .user-menu:hover { background-color: var(--bg-subtle); }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+    }
+    .user-name { font-size: 14px; font-weight: 500; color: var(--fg-default); }
+
+    /* ========================================
+       Main Layout
+       ======================================== */
+    .app-main { display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--bg-default); border-bottom: 1px solid var(--border-default);
+      min-height: 52px;
+    }
+    .header-left { display: flex; align-items: center; gap: var(--space-3); }
+    .header-breadcrumb { font-size: 14px; font-weight: 600; }
+    .header-breadcrumb-sep { color: var(--fg-subtle); margin: 0 var(--space-1); }
+
+    .header-center { display: flex; align-items: center; }
+    .header-right { display: flex; align-items: center; gap: var(--space-3); }
+
+    /* View Switcher */
+    .view-switcher {
+      display: flex; align-items: center; gap: 2px;
+      background: var(--bg-emphasis); border-radius: 8px; padding: 2px;
+    }
+    .view-tab {
+      display: flex; align-items: center; gap: var(--space-1);
+      padding: var(--space-1) var(--space-3); border-radius: 6px;
+      font-size: 12px; font-weight: 500; color: var(--fg-muted);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .view-tab:hover { color: var(--fg-default); }
+    .view-tab.active { background: var(--bg-default); color: var(--fg-default); box-shadow: var(--shadow-sm); }
+    .view-tab .icon { width: 14px; height: 14px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3); font-size: 14px; font-weight: 500;
+      border-radius: var(--radius); transition: all var(--duration-fast) var(--ease-out);
+    }
+    .btn-sm { padding: var(--space-1) var(--space-2); font-size: 12px; }
+    .btn-secondary { background-color: var(--bg-subtle); border: 1px solid var(--border-default); color: var(--fg-default); }
+    .btn-secondary:hover { background-color: var(--bg-muted); border-color: var(--fg-subtle); }
+    .btn-primary { background-color: var(--accent-fg); color: #fff; border: 1px solid transparent; }
+    .btn-primary:hover { background-color: #4c9aed; }
+    .btn-ghost { background: transparent; color: var(--fg-muted); border: 1px solid transparent; }
+    .btn-ghost:hover { background-color: var(--bg-subtle); color: var(--fg-default); }
+    .btn .icon { width: 16px; height: 16px; }
+    .btn-sm .icon { width: 14px; height: 14px; }
+
+    /* Sync Bar */
+    .sync-bar {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-6);
+      background: var(--bg-default); border-bottom: 1px solid var(--border-default);
+      font-size: 12px; color: var(--fg-subtle);
+    }
+    .sync-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--success-fg); flex-shrink: 0;
+    }
+
+    /* ========================================
+       Composer Two-Panel Layout
+       ======================================== */
+    .composer-layout {
+      display: grid; grid-template-columns: 1fr 380px;
+      flex: 1; overflow: hidden;
+    }
+
+    /* Chat Panel */
+    .chat-panel {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border-default);
+      overflow: hidden;
+    }
+    .chat-messages {
+      flex: 1; overflow-y: auto;
+      padding: var(--space-6);
+      display: flex; flex-direction: column; gap: var(--space-4);
+    }
+
+    /* Welcome State */
+    .welcome-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--space-6); padding: var(--space-8);
+    }
+    .welcome-icon {
+      width: 56px; height: 56px;
+      background: var(--terraform-muted);
+      border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .welcome-icon .icon { width: 28px; height: 28px; color: var(--terraform-fg); }
+    .welcome-title { font-size: 18px; font-weight: 600; text-align: center; }
+    .welcome-desc { font-size: 14px; color: var(--fg-muted); text-align: center; max-width: 420px; line-height: 1.6; }
+    .quick-starts { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; max-width: 520px; }
+    .quick-start-btn {
+      display: flex; align-items: center; gap: var(--space-1);
+      padding: var(--space-1) var(--space-3);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: 9999px; color: var(--fg-muted); font-size: 12px; font-weight: 500;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .quick-start-btn:hover { border-color: var(--accent-fg); color: var(--accent-fg); background: var(--accent-muted); }
+    .quick-start-btn .icon { width: 14px; height: 14px; }
+
+    /* Messages */
+    .message { display: flex; gap: var(--space-3); max-width: 640px; animation: slideInUp 0.3s ease; }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; flex-shrink: 0;
+    }
+    .message-avatar.ai { background: var(--done-muted); color: var(--done-fg); }
+    .message-avatar.human { background: var(--accent-muted); color: var(--accent-fg); }
+    .message-bubble {
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      font-size: 14px; line-height: 1.6;
+    }
+    .message.assistant .message-bubble {
+      background: var(--bg-default); border: 1px solid var(--border-default); color: var(--fg-default);
+    }
+    .message.user .message-bubble {
+      background: var(--accent-emphasis); color: #fff;
+    }
+
+    /* Inline Module Matches */
+    .module-matches-inline { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+    .module-match-inline {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-subtle); border: 1px solid var(--border-muted);
+      border-radius: var(--radius-sm); font-size: 12px;
+    }
+    .confidence-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .confidence-dot.high { background: var(--success-fg); }
+    .confidence-dot.medium { background: var(--attention-fg); }
+    .match-name { font-weight: 500; color: var(--fg-default); font-family: var(--font-mono); font-size: 12px; }
+    .provider-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 6px; border-radius: var(--radius-sm);
+      font-size: 11px; font-weight: 600;
+    }
+    .provider-badge.aws { background: var(--aws-muted); color: var(--aws-fg); }
+    .match-reason { color: var(--fg-subtle); margin-left: auto; font-size: 11px; }
+
+    /* Clarifying Questions */
+    .questions-section {
+      background: var(--bg-subtle); border: 1px solid var(--border-default);
+      border-radius: var(--radius); padding: var(--space-4); margin-top: var(--space-3);
+    }
+    .questions-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+    .questions-title { font-size: 13px; font-weight: 600; color: var(--fg-default); }
+    .questions-progress { font-size: 11px; color: var(--fg-subtle); }
+
+    .question-card { margin-bottom: var(--space-4); }
+    .question-card:last-of-type { margin-bottom: 0; }
+    .question-chip {
+      display: inline-flex; padding: 2px 8px;
+      background: var(--accent-muted); color: var(--accent-fg);
+      border-radius: var(--radius-sm); font-size: 11px; font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+    .question-text { font-size: 13px; color: var(--fg-default); margin-bottom: var(--space-2); }
+    .question-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .question-option {
+      padding: var(--space-1) var(--space-3);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius); font-size: 12px; color: var(--fg-muted);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .question-option:hover { border-color: var(--fg-subtle); color: var(--fg-default); }
+    .question-option.selected { background: var(--accent-muted); border-color: var(--accent-fg); color: var(--accent-fg); }
+
+    .questions-actions {
+      display: flex; justify-content: flex-end; gap: var(--space-2);
+      margin-top: var(--space-4); padding-top: var(--space-3);
+      border-top: 1px solid var(--border-muted);
+    }
+
+    /* Success banner */
+    .success-banner {
+      margin-top: var(--space-3); padding: var(--space-3);
+      background: var(--success-muted); border: 1px solid rgba(46, 160, 67, 0.3);
+      border-radius: var(--radius);
+    }
+    .success-banner-title {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-size: 13px; font-weight: 600; color: var(--success-fg);
+    }
+    .success-banner-meta { font-size: 12px; color: var(--fg-muted); margin-top: var(--space-1); }
+
+    /* Streaming dots */
+    .streaming-indicator {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) 0;
+    }
+    .streaming-dots { display: flex; gap: 4px; }
+    .streaming-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--fg-subtle);
+      animation: streamDots 1.4s ease-in-out infinite;
+    }
+    .streaming-dot:nth-child(2) { animation-delay: 0.2s; }
+    .streaming-dot:nth-child(3) { animation-delay: 0.4s; }
+    .streaming-text { font-size: 12px; color: var(--fg-subtle); font-style: italic; }
+
+    /* Chat Input */
+    .chat-input-area {
+      padding: var(--space-4) var(--space-6);
+      border-top: 1px solid var(--border-default);
+      background: var(--bg-default);
+    }
+    .chat-input-wrapper {
+      display: flex; align-items: flex-end; gap: var(--space-3);
+      background: var(--bg-canvas); border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg); padding: var(--space-3);
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .chat-input-wrapper:focus-within {
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+    .chat-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--fg-default); font-size: 14px; resize: none;
+      min-height: 24px; max-height: 120px;
+    }
+    .chat-input::placeholder { color: var(--fg-subtle); }
+    .send-btn {
+      width: 32px; height: 32px; border-radius: var(--radius);
+      background: var(--accent-emphasis); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all var(--duration-fast) var(--ease-out);
+    }
+    .send-btn:hover { background: var(--accent-fg); }
+    .send-btn.disabled { background: var(--bg-emphasis); color: var(--fg-subtle); cursor: not-allowed; }
+    .send-btn .icon { width: 16px; height: 16px; }
+
+    /* ========================================
+       Right Panel
+       ======================================== */
+    .right-panel {
+      display: flex; flex-direction: column; overflow: hidden;
+      background: var(--bg-canvas);
+    }
+    .panel-tabs {
+      display: flex; border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+    }
+    .panel-tab {
+      flex: 1; padding: var(--space-3); font-size: 12px; font-weight: 600;
+      color: var(--fg-muted); text-align: center;
+      border-bottom: 2px solid transparent;
+      transition: all var(--duration-fast); cursor: pointer;
+    }
+    .panel-tab:hover { color: var(--fg-default); background: var(--bg-subtle); }
+    .panel-tab.active { color: var(--accent-fg); border-bottom-color: var(--accent-fg); }
+
+    .panel-content { flex: 1; overflow-y: auto; padding: var(--space-4); }
+    .panel-content.no-pad { padding: 0; }
+
+    .empty-panel {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--space-3); padding: var(--space-8); text-align: center;
+      flex: 1;
+    }
+    .empty-panel-icon {
+      width: 48px; height: 48px; background: var(--bg-muted);
+      border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
+    }
+    .empty-panel-icon .icon { width: 24px; height: 24px; color: var(--fg-subtle); }
+    .empty-panel-text { font-size: 13px; color: var(--fg-subtle); max-width: 200px; }
+
+    /* Module Cards */
+    .module-card {
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius); padding: var(--space-3);
+      margin-bottom: var(--space-3); transition: all var(--duration-fast) var(--ease-out);
+      animation: slideInUp 0.3s ease;
+    }
+    .module-card:hover { border-color: var(--fg-subtle); }
+    .module-card.selected { border-color: var(--accent-fg); box-shadow: 0 0 0 1px var(--accent-fg); }
+
+    .module-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+    .module-card-name { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--fg-default); }
+    .module-card-version { font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono); }
+
+    .module-card-meta { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+    .confidence-bar { display: flex; align-items: center; gap: var(--space-2); font-size: 11px; color: var(--fg-muted); }
+    .confidence-track { width: 60px; height: 4px; background: var(--bg-emphasis); border-radius: 2px; overflow: hidden; }
+    .confidence-fill { height: 100%; border-radius: 2px; }
+    .confidence-fill.high { background: var(--success-fg); }
+    .confidence-fill.medium { background: var(--attention-fg); }
+
+    .module-card-desc { font-size: 12px; color: var(--fg-muted); line-height: 1.5; margin-bottom: var(--space-2); }
+    .module-card-stats { display: flex; gap: var(--space-3); font-size: 11px; color: var(--fg-subtle); }
+    .module-stat { display: flex; align-items: center; gap: 4px; }
+    .module-stat .icon { width: 12px; height: 12px; }
+
+    .module-card-expand {
+      margin-top: var(--space-3); padding-top: var(--space-3);
+      border-top: 1px solid var(--border-muted);
+    }
+    .variable-list { display: flex; flex-direction: column; gap: var(--space-2); }
+    .variable-item { display: flex; align-items: baseline; gap: var(--space-2); font-size: 12px; }
+    .var-name {
+      font-family: var(--font-mono); font-size: 11px; color: var(--accent-fg);
+      background: var(--accent-muted); padding: 1px 4px; border-radius: 3px;
+    }
+    .var-type { font-family: var(--font-mono); font-size: 11px; color: var(--fg-subtle); }
+    .var-required { font-size: 11px; color: var(--danger-fg); font-weight: 500; }
+    .var-default { font-size: 11px; color: var(--fg-subtle); }
+
+    /* Code Preview */
+    .code-preview { background: var(--bg-default); overflow: hidden; }
+    .code-preview-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-subtle); border-bottom: 1px solid var(--border-default);
+    }
+    .code-filename { font-family: var(--font-mono); font-size: 12px; color: var(--fg-muted); }
+    .code-actions { display: flex; gap: var(--space-1); }
+    .code-body { padding: var(--space-4); overflow-x: auto; }
+    .code-body pre {
+      font-family: var(--font-mono); font-size: 12px;
+      line-height: 1.6; color: var(--fg-default);
+      white-space: pre; margin: 0;
+    }
+    .hl-kw { color: var(--done-fg); }
+    .hl-str { color: var(--success-fg); }
+    .hl-cmt { color: var(--fg-subtle); font-style: italic; }
+    .hl-attr { color: #79c0ff; }
+    .hl-val { color: var(--aws-fg); }
+    .hl-ref { color: var(--accent-fg); }
+
+    /* ========================================
+       Catalog View
+       ======================================== */
+    .catalog-view { flex: 1; overflow-y: auto; padding: var(--space-6); }
+    .catalog-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-6);
+    }
+    .catalog-title { font-size: 18px; font-weight: 600; }
+    .search-input {
+      width: 280px; height: 36px;
+      padding: var(--space-2) var(--space-3);
+      font-size: 14px; color: var(--fg-default);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .search-input:focus {
+      outline: none; border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+    .filter-chips { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
+    .filter-chip {
+      padding: var(--space-1) var(--space-3);
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: 9999px; font-size: 12px; font-weight: 500; color: var(--fg-muted);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .filter-chip:hover { border-color: var(--fg-subtle); color: var(--fg-default); }
+    .filter-chip.active { background: var(--accent-muted); border-color: var(--accent-fg); color: var(--accent-fg); }
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-3);
+    }
+    .catalog-card {
+      background: var(--bg-default); border: 1px solid var(--border-default);
+      border-radius: var(--radius); padding: var(--space-4);
+      transition: all var(--duration-fast) var(--ease-out);
+      cursor: pointer;
+    }
+    .catalog-card:hover { border-color: var(--accent-fg); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .catalog-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+    .catalog-card-title { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+    .catalog-card-desc { font-size: 13px; color: var(--fg-muted); line-height: 1.5; margin-bottom: var(--space-3); }
+    .catalog-card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .catalog-tags { display: flex; gap: var(--space-1); }
+    .catalog-tag {
+      padding: 2px 6px; background: var(--bg-emphasis); border-radius: var(--radius-sm);
+      font-size: 11px; color: var(--fg-subtle);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
+
+    hr.divider { border: none; border-top: 1px solid var(--border-default); margin: var(--space-8) 0; }
+  </style>
+</head>
+<body>
+
+<!-- SVG Defs (reused) -->
+<svg style="display:none">
+  <defs>
+    <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff"/>
+      <stop offset="50%" stop-color="#3fb950"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Logo template -->
+  <symbol id="logo-svg" viewBox="0 0 32 32" fill="none">
+    <line x1="14" y1="14" x2="6" y2="8" stroke="#58a6ff" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="22" y2="6" stroke="#a371f7" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="26" y2="16" stroke="#3fb950" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="20" y2="26" stroke="#f778ba" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="14" y1="14" x2="6" y2="22" stroke="#d29922" stroke-opacity="0.4" stroke-width="1"/>
+    <line x1="6" y1="8" x2="22" y2="6" stroke="#58a6ff" stroke-opacity="0.15" stroke-width="1"/>
+    <line x1="26" y1="16" x2="20" y2="26" stroke="#3fb950" stroke-opacity="0.15" stroke-width="1"/>
+    <circle class="logo-node logo-node-1" cx="6" cy="8" r="2" fill="#58a6ff" style="filter: drop-shadow(0 0 2px #58a6ff);"/>
+    <circle class="logo-node logo-node-2" cx="22" cy="6" r="2.5" fill="#a371f7" style="filter: drop-shadow(0 0 3px #a371f7);"/>
+    <circle class="logo-node logo-node-3" cx="26" cy="16" r="2" fill="#3fb950" style="filter: drop-shadow(0 0 2px #3fb950);"/>
+    <circle class="logo-node logo-node-4" cx="20" cy="26" r="3" fill="#f778ba" style="filter: drop-shadow(0 0 3px #f778ba);"/>
+    <circle class="logo-node logo-node-5" cx="6" cy="22" r="2" fill="#d29922" style="filter: drop-shadow(0 0 2px #d29922);"/>
+    <circle class="logo-core" cx="14" cy="14" r="5" fill="url(#coreGrad)"/>
+    <circle cx="14" cy="14" r="2" fill="#fff"/>
+  </symbol>
+  <!-- Icons -->
+  <symbol id="icon-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></symbol>
+  <symbol id="icon-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></symbol>
+  <symbol id="icon-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></symbol>
+  <symbol id="icon-puzzle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0l1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="icon-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M7.76 16.24l-4.24 4.24M23 12h-6m-6 0H1m20.66 8.66l-4.24-4.24M7.76 7.76L3.52 3.52"/></symbol>
+  <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9 22,2"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="icon-input" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/><polyline points="14,2 14,8 20,8"/><line x1="2" y1="12" x2="12" y2="12"/><polyline points="9,9 12,12 9,15"/></symbol>
+  <symbol id="icon-output" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/><polyline points="14,2 14,8 20,8"/><line x1="12" y1="12" x2="2" y2="12"/><polyline points="5,9 2,12 5,15"/></symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+</svg>
+
+<!-- ==========================================
+     SCENARIO 1: Welcome / Empty State
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 1: Welcome / Empty State</div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div>
+        <span class="sidebar-title">AgentPane</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <span class="nav-section-title">Organization</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a>
+        </div>
+        <div class="nav-section">
+          <span class="nav-section-title">Content</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a>
+          <a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a>
+          <a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a>
+        </div>
+        <div class="nav-section">
+          <span class="nav-section-title">Admin</span>
+          <a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform</span></div>
+        <div class="header-center">
+          <div class="view-switcher">
+            <button class="view-tab active"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button>
+            <button class="view-tab"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-secondary btn-sm"><svg class="icon"><use href="#icon-refresh"/></svg>Sync Registry</button>
+        </div>
+      </header>
+      <div class="sync-bar"><span class="sync-dot"></span><span>10 modules synced from HCP Terraform &middot; Last sync: 2 min ago</span></div>
+      <div class="composer-layout">
+        <div class="chat-panel">
+          <div class="welcome-state">
+            <div class="welcome-icon"><svg class="icon"><use href="#icon-cube"/></svg></div>
+            <div class="welcome-title">Compose Infrastructure</div>
+            <div class="welcome-desc">Describe what you need in plain English. We'll match your requirements to private modules and compose the Terraform configuration.</div>
+            <div class="quick-starts">
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-layers"/></svg>VPC with private subnets</button>
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-cube"/></svg>EKS cluster with autoscaling</button>
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-layers"/></svg>RDS PostgreSQL database</button>
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-cube"/></svg>S3 bucket with encryption</button>
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-layers"/></svg>Lambda with API Gateway</button>
+              <button class="quick-start-btn"><svg class="icon"><use href="#icon-cube"/></svg>IAM roles and policies</button>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+              <textarea class="chat-input" rows="1" placeholder="Describe your infrastructure needs..."></textarea>
+              <button class="send-btn disabled"><svg class="icon"><use href="#icon-send"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="right-panel">
+          <div class="panel-tabs">
+            <div class="panel-tab active">Matched Modules</div>
+            <div class="panel-tab">Code Preview</div>
+          </div>
+          <div class="empty-panel">
+            <div class="empty-panel-icon"><svg class="icon"><use href="#icon-search"/></svg></div>
+            <div class="empty-panel-text">Start a conversation to see matched modules here</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ==========================================
+     SCENARIO 2: Conversation + Module Matches
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 2: Conversation + Module Matches + Clarifying Questions</div>
+  <div class="app" style="height: 820px;">
+    <aside class="sidebar">
+      <div class="sidebar-header"><div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div><span class="sidebar-title">AgentPane</span></div>
+      <nav class="sidebar-nav">
+        <div class="nav-section"><span class="nav-section-title">Organization</span><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a><a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a><a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a></div>
+        <div class="nav-section"><span class="nav-section-title">Content</span><a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a><a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a><a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a><a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a></div>
+        <div class="nav-section"><span class="nav-section-title">Admin</span><a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a></div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform</span></div>
+        <div class="header-center"><div class="view-switcher"><button class="view-tab active"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button><button class="view-tab"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button></div></div>
+        <div class="header-right"><button class="btn btn-ghost btn-sm"><svg class="icon"><use href="#icon-plus"/></svg>New</button></div>
+      </header>
+      <div class="sync-bar"><span class="sync-dot"></span><span>10 modules synced &middot; Last sync: 5 min ago</span></div>
+      <div class="composer-layout">
+        <div class="chat-panel">
+          <div class="chat-messages">
+            <div class="message user">
+              <div class="message-avatar human">SL</div>
+              <div class="message-bubble">I need a VPC with 3 private subnets, an EKS cluster, and an RDS PostgreSQL database for our new microservices platform.</div>
+            </div>
+            <div class="message assistant">
+              <div class="message-avatar ai">AI</div>
+              <div>
+                <div class="message-bubble">
+                  I found 3 modules from your private registry that match your requirements:
+                  <div class="module-matches-inline">
+                    <div class="module-match-inline"><span class="confidence-dot high"></span><span class="match-name">terraform-aws-vpc</span><span class="provider-badge aws">AWS</span><span class="match-reason">VPC + subnets</span></div>
+                    <div class="module-match-inline"><span class="confidence-dot high"></span><span class="match-name">terraform-aws-eks</span><span class="provider-badge aws">AWS</span><span class="match-reason">EKS cluster</span></div>
+                    <div class="module-match-inline"><span class="confidence-dot high"></span><span class="match-name">terraform-aws-rds-postgres</span><span class="provider-badge aws">AWS</span><span class="match-reason">RDS PostgreSQL</span></div>
+                  </div>
+                </div>
+                <div class="questions-section">
+                  <div class="questions-header">
+                    <div class="questions-title">Configure your infrastructure</div>
+                    <div class="questions-progress">Round 1 of 2</div>
+                  </div>
+                  <div class="question-card"><div class="question-chip">Region</div><div class="question-text">Which AWS region?</div><div class="question-options"><div class="question-option selected">us-east-1</div><div class="question-option">us-west-2</div><div class="question-option">eu-west-1</div><div class="question-option">ap-southeast-1</div></div></div>
+                  <div class="question-card"><div class="question-chip">Network</div><div class="question-text">CIDR block for the VPC?</div><div class="question-options"><div class="question-option selected">10.0.0.0/16</div><div class="question-option">172.16.0.0/16</div><div class="question-option">192.168.0.0/16</div></div></div>
+                  <div class="question-card"><div class="question-chip">EKS</div><div class="question-text">Worker node instance type?</div><div class="question-options"><div class="question-option">t3.medium</div><div class="question-option selected">t3.large</div><div class="question-option">m5.large</div></div></div>
+                  <div class="question-card"><div class="question-chip">Database</div><div class="question-text">RDS instance class?</div><div class="question-options"><div class="question-option">db.t3.micro</div><div class="question-option selected">db.t3.medium</div><div class="question-option">db.r5.large</div></div></div>
+                  <div class="questions-actions">
+                    <button class="btn btn-ghost btn-sm">Skip</button>
+                    <button class="btn btn-primary btn-sm">Submit Answers</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+              <textarea class="chat-input" rows="1" placeholder="Answer questions above or type to refine..."></textarea>
+              <button class="send-btn"><svg class="icon"><use href="#icon-send"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="right-panel">
+          <div class="panel-tabs"><div class="panel-tab active">Matched Modules (3)</div><div class="panel-tab">Code Preview</div></div>
+          <div class="panel-content">
+            <div class="module-card selected">
+              <div class="module-card-header"><span class="module-card-name">terraform-aws-vpc</span><span class="module-card-version">v3.2.1</span></div>
+              <div class="module-card-meta"><span class="provider-badge aws">AWS</span><div class="confidence-bar"><div class="confidence-track"><div class="confidence-fill high" style="width:95%"></div></div><span>95%</span></div></div>
+              <div class="module-card-desc">Production-grade VPC with public/private subnets, NAT gateways, and VPC flow logs.</div>
+              <div class="module-card-stats"><span class="module-stat"><svg class="icon"><use href="#icon-input"/></svg>12 inputs</span><span class="module-stat"><svg class="icon"><use href="#icon-output"/></svg>8 outputs</span><span class="module-stat"><svg class="icon"><use href="#icon-link"/></svg>2 deps</span></div>
+              <div class="module-card-expand">
+                <div class="variable-list">
+                  <div class="variable-item"><span class="var-name">vpc_cidr</span><span class="var-type">string</span><span class="var-required">required</span></div>
+                  <div class="variable-item"><span class="var-name">private_subnets</span><span class="var-type">list(string)</span><span class="var-required">required</span></div>
+                  <div class="variable-item"><span class="var-name">enable_nat_gateway</span><span class="var-type">bool</span><span class="var-default">default: true</span></div>
+                  <div class="variable-item"><span class="var-name">enable_flow_logs</span><span class="var-type">bool</span><span class="var-default">default: true</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="module-card">
+              <div class="module-card-header"><span class="module-card-name">terraform-aws-eks</span><span class="module-card-version">v2.1.0</span></div>
+              <div class="module-card-meta"><span class="provider-badge aws">AWS</span><div class="confidence-bar"><div class="confidence-track"><div class="confidence-fill high" style="width:90%"></div></div><span>90%</span></div></div>
+              <div class="module-card-desc">EKS cluster with managed node groups, IRSA support, and cluster autoscaler.</div>
+              <div class="module-card-stats"><span class="module-stat"><svg class="icon"><use href="#icon-input"/></svg>15 inputs</span><span class="module-stat"><svg class="icon"><use href="#icon-output"/></svg>6 outputs</span><span class="module-stat"><svg class="icon"><use href="#icon-link"/></svg>3 deps</span></div>
+            </div>
+            <div class="module-card">
+              <div class="module-card-header"><span class="module-card-name">terraform-aws-rds-postgres</span><span class="module-card-version">v1.5.3</span></div>
+              <div class="module-card-meta"><span class="provider-badge aws">AWS</span><div class="confidence-bar"><div class="confidence-track"><div class="confidence-fill high" style="width:92%"></div></div><span>92%</span></div></div>
+              <div class="module-card-desc">RDS PostgreSQL with encryption at rest, automated backups, and read replicas.</div>
+              <div class="module-card-stats"><span class="module-stat"><svg class="icon"><use href="#icon-input"/></svg>18 inputs</span><span class="module-stat"><svg class="icon"><use href="#icon-output"/></svg>5 outputs</span><span class="module-stat"><svg class="icon"><use href="#icon-link"/></svg>1 dep</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ==========================================
+     SCENARIO 3: Generated Code Preview
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 3: Generated Terraform Code</div>
+  <div class="app" style="height: 780px;">
+    <aside class="sidebar">
+      <div class="sidebar-header"><div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div><span class="sidebar-title">AgentPane</span></div>
+      <nav class="sidebar-nav">
+        <div class="nav-section"><span class="nav-section-title">Organization</span><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a><a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a><a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a></div>
+        <div class="nav-section"><span class="nav-section-title">Content</span><a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a><a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a><a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a><a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a></div>
+        <div class="nav-section"><span class="nav-section-title">Admin</span><a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a></div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform</span></div>
+        <div class="header-center"><div class="view-switcher"><button class="view-tab active"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button><button class="view-tab"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button></div></div>
+        <div class="header-right"><button class="btn btn-ghost btn-sm"><svg class="icon"><use href="#icon-plus"/></svg>New</button><button class="btn btn-primary btn-sm"><svg class="icon"><use href="#icon-download"/></svg>Download .tf</button></div>
+      </header>
+      <div class="sync-bar"><span class="sync-dot"></span><span>10 modules synced &middot; Last sync: 8 min ago</span></div>
+      <div class="composer-layout">
+        <div class="chat-panel">
+          <div class="chat-messages">
+            <div class="message user"><div class="message-avatar human">SL</div><div class="message-bubble">I need a VPC with 3 private subnets, an EKS cluster, and an RDS PostgreSQL database.</div></div>
+            <div class="message assistant"><div class="message-avatar ai">AI</div><div class="message-bubble">I matched 3 modules from your registry. Let me ask a few configuration questions.</div></div>
+            <div class="message user"><div class="message-avatar human">SL</div><div class="message-bubble">us-east-1, 10.0.0.0/16 CIDR, t3.large nodes, db.t3.medium for RDS</div></div>
+            <div class="message assistant">
+              <div class="message-avatar ai">AI</div>
+              <div>
+                <div class="message-bubble">Your Terraform configuration is ready using 3 private modules. Check the code preview panel.</div>
+                <div class="success-banner">
+                  <div class="success-banner-title"><svg class="icon" style="width:14px;height:14px"><use href="#icon-check"/></svg>Configuration generated</div>
+                  <div class="success-banner-meta">3 modules &middot; 45 variables configured &middot; 19 outputs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+              <textarea class="chat-input" rows="1" placeholder="Ask to modify the configuration..."></textarea>
+              <button class="send-btn"><svg class="icon"><use href="#icon-send"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="right-panel">
+          <div class="panel-tabs"><div class="panel-tab">Matched Modules (3)</div><div class="panel-tab active">Code Preview</div></div>
+          <div class="panel-content no-pad">
+            <div class="code-preview">
+              <div class="code-preview-header">
+                <span class="code-filename">main.tf</span>
+                <div class="code-actions">
+                  <button class="btn btn-ghost btn-sm" title="Copy"><svg class="icon"><use href="#icon-copy"/></svg></button>
+                  <button class="btn btn-ghost btn-sm" title="Download"><svg class="icon"><use href="#icon-download"/></svg></button>
+                </div>
+              </div>
+              <div class="code-body">
+<pre><span class="hl-cmt"># Generated by AgentPane Terraform Composer</span>
+<span class="hl-cmt"># Modules sourced from HCP Terraform Private Registry</span>
+
+<span class="hl-kw">module</span> <span class="hl-str">"vpc"</span> {
+  <span class="hl-attr">source</span>  = <span class="hl-str">"app.terraform.io/myorg/vpc/aws"</span>
+  <span class="hl-attr">version</span> = <span class="hl-str">"3.2.1"</span>
+
+  <span class="hl-attr">vpc_cidr</span>           = <span class="hl-str">"10.0.0.0/16"</span>
+  <span class="hl-attr">availability_zones</span> = [<span class="hl-str">"us-east-1a"</span>, <span class="hl-str">"us-east-1b"</span>, <span class="hl-str">"us-east-1c"</span>]
+  <span class="hl-attr">private_subnets</span>    = [<span class="hl-str">"10.0.1.0/24"</span>, <span class="hl-str">"10.0.2.0/24"</span>, <span class="hl-str">"10.0.3.0/24"</span>]
+  <span class="hl-attr">public_subnets</span>     = [<span class="hl-str">"10.0.101.0/24"</span>, <span class="hl-str">"10.0.102.0/24"</span>, <span class="hl-str">"10.0.103.0/24"</span>]
+
+  <span class="hl-attr">enable_nat_gateway</span> = <span class="hl-val">true</span>
+  <span class="hl-attr">single_nat_gateway</span> = <span class="hl-val">false</span>
+  <span class="hl-attr">enable_flow_logs</span>   = <span class="hl-val">true</span>
+
+  <span class="hl-attr">tags</span> = {
+    <span class="hl-attr">Environment</span> = <span class="hl-str">"production"</span>
+    <span class="hl-attr">ManagedBy</span>   = <span class="hl-str">"agentpane"</span>
+  }
+}
+
+<span class="hl-kw">module</span> <span class="hl-str">"eks"</span> {
+  <span class="hl-attr">source</span>  = <span class="hl-str">"app.terraform.io/myorg/eks/aws"</span>
+  <span class="hl-attr">version</span> = <span class="hl-str">"2.1.0"</span>
+
+  <span class="hl-attr">cluster_name</span>    = <span class="hl-str">"microservices-platform"</span>
+  <span class="hl-attr">cluster_version</span> = <span class="hl-str">"1.29"</span>
+
+  <span class="hl-attr">vpc_id</span>     = <span class="hl-ref">module.vpc.vpc_id</span>
+  <span class="hl-attr">subnet_ids</span> = <span class="hl-ref">module.vpc.private_subnet_ids</span>
+
+  <span class="hl-attr">node_groups</span> = {
+    <span class="hl-attr">default</span> = {
+      <span class="hl-attr">instance_types</span> = [<span class="hl-str">"t3.large"</span>]
+      <span class="hl-attr">min_size</span>       = <span class="hl-val">2</span>
+      <span class="hl-attr">max_size</span>       = <span class="hl-val">10</span>
+      <span class="hl-attr">desired_size</span>   = <span class="hl-val">3</span>
+    }
+  }
+
+  <span class="hl-attr">enable_irsa</span>             = <span class="hl-val">true</span>
+  <span class="hl-attr">enable_cluster_autoscaler</span> = <span class="hl-val">true</span>
+}
+
+<span class="hl-kw">module</span> <span class="hl-str">"database"</span> {
+  <span class="hl-attr">source</span>  = <span class="hl-str">"app.terraform.io/myorg/rds-postgres/aws"</span>
+  <span class="hl-attr">version</span> = <span class="hl-str">"1.5.3"</span>
+
+  <span class="hl-attr">identifier</span>     = <span class="hl-str">"microservices-db"</span>
+  <span class="hl-attr">engine_version</span> = <span class="hl-str">"16.2"</span>
+  <span class="hl-attr">instance_class</span> = <span class="hl-str">"db.t3.medium"</span>
+
+  <span class="hl-attr">vpc_id</span>     = <span class="hl-ref">module.vpc.vpc_id</span>
+  <span class="hl-attr">subnet_ids</span> = <span class="hl-ref">module.vpc.private_subnet_ids</span>
+
+  <span class="hl-attr">allocated_storage</span>     = <span class="hl-val">50</span>
+  <span class="hl-attr">max_allocated_storage</span> = <span class="hl-val">200</span>
+  <span class="hl-attr">storage_encrypted</span>     = <span class="hl-val">true</span>
+
+  <span class="hl-attr">backup_retention_period</span> = <span class="hl-val">7</span>
+  <span class="hl-attr">multi_az</span>               = <span class="hl-val">true</span>
+
+  <span class="hl-attr">allowed_security_groups</span> = [<span class="hl-ref">module.eks.cluster_security_group_id</span>]
+}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ==========================================
+     SCENARIO 4: Module Catalog Browser
+     ========================================== -->
+<div class="scenario">
+  <div class="scenario-label">Scenario 4: Module Catalog Browser</div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header"><div class="logo"><svg class="logo-icon"><use href="#logo-svg"/></svg></div><span class="sidebar-title">AgentPane</span></div>
+      <nav class="sidebar-nav">
+        <div class="nav-section"><span class="nav-section-title">Organization</span><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Projects</a><a class="nav-item"><svg class="icon"><use href="#icon-clock"/></svg>Sessions</a><a class="nav-item"><svg class="icon"><use href="#icon-terminal"/></svg>CLI Monitor</a></div>
+        <div class="nav-section"><span class="nav-section-title">Content</span><a class="nav-item"><svg class="icon"><use href="#icon-file"/></svg>Org Templates</a><a class="nav-item"><svg class="icon"><use href="#icon-layers"/></svg>Designer</a><a class="nav-item"><svg class="icon"><use href="#icon-grid"/></svg>Catalog</a><a class="nav-item"><svg class="icon"><use href="#icon-puzzle"/></svg>Marketplace</a><a class="nav-item active"><svg class="icon"><use href="#icon-cube"/></svg>Terraform</a></div>
+        <div class="nav-section"><span class="nav-section-title">Admin</span><a class="nav-item"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a></div>
+      </nav>
+      <div class="sidebar-footer"><div class="user-menu"><div class="user-avatar">SL</div><span class="user-name">Simon Lynch</span></div></div>
+    </aside>
+    <div class="app-main">
+      <header class="header">
+        <div class="header-left"><span class="header-breadcrumb">Terraform<span class="header-breadcrumb-sep">/</span>Modules</span></div>
+        <div class="header-center"><div class="view-switcher"><button class="view-tab"><svg class="icon"><use href="#icon-chat"/></svg>Compose</button><button class="view-tab active"><svg class="icon"><use href="#icon-cube"/></svg>Modules</button></div></div>
+        <div class="header-right"><button class="btn btn-primary btn-sm"><svg class="icon"><use href="#icon-refresh"/></svg>Sync Registry</button></div>
+      </header>
+      <div class="sync-bar"><span class="sync-dot"></span><span>10 modules synced from HCP Terraform &middot; Last sync: 2 min ago</span></div>
+      <div class="catalog-view">
+        <div class="catalog-header">
+          <div class="catalog-title">Private Module Registry</div>
+          <input type="text" class="search-input" placeholder="Search modules...">
+        </div>
+        <div class="filter-chips">
+          <button class="filter-chip active">All (10)</button>
+          <button class="filter-chip">AWS (8)</button>
+          <button class="filter-chip">Azure (1)</button>
+          <button class="filter-chip">GCP (1)</button>
+        </div>
+        <div class="catalog-grid">
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-vpc</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">Production-grade VPC with public/private subnets, NAT gateways, and VPC flow logs.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">networking</span><span class="catalog-tag">v3.2.1</span></div><span style="font-size:11px;color:var(--fg-subtle)">12 inputs</span></div>
+          </div>
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-eks</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">EKS cluster with managed node groups, IRSA support, and cluster autoscaler.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">kubernetes</span><span class="catalog-tag">v2.1.0</span></div><span style="font-size:11px;color:var(--fg-subtle)">15 inputs</span></div>
+          </div>
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-rds-postgres</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">RDS PostgreSQL with encryption at rest, automated backups, and read replicas.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">database</span><span class="catalog-tag">v1.5.3</span></div><span style="font-size:11px;color:var(--fg-subtle)">18 inputs</span></div>
+          </div>
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-s3-bucket</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">S3 bucket with server-side encryption, versioning, and lifecycle rules.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">storage</span><span class="catalog-tag">v2.0.4</span></div><span style="font-size:11px;color:var(--fg-subtle)">10 inputs</span></div>
+          </div>
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-lambda</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">Lambda function with API Gateway integration, CloudWatch logging, and X-Ray tracing.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">compute</span><span class="catalog-tag">v1.8.0</span></div><span style="font-size:11px;color:var(--fg-subtle)">14 inputs</span></div>
+          </div>
+          <div class="catalog-card">
+            <div class="catalog-card-header"><span class="catalog-card-title">terraform-aws-iam-role</span><span class="provider-badge aws">AWS</span></div>
+            <div class="catalog-card-desc">IAM roles with configurable policies, trust relationships, and permission boundaries.</div>
+            <div class="catalog-card-footer"><div class="catalog-tags"><span class="catalog-tag">security</span><span class="catalog-tag">v1.3.2</span></div><span style="font-size:11px;color:var(--fg-subtle)">8 inputs</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
