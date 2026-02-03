@@ -20,6 +20,7 @@ import type { GitHubTokenService } from '../services/github-token.service.js';
 import type { MarketplaceService } from '../services/marketplace.service.js';
 import type { SandboxConfigService } from '../services/sandbox-config.service.js';
 import type { SessionService } from '../services/session.service.js';
+import type { SettingsService } from '../services/settings.service.js';
 import type { TaskService } from '../services/task.service.js';
 import type { TaskCreationService } from '../services/task-creation.service.js';
 import type { TemplateService } from '../services/template.service.js';
@@ -113,6 +114,7 @@ export interface RouterDependencies {
   cliMonitorService?: CliMonitorService | null;
   terraformRegistryService?: TerraformRegistryService;
   terraformComposeService?: TerraformComposeService;
+  settingsService?: SettingsService;
 }
 
 export function createRouter(deps: RouterDependencies) {
@@ -188,7 +190,10 @@ export function createRouter(deps: RouterDependencies) {
   app.route('/api/filesystem', createFilesystemRoutes());
   app.route(
     '/api/workflow-designer',
-    createWorkflowDesignerRoutes({ templateService: deps.templateService })
+    createWorkflowDesignerRoutes({
+      templateService: deps.templateService,
+      settingsService: deps.settingsService,
+    })
   );
   app.route('/api/webhooks', createWebhooksRoutes({ templateService: deps.templateService }));
 

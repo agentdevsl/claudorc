@@ -10,6 +10,7 @@ import { projects } from '@/db/schema/projects';
 import { type NewTask, tasks } from '@/db/schema/tasks';
 import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '@/lib/constants/models';
 import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
+import { getPromptDefaultText, resolvePromptServer } from '@/lib/prompts';
 import type { Result } from '@/lib/utils/result';
 import { err, ok } from '@/lib/utils/result';
 import type { Database } from '@/types/database';
@@ -166,50 +167,8 @@ export const TaskCreationErrors = {
 // Constants
 // ============================================================================
 
-const SYSTEM_PROMPT = `You are an AI assistant helping users create well-structured tasks for a software project management system.
-
-Your role is to:
-1. Understand what the user wants (from their initial message)
-2. Use the AskUserQuestion tool ONCE to gather 2-4 clarifying questions
-3. Generate a high-quality task suggestion based on the user's answers
-
-## Phase 1: Clarifying Questions (EXACTLY ONE ROUND - NO EXCEPTIONS)
-
-When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
-Ask questions that will help you create a better, more specific task. Focus on:
-- Scope and boundaries (what's included/excluded)
-- Technical approach or implementation preference
-- Priority and urgency
-- Dependencies or blockers
-- Acceptance criteria
-
-Guidelines for questions:
-- Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
-- Each question should have 2-4 options
-- Options should be mutually exclusive and cover common choices
-- Set multiSelect: true if the user should be able to select multiple options
-- Ask 2-4 questions in ONE call (max 4 allowed) - this is your ONLY opportunity to gather information
-- Make each question count - you will NOT get another chance to ask
-
-IMPORTANT: After the user answers, you will receive a tool_result. At that point you MUST generate the task - NO MORE QUESTIONS.
-
-Generate the task suggestion as a JSON block:
-
-\`\`\`json
-{
-  "type": "task_suggestion",
-  "title": "Short descriptive title (5-10 words)",
-  "description": "Detailed task description in markdown format. Include:\\n## Objective\\n- What needs to be done\\n\\n## Requirements\\n- Specific requirements based on answers\\n\\n## Acceptance Criteria\\n- [ ] Criteria 1\\n- [ ] Criteria 2",
-  "labels": ["feature"],
-  "priority": "medium"
-}
-\`\`\`
-
-Field guidelines:
-- labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
-- priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
-
-CRITICAL: Always use the AskUserQuestion tool first before generating a task suggestion. This ensures high-quality, well-scoped tasks.`;
+/** Fallback system prompt when settingsService is unavailable */
+const SYSTEM_PROMPT_DEFAULT = getPromptDefaultText('task-creation');
 
 // ============================================================================
 // Service Implementation
@@ -879,7 +838,10 @@ export class TaskCreationService {
       // Build message with system prompt for first message
       let messageToSend = content;
       if (!session.systemPromptSent) {
-        messageToSend = `${SYSTEM_PROMPT}\n\n---\n\nUser message: ${content}`;
+        const systemPrompt = this.settingsService
+          ? await resolvePromptServer('task-creation', this.settingsService)
+          : SYSTEM_PROMPT_DEFAULT;
+        messageToSend = `${systemPrompt}\n\n---\n\nUser message: ${content}`;
         session.systemPromptSent = true;
       }
 

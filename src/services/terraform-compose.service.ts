@@ -14,7 +14,7 @@ import type {
 import type { Result } from '../lib/utils/result.js';
 import { ok } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';
-import { getGlobalDefaultModel } from './settings.service.js';
+import { getGlobalDefaultModel, type SettingsService } from './settings.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const MAX_SESSIONS = 100;
@@ -69,7 +69,8 @@ export class TerraformComposeService {
 
   constructor(
     private registryService: TerraformRegistryService,
-    private db: Database
+    private db: Database,
+    private settingsService?: SettingsService
   ) {}
 
   private cleanupSessions(): void {
@@ -148,7 +149,10 @@ export class TerraformComposeService {
         for (const event of job.pendingEvents) {
           try {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-          } catch {
+          } catch (err) {
+            if (!(err instanceof TypeError)) {
+              console.warn('[TerraformCompose] Unexpected error replaying event:', err);
+            }
             break;
           }
         }
@@ -158,8 +162,10 @@ export class TerraformComposeService {
         if (job.finished) {
           try {
             controller.close();
-          } catch {
-            // controller may already be closed
+          } catch (err) {
+            if (!(err instanceof TypeError)) {
+              console.warn('[TerraformCompose] Unexpected error closing controller:', err);
+            }
           }
           job.controller = null;
           return;
@@ -169,8 +175,11 @@ export class TerraformComposeService {
         job.keepaliveInterval = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(': keepalive\n\n'));
-          } catch {
+          } catch (err) {
             // Enqueue failed — stream is likely closed, clear interval to stop retrying
+            if (!(err instanceof TypeError)) {
+              console.warn('[TerraformCompose] Unexpected keepalive error:', err);
+            }
             if (job.keepaliveInterval) {
               clearInterval(job.keepaliveInterval);
               job.keepaliveInterval = null;
@@ -214,8 +223,10 @@ export class TerraformComposeService {
     if (job.controller) {
       try {
         job.controller.close();
-      } catch {
-        // controller may already be closed
+      } catch (err) {
+        if (!(err instanceof TypeError)) {
+          console.warn('[TerraformCompose] Unexpected error closing controller in finishJob:', err);
+        }
       }
       job.controller = null;
     }
@@ -268,7 +279,10 @@ export class TerraformComposeService {
         return;
       }
 
-      const systemPrompt = buildCompositionSystemPrompt(contextResult.value);
+      const systemPrompt = await buildCompositionSystemPrompt(
+        contextResult.value,
+        this.settingsService
+      );
 
       const modulesResult = await this.registryService.listModules(
         registryId ? { registryId } : undefined
@@ -278,6 +292,11 @@ export class TerraformComposeService {
           '[TerraformComposeService] Failed to load modules for matching:',
           modulesResult.error
         );
+        this.sendEvent(job, {
+          type: 'text',
+          content:
+            '\n\n> ⚠️ Warning: Could not load module catalog for matching. Module suggestions may be incomplete.\n\n',
+        });
       }
       const allModules = modulesResult.ok ? modulesResult.value : [];
 
@@ -294,6 +313,7 @@ export class TerraformComposeService {
       // Capture AskUserQuestion tool calls so we can forward questions to the client
       let capturedQuestions: Array<{
         question: string;
+        header?: string;
         options: Array<{ label: string; description?: string }>;
       }> = [];
 
@@ -317,9 +337,18 @@ export class TerraformComposeService {
         return { behavior: 'allow' as const, toolUseID: toolOptions.toolUseID };
       };
 
+      // Filter sensitive vars from env passed to Agent SDK session.
+      // The SDK needs most env vars for auth/paths, but DB credentials and internal secrets should not leak.
+      const filteredEnv = Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([key]) =>
+            !/^(DATABASE_URL|DB_|ENCRYPTION_KEY|SESSION_SECRET|GITHUB_APP_PRIVATE_KEY)$/i.test(key)
+        )
+      ) as Record<string, string>;
+
       session = unstable_v2_createSession({
         model: composeModel,
-        env: { ...process.env },
+        env: filteredEnv,
         permissionMode: 'plan',
         canUseTool,
       });
@@ -362,7 +391,7 @@ export class TerraformComposeService {
           const toolSummary = msg as { tool_name?: string; tool_input?: Record<string, unknown> };
           if (toolSummary.tool_name === 'AskUserQuestion' && capturedQuestions.length > 0) {
             const questions = capturedQuestions.map((q) => ({
-              category: (q as { header?: string }).header ?? 'General',
+              category: q.header ?? 'General',
               question: q.question,
               options: q.options.map((o) => o.label),
             }));
@@ -439,6 +468,14 @@ export class TerraformComposeService {
             '[TerraformCompose] HCL validation warnings:',
             validation.diagnostics.map((d) => d.summary)
           );
+          // Send validation diagnostics to the client so the UI can display warnings
+          const diagnosticText = validation.diagnostics
+            .map((d) => `- ${d.severity}: ${d.summary}${d.detail ? ` (${d.detail})` : ''}`)
+            .join('\n');
+          this.sendEvent(job, {
+            type: 'text',
+            content: `\n\n> ⚠️ HCL Validation Issues:\n${diagnosticText}\n\n`,
+          });
         }
       }
 
@@ -471,12 +508,34 @@ export class TerraformComposeService {
         reason.includes('invalid x-api-key') ||
         reason.includes('invalid api key') ||
         reason.includes('credentials');
+      const isRateLimit = reason.includes('rate_limit') || reason.includes('429');
+      const isModelError = reason.includes('model_not_found') || reason.includes('invalid_model');
+      const isContextLength =
+        reason.includes('context_length') || reason.includes('too many tokens');
 
       if (isAuthError) {
         this.sendEvent(job, {
           type: 'error',
           error:
             'Claude authentication failed. Please run "claude login" or check your credentials file.',
+        });
+      } else if (isRateLimit) {
+        console.error('[TerraformCompose] Rate limit error:', reason);
+        this.sendEvent(job, {
+          type: 'error',
+          error: 'Claude API rate limit reached. Please wait a moment and try again.',
+        });
+      } else if (isModelError) {
+        console.error('[TerraformCompose] Model error:', reason);
+        this.sendEvent(job, {
+          type: 'error',
+          error: 'Model configuration error. Check the TERRAFORM_COMPOSE_MODEL setting.',
+        });
+      } else if (isContextLength) {
+        console.error('[TerraformCompose] Context length error:', reason);
+        this.sendEvent(job, {
+          type: 'error',
+          error: 'The conversation is too long. Please start a new conversation.',
         });
       } else {
         console.error('[TerraformCompose] Pipeline error:', reason);
@@ -489,8 +548,10 @@ export class TerraformComposeService {
       if (session) {
         try {
           session.close();
-        } catch {
-          // session may already be closed
+        } catch (err) {
+          if (!(err instanceof TypeError)) {
+            console.warn('[TerraformCompose] Unexpected error closing session:', err);
+          }
         }
       }
       this.finishJob(job);
@@ -514,7 +575,23 @@ export class TerraformComposeService {
     code: string,
     tfvars?: string
   ): Promise<{ valid: boolean; diagnostics: TerraformDiagnostic[] }> {
-    const { parse } = await import('@cdktf/hcl2json');
+    let parse: (filename: string, content: string) => Promise<unknown>;
+    try {
+      ({ parse } = await import('@cdktf/hcl2json'));
+    } catch (importError) {
+      console.error('[TerraformCompose] Failed to load HCL parser:', importError);
+      return {
+        valid: false,
+        diagnostics: [
+          {
+            severity: 'error' as const,
+            summary: 'HCL parser unavailable',
+            detail:
+              'The @cdktf/hcl2json module failed to load. This may be a platform compatibility issue.',
+          },
+        ],
+      };
+    }
     const diagnostics: TerraformDiagnostic[] = [];
 
     // Validate main HCL code
@@ -635,7 +712,8 @@ function matchModulesInResponse(response: string, modules: TerraformModule[]): M
 
 /**
  * Server-side fallback: parse numbered clarifying questions from assistant text.
- * Mirrors the client-side parser but runs on the backend for reliability.
+ * Similar to the client-side parser in terraform-context.tsx but with
+ * independently maintained option inference.
  */
 function parseClarifyingQuestionsFromText(text: string): ClarifyingQuestion[] {
   // Skip if the response contains HCL code blocks (model generated code, not questions)

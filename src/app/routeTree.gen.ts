@@ -32,6 +32,7 @@ import { Route as TemplatesOrgRouteImport } from './routes/templates/org'
 import { Route as SettingsTerraformRouteImport } from './routes/settings/terraform'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsSandboxRouteImport } from './routes/settings/sandbox'
+import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings/preferences'
 import { Route as SettingsModelOptimizationsRouteImport } from './routes/settings/model-optimizations'
@@ -167,6 +168,11 @@ const SettingsSandboxRoute = SettingsSandboxRouteImport.update({
   path: '/sandbox',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsProjectsRoute = SettingsProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -286,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/terraform': typeof SettingsTerraformRoute
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/terraform': typeof SettingsTerraformRoute
@@ -372,6 +380,7 @@ export interface FileRoutesById {
   '/settings/model-optimizations': typeof SettingsModelOptimizationsRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/projects': typeof SettingsProjectsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/sandbox': typeof SettingsSandboxRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/terraform': typeof SettingsTerraformRoute
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/prompts'
     | '/settings/sandbox'
     | '/settings/system'
     | '/settings/terraform'
@@ -459,6 +469,7 @@ export interface FileRouteTypes {
     | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/prompts'
     | '/settings/sandbox'
     | '/settings/system'
     | '/settings/terraform'
@@ -503,6 +514,7 @@ export interface FileRouteTypes {
     | '/settings/model-optimizations'
     | '/settings/preferences'
     | '/settings/projects'
+    | '/settings/prompts'
     | '/settings/sandbox'
     | '/settings/system'
     | '/settings/terraform'
@@ -718,6 +730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSandboxRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/prompts': {
+      id: '/settings/prompts'
+      path: '/prompts'
+      fullPath: '/settings/prompts'
+      preLoaderRoute: typeof SettingsPromptsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/projects': {
       id: '/settings/projects'
       path: '/projects'
@@ -879,6 +898,7 @@ interface SettingsRouteChildren {
   SettingsModelOptimizationsRoute: typeof SettingsModelOptimizationsRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
   SettingsProjectsRoute: typeof SettingsProjectsRoute
+  SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsSandboxRoute: typeof SettingsSandboxRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsTerraformRoute: typeof SettingsTerraformRoute
@@ -894,6 +914,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsModelOptimizationsRoute: SettingsModelOptimizationsRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
   SettingsProjectsRoute: SettingsProjectsRoute,
+  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsSandboxRoute: SettingsSandboxRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsTerraformRoute: SettingsTerraformRoute,

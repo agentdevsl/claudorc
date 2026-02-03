@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Prompts Settings - AgentPane</title>
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      min-height: 100vh;
+      padding: 32px;
+      padding-bottom: 100px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ==========================================
+       PAGE HEADER
+       ========================================== */
+
+    .page-header {
+      position: relative;
+      margin-bottom: 40px;
+    }
+
+    .header-blur-1 {
+      position: absolute;
+      left: -16px;
+      top: -16px;
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: rgba(163, 113, 247, 0.06);
+      filter: blur(32px);
+      pointer-events: none;
+    }
+
+    .header-blur-2 {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(88, 166, 255, 0.05);
+      filter: blur(24px);
+      pointer-events: none;
+    }
+
+    .header-content {
+      position: relative;
+    }
+
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .header-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(163, 113, 247, 0.15), rgba(88, 166, 255, 0.08));
+      box-shadow: 0 0 0 1px rgba(163, 113, 247, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-text h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--fg-default);
+    }
+
+    .header-text p {
+      font-size: 14px;
+      color: var(--fg-muted);
+      margin-top: 2px;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      margin-top: 24px;
+      padding: 12px 20px;
+      background: rgba(28, 33, 40, 0.5);
+      border: 1px solid rgba(48, 54, 61, 0.5);
+      border-radius: 8px;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .stat-item svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-subtle);
+    }
+
+    .stat-item strong {
+      color: var(--fg-default);
+      font-weight: 600;
+    }
+
+    .stat-item.customized svg {
+      color: var(--accent-fg);
+    }
+
+    .stat-item.defaults svg {
+      color: var(--fg-subtle);
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 16px;
+      background: var(--border-default);
+      align-self: center;
+    }
+
+    /* ==========================================
+       CONFIG SECTIONS
+       ========================================== */
+
+    .config-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .config-section {
+      position: relative;
+      background: linear-gradient(180deg, var(--bg-default), rgba(22, 27, 34, 0.5));
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+
+    .config-section:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    /* Category-colored accent line at top */
+    .config-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+    }
+
+    .config-section.cat-agent::before {
+      background: linear-gradient(90deg, transparent, rgba(163, 113, 247, 0.3), transparent);
+    }
+
+    .config-section.cat-task::before {
+      background: linear-gradient(90deg, transparent, rgba(88, 166, 255, 0.3), transparent);
+    }
+
+    .config-section.cat-terraform::before {
+      background: linear-gradient(90deg, transparent, rgba(63, 185, 80, 0.3), transparent);
+    }
+
+    .config-section.cat-workflow::before {
+      background: linear-gradient(90deg, transparent, rgba(210, 153, 34, 0.3), transparent);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 24px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .section-header:hover {
+      background: rgba(28, 33, 40, 0.5);
+    }
+
+    .section-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-icon.purple {
+      background: linear-gradient(135deg, rgba(163, 113, 247, 0.15), rgba(163, 113, 247, 0.05));
+      box-shadow: 0 0 0 1px rgba(163, 113, 247, 0.15);
+    }
+
+    .section-icon.blue {
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(88, 166, 255, 0.05));
+      box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.15);
+    }
+
+    .section-icon.green {
+      background: linear-gradient(135deg, rgba(63, 185, 80, 0.15), rgba(63, 185, 80, 0.05));
+      box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.15);
+    }
+
+    .section-icon.orange {
+      background: linear-gradient(135deg, rgba(210, 153, 34, 0.15), rgba(210, 153, 34, 0.05));
+      box-shadow: 0 0 0 1px rgba(210, 153, 34, 0.15);
+    }
+
+    .section-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .section-icon.purple svg { color: var(--done-fg); }
+    .section-icon.blue svg { color: var(--accent-fg); }
+    .section-icon.green svg { color: var(--success-fg); }
+    .section-icon.orange svg { color: var(--attention-fg); }
+
+    .section-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .section-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg-default);
+      letter-spacing: -0.01em;
+    }
+
+    .section-badge {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .section-badge.purple {
+      background: var(--done-muted);
+      color: var(--done-fg);
+    }
+
+    .section-badge.blue {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .section-badge.green {
+      background: var(--success-muted);
+      color: var(--success-fg);
+    }
+
+    .section-badge.orange {
+      background: var(--attention-muted);
+      color: var(--attention-fg);
+    }
+
+    .section-description {
+      font-size: 13px;
+      color: var(--fg-muted);
+      margin-top: 2px;
+    }
+
+    .section-toggle {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--bg-emphasis);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .section-toggle svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+      transition: transform 0.2s ease;
+    }
+
+    .section-toggle.open {
+      background: var(--accent-muted);
+    }
+
+    .section-toggle.open svg {
+      color: var(--accent-fg);
+      transform: rotate(180deg);
+    }
+
+    .section-content {
+      border-top: 1px solid rgba(48, 54, 61, 0.5);
+      padding: 20px 24px 24px;
+    }
+
+    /* ==========================================
+       PROMPT CARDS
+       ========================================== */
+
+    .prompt-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .prompt-card {
+      position: relative;
+      background: rgba(28, 33, 40, 0.3);
+      border: 1px solid rgba(48, 54, 61, 0.7);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .prompt-card:hover {
+      border-color: var(--border-default);
+    }
+
+    /* Category-colored left accent */
+    .prompt-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 10px 0 0 10px;
+    }
+
+    .prompt-card.accent-purple::before { background: var(--done-fg); opacity: 0.4; }
+    .prompt-card.accent-blue::before { background: var(--accent-fg); opacity: 0.4; }
+    .prompt-card.accent-green::before { background: var(--success-fg); opacity: 0.4; }
+    .prompt-card.accent-orange::before { background: var(--attention-fg); opacity: 0.4; }
+
+    /* Customized state - brighter accent */
+    .prompt-card.customized.accent-purple::before { opacity: 0.8; }
+    .prompt-card.customized.accent-blue::before { opacity: 0.8; }
+    .prompt-card.customized.accent-green::before { opacity: 0.8; }
+    .prompt-card.customized.accent-orange::before { opacity: 0.8; }
+
+    .prompt-card.customized {
+      border-color: rgba(88, 166, 255, 0.25);
+      background: rgba(28, 33, 40, 0.5);
+    }
+
+    .prompt-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px 20px 0;
+    }
+
+    .prompt-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(48, 54, 61, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .prompt-icon svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-muted);
+    }
+
+    .prompt-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .prompt-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .prompt-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--fg-default);
+    }
+
+    .prompt-status-badge {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .prompt-status-badge.customized {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    .prompt-status-badge.default {
+      background: var(--bg-emphasis);
+      color: var(--fg-subtle);
+    }
+
+    .prompt-word-count {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      font-family: 'JetBrains Mono', var(--font-mono);
+    }
+
+    .prompt-description {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* ==========================================
+       PROMPT EDITOR
+       ========================================== */
+
+    .prompt-editor-wrap {
+      position: relative;
+      margin: 12px 20px 0;
+    }
+
+    .prompt-editor {
+      width: 100%;
+      min-height: 160px;
+      padding: 14px 16px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      color: var(--fg-default);
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      resize: none;
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+
+    .prompt-editor:focus {
+      outline: none;
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    /* Collapsed state: fade-out gradient */
+    .prompt-editor.collapsed {
+      max-height: 170px;
+      overflow: hidden;
+    }
+
+    .editor-fade {
+      position: absolute;
+      bottom: 0;
+      left: 1px;
+      right: 1px;
+      height: 48px;
+      background: linear-gradient(transparent, rgba(28, 33, 40, 0.95));
+      border-radius: 0 0 7px 7px;
+      pointer-events: none;
+    }
+
+    /* Expanded state */
+    .prompt-editor.expanded {
+      min-height: 400px;
+      max-height: none;
+      border-color: var(--accent-fg);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+
+    .editor-line-count {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', var(--font-mono);
+      color: var(--fg-subtle);
+      background: var(--bg-muted);
+      padding: 2px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* ==========================================
+       DYNAMIC VARIABLE WARNING
+       ========================================== */
+
+    .dynamic-var-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 20px 0;
+      padding: 8px 12px;
+      background: rgba(210, 153, 34, 0.06);
+      border: 1px solid rgba(210, 153, 34, 0.12);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+
+    .dynamic-var-bar svg {
+      width: 14px;
+      height: 14px;
+      color: var(--attention-fg);
+      flex-shrink: 0;
+    }
+
+    .dynamic-var-bar code {
+      font-family: 'JetBrains Mono', var(--font-mono);
+      font-size: 11px;
+      background: rgba(210, 153, 34, 0.1);
+      color: var(--attention-fg);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    /* ==========================================
+       PROMPT ACTIONS
+       ========================================== */
+
+    .prompt-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 10px 20px 14px;
+    }
+
+    .prompt-actions .btn {
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 6px;
+    }
+
+    .prompt-actions .btn svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .btn-reset {
+      background: transparent;
+      color: var(--fg-muted);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+
+    .btn-reset:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .btn-expand {
+      background: transparent;
+      color: var(--fg-muted);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+
+    .btn-expand:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .btn-expand.active {
+      background: var(--accent-muted);
+      color: var(--accent-fg);
+    }
+
+    /* ==========================================
+       STICKY FOOTER
+       ========================================== */
+
+    .sticky-footer {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 64px);
+      max-width: 868px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: rgba(22, 27, 34, 0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      z-index: 100;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .footer-left svg {
+      width: 16px;
+      height: 16px;
+      color: var(--attention-fg);
+    }
+
+    .footer-left p {
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+
+    .footer-left strong {
+      color: var(--attention-fg);
+      font-weight: 600;
+    }
+
+    .btn-save {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      background: var(--accent-emphasis);
+      color: var(--fg-on-emphasis);
+      font-family: inherit;
+    }
+
+    .btn-save:hover {
+      background: var(--accent-fg);
+    }
+
+    .btn-save svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ==========================================
+       COLLAPSED SECTION
+       ========================================== */
+
+    .section-collapsed .section-content {
+      display: none;
+    }
+
+    /* ==========================================
+       UTILITIES
+       ========================================== */
+
+    .mono {
+      font-family: 'JetBrains Mono', var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- ============================================
+         PAGE HEADER
+         ============================================ -->
+    <header class="page-header">
+      <div class="header-blur-1"></div>
+      <div class="header-blur-2"></div>
+      <div class="header-content">
+        <div class="header-title-row">
+          <div class="header-icon">
+            <!-- ChatText / NotePencil icon -->
+            <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
+              <path d="M216 48H40a16 16 0 0 0-16 16v160a15.85 15.85 0 0 0 9.24 14.5A16.13 16.13 0 0 0 40 240a15.89 15.89 0 0 0 10.25-3.78.69.69 0 0 0 .13-.11L82.5 208H216a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16ZM80 136a8 8 0 0 1 0-16h96a8 8 0 0 1 0 16Zm0-32a8 8 0 0 1 0-16h96a8 8 0 0 1 0 16Z" fill="url(#chatGrad)"/>
+              <defs>
+                <linearGradient id="chatGrad" x1="24" y1="48" x2="232" y2="240" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#a371f7"/>
+                  <stop offset="1" stop-color="#58a6ff"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div class="header-text">
+            <h1>System Prompts</h1>
+            <p>Customize AI behavior for each feature</p>
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+          <div class="stat-item">
+            <svg viewBox="0 0 256 256" fill="currentColor"><path d="M216 48H40a16 16 0 0 0-16 16v160a15.85 15.85 0 0 0 9.24 14.5A16.13 16.13 0 0 0 40 240a15.89 15.89 0 0 0 10.25-3.78L82.5 208H216a16 16 0 0 0 16-16V64a16 16 0 0 0-16-16ZM80 136a8 8 0 0 1 0-16h96a8 8 0 0 1 0 16Zm0-32a8 8 0 0 1 0-16h96a8 8 0 0 1 0 16Z"/></svg>
+            <span><strong>7</strong> prompts</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item customized">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <span><strong>2</strong> customized</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item defaults">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span><strong>5</strong> defaults</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================
+         CATEGORY SECTIONS
+         ============================================ -->
+    <div class="config-sections">
+
+      <!-- ==========================================
+           CATEGORY 1: AGENT EXECUTION (Open, 1 prompt, Default state)
+           ========================================== -->
+      <section class="config-section cat-agent">
+        <div class="section-header">
+          <div class="section-icon purple">
+            <svg viewBox="0 0 256 256" fill="currentColor"><path d="M200 48H136V16a8 8 0 0 0-16 0v32H56a24 24 0 0 0-24 24v34a24 24 0 0 0 24 24h6.1A96 96 0 0 0 120 183.42V208H96a8 8 0 0 0 0 16h64a8 8 0 0 0 0-16h-24v-24.58A96 96 0 0 0 193.9 130H200a24 24 0 0 0 24-24V72a24 24 0 0 0-24-24Z"/></svg>
+          </div>
+          <div class="section-info">
+            <div class="section-title-row">
+              <h2 class="section-title">Agent Execution</h2>
+              <span class="section-badge purple">1 prompt</span>
+            </div>
+            <p class="section-description">Prompts that guide agent task planning and execution</p>
+          </div>
+          <div class="section-toggle open">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="prompt-list">
+            <!-- Plan Mode Default — DEFAULT state -->
+            <div class="prompt-card accent-purple">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Plan Mode Default</span>
+                    <span class="prompt-status-badge default">Default</span>
+                    <span class="prompt-word-count">~200 words</span>
+                  </div>
+                  <p class="prompt-description">Guides task planning, clarifying questions, and GitHub issue creation</p>
+                </div>
+              </div>
+
+              <div class="prompt-editor-wrap">
+                <div class="prompt-editor collapsed" style="white-space: pre-wrap;">You are helping to plan a software engineering task. Your goal is to:
+1. Understand the task requirements
+2. Ask clarifying questions using the AskUserQuestion tool when needed
+3. Create a detailed implementation plan
+4. When the plan is complete, use CreateGitHubIssue to create a trackable issue
+
+Be thorough but concise. Focus on actionable steps and clear requirements.</div>
+                <div class="editor-fade"></div>
+              </div>
+
+              <div class="prompt-actions">
+                <button class="btn-expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  Expand
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           CATEGORY 2: TASK CREATION (Open, 1 prompt, CUSTOMIZED + EXPANDED)
+           ========================================== -->
+      <section class="config-section cat-task">
+        <div class="section-header">
+          <div class="section-icon blue">
+            <svg viewBox="0 0 256 256" fill="currentColor"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg>
+          </div>
+          <div class="section-info">
+            <div class="section-title-row">
+              <h2 class="section-title">Task Creation</h2>
+              <span class="section-badge blue">1 prompt</span>
+            </div>
+            <p class="section-description">AI assistant for generating well-structured tasks</p>
+          </div>
+          <div class="section-toggle open">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="prompt-list">
+            <!-- Task Creation Assistant — CUSTOMIZED + EXPANDED state -->
+            <div class="prompt-card customized accent-blue">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Task Creation Assistant</span>
+                    <span class="prompt-status-badge customized">Customized</span>
+                    <span class="prompt-word-count">~650 words</span>
+                  </div>
+                  <p class="prompt-description">Guides AI-assisted task generation with clarifying questions and structured output</p>
+                </div>
+              </div>
+
+              <div class="prompt-editor-wrap">
+                <div class="prompt-editor expanded" style="white-space: pre-wrap;">You are an AI assistant helping users create well-structured tasks for a software project management system.
+
+Your role is to:
+1. Understand what the user wants (from their initial message)
+2. Use the AskUserQuestion tool ONCE to gather 2-4 clarifying questions
+3. Generate a high-quality task suggestion based on the user's answers
+
+## Phase 1: Clarifying Questions (EXACTLY ONE ROUND - NO EXCEPTIONS)
+
+When you receive the user's initial request, use the AskUserQuestion tool to ask clarifying questions.
+Ask questions that will help you create a better, more specific task. Focus on:
+- Scope and boundaries (what's included/excluded)
+- Technical approach or implementation preference
+- Priority and urgency
+- Dependencies or blockers
+- Acceptance criteria
+
+Guidelines for questions:
+- Keep headers short (1-2 words): "Scope", "Priority", "Approach", "Testing", etc.
+- Each question should have 2-4 options
+- Options should be mutually exclusive and cover common choices
+- Set multiSelect: true if the user should be able to select multiple options
+- Ask 2-4 questions in ONE call (max 4 allowed)
+- Make each question count - you will NOT get another chance to ask
+
+IMPORTANT: After the user answers, you will receive a tool_result. At that point you MUST generate the task - NO MORE QUESTIONS.
+
+Generate the task suggestion as a JSON block:
+
+```json
+{
+  "type": "task_suggestion",
+  "title": "Short descriptive title (5-10 words)",
+  "description": "Detailed task description in markdown...",
+  "labels": ["feature"],
+  "priority": "medium"
+}
+```
+
+Field guidelines:
+- labels: Choose from ["bug", "feature", "enhancement", "docs", "refactor", "test", "research"]
+- priority: "high" for urgent/blocking, "medium" for standard, "low" for nice-to-have
+
+CRITICAL: Always use the AskUserQuestion tool first before generating a task suggestion.</div>
+                <span class="editor-line-count">42 lines</span>
+              </div>
+
+              <div class="prompt-actions">
+                <button class="btn-reset">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                  Reset to Default
+                </button>
+                <button class="btn-expand active">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  Collapse
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           CATEGORY 3: TERRAFORM COMPOSE (Open, 1 prompt, Dynamic variable)
+           ========================================== -->
+      <section class="config-section cat-terraform">
+        <div class="section-header">
+          <div class="section-icon green">
+            <svg viewBox="0 0 256 256" fill="currentColor"><path d="M88 50v70l60 35V85L88 50z"/><path d="M158 85v70l60-35V50l-60 35z"/><path d="M88 130v70l60 35v-70l-60-35z"/><path d="M18 50v70l60 35V85L18 50z" opacity="0.6"/></svg>
+          </div>
+          <div class="section-info">
+            <div class="section-title-row">
+              <h2 class="section-title">Terraform Compose</h2>
+              <span class="section-badge green">1 prompt</span>
+            </div>
+            <p class="section-description">Infrastructure composition using private registry modules</p>
+          </div>
+          <div class="section-toggle open">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="section-content">
+          <div class="prompt-list">
+            <!-- Infrastructure Composer — DEFAULT state with dynamic variable -->
+            <div class="prompt-card accent-green">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Infrastructure Composer</span>
+                    <span class="prompt-status-badge default">Default</span>
+                    <span class="prompt-word-count">~1200 words</span>
+                  </div>
+                  <p class="prompt-description">Guides Terraform HCL generation, module selection, and clarifying questions</p>
+                </div>
+              </div>
+
+              <div class="prompt-editor-wrap">
+                <div class="prompt-editor collapsed" style="white-space: pre-wrap;">You are a Terraform infrastructure composer. You help users design and generate Terraform configurations using private modules from their HCP Terraform registry.
+
+## Your Capabilities:
+- Match user infrastructure requirements to available private modules
+- Generate complete, valid Terraform HCL configurations
+- Ask clarifying questions to gather requirements before generating code
+- Explain module choices and architecture decisions
+
+## Response Strategy (MANDATORY):
+
+### First Response (no prior assistant messages):
+You MUST ask clarifying questions before generating any code...
+
+## Rules:
+1. ONLY use modules from the catalog below. Never invent module sources.
+2. Always prefer a private module over a native Terraform resource...
+3. Use the exact source path from the catalog...
+
+## Available Modules:
+
+{{moduleContext}}</div>
+                <div class="editor-fade"></div>
+              </div>
+
+              <!-- Dynamic variable warning -->
+              <div class="dynamic-var-bar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span>Contains dynamic variable <code>{{moduleContext}}</code> &mdash; replaced at runtime with the module catalog</span>
+              </div>
+
+              <div class="prompt-actions">
+                <button class="btn-expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  Expand
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           CATEGORY 4: WORKFLOW DESIGNER (COLLAPSED, 4 prompts)
+           ========================================== -->
+      <section class="config-section cat-workflow section-collapsed">
+        <div class="section-header">
+          <div class="section-icon orange">
+            <svg viewBox="0 0 256 256" fill="currentColor"><path d="M200 168a32 32 0 0 0-28.62 17.69l-22.88-15.88A32 32 0 0 0 160 144a32.06 32.06 0 0 0-20.67-29.87l4.42-25.83A32 32 0 1 0 128 56a32.06 32.06 0 0 0-15.74 4.15l-22.88-15.87A32 32 0 1 0 56 72a32.06 32.06 0 0 0 20.67 29.87l-4.42 25.83A32 32 0 1 0 88 160a32.06 32.06 0 0 0 15.74-4.15l22.88 15.87A32 32 0 1 0 200 168Z"/></svg>
+          </div>
+          <div class="section-info">
+            <div class="section-title-row">
+              <h2 class="section-title">Workflow Designer</h2>
+              <span class="section-badge orange">4 prompts</span>
+            </div>
+            <p class="section-description">AI-powered workflow generation, analysis, and validation</p>
+          </div>
+          <div class="section-toggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        <!-- Content hidden by .section-collapsed -->
+        <div class="section-content">
+          <div class="prompt-list">
+            <div class="prompt-card customized accent-orange">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Workflow Generation System</span>
+                    <span class="prompt-status-badge customized">Customized</span>
+                    <span class="prompt-word-count">~2400 words</span>
+                  </div>
+                  <p class="prompt-description">Core system prompt for generating structured workflow DSL from templates</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="prompt-card accent-orange">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Workflow Analysis</span>
+                    <span class="prompt-status-badge default">Default</span>
+                    <span class="prompt-word-count">~500 words</span>
+                  </div>
+                  <p class="prompt-description">Template analysis for workflow creation <code class="mono" style="font-size:10px;background:rgba(210,153,34,0.1);color:var(--attention-fg);padding:1px 5px;border-radius:3px;">{{templateData}}</code></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="prompt-card accent-orange">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Workflow Validation</span>
+                    <span class="prompt-status-badge default">Default</span>
+                    <span class="prompt-word-count">~500 words</span>
+                  </div>
+                  <p class="prompt-description">Validates workflow structure, nodes, edges, and connectivity</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="prompt-card accent-orange">
+              <div class="prompt-card-header">
+                <div class="prompt-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="17" y1="18" x2="3" y2="18"></line></svg>
+                </div>
+                <div class="prompt-info">
+                  <div class="prompt-title-row">
+                    <span class="prompt-name">Workflow from Description</span>
+                    <span class="prompt-status-badge default">Default</span>
+                    <span class="prompt-word-count">~400 words</span>
+                  </div>
+                  <p class="prompt-description">Generates workflow from natural language <code class="mono" style="font-size:10px;background:rgba(210,153,34,0.1);color:var(--attention-fg);padding:1px 5px;border-radius:3px;">{{description}}</code></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /config-sections -->
+  </div><!-- /container -->
+
+  <!-- ============================================
+       STICKY SAVE FOOTER
+       ============================================ -->
+  <footer class="sticky-footer">
+    <div class="footer-left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+      <p>Unsaved changes (<strong>2</strong>)</p>
+    </div>
+    <button class="btn-save">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+      Save All
+    </button>
+  </footer>
+
+</body>
+</html>

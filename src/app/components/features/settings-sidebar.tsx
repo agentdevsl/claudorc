@@ -1,5 +1,6 @@
 import {
   Brain,
+  ChatText,
   Cube,
   Folder,
   Gear,
@@ -77,6 +78,12 @@ function useSettingsSections(): SettingsSection[] {
           label: 'Model Optimizations',
           to: '/settings/model-optimizations',
           icon: Brain,
+        },
+        {
+          id: 'prompts',
+          label: 'System Prompts',
+          to: '/settings/prompts',
+          icon: ChatText,
         },
       ],
     },

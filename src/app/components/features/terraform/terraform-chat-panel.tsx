@@ -263,20 +263,24 @@ function ClarifyingQuestionsUI({
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {q.options.map((opt) => {
-                        const isSelected = answers[q.question] === opt;
+                        const isDefault = opt.startsWith('Use default:');
+                        const defaultValue = isDefault ? opt.slice('Use default:'.length) : null;
+                        const displayLabel = isDefault ? 'Use default' : opt;
+                        const answerValue = defaultValue ?? opt;
+                        const isSelected = answers[q.question] === answerValue;
                         return (
                           <button
                             key={opt}
                             type="button"
                             onClick={() =>
                               setAnswers((prev) =>
-                                prev[q.question] === opt
+                                prev[q.question] === answerValue
                                   ? (() => {
                                       const next = { ...prev };
                                       delete next[q.question];
                                       return next;
                                     })()
-                                  : { ...prev, [q.question]: opt }
+                                  : { ...prev, [q.question]: answerValue }
                               )
                             }
                             className={cn(
@@ -287,7 +291,14 @@ function ClarifyingQuestionsUI({
                             )}
                           >
                             {isSelected && <Check className="h-3 w-3 shrink-0" weight="bold" />}
-                            {opt}
+                            <span className="flex flex-col items-start">
+                              <span>{displayLabel}</span>
+                              {defaultValue && (
+                                <span className="text-[10px] font-mono opacity-70">
+                                  {defaultValue}
+                                </span>
+                              )}
+                            </span>
                           </button>
                         );
                       })}

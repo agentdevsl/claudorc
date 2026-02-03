@@ -39,7 +39,7 @@ function inferOptions(question: string): string[] {
 
   // Domain questions
   if (/\b(domain|hostname|url|site)\b/i.test(q)) {
-    return ['example.com', 'Use placeholder'];
+    return ['Use default:example.com'];
   }
 
   // SSL/certificate questions
@@ -57,8 +57,8 @@ function inferOptions(question: string): string[] {
     return ['t3.micro', 't3.small', 't3.medium', 't3.large'];
   }
 
-  // Fallback: use placeholder values
-  return ['Use placeholder values'];
+  // Fallback: no inferred options — user can type a custom answer
+  return [];
 }
 
 /** Parse numbered clarifying questions from assistant text.
@@ -282,6 +282,84 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
       assistantContent = '';
       let buffer = '';
 
+      /** Process a single SSE event — shared between main loop and buffer flush. */
+      function processComposeEvent(event: ComposeEvent): void {
+        switch (event.type) {
+          case 'status':
+            setComposeStage(event.stage);
+            receivedPartialData = true;
+            break;
+
+          case 'text':
+            assistantContent += event.content;
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg?.role === 'assistant') {
+                newMessages[newMessages.length - 1] = {
+                  ...lastMsg,
+                  content: assistantContent,
+                };
+              } else {
+                newMessages.push({ role: 'assistant', content: assistantContent });
+              }
+              return newMessages;
+            });
+            break;
+
+          case 'modules':
+            setMatchedModules(event.modules);
+            receivedPartialData = true;
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg?.role === 'assistant') {
+                newMessages[newMessages.length - 1] = {
+                  ...lastMsg,
+                  modules: event.modules,
+                };
+              }
+              return newMessages;
+            });
+            break;
+
+          case 'questions':
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg?.role === 'assistant') {
+                newMessages[newMessages.length - 1] = {
+                  ...lastMsg,
+                  clarifyingQuestions: event.questions,
+                };
+              }
+              return newMessages;
+            });
+            receivedPartialData = true;
+            break;
+
+          case 'code':
+            setGeneratedCode(event.code);
+            break;
+
+          case 'done':
+            receivedDone = true;
+            sessionIdRef.current = event.sessionId;
+            setComposeStage('finalizing');
+            setComposeComplete(true);
+            if (event.matchedModules) setMatchedModules(event.matchedModules);
+            if (event.generatedCode) setGeneratedCode(event.generatedCode);
+            break;
+
+          case 'error':
+            console.error('[Terraform] Compose error:', event.error);
+            setComposeStage(null);
+            setComposeComplete(false);
+            setError(event.error);
+            break;
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -304,82 +382,7 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           }
 
           try {
-            switch (event.type) {
-              case 'status':
-                setComposeStage(event.stage);
-                receivedPartialData = true;
-                break;
-
-              case 'text':
-                assistantContent += event.content;
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    newMessages[newMessages.length - 1] = {
-                      ...lastMsg,
-                      content: assistantContent,
-                    };
-                  } else {
-                    newMessages.push({ role: 'assistant', content: assistantContent });
-                  }
-                  return newMessages;
-                });
-                break;
-
-              case 'modules':
-                setMatchedModules(event.modules);
-                receivedPartialData = true;
-                // Attach modules to the current assistant message
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    newMessages[newMessages.length - 1] = {
-                      ...lastMsg,
-                      modules: event.modules,
-                    };
-                  }
-                  return newMessages;
-                });
-                break;
-
-              case 'questions':
-                // Server detected AskUserQuestion tool call or parsed questions from text
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    newMessages[newMessages.length - 1] = {
-                      ...lastMsg,
-                      clarifyingQuestions: event.questions,
-                    };
-                  }
-                  return newMessages;
-                });
-                receivedPartialData = true;
-                break;
-
-              case 'code':
-                setGeneratedCode(event.code);
-                break;
-
-              case 'done':
-                receivedDone = true;
-                sessionIdRef.current = event.sessionId;
-                setComposeStage('finalizing');
-                setComposeComplete(true);
-                if (event.matchedModules) setMatchedModules(event.matchedModules);
-                if (event.generatedCode) setGeneratedCode(event.generatedCode);
-                break;
-
-              case 'error':
-                console.error('[Terraform] Compose error:', event.error);
-                setComposeStage(null);
-                setComposeComplete(false);
-                setError(event.error);
-                break;
-            }
+            processComposeEvent(event);
           } catch (processingError) {
             console.error('[Terraform] Error processing SSE event:', processingError);
           }
@@ -392,62 +395,13 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
         if (remaining.startsWith('data: ')) {
           try {
             const event = JSON.parse(remaining.slice(6)) as ComposeEvent;
-            switch (event.type) {
-              case 'done':
-                receivedDone = true;
-                sessionIdRef.current = event.sessionId;
-                setComposeStage('finalizing');
-                setComposeComplete(true);
-                if (event.matchedModules) setMatchedModules(event.matchedModules);
-                if (event.generatedCode) setGeneratedCode(event.generatedCode);
-                break;
-              case 'error':
-                console.error('[Terraform] Compose error (buffered):', event.error);
-                setComposeStage(null);
-                setComposeComplete(false);
-                setError(event.error);
-                break;
-              case 'code':
-                setGeneratedCode(event.code);
-                break;
-              case 'modules':
-                setMatchedModules(event.modules);
-                receivedPartialData = true;
-                break;
-              case 'text':
-                assistantContent += event.content;
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    newMessages[newMessages.length - 1] = { ...lastMsg, content: assistantContent };
-                  } else {
-                    newMessages.push({ role: 'assistant', content: assistantContent });
-                  }
-                  return newMessages;
-                });
-                break;
-              case 'questions':
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    newMessages[newMessages.length - 1] = {
-                      ...lastMsg,
-                      clarifyingQuestions: event.questions,
-                    };
-                  }
-                  return newMessages;
-                });
-                receivedPartialData = true;
-                break;
-              case 'status':
-                setComposeStage(event.stage);
-                receivedPartialData = true;
-                break;
-            }
-          } catch {
-            // Ignore parse errors on final buffer remnant
+            processComposeEvent(event);
+          } catch (parseErr) {
+            console.warn(
+              '[Terraform] Failed to parse final SSE buffer:',
+              remaining.slice(0, 100),
+              parseErr
+            );
           }
         }
       }
