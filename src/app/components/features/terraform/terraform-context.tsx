@@ -328,9 +328,11 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
               const newMessages = [...prev];
               const lastMsg = newMessages[newMessages.length - 1];
               if (lastMsg?.role === 'assistant') {
+                // Merge with existing questions to avoid overwriting on multiple events
+                const existing = lastMsg.clarifyingQuestions ?? [];
                 newMessages[newMessages.length - 1] = {
                   ...lastMsg,
-                  clarifyingQuestions: event.questions,
+                  clarifyingQuestions: [...existing, ...event.questions],
                 };
               }
               return newMessages;
@@ -384,7 +386,8 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           try {
             processComposeEvent(event);
           } catch (processingError) {
-            console.error('[Terraform] Error processing SSE event:', processingError);
+            console.error('[Terraform] Error processing SSE event:', event.type, processingError);
+            setError('An error occurred processing the server response. Please try again.');
           }
         }
       }

@@ -3,6 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema/terraform.js';
 import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
+import { createLogger } from '../lib/logging/logger.js';
 import { buildCompositionSystemPrompt } from '../lib/terraform/compose-prompt.js';
 import type {
   ClarifyingQuestion,
@@ -17,9 +18,12 @@ import type { Database } from '../types/database.js';
 import { getGlobalDefaultModel, type SettingsService } from './settings.service.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
+const log = createLogger('TerraformCompose');
+
 const MAX_SESSIONS = 100;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const KEEPALIVE_MS = 15_000;
+const MAX_PENDING_EVENTS = 50;
 
 export interface ComposeSession {
   id: string;
@@ -118,7 +122,7 @@ export class TerraformComposeService {
 
     // Run pipeline without awaiting — the caller returns the session ID immediately.
     this.runPipeline(sid, messages, registryId, job).catch((pipelineErr) => {
-      console.error('[TerraformCompose] Unhandled pipeline error:', pipelineErr);
+      log.error('Unhandled pipeline error', { error: pipelineErr });
       this.sendEvent(job, {
         type: 'error',
         error: 'An unexpected error occurred. Please try again.',
@@ -151,7 +155,7 @@ export class TerraformComposeService {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
           } catch (err) {
             if (!(err instanceof TypeError)) {
-              console.warn('[TerraformCompose] Unexpected error replaying event:', err);
+              log.warn('Unexpected error replaying event', { error: err });
             }
             break;
           }
@@ -164,7 +168,7 @@ export class TerraformComposeService {
             controller.close();
           } catch (err) {
             if (!(err instanceof TypeError)) {
-              console.warn('[TerraformCompose] Unexpected error closing controller:', err);
+              log.warn('Unexpected error closing controller', { error: err });
             }
           }
           job.controller = null;
@@ -178,7 +182,7 @@ export class TerraformComposeService {
           } catch (err) {
             // Enqueue failed — stream is likely closed, clear interval to stop retrying
             if (!(err instanceof TypeError)) {
-              console.warn('[TerraformCompose] Unexpected keepalive error:', err);
+              log.warn('Keepalive enqueue failed, stream likely closed', { error: err });
             }
             if (job.keepaliveInterval) {
               clearInterval(job.keepaliveInterval);
@@ -199,6 +203,20 @@ export class TerraformComposeService {
     if (!job.controller) {
       // Buffer critical events so late subscribers can replay them
       if (event.type === 'error' || event.type === 'done' || event.type === 'code') {
+        if (job.pendingEvents.length >= MAX_PENDING_EVENTS) {
+          log.warn('Event buffer full, dropping oldest non-critical event', {
+            data: { eventType: event.type, bufferSize: job.pendingEvents.length },
+          });
+          // Drop oldest non-critical event to make room
+          const dropIdx = job.pendingEvents.findIndex(
+            (e) => e.type !== 'error' && e.type !== 'done'
+          );
+          if (dropIdx >= 0) {
+            job.pendingEvents.splice(dropIdx, 1);
+          } else {
+            job.pendingEvents.shift();
+          }
+        }
         job.pendingEvents.push(event);
       }
       return;
@@ -206,7 +224,21 @@ export class TerraformComposeService {
     try {
       job.controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
     } catch (err) {
-      console.warn('[TerraformCompose] Failed to send event:', event.type, err);
+      log.warn('SSE controller broken, falling back to event buffer', {
+        data: { eventType: event.type },
+        error: err,
+      });
+      // Controller is broken — null it out so subsequent events get buffered
+      // instead of repeatedly hitting the broken controller
+      job.controller = null;
+      if (job.keepaliveInterval) {
+        clearInterval(job.keepaliveInterval);
+        job.keepaliveInterval = null;
+      }
+      // Buffer this event that failed to send
+      if (event.type === 'error' || event.type === 'done' || event.type === 'code') {
+        job.pendingEvents.push(event);
+      }
     }
   }
 
@@ -225,7 +257,7 @@ export class TerraformComposeService {
         job.controller.close();
       } catch (err) {
         if (!(err instanceof TypeError)) {
-          console.warn('[TerraformCompose] Unexpected error closing controller in finishJob:', err);
+          log.warn('Unexpected error closing controller in finishJob', { error: err });
         }
       }
       job.controller = null;
@@ -254,7 +286,7 @@ export class TerraformComposeService {
     // Wait for the SSE subscriber to connect before pushing events
     const subscriberReady = await this.waitForSubscriber(job);
     if (!subscriberReady) {
-      console.warn('[TerraformCompose] No subscriber connected within timeout, aborting pipeline');
+      log.warn('No subscriber connected within timeout, aborting pipeline');
       // Buffer an error so late subscribers get feedback instead of an empty stream
       this.sendEvent(job, {
         type: 'error',
@@ -288,10 +320,7 @@ export class TerraformComposeService {
         registryId ? { registryId } : undefined
       );
       if (!modulesResult.ok) {
-        console.error(
-          '[TerraformComposeService] Failed to load modules for matching:',
-          modulesResult.error
-        );
+        log.error('Failed to load modules for matching', { error: modulesResult.error });
         this.sendEvent(job, {
           type: 'text',
           content:
@@ -465,10 +494,9 @@ export class TerraformComposeService {
         this.sendStatus(job, 'validating_hcl');
         const validation = await this.validateCode(generatedCode);
         if (!validation.valid) {
-          console.warn(
-            '[TerraformCompose] HCL validation warnings:',
-            validation.diagnostics.map((d) => d.summary)
-          );
+          log.warn('HCL validation warnings', {
+            data: { diagnostics: validation.diagnostics.map((d) => d.summary) },
+          });
           // Send validation diagnostics to the client so the UI can display warnings
           const diagnosticText = validation.diagnostics
             .map((d) => `- ${d.severity}: ${d.summary}${d.detail ? ` (${d.detail})` : ''}`)
@@ -521,25 +549,25 @@ export class TerraformComposeService {
             'Claude authentication failed. Please run "claude login" or check your credentials file.',
         });
       } else if (isRateLimit) {
-        console.error('[TerraformCompose] Rate limit error:', reason);
+        log.error('Rate limit error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error: 'Claude API rate limit reached. Please wait a moment and try again.',
         });
       } else if (isModelError) {
-        console.error('[TerraformCompose] Model error:', reason);
+        log.error('Model error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error: 'Model configuration error. Check the TERRAFORM_COMPOSE_MODEL setting.',
         });
       } else if (isContextLength) {
-        console.error('[TerraformCompose] Context length error:', reason);
+        log.error('Context length error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error: 'The conversation is too long. Please start a new conversation.',
         });
       } else {
-        console.error('[TerraformCompose] Pipeline error:', reason);
+        log.error('Pipeline error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error: 'An error occurred during Terraform composition. Please try again.',
@@ -551,7 +579,7 @@ export class TerraformComposeService {
           session.close();
         } catch (err) {
           if (!(err instanceof TypeError)) {
-            console.warn('[TerraformCompose] Unexpected error closing session:', err);
+            log.warn('Unexpected error closing session', { error: err });
           }
         }
       }
@@ -580,7 +608,7 @@ export class TerraformComposeService {
     try {
       ({ parse } = await import('@cdktf/hcl2json'));
     } catch (importError) {
-      console.error('[TerraformCompose] Failed to load HCL parser:', importError);
+      log.error('Failed to load HCL parser', { error: importError });
       return {
         valid: false,
         diagnostics: [
