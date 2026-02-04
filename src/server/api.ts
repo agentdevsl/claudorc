@@ -62,10 +62,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
 import { migrate as migratePg } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import * as pgSchema from '../db/schema/postgres/index.js';
-import { agents } from '../db/schema/sqlite/agents.js';
-import * as schema from '../db/schema/sqlite/index.js';
-import { settings } from '../db/schema/sqlite/settings.js';
-import { tasks } from '../db/schema/sqlite/tasks.js';
+import * as sqliteSchema from '../db/schema/sqlite/index.js';
 import {
   CLI_SESSIONS_MIGRATION_SQL,
   CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL,
@@ -121,6 +118,22 @@ declare const Bun: {
 const DB_MODE = process.env.DB_MODE ?? 'sqlite';
 log.info(`Database mode: ${DB_MODE}`);
 
+// Select the correct schema tables based on DB_MODE
+const schema = DB_MODE === 'postgres' ? pgSchema : sqliteSchema;
+const schemaTables = {
+  agents: schema.agents,
+  tasks: schema.tasks,
+  settings: schema.settings,
+  worktrees: schema.worktrees,
+  sessions: schema.sessions,
+};
+
+/** Return the number of rows affected by an update/delete, handling both SQLite and PG results */
+function getChangedCount(result: unknown): number {
+  if (Array.isArray(result)) return result.length;
+  return (result as { changes?: number })?.changes ?? 0;
+}
+
 let db: Database;
 let sqlite: InstanceType<typeof BunSQLite> | null = null;
 let pgClient: ReturnType<typeof postgres> | null = null;
@@ -134,8 +147,8 @@ if (DB_MODE === 'postgres') {
   pgClient = postgres(connectionString);
   db = drizzlePg(pgClient, { schema: pgSchema }) as unknown as Database;
 
-  // Run Drizzle Kit migrations
-  await migratePg(drizzlePg(pgClient, { schema: pgSchema }), {
+  // Run Drizzle Kit migrations (reuse the existing drizzle instance)
+  await migratePg(db as ReturnType<typeof drizzlePg>, {
     migrationsFolder: './src/db/migrations-pg',
   });
   log.info('PostgreSQL migrations applied');
@@ -209,7 +222,7 @@ if (DB_MODE === 'postgres') {
   sqlite.exec(TERRAFORM_MIGRATION_SQL);
   log.info('Terraform migration applied');
 
-  db = drizzle(sqlite, { schema }) as unknown as Database;
+  db = drizzle(sqlite, { schema: sqliteSchema }) as unknown as Database;
 }
 
 // Reset stale agent statuses from previous server runs
@@ -218,15 +231,15 @@ if (DB_MODE === 'postgres') {
 try {
   const staleStatuses = ['starting', 'planning', 'running'] as const;
   const result = await db
-    .update(agents)
+    .update(schemaTables.agents)
     .set({
       status: 'idle',
       currentTaskId: null,
       currentSessionId: null,
       updatedAt: new Date().toISOString(),
     })
-    .where(inArray(agents.status, [...staleStatuses]));
-  const changes = (result as unknown as { changes?: number }).changes ?? 0;
+    .where(inArray(schemaTables.agents.status, [...staleStatuses]));
+  const changes = getChangedCount(result);
   if (changes > 0) {
     console.log(`[API Server] Reset ${changes} stale agent(s) to idle`);
   }
@@ -243,7 +256,7 @@ try {
 // Uses direct DB update (not taskService.moveColumn) to avoid triggering agent auto-start.
 try {
   const result = await db
-    .update(tasks)
+    .update(schemaTables.tasks)
     .set({
       column: 'backlog',
       agentId: null,
@@ -251,8 +264,8 @@ try {
       lastAgentStatus: null,
       updatedAt: new Date().toISOString(),
     })
-    .where(and(eq(tasks.column, 'in_progress'), isNotNull(tasks.agentId)));
-  const changes = (result as unknown as { changes?: number }).changes ?? 0;
+    .where(and(eq(schemaTables.tasks.column, 'in_progress'), isNotNull(schemaTables.tasks.agentId)));
+  const changes = getChangedCount(result);
   if (changes > 0) {
     console.log(`[API Server] Recovered ${changes} orphaned task(s) back to backlog`);
   }
@@ -267,9 +280,9 @@ try {
 // After a server crash, tasks may still reference worktrees that should be cleaned up.
 try {
   const orphanedTasks = (await db
-    .select({ id: tasks.id, worktreeId: tasks.worktreeId })
-    .from(tasks)
-    .where(isNotNull(tasks.worktreeId))) as Array<{ id: string; worktreeId: string | null }>;
+    .select({ id: schemaTables.tasks.id, worktreeId: schemaTables.tasks.worktreeId })
+    .from(schemaTables.tasks)
+    .where(isNotNull(schemaTables.tasks.worktreeId))) as Array<{ id: string; worktreeId: string | null }>;
 
   // Filter to tasks whose agent is not actively running (after restart, none are)
   const tasksToClean = orphanedTasks.filter(
@@ -281,13 +294,13 @@ try {
     for (const t of tasksToClean) {
       try {
         await db
-          .update(tasks)
+          .update(schemaTables.tasks)
           .set({
             worktreeId: null,
             branch: null,
             updatedAt: new Date().toISOString(),
           })
-          .where(eq(tasks.id, t.id));
+          .where(eq(schemaTables.tasks.id, t.id));
       } catch (cleanErr) {
         console.error(
           `[API Server] Failed to clear worktree refs for task ${t.id}:`,
@@ -555,7 +568,7 @@ if (dockerProvider) {
 
       try {
         const globalDefaults = await db.query.settings.findFirst({
-          where: eq(settings.key, 'sandbox.defaults'),
+          where: eq(schemaTables.settings.key, 'sandbox.defaults'),
         });
         if (globalDefaults?.value) {
           defaults = JSON.parse(globalDefaults.value) as SandboxDefaults;
@@ -695,7 +708,7 @@ log.info('[API Server] Terraform sync scheduler started');
 // Graceful shutdown: stop accepting requests, clean up services, close DB
 let isShuttingDown = false;
 
-function shutdownServer(signal: string) {
+async function shutdownServer(signal: string) {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
@@ -729,22 +742,20 @@ function shutdownServer(signal: string) {
   cliMonitorService.destroy();
 
   // Close database
-  try {
-    if (pgClient) {
-      pgClient
-        .end()
-        .then(() => {
-          log.info('[API Server] Database closed');
-        })
-        .catch((dbErr: unknown) => {
-          log.warn('[API Server] Failed to close database', { error: dbErr });
-        });
-    } else if (sqlite) {
+  if (pgClient) {
+    try {
+      await pgClient.end();
+      log.info('[API Server] Database closed');
+    } catch (dbErr) {
+      log.warn('[API Server] Failed to close database', { error: dbErr });
+    }
+  } else if (sqlite) {
+    try {
       sqlite.close();
       log.info('[API Server] Database closed');
+    } catch (dbErr) {
+      log.warn('[API Server] Failed to close database', { error: dbErr });
     }
-  } catch (dbErr) {
-    log.warn('[API Server] Failed to close database', { error: dbErr });
   }
 
   log.info('[API Server] Shutdown complete');

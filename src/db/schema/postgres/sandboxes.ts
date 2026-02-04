@@ -1,15 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
 import { boolean, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import type { SandboxStatus, VolumeMountRecord } from '../shared/types';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-export type SandboxStatus = 'stopped' | 'creating' | 'running' | 'idle' | 'stopping' | 'error';
-
-export interface VolumeMountRecord {
-  hostPath: string;
-  containerPath: string;
-  readonly?: boolean;
-}
+export type { SandboxStatus, VolumeMountRecord };
 
 export const sandboxInstances = pgTable('sandbox_instances', {
   id: text('id')

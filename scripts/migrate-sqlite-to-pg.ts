@@ -53,7 +53,6 @@ interface DeferredUpdate {
 interface MigrateResult {
   table: string;
   rowCount: number;
-  deferredCount: number;
   durationMs: number;
   deferred: DeferredUpdate[];
 }
@@ -65,7 +64,7 @@ class DryRunRollback extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Table definitions — ordered for FK safety
+// Table definitions -- ordered by dependency depth; circular FKs handled via deferred updates
 // ---------------------------------------------------------------------------
 
 const TABLE_DEFS: TableDef[] = [
@@ -271,12 +270,24 @@ function parseArgs(): Config {
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--sqlite-path':
+        if (args[i + 1] === undefined) {
+          console.error('[migrate] ERROR: --sqlite-path requires a value');
+          process.exit(1);
+        }
         config.sqlitePath = args[++i];
         break;
       case '--database-url':
+        if (args[i + 1] === undefined) {
+          console.error('[migrate] ERROR: --database-url requires a value');
+          process.exit(1);
+        }
         config.databaseUrl = args[++i];
         break;
       case '--batch-size':
+        if (args[i + 1] === undefined) {
+          console.error('[migrate] ERROR: --batch-size requires a value');
+          process.exit(1);
+        }
         config.batchSize = Number.parseInt(args[++i], 10);
         break;
       case '--dry-run':
@@ -306,6 +317,12 @@ Options:
     console.error('[migrate] ERROR: --database-url or DATABASE_URL required');
     process.exit(1);
   }
+
+  if (Number.isNaN(config.batchSize) || config.batchSize <= 0) {
+    console.error(`[migrate] ERROR: --batch-size must be a positive integer, got '${config.batchSize}'`);
+    process.exit(1);
+  }
+
   return config;
 }
 
@@ -327,12 +344,21 @@ function convertBoolean(value: unknown): boolean | null {
   return null;
 }
 
-function convertJson(value: unknown): unknown {
+function convertJson(
+  value: unknown,
+  context?: { table: string; column: string; pk: string }
+): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') {
     try {
       return JSON.parse(value);
     } catch {
+      const truncated = String(value).slice(0, 120);
+      console.warn(
+        `[migrate] WARNING: JSON parse failed` +
+          (context ? ` (table=${context.table}, column=${context.column}, pk=${context.pk})` : '') +
+          `: ${truncated}${String(value).length > 120 ? '...' : ''}`
+      );
       return value;
     }
   }
@@ -348,7 +374,10 @@ function getSqliteColumns(sqliteDb: Database, tableName: string): string[] {
   return cols.map((c) => c.name);
 }
 
-async function getPgColumns(pgSql: postgres.Sql, tableName: string): Promise<string[]> {
+async function getPgColumns(
+  pgSql: postgres.TransactionSql | postgres.Sql,
+  tableName: string
+): Promise<string[]> {
   const cols = await pgSql`
     SELECT column_name FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = ${tableName}
@@ -359,7 +388,7 @@ async function getPgColumns(pgSql: postgres.Sql, tableName: string): Promise<str
 
 async function getCommonColumns(
   sqliteDb: Database,
-  pgSql: postgres.Sql,
+  pgSql: postgres.TransactionSql | postgres.Sql,
   tableName: string
 ): Promise<string[]> {
   const sqliteCols = new Set(getSqliteColumns(sqliteDb, tableName));
@@ -417,6 +446,11 @@ function convertRow(
   const converted: Record<string, unknown> = {};
   const deferred: DeferredUpdate[] = [];
 
+  // Build a PK string for logging context
+  const pkString = Array.isArray(tableDef.primaryKey)
+    ? tableDef.primaryKey.map((k) => String(row[k])).join(',')
+    : String(row[tableDef.primaryKey]);
+
   for (const col of columns) {
     let value = row[col];
 
@@ -430,7 +464,7 @@ function convertRow(
 
     // JSON conversion
     if (tableDef.jsonCols.includes(col)) {
-      value = convertJson(value);
+      value = convertJson(value, { table: tableDef.name, column: col, pk: pkString });
     }
 
     // Circular FK: NULL on insert, defer update
@@ -497,6 +531,24 @@ async function applyDeferredUpdates(
         SET ${tx({ [update.column]: update.value })}
         WHERE ${tx(update.primaryKey)} = ${update.pkValues[update.primaryKey]}
       `;
+    } else if (Array.isArray(update.primaryKey)) {
+      // Build compound WHERE clause for composite primary keys
+      const conditions = update.primaryKey.map(
+        (pk) => tx`${tx(pk)} = ${update.pkValues[pk]}`
+      );
+      let where = conditions[0];
+      for (let i = 1; i < conditions.length; i++) {
+        where = tx`${where} AND ${conditions[i]}`;
+      }
+      await tx`
+        UPDATE ${tx(update.table)}
+        SET ${tx({ [update.column]: update.value })}
+        WHERE ${where}
+      `;
+    } else {
+      throw new Error(
+        `Unsupported primaryKey type for table '${update.table}': ${typeof update.primaryKey}`
+      );
     }
   }
 
@@ -525,7 +577,6 @@ async function migrateTable(
     return {
       table: tableDef.name,
       rowCount: 0,
-      deferredCount: 0,
       durationMs: Date.now() - start,
       deferred: [],
     };
@@ -552,7 +603,6 @@ async function migrateTable(
   return {
     table: tableDef.name,
     rowCount: rows.length,
-    deferredCount: allDeferred.length,
     durationMs: Date.now() - start,
     deferred: allDeferred,
   };
@@ -584,7 +634,14 @@ async function main() {
 
   log(config.dryRun ? 'DRY RUN — no data will be committed' : 'Starting migration');
   log(`SQLite: ${config.sqlitePath}`);
-  log(`PostgreSQL: ${config.databaseUrl.replace(/\/\/.*@/, '//***@')}`);
+  try {
+    const safeUrl = new URL(config.databaseUrl);
+    safeUrl.password = '***';
+    safeUrl.username = '***';
+    log(`PostgreSQL: ${safeUrl.toString()}`);
+  } catch {
+    log(`PostgreSQL: [invalid URL]`);
+  }
   log(`Batch size: ${config.batchSize}`);
   log('');
 
@@ -601,7 +658,7 @@ async function main() {
 
     try {
       await pgSql.begin(async (tx) => {
-        // Disable FK trigger checks for the duration of the migration
+        // Disable all user triggers (including FK constraint enforcement) for the migration
         await tx.unsafe('SET session_replication_role = replica');
 
         if (config.clean) {
@@ -616,7 +673,7 @@ async function main() {
           const tableDef = TABLE_DEFS[i];
           const num = String(i + 1).padStart(2, ' ');
 
-          const columns = await getCommonColumns(sqliteDb, pgSql, tableDef.name);
+          const columns = await getCommonColumns(sqliteDb, tx, tableDef.name);
           if (columns.length === 0) {
             log(`${num}/${tableCount}  ${tableDef.name.padEnd(25, '.')} no common columns (skip)`);
             continue;
@@ -630,7 +687,7 @@ async function main() {
             result.rowCount === 0
               ? '0 rows (skip)'
               : `${result.rowCount} rows (${result.durationMs}ms)`;
-          const deferStr = result.deferredCount > 0 ? ` [${result.deferredCount} deferred]` : '';
+          const deferStr = result.deferred.length > 0 ? ` [${result.deferred.length} deferred]` : '';
           log(`${num}/${tableCount}  ${tableDef.name.padEnd(25, '.')} ${rowStr}${deferStr}`);
         }
 
@@ -644,7 +701,7 @@ async function main() {
           }
         }
 
-        // Re-enable FK checks before commit
+        // Re-enable all triggers before transaction commits
         await tx.unsafe('SET session_replication_role = DEFAULT');
 
         if (config.dryRun) {

@@ -1,22 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
 import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import type { ProjectSandboxConfig } from '../../../lib/sandbox/types';
+import type { ProjectConfig } from '../shared/types';
 import { githubInstallations } from './github';
 import { sandboxConfigs } from './sandbox-configs';
 
-export type ProjectConfig = {
-  worktreeRoot: string;
-  initScript?: string;
-  envFile?: string;
-  defaultBranch: string;
-  allowedTools: string[];
-  maxTurns: number;
-  model?: string;
-  systemPrompt?: string;
-  temperature?: number;
-  envVars?: Record<string, string>;
-  sandbox?: ProjectSandboxConfig | null;
-};
+export type { ProjectConfig };
 
 export const projects = pgTable('projects', {
   id: text('id')

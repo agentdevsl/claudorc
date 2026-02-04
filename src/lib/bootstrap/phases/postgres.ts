@@ -14,20 +14,37 @@ export const initializePostgres = async (_ctx: BootstrapContext) => {
     );
   }
 
+  let client: ReturnType<typeof postgres> | null = null;
+
   try {
-    const client = postgres(connectionString);
-    const db = drizzle(client, { schema: pgSchema });
-
-    // Verify connection
-    await client`SELECT 1 as test`;
-
-    // Run migrations
-    await migrate(db, { migrationsFolder: './src/db/migrations-pg' });
-
-    return ok(db);
+    client = postgres(connectionString);
   } catch (error) {
     return err(
-      createError('BOOTSTRAP_PG_INIT_FAILED', 'PostgreSQL initialization failed', 500, {
+      createError('BOOTSTRAP_PG_INIT_FAILED', 'Failed to create PostgreSQL client', 500, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+
+  try {
+    await client`SELECT 1 as test`;
+  } catch (error) {
+    await client.end().catch(() => {});
+    return err(
+      createError('BOOTSTRAP_PG_INIT_FAILED', 'PostgreSQL connection test failed', 500, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+
+  try {
+    const db = drizzle(client, { schema: pgSchema });
+    await migrate(db, { migrationsFolder: './src/db/migrations-pg' });
+    return ok(db);
+  } catch (error) {
+    await client.end().catch(() => {});
+    return err(
+      createError('BOOTSTRAP_PG_INIT_FAILED', 'PostgreSQL migration failed', 500, {
         error: error instanceof Error ? error.message : String(error),
       })
     );

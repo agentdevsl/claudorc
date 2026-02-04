@@ -66,7 +66,7 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
           const rows = await (db as any).execute(sql`SELECT version() as v`);
           const raw = rows?.[0]?.v ?? rows?.rows?.[0]?.v;
           if (typeof raw === 'string') {
-            // Extract "PostgreSQL 18.2" from full version string
+            // Extract "PostgreSQL X.Y" prefix from the full version string
             const match = raw.match(/^PostgreSQL\s+[\d.]+/);
             version = match ? match[0] : raw.split(',')[0];
           }
@@ -77,8 +77,8 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
             version = `SQLite ${raw}`;
           }
         }
-      } catch {
-        // Version query failed — not critical
+      } catch (versionErr) {
+        console.debug('[Health] Version query failed:', versionErr instanceof Error ? versionErr.message : String(versionErr));
       }
 
       checks.database = {

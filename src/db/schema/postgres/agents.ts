@@ -1,15 +1,10 @@
 import { createId } from '@paralleldrive/cuid2';
 import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { AgentStatus, AgentType } from '../shared/enums';
+import type { AgentConfig } from '../shared/types';
 import { projects } from './projects';
 
-export type AgentConfig = {
-  allowedTools: string[];
-  maxTurns: number;
-  model?: string;
-  systemPrompt?: string;
-  temperature?: number;
-};
+export type { AgentConfig };
 
 export const agents = pgTable('agents', {
   id: text('id')

@@ -32,9 +32,13 @@ const isE2EMode = () => {
 };
 
 // Get database mode from environment
-const getDbMode = () => {
+const getDbMode = (): 'sqlite' | 'postgres' => {
   if (typeof process !== 'undefined') {
-    return process.env?.DB_MODE ?? 'sqlite';
+    const mode = process.env?.DB_MODE ?? 'sqlite';
+    if (mode !== 'sqlite' && mode !== 'postgres') {
+      throw new Error(`Invalid DB_MODE="${mode}". Must be "sqlite" or "postgres".`);
+    }
+    return mode;
   }
   return 'sqlite';
 };
@@ -83,14 +87,16 @@ const createSqliteDatabase = (): SQLiteDatabase | null => {
   return sqlite;
 };
 
+let pgClientInstance: ReturnType<typeof postgres> | null = null;
+
 // Create PostgreSQL database connection
 const createPostgresDatabase = () => {
   const connectionString = typeof process !== 'undefined' ? process.env?.DATABASE_URL : undefined;
   if (!connectionString) {
     throw new Error('DATABASE_URL is required when DB_MODE=postgres');
   }
-  const client = postgres(connectionString);
-  return drizzlePg(client, { schema: pgSchema });
+  pgClientInstance = postgres(connectionString);
+  return drizzlePg(pgClientInstance, { schema: pgSchema });
 };
 
 const mode = getDbMode();
@@ -113,5 +119,9 @@ export const createServerDb = (dataDir: string = './data') => {
   return drizzleSqlite(serverSqlite, { schema: sqliteSchema });
 };
 
-// Re-export for compatibility (pglite was the old name)
+// Export the postgres client so consumers can close it
+export const pgClient = pgClientInstance;
+
+// WARNING: Despite the name, this is the SQLite instance, not PostgreSQL.
+// Legacy alias from before real PG support was added.
 export { sqlite as pglite };
