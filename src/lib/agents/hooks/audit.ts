@@ -17,7 +17,7 @@ export function createAuditHook(
 
         try {
           // Dynamic import to avoid circular dependencies
-          const { auditLogs } = await import('../../../db/schema/audit-logs.js');
+          const { auditLogs } = await import('../../../db/schema/index.js');
 
           await db.insert(auditLogs).values({
             agentId,

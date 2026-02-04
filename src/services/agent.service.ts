@@ -11,7 +11,7 @@
  * './agent/index.js' for clearer dependency management.
  */
 
-import type { AgentConfig, NewAgent } from '../db/schema/agents.js';
+import type { AgentConfig, NewAgent } from '../db/schema';
 import type { AgentError } from '../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../lib/errors/concurrency-errors.js';
 import type { ValidationError } from '../lib/errors/validation-errors.js';

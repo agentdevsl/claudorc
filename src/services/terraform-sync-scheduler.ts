@@ -6,7 +6,7 @@
  * checks for registries due for sync and triggers the sync process.
  */
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
-import { terraformRegistries } from '../db/schema/terraform.js';
+import { terraformRegistries } from '../db/schema';
 import type { Database } from '../types/database.js';
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 

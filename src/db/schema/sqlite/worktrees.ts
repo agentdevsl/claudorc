@@ -2,9 +2,9 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { WorktreeStatus } from './enums';
+import type { WorktreeStatus } from '../shared/enums';
 
-export type { WorktreeStatus } from './enums';
+export type { WorktreeStatus } from '../shared/enums';
 
 import { agents } from './agents';
 import { projects } from './projects';

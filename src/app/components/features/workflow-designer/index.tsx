@@ -3,7 +3,7 @@ import { type Edge, type Node, useEdgesState, useNodesState, type Viewport } fro
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 
-import type { Workflow } from '@/db/schema/workflows';
+import type { Workflow } from '@/db/schema';
 import { calculateUniformNodeWidth } from '@/lib/workflow-dsl/layout';
 import type { WorkflowNode } from '@/lib/workflow-dsl/types';
 import { AIGenerateDialog } from './AIGenerateDialog';

@@ -7,10 +7,7 @@
 
 import { createId } from '@paralleldrive/cuid2';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Agent } from '@/db/schema/agents';
-import type { Project } from '@/db/schema/projects';
-import type { Session } from '@/db/schema/sessions';
-import type { Task } from '@/db/schema/tasks';
+import type { Agent, Project, Session, Task } from '@/db/schema';
 import { createRunningAgent, createTestAgent } from '../factories/agent.factory';
 import { createTestProject } from '../factories/project.factory';
 import { createTestSession } from '../factories/session.factory';

@@ -1,0 +1,27 @@
+# Docker Compose for AgentPane PostgreSQL
+#
+# Usage:
+#   docker compose -f docker/docker-compose.postgres.yml up -d
+#   docker compose -f docker/docker-compose.postgres.yml down
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: agentpane-postgres
+    environment:
+      POSTGRES_DB: agentpane
+      POSTGRES_USER: agentpane
+      POSTGRES_PASSWORD: agentpane_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentpane -d agentpane"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:

@@ -1,16 +1,11 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { AgentStatus, AgentType } from './enums';
+import type { AgentStatus, AgentType } from '../shared/enums';
+import type { AgentConfig } from '../shared/types';
 import { projects } from './projects';
 
-export type AgentConfig = {
-  allowedTools: string[];
-  maxTurns: number;
-  model?: string;
-  systemPrompt?: string;
-  temperature?: number;
-};
+export type { AgentConfig };
 
 export const agents = sqliteTable('agents', {
   id: text('id')

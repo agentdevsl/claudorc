@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Project } from '@/db/schema/projects';
+import type { Project } from '@/db/schema';
 import { DEFAULT_PROJECT_CONFIG } from '@/lib/config/types';
 
 // Hoisted mocks for file deletion tests

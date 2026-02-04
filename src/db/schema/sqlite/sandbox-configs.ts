@@ -1,9 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-
-export const SANDBOX_TYPES = ['docker', 'devcontainer', 'kubernetes'] as const;
-export type SandboxType = (typeof SANDBOX_TYPES)[number];
+import { SANDBOX_TYPES } from '../shared/enums';
 
 export const sandboxConfigs = sqliteTable('sandbox_configs', {
   id: text('id')

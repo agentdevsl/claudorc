@@ -844,7 +844,7 @@ describe('SessionService', () => {
     it('filters sessions by date range', async () => {
       const project = await createTestProject();
       const db = getTestDb();
-      const { sessions } = await import('../../src/db/schema/sessions');
+      const { sessions } = await import('../../src/db/schema');
       const { eq } = await import('drizzle-orm');
 
       // Create sessions with specific dates

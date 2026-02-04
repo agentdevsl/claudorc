@@ -10,7 +10,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { settings } from '../../db/schema/settings.js';
+import { settings } from '../../db/schema';
 import type { EventEmittingSandboxProvider } from '../../lib/sandbox/index.js';
 import { SANDBOX_DEFAULTS } from '../../lib/sandbox/types.js';
 import type { Database } from '../../types/database.js';

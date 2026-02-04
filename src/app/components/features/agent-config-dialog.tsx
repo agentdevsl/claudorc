@@ -12,7 +12,7 @@ import {
 } from '@/app/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Textarea } from '@/app/components/ui/textarea';
-import type { Agent, AgentConfig } from '@/db/schema/agents';
+import type { Agent, AgentConfig } from '@/db/schema';
 
 interface AgentConfigDialogProps {
   agent: Agent;

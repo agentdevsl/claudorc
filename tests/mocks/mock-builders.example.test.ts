@@ -6,8 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Project } from '../../src/db/schema/projects.js';
-import type { Task } from '../../src/db/schema/tasks.js';
+import type { Project, Task } from '../../src/db/schema';
 import type { Database } from '../../src/types/database.js';
 import { createMockDatabase, createTableQuery, type MockDatabase } from './mock-builders.js';
 

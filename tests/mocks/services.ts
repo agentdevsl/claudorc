@@ -1,9 +1,13 @@
 import { createId } from '@paralleldrive/cuid2';
 import { vi } from 'vitest';
-import type { Agent } from '../../src/db/schema/agents';
-import type { Project, ProjectConfig } from '../../src/db/schema/projects';
-import type { Task, TaskColumn } from '../../src/db/schema/tasks';
-import type { Worktree } from '../../src/db/schema/worktrees';
+import type {
+  Agent,
+  Project,
+  ProjectConfig,
+  Task,
+  TaskColumn,
+  Worktree,
+} from '../../src/db/schema';
 import { ok } from '../../src/lib/utils/result';
 
 // Mock Project Service

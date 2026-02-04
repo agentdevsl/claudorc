@@ -15,7 +15,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { ArrowsDownUp, CheckSquare, Trash } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 import { useContainerAgentStatuses } from '@/app/hooks/use-container-agent-statuses';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import { COLUMNS } from './kanban-board/constants';
 import { useBoardState } from './kanban-board/use-board-state';

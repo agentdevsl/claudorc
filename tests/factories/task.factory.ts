@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { NewTask, Task, TaskColumn } from '../../src/db/schema/tasks';
-import { tasks } from '../../src/db/schema/tasks';
+import type { NewTask, Task, TaskColumn } from '../../src/db/schema';
+import { tasks } from '../../src/db/schema';
 import type { DiffSummary } from '../../src/lib/types/diff';
 import { getTestDb } from '../helpers/database';
 

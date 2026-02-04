@@ -1,7 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { CliSessionStatus } from '../../services/cli-monitor/types.js';
+import type { CliSessionStatus } from '../../../services/cli-monitor/types.js';
 
 export const cliSessions = sqliteTable(
   'cli_sessions',

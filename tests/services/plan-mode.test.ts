@@ -1,8 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlanSession as DbPlanSession } from '../../src/db/schema/plan-sessions';
-import type { Project } from '../../src/db/schema/projects';
-import type { Task } from '../../src/db/schema/tasks';
+import type { PlanSession as DbPlanSession, Project, Task } from '../../src/db/schema';
 import { PlanModeErrors } from '../../src/lib/errors/plan-mode-errors';
 import type { GitHubIssueCreator, GitHubIssueResult } from '../../src/lib/github/issue-creator';
 import type {

@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { desc, eq } from 'drizzle-orm';
-import { sessionEvents } from '../db/schema/session-events.js';
+import { sessionEvents } from '../db/schema';
 import type { AgentFileChangedData } from '../types/agent-events.js';
 import type { Database } from '../types/database.js';
 import type { SessionEvent, SessionEventType } from './session.service.js';

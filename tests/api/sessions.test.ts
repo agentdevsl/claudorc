@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Session } from '../../src/db/schema/sessions.js';
+import type { Session } from '../../src/db/schema';
 import { ProjectErrors } from '../../src/lib/errors/project-errors.js';
 import { SessionErrors } from '../../src/lib/errors/session-errors.js';
 import { err, ok } from '../../src/lib/utils/result.js';

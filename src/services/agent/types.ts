@@ -1,7 +1,4 @@
-import type { Agent, AgentConfig, NewAgent } from '../../db/schema/agents.js';
-import type { Session } from '../../db/schema/sessions.js';
-import type { Task } from '../../db/schema/tasks.js';
-import type { Worktree } from '../../db/schema/worktrees.js';
+import type { Agent, AgentConfig, NewAgent, Session, Task, Worktree } from '../../db/schema';
 import type { AgentError } from '../../lib/errors/agent-errors.js';
 import type { ConcurrencyError } from '../../lib/errors/concurrency-errors.js';
 import type { ValidationError } from '../../lib/errors/validation-errors.js';

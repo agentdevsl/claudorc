@@ -5,11 +5,17 @@
  * Task move → Agent start → Plan → Approve → Execute → Complete
  */
 import { createId } from '@paralleldrive/cuid2';
-import type { Agent, AgentConfig } from '../../src/db/schema/agents';
-import type { Project, ProjectConfig } from '../../src/db/schema/projects';
-import type { Session } from '../../src/db/schema/sessions';
-import type { Task, TaskColumn } from '../../src/db/schema/tasks';
-import type { Worktree, WorktreeStatus } from '../../src/db/schema/worktrees';
+import type {
+  Agent,
+  AgentConfig,
+  Project,
+  ProjectConfig,
+  Session,
+  Task,
+  TaskColumn,
+  Worktree,
+  WorktreeStatus,
+} from '../../src/db/schema';
 import type {
   AgentPhase,
   PlanData,

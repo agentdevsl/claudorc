@@ -10,7 +10,7 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import type { TerraformOutput, TerraformVariable } from '@/db/schema/terraform';
+import type { TerraformOutput, TerraformVariable } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 import { PROVIDER_COLORS, type TerraformModuleView } from '@/lib/terraform/types';
 

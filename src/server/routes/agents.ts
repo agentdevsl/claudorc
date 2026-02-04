@@ -3,8 +3,8 @@
  */
 
 import { Hono } from 'hono';
-import type { AgentConfig } from '../../db/schema/agents.js';
-import { AGENT_TYPES, type AgentType } from '../../db/schema/enums.js';
+import type { AgentConfig } from '../../db/schema';
+import { AGENT_TYPES, type AgentType } from '../../db/schema';
 import type { AgentService } from '../../services/agent.service.js';
 import { isValidId, json } from '../shared.js';
 

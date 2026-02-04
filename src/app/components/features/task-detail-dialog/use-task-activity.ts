@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 import { type SessionCallbacks, type Subscription, subscribeToSession } from '@/lib/streams/client';
 import type { ActivityEntry } from './index';

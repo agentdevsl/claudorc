@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { NewProject, Project, ProjectConfig } from '../../src/db/schema/projects';
-import { projects } from '../../src/db/schema/projects';
+import type { NewProject, Project, ProjectConfig } from '../../src/db/schema';
+import { projects } from '../../src/db/schema';
 import { getTestDb } from '../helpers/database';
 
 export type ProjectFactoryOptions = Partial<NewProject> & {

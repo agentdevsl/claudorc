@@ -5,7 +5,7 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorkflowDesigner } from '@/app/components/features/workflow-designer';
 import { Button } from '@/app/components/ui/button';
-import type { Workflow } from '@/db/schema/workflows';
+import type { Workflow } from '@/db/schema';
 
 export const Route = createFileRoute('/catalog/$workflowId')({
   component: WorkflowDetailPage,

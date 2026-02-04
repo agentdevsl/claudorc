@@ -6,7 +6,7 @@
  * due for sync and triggers the sync process.
  */
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
-import { templates } from '../db/schema/templates.js';
+import { templates } from '../db/schema';
 import type { Database } from '../types/database.js';
 import type { TemplateService } from './template.service.js';
 

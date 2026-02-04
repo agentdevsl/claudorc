@@ -286,7 +286,7 @@ describe('SandboxService', () => {
 
       // Insert sandbox record
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
       await db.insert(sandboxInstances).values({
         id: 'existing-sandbox',
         projectId: project.id,
@@ -346,7 +346,7 @@ describe('SandboxService', () => {
       const mockSandbox = createMockSandbox({ id: 'sandbox-to-stop' });
 
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
       await db.insert(sandboxInstances).values({
         id: 'sandbox-to-stop',
         projectId: project.id,
@@ -393,7 +393,7 @@ describe('SandboxService', () => {
       });
 
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
       await db.insert(sandboxInstances).values({
         id: 'sandbox-fail-stop',
         projectId: project.id,
@@ -598,7 +598,7 @@ describe('SandboxService', () => {
       };
 
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
       await db.insert(sandboxInstances).values({
         id: 'sandbox-123',
         projectId: project.id,
@@ -663,7 +663,7 @@ describe('SandboxService', () => {
       const mockSandbox = createMockSandbox({ id: 'idle-sandbox' });
 
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
 
       // Insert a sandbox that's been idle for more than its timeout
       const idleTime = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
@@ -702,7 +702,7 @@ describe('SandboxService', () => {
       const project = await createTestProject();
 
       const db = getTestDb();
-      const { sandboxInstances } = await import('../../src/db/schema/sandboxes');
+      const { sandboxInstances } = await import('../../src/db/schema');
 
       // Insert a sandbox that was active recently
       await db.insert(sandboxInstances).values({

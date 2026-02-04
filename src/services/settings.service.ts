@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
-import type { Setting } from '../db/schema/settings.js';
-import { settings } from '../db/schema/settings.js';
+import type { Setting } from '../db/schema';
+import { settings } from '../db/schema';
 import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { AppError } from '../lib/errors/base.js';
 import { createError } from '../lib/errors/base.js';

@@ -1,4 +1,4 @@
-import type { TaskColumn } from '../db/schema/tasks.js';
+import type { TaskColumn } from '../db/schema';
 
 // All columns that tasks can transition to
 const ALL_COLUMNS: TaskColumn[] = [

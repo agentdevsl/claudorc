@@ -1,7 +1,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tasks } from '../../src/db/schema/tasks';
+import { tasks } from '../../src/db/schema';
 import type { DurableStreamsService } from '../../src/services/durable-streams.service';
 import type { SessionService } from '../../src/services/session.service';
 import {

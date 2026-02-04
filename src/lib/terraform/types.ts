@@ -1,4 +1,4 @@
-import type { TerraformOutput, TerraformVariable } from '../../db/schema/terraform.js';
+import type { TerraformOutput, TerraformVariable } from '../../db/schema';
 
 /** Provider color classes shared across UI components */
 export const PROVIDER_COLORS: Record<string, string> = {

@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { Button } from '@/app/components/ui/button';
-import type { Workflow } from '@/db/schema/workflows';
+import type { Workflow } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 
 // =============================================================================

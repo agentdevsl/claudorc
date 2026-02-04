@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Agent } from '../../src/db/schema/agents.js';
+import type { Agent } from '../../src/db/schema';
 import { AgentErrors } from '../../src/lib/errors/agent-errors.js';
 import { err, ok } from '../../src/lib/utils/result.js';
 import { createAgentsRoutes } from '../../src/server/routes/agents.js';

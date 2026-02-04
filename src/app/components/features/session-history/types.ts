@@ -1,4 +1,4 @@
-import type { SessionStatus } from '@/db/schema/enums';
+import type { SessionStatus } from '@/db/schema';
 import type { SessionEvent, SessionEventType } from '@/services/session.service';
 
 // ===== Tool Call Types =====

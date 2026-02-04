@@ -1,13 +1,12 @@
 import { createId } from '@paralleldrive/cuid2';
-import { sql } from 'drizzle-orm';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import type { ToolStatus } from '../shared/enums';
 import { agentRuns } from './agent-runs';
 import { agents } from './agents';
-import type { ToolStatus } from './enums';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-export const auditLogs = sqliteTable('audit_logs', {
+export const auditLogs = pgTable('audit_logs', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -17,12 +16,12 @@ export const auditLogs = sqliteTable('audit_logs', {
   projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   tool: text('tool').notNull(),
   status: text('status').$type<ToolStatus>().notNull(),
-  input: text('input', { mode: 'json' }),
-  output: text('output', { mode: 'json' }),
+  input: jsonb('input'),
+  output: jsonb('output'),
   errorMessage: text('error_message'),
   durationMs: integer('duration_ms'),
   turnNumber: integer('turn_number'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
 });
 
 export type AuditLog = typeof auditLogs.$inferSelect;

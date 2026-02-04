@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { NewWorktree, Worktree, WorktreeStatus } from '../../src/db/schema/worktrees';
-import { worktrees } from '../../src/db/schema/worktrees';
+import type { NewWorktree, Worktree, WorktreeStatus } from '../../src/db/schema';
+import { worktrees } from '../../src/db/schema';
 import { getTestDb } from '../helpers/database';
 
 export type WorktreeFactoryOptions = Partial<Omit<NewWorktree, 'projectId'>> & {

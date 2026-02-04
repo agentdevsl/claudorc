@@ -11,7 +11,7 @@ import {
 } from '@/app/components/ui/select';
 import { Skeleton } from '@/app/components/ui/skeleton';
 import { TextInput } from '@/app/components/ui/text-input';
-import type { Workflow, WorkflowStatus } from '@/db/schema/workflows';
+import type { Workflow, WorkflowStatus } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import { EmptyState } from '../empty-state';
 import { WorkflowCard } from './WorkflowCard';

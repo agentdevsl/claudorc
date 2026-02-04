@@ -1,5 +1,5 @@
 import { Code, Folder, Lightning, Robot, Spinner, Terminal } from '@phosphor-icons/react';
-import type { Template } from '@/db/schema/templates';
+import type { Template } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 
 interface TemplatePickerProps {

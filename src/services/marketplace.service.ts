@@ -1,7 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { githubInstallations, githubTokens } from '../db/schema/github.js';
-import type { CachedPlugin, Marketplace, NewMarketplace } from '../db/schema/marketplaces.js';
-import { marketplaces } from '../db/schema/marketplaces.js';
+import type { CachedPlugin, Marketplace, NewMarketplace } from '../db/schema';
+import { githubInstallations, githubTokens, marketplaces } from '../db/schema';
 import type { MarketplaceError } from '../lib/errors/marketplace-errors.js';
 import { MarketplaceErrors } from '../lib/errors/marketplace-errors.js';
 import {

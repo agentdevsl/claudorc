@@ -1,6 +1,6 @@
 import { Brain, ChatText, Check, Clock, File, Play, Terminal, X } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import type { ActivityEntry } from './index';
 import { useTaskActivity } from './use-task-activity';

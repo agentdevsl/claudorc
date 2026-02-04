@@ -13,7 +13,7 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import {
   formatTaskId,

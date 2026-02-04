@@ -1,5 +1,5 @@
 import { Octokit } from 'octokit';
-import { githubTokens } from '../db/schema/github.js';
+import { githubTokens } from '../db/schema';
 import {
   decryptToken,
   encryptToken,

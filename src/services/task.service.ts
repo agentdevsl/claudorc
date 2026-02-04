@@ -1,10 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
-import { projects } from '../db/schema/projects.js';
-import { sessions } from '../db/schema/sessions.js';
-import { settings } from '../db/schema/settings.js';
-import type { Task, TaskColumn } from '../db/schema/tasks.js';
-import { tasks } from '../db/schema/tasks.js';
+import type { Task, TaskColumn } from '../db/schema';
+import { projects, sessions, settings, tasks } from '../db/schema';
 import { getFullModelId } from '../lib/constants/models.js';
 import { ProjectErrors } from '../lib/errors/project-errors.js';
 import type { TaskError } from '../lib/errors/task-errors.js';
@@ -80,7 +77,7 @@ export interface ContainerAgentTrigger {
   stopAgent: (taskId: string) => Promise<Result<void, unknown>>;
   isAgentRunning: (taskId: string) => boolean;
   approvePlan: (taskId: string) => Promise<Result<void, unknown>>;
-  rejectPlan: (taskId: string, reason?: string) => Result<void, unknown>;
+  rejectPlan: (taskId: string, reason?: string) => Promise<Result<void, unknown>>;
 }
 
 export class TaskService {
@@ -172,7 +169,7 @@ export class TaskService {
   /**
    * Reject a pending plan for a task and move it back to backlog.
    */
-  rejectPlan(taskId: string, reason?: string): Result<void, TaskError> {
+  async rejectPlan(taskId: string, reason?: string): Promise<Result<void, TaskError>> {
     if (!this.containerAgentService) {
       return err({
         code: 'CONTAINER_AGENT_SERVICE_UNAVAILABLE',
@@ -181,7 +178,7 @@ export class TaskService {
       });
     }
 
-    const result = this.containerAgentService.rejectPlan(taskId, reason);
+    const result = await this.containerAgentService.rejectPlan(taskId, reason);
     if (!result.ok) {
       // Propagate the actual error — distinguish PLAN_NOT_FOUND from PLAN_REJECTION_FAILED
       const errorObj = result.error as

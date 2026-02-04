@@ -31,6 +31,13 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "db:generate:pg": "drizzle-kit generate --config=drizzle.config.pg.ts",
+    "db:migrate:pg": "drizzle-kit migrate --config=drizzle.config.pg.ts",
+    "db:push:pg": "drizzle-kit push --config=drizzle.config.pg.ts",
+    "db:studio:pg": "drizzle-kit studio --config=drizzle.config.pg.ts",
+    "db:migrate:sqlite-to-pg": "bun scripts/migrate-sqlite-to-pg.ts",
+    "docker:pg": "docker compose -f docker/docker-compose.postgres.yml up -d",
+    "docker:pg:down": "docker compose -f docker/docker-compose.postgres.yml down",
     "prepare": "echo 'Run: pre-commit install --hook-type pre-commit --hook-type pre-push'"
   },
   "devDependencies": {
@@ -99,6 +106,7 @@
     "elkjs": "^0.11.0",
     "hono": "^4.11.5",
     "octokit": "^5.0.5",
+    "postgres": "^3.4.8",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

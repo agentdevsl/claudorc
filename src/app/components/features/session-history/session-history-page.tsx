@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import { SESSION_STATUS } from '@/db/schema/enums';
+import { SESSION_STATUS } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 import { SessionDetailView } from './components/session-detail-view';
 import { SessionTimeline } from './components/session-timeline';

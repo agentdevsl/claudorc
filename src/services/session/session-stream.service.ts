@@ -15,10 +15,8 @@
 
 import { createId } from '@paralleldrive/cuid2';
 import { desc, eq } from 'drizzle-orm';
-import { sessionEvents } from '../../db/schema/session-events.js';
-import type { NewSessionSummary, SessionSummary } from '../../db/schema/session-summaries.js';
-import { sessionSummaries } from '../../db/schema/session-summaries.js';
-import { sessions } from '../../db/schema/sessions.js';
+import type { NewSessionSummary, SessionSummary } from '../../db/schema';
+import { sessionEvents, sessionSummaries, sessions } from '../../db/schema';
 import type { SessionError } from '../../lib/errors/session-errors.js';
 import { SessionErrors } from '../../lib/errors/session-errors.js';
 import type { Result } from '../../lib/utils/result.js';

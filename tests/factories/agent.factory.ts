@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { Agent, AgentConfig, NewAgent } from '../../src/db/schema/agents';
-import { agents } from '../../src/db/schema/agents';
+import type { Agent, AgentConfig, NewAgent } from '../../src/db/schema';
+import { agents } from '../../src/db/schema';
 import { getTestDb } from '../helpers/database';
 
 type AgentStatus = 'idle' | 'starting' | 'running' | 'paused' | 'error' | 'completed';

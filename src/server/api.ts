@@ -58,10 +58,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
-import { agents } from '../db/schema/agents.js';
-import * as schema from '../db/schema/index.js';
-import { settings } from '../db/schema/settings.js';
-import { tasks } from '../db/schema/tasks.js';
+import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
+import { migrate as migratePg } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
+import * as pgSchema from '../db/schema/postgres/index.js';
+import * as sqliteSchema from '../db/schema/sqlite/index.js';
 import {
   CLI_SESSIONS_MIGRATION_SQL,
   CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL,
@@ -113,93 +114,132 @@ declare const Bun: {
   }) => void;
 };
 
-// Initialize SQLite database using Bun's native SQLite
-const DB_PATH = process.env.DB_PATH ?? './data/agentpane.db';
-const sqlite = new BunSQLite(DB_PATH);
+// Database initialization — supports SQLite (default) and PostgreSQL modes
+const DB_MODE = process.env.DB_MODE ?? 'sqlite';
+log.info(`Database mode: ${DB_MODE}`);
 
-// Enable WAL mode for better concurrent read performance and crash recovery
-sqlite.exec('PRAGMA journal_mode=WAL');
-sqlite.exec('PRAGMA busy_timeout=5000');
-sqlite.exec('PRAGMA foreign_keys=ON');
-log.info('SQLite WAL mode enabled', { data: { dbPath: DB_PATH } });
+// Select the correct schema tables based on DB_MODE
+const schema = DB_MODE === 'postgres' ? pgSchema : sqliteSchema;
+const schemaTables = {
+  agents: schema.agents,
+  tasks: schema.tasks,
+  settings: schema.settings,
+  worktrees: schema.worktrees,
+  sessions: schema.sessions,
+};
 
-// Run migrations to ensure schema is up to date
-sqlite.exec(MIGRATION_SQL);
-log.info('Schema migrations applied');
-
-// Run sandbox migration (may fail if column already exists)
-try {
-  sqlite.exec(SANDBOX_MIGRATION_SQL);
-  log.info('[API Server] Sandbox migration applied');
-} catch (error) {
-  // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
-  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-    console.warn(
-      '[API Server] Sandbox migration error (unexpected):',
-      error instanceof Error ? error.message : String(error)
-    );
-  }
-  // Silently ignore duplicate column errors (expected when migration already applied)
+/** Return the number of rows affected by an update/delete, handling both SQLite and PG results */
+function getChangedCount(result: unknown): number {
+  if (Array.isArray(result)) return result.length;
+  return (result as { changes?: number })?.changes ?? 0;
 }
 
-// Run template sync interval migration (may fail if columns already exist)
-try {
-  sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
-  log.info('[API Server] Template sync interval migration applied');
-} catch (error) {
-  // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
-  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-    console.warn(
-      '[API Server] Template sync interval migration error (unexpected):',
-      error instanceof Error ? error.message : String(error)
-    );
+let db: Database;
+let sqlite: InstanceType<typeof BunSQLite> | null = null;
+let pgClient: ReturnType<typeof postgres> | null = null;
+
+if (DB_MODE === 'postgres') {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    log.error('DATABASE_URL is required when DB_MODE=postgres');
+    process.exit(1);
   }
-  // Silently ignore duplicate column errors (expected when migration already applied)
-}
+  pgClient = postgres(connectionString);
+  db = drizzlePg(pgClient, { schema: pgSchema }) as unknown as Database;
 
-// Apply performance indexes (idempotent — uses IF NOT EXISTS)
-sqlite.exec(PERFORMANCE_INDEXES_MIGRATION_SQL);
-log.info('Performance indexes applied');
+  // Run Drizzle Kit migrations (reuse the existing drizzle instance)
+  await migratePg(db as ReturnType<typeof drizzlePg>, {
+    migrationsFolder: './src/db/migrations-pg',
+  });
+  log.info('PostgreSQL migrations applied');
+} else {
+  // Existing SQLite initialization (unchanged)
+  const DB_PATH = process.env.DB_PATH ?? './data/agentpane.db';
+  sqlite = new BunSQLite(DB_PATH);
 
-// Apply CLI sessions migration (idempotent — uses IF NOT EXISTS)
-sqlite.exec(CLI_SESSIONS_MIGRATION_SQL);
-log.info('CLI sessions migration applied');
+  // Enable WAL mode for better concurrent read performance and crash recovery
+  sqlite.exec('PRAGMA journal_mode=WAL');
+  sqlite.exec('PRAGMA busy_timeout=5000');
+  sqlite.exec('PRAGMA foreign_keys=ON');
+  log.info('SQLite WAL mode enabled', { data: { dbPath: DB_PATH } });
 
-// Add performance_metrics column to cli_sessions (may fail if column already exists)
-try {
-  sqlite.exec(CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL);
-  log.info('CLI sessions performance_metrics migration applied');
-} catch (error) {
-  if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-    console.warn(
-      '[API Server] CLI sessions performance_metrics migration error (unexpected):',
-      error instanceof Error ? error.message : String(error)
-    );
+  // Run migrations to ensure schema is up to date
+  sqlite.exec(MIGRATION_SQL);
+  log.info('Schema migrations applied');
+
+  // Run sandbox migration (may fail if column already exists)
+  try {
+    sqlite.exec(SANDBOX_MIGRATION_SQL);
+    log.info('[API Server] Sandbox migration applied');
+  } catch (error) {
+    // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
+    if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+      console.warn(
+        '[API Server] Sandbox migration error (unexpected):',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+    // Silently ignore duplicate column errors (expected when migration already applied)
   }
+
+  // Run template sync interval migration (may fail if columns already exist)
+  try {
+    sqlite.exec(TEMPLATE_SYNC_INTERVAL_MIGRATION_SQL);
+    log.info('[API Server] Template sync interval migration applied');
+  } catch (error) {
+    // Only warn for unexpected errors - duplicate column errors are expected on subsequent runs
+    if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+      console.warn(
+        '[API Server] Template sync interval migration error (unexpected):',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+    // Silently ignore duplicate column errors (expected when migration already applied)
+  }
+
+  // Apply performance indexes (idempotent — uses IF NOT EXISTS)
+  sqlite.exec(PERFORMANCE_INDEXES_MIGRATION_SQL);
+  log.info('Performance indexes applied');
+
+  // Apply CLI sessions migration (idempotent — uses IF NOT EXISTS)
+  sqlite.exec(CLI_SESSIONS_MIGRATION_SQL);
+  log.info('CLI sessions migration applied');
+
+  // Add performance_metrics column to cli_sessions (may fail if column already exists)
+  try {
+    sqlite.exec(CLI_SESSIONS_PERF_METRICS_MIGRATION_SQL);
+    log.info('CLI sessions performance_metrics migration applied');
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+      console.warn(
+        '[API Server] CLI sessions performance_metrics migration error (unexpected):',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  // Apply Terraform tables migration (idempotent — uses IF NOT EXISTS)
+  sqlite.exec(TERRAFORM_MIGRATION_SQL);
+  log.info('Terraform migration applied');
+
+  db = drizzle(sqlite, { schema: sqliteSchema }) as unknown as Database;
 }
-
-// Apply Terraform tables migration (idempotent — uses IF NOT EXISTS)
-sqlite.exec(TERRAFORM_MIGRATION_SQL);
-log.info('Terraform migration applied');
-
-const db = drizzle(sqlite, { schema }) as unknown as Database;
 
 // Reset stale agent statuses from previous server runs
 // Agents stuck in active states ('starting', 'planning', 'running') cannot be
 // legitimately running after a server restart — reset them to 'idle'.
 try {
   const staleStatuses = ['starting', 'planning', 'running'] as const;
-  const result = db
-    .update(agents)
+  const result = await db
+    .update(schemaTables.agents)
     .set({
       status: 'idle',
       currentTaskId: null,
       currentSessionId: null,
       updatedAt: new Date().toISOString(),
     })
-    .where(inArray(agents.status, [...staleStatuses]))
-    .run();
-  const changes = (result as { changes?: number }).changes ?? 0;
+    .where(inArray(schemaTables.agents.status, [...staleStatuses]));
+  const changes = getChangedCount(result);
   if (changes > 0) {
     console.log(`[API Server] Reset ${changes} stale agent(s) to idle`);
   }
@@ -215,8 +255,8 @@ try {
 // after a restart — move them back to 'backlog' and clear stale references.
 // Uses direct DB update (not taskService.moveColumn) to avoid triggering agent auto-start.
 try {
-  const result = db
-    .update(tasks)
+  const result = await db
+    .update(schemaTables.tasks)
     .set({
       column: 'backlog',
       agentId: null,
@@ -224,9 +264,10 @@ try {
       lastAgentStatus: null,
       updatedAt: new Date().toISOString(),
     })
-    .where(and(eq(tasks.column, 'in_progress'), isNotNull(tasks.agentId)))
-    .run();
-  const changes = (result as { changes?: number }).changes ?? 0;
+    .where(
+      and(eq(schemaTables.tasks.column, 'in_progress'), isNotNull(schemaTables.tasks.agentId))
+    );
+  const changes = getChangedCount(result);
   if (changes > 0) {
     console.log(`[API Server] Recovered ${changes} orphaned task(s) back to backlog`);
   }
@@ -240,11 +281,13 @@ try {
 // Clean up orphaned worktrees from tasks where agents are no longer running (Gap 2)
 // After a server crash, tasks may still reference worktrees that should be cleaned up.
 try {
-  const orphanedTasks = db
-    .select({ id: tasks.id, worktreeId: tasks.worktreeId })
-    .from(tasks)
-    .where(isNotNull(tasks.worktreeId))
-    .all() as Array<{ id: string; worktreeId: string | null }>;
+  const orphanedTasks = (await db
+    .select({ id: schemaTables.tasks.id, worktreeId: schemaTables.tasks.worktreeId })
+    .from(schemaTables.tasks)
+    .where(isNotNull(schemaTables.tasks.worktreeId))) as Array<{
+    id: string;
+    worktreeId: string | null;
+  }>;
 
   // Filter to tasks whose agent is not actively running (after restart, none are)
   const tasksToClean = orphanedTasks.filter(
@@ -255,14 +298,14 @@ try {
     console.log(`[API Server] Found ${tasksToClean.length} task(s) with orphaned worktrees`);
     for (const t of tasksToClean) {
       try {
-        db.update(tasks)
+        await db
+          .update(schemaTables.tasks)
           .set({
             worktreeId: null,
             branch: null,
             updatedAt: new Date().toISOString(),
           })
-          .where(eq(tasks.id, t.id))
-          .run();
+          .where(eq(schemaTables.tasks.id, t.id));
       } catch (cleanErr) {
         console.error(
           `[API Server] Failed to clear worktree refs for task ${t.id}:`,
@@ -530,7 +573,7 @@ if (dockerProvider) {
 
       try {
         const globalDefaults = await db.query.settings.findFirst({
-          where: eq(settings.key, 'sandbox.defaults'),
+          where: eq(schemaTables.settings.key, 'sandbox.defaults'),
         });
         if (globalDefaults?.value) {
           defaults = JSON.parse(globalDefaults.value) as SandboxDefaults;
@@ -670,7 +713,7 @@ log.info('[API Server] Terraform sync scheduler started');
 // Graceful shutdown: stop accepting requests, clean up services, close DB
 let isShuttingDown = false;
 
-function shutdownServer(signal: string) {
+async function shutdownServer(signal: string) {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
@@ -704,11 +747,20 @@ function shutdownServer(signal: string) {
   cliMonitorService.destroy();
 
   // Close database
-  try {
-    sqlite.close();
-    log.info('[API Server] Database closed');
-  } catch (dbErr) {
-    log.warn('[API Server] Failed to close database', { error: dbErr });
+  if (pgClient) {
+    try {
+      await pgClient.end();
+      log.info('[API Server] Database closed');
+    } catch (dbErr) {
+      log.warn('[API Server] Failed to close database', { error: dbErr });
+    }
+  } else if (sqlite) {
+    try {
+      sqlite.close();
+      log.info('[API Server] Database closed');
+    } catch (dbErr) {
+      log.warn('[API Server] Failed to close database', { error: dbErr });
+    }
   }
 
   log.info('[API Server] Shutdown complete');

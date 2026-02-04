@@ -1,22 +1,11 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import type { SandboxStatus, VolumeMountRecord } from '../shared/types';
 import { projects } from './projects';
 import { tasks } from './tasks';
 
-/**
- * Sandbox status enum
- */
-export type SandboxStatus = 'stopped' | 'creating' | 'running' | 'idle' | 'stopping' | 'error';
-
-/**
- * Volume mount stored in JSON
- */
-export interface VolumeMountRecord {
-  hostPath: string;
-  containerPath: string;
-  readonly?: boolean;
-}
+export type { SandboxStatus, VolumeMountRecord };
 
 /**
  * Sandbox instances table

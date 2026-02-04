@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Session } from '../../src/db/schema/sessions.js';
+import type { Session } from '../../src/db/schema';
 import { SessionErrors } from '../../src/lib/errors/session-errors.js';
 import { err, ok } from '../../src/lib/utils/result.js';
 import { createSessionsRoutes } from '../../src/server/routes/sessions.js';

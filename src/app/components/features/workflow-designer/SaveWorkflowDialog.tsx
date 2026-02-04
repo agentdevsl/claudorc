@@ -18,7 +18,7 @@ import {
 } from '@/app/components/ui/select';
 import { TextInput } from '@/app/components/ui/text-input';
 import { Textarea } from '@/app/components/ui/textarea';
-import type { Workflow, WorkflowStatus } from '@/db/schema/workflows';
+import type { Workflow, WorkflowStatus } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 
 export interface SaveWorkflowDialogProps {

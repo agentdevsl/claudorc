@@ -701,7 +701,13 @@ export const apiClient = {
         timestamp: string;
         uptime: number;
         checks: {
-          database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+          database: {
+            status: 'ok' | 'error';
+            latencyMs?: number;
+            mode?: string;
+            version?: string;
+            error?: string;
+          };
           github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
         };
         responseTimeMs: number;

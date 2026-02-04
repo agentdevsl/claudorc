@@ -4,7 +4,7 @@
 
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { projects } from '../../db/schema/projects.js';
+import { projects } from '../../db/schema';
 import type { CommandRunner } from '../../services/worktree.service.js';
 import type { Database } from '../../types/database.js';
 import { isValidBranchName, isValidId, json } from '../shared.js';

@@ -8,8 +8,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { agents } from '../../src/db/schema/agents';
-import { tasks } from '../../src/db/schema/tasks';
+import { agents, tasks } from '../../src/db/schema';
 import { ContainerAgentService } from '../../src/services/container-agent.service';
 import type { DurableStreamsService } from '../../src/services/durable-streams.service';
 import { createTestProject } from '../factories/project.factory';

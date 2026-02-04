@@ -16,10 +16,8 @@ const pathUtils = {
 };
 
 import { and, desc, eq } from 'drizzle-orm';
-import { agents } from '../db/schema/agents.js';
-import type { Project, ProjectConfig } from '../db/schema/projects.js';
-import { projects } from '../db/schema/projects.js';
-import { tasks } from '../db/schema/tasks.js';
+import type { Project, ProjectConfig } from '../db/schema';
+import { agents, projects, tasks } from '../db/schema';
 import { projectConfigSchema } from '../lib/config/schemas.js';
 import { DEFAULT_PROJECT_CONFIG } from '../lib/config/types.js';
 import { containsSecrets } from '../lib/config/validate-secrets.js';
@@ -349,7 +347,7 @@ export class ProjectService {
 
     try {
       // Get installation-scoped Octokit client
-      const { githubInstallations } = await import('../db/schema/github.js');
+      const { githubInstallations } = await import('../db/schema/index.js');
       const installation = await this.db.query.githubInstallations.findFirst({
         where: eq(githubInstallations.id, project.githubInstallationId),
       });

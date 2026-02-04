@@ -1,7 +1,7 @@
 import { ArrowSquareOut, Copy, Folder, GitBranch } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { Button } from '@/app/components/ui/button';
-import type { Worktree, WorktreeStatus } from '@/db/schema/worktrees';
+import type { Worktree, WorktreeStatus } from '@/db/schema';
 
 const statusBadgeVariants = cva(
   'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',

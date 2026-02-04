@@ -9,7 +9,7 @@ import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TemplateCard } from '@/app/components/features/template-card';
 import { Button } from '@/app/components/ui/button';
-import type { Template } from '@/db/schema/templates';
+import type { Template } from '@/db/schema';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { GitHubOrg, GitHubRepo } from '@/services/github-token.service';
 

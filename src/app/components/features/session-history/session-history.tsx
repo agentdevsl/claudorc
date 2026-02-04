@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { SessionStatus } from '@/db/schema/enums';
+import type { SessionStatus } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 import { SessionDetailView } from './components/session-detail-view';
 import { SessionTimeline } from './components/session-timeline';

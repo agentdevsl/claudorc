@@ -1,4 +1,4 @@
-import type { Project } from '@/db/schema/projects';
+import type { Project } from '@/db/schema';
 
 /**
  * Project icon configuration

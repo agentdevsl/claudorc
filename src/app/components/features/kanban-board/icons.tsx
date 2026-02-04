@@ -1,6 +1,6 @@
 import type { Icon } from '@phosphor-icons/react';
 import { CheckCircle, Clock, Lightning, Stack, User } from '@phosphor-icons/react';
-import type { TaskColumn } from '@/db/schema/tasks';
+import type { TaskColumn } from '@/db/schema';
 
 /**
  * Semantic icons for each Kanban column

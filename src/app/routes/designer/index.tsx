@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/app/components/features/empty-state';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { WorkflowDesigner } from '@/app/components/features/workflow-designer';
-import type { Workflow } from '@/db/schema/workflows';
+import type { Workflow } from '@/db/schema';
 
 export const Route = createFileRoute('/designer/')({
   component: DesignerPage,

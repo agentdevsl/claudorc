@@ -1,4 +1,4 @@
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import { DRAG_ROTATION, LABEL_TYPES, type Priority } from './constants';
 import { cardVariants, labelVariants, priorityVariants } from './styles';

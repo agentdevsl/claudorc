@@ -1,5 +1,5 @@
 import type { Octokit } from 'octokit';
-import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema/templates.js';
+import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema';
 import type { TemplateError } from '../errors/template-errors.js';
 import { TemplateErrors } from '../errors/template-errors.js';
 import type { Result } from '../utils/result.js';

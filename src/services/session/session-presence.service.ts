@@ -10,7 +10,7 @@
 
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
-import { sessions } from '../../db/schema/sessions.js';
+import { sessions } from '../../db/schema';
 import type { SessionError } from '../../lib/errors/session-errors.js';
 import { SessionErrors } from '../../lib/errors/session-errors.js';
 import type { Result } from '../../lib/utils/result.js';

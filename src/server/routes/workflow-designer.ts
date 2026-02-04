@@ -5,7 +5,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema/templates.js';
+import type { CachedAgent, CachedCommand, CachedSkill } from '../../db/schema';
 import { agentQuery } from '../../lib/agents/agent-sdk-utils.js';
 import { DEFAULT_WORKFLOW_MODEL, getFullModelId } from '../../lib/constants/models.js';
 import {
