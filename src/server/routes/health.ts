@@ -78,7 +78,10 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
           }
         }
       } catch (versionErr) {
-        console.debug('[Health] Version query failed:', versionErr instanceof Error ? versionErr.message : String(versionErr));
+        console.debug(
+          '[Health] Version query failed:',
+          versionErr instanceof Error ? versionErr.message : String(versionErr)
+        );
       }
 
       checks.database = {

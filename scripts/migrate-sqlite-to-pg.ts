@@ -319,7 +319,9 @@ Options:
   }
 
   if (Number.isNaN(config.batchSize) || config.batchSize <= 0) {
-    console.error(`[migrate] ERROR: --batch-size must be a positive integer, got '${config.batchSize}'`);
+    console.error(
+      `[migrate] ERROR: --batch-size must be a positive integer, got '${config.batchSize}'`
+    );
     process.exit(1);
   }
 
@@ -533,9 +535,7 @@ async function applyDeferredUpdates(
       `;
     } else if (Array.isArray(update.primaryKey)) {
       // Build compound WHERE clause for composite primary keys
-      const conditions = update.primaryKey.map(
-        (pk) => tx`${tx(pk)} = ${update.pkValues[pk]}`
-      );
+      const conditions = update.primaryKey.map((pk) => tx`${tx(pk)} = ${update.pkValues[pk]}`);
       let where = conditions[0];
       for (let i = 1; i < conditions.length; i++) {
         where = tx`${where} AND ${conditions[i]}`;
@@ -687,7 +687,8 @@ async function main() {
             result.rowCount === 0
               ? '0 rows (skip)'
               : `${result.rowCount} rows (${result.durationMs}ms)`;
-          const deferStr = result.deferred.length > 0 ? ` [${result.deferred.length} deferred]` : '';
+          const deferStr =
+            result.deferred.length > 0 ? ` [${result.deferred.length} deferred]` : '';
           log(`${num}/${tableCount}  ${tableDef.name.padEnd(25, '.')} ${rowStr}${deferStr}`);
         }
 

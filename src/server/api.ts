@@ -264,7 +264,9 @@ try {
       lastAgentStatus: null,
       updatedAt: new Date().toISOString(),
     })
-    .where(and(eq(schemaTables.tasks.column, 'in_progress'), isNotNull(schemaTables.tasks.agentId)));
+    .where(
+      and(eq(schemaTables.tasks.column, 'in_progress'), isNotNull(schemaTables.tasks.agentId))
+    );
   const changes = getChangedCount(result);
   if (changes > 0) {
     console.log(`[API Server] Recovered ${changes} orphaned task(s) back to backlog`);
@@ -282,7 +284,10 @@ try {
   const orphanedTasks = (await db
     .select({ id: schemaTables.tasks.id, worktreeId: schemaTables.tasks.worktreeId })
     .from(schemaTables.tasks)
-    .where(isNotNull(schemaTables.tasks.worktreeId))) as Array<{ id: string; worktreeId: string | null }>;
+    .where(isNotNull(schemaTables.tasks.worktreeId))) as Array<{
+    id: string;
+    worktreeId: string | null;
+  }>;
 
   // Filter to tasks whose agent is not actively running (after restart, none are)
   const tasksToClean = orphanedTasks.filter(
