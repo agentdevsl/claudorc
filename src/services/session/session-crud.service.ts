@@ -13,9 +13,8 @@
 
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gte, inArray, like, lte, sql } from 'drizzle-orm';
-import { projects } from '../../db/schema/projects.js';
-import type { Session } from '../../db/schema/sessions.js';
-import { sessions } from '../../db/schema/sessions.js';
+import type { Session } from '../../db/schema';
+import { projects, sessions } from '../../db/schema';
 import { ProjectErrors } from '../../lib/errors/project-errors.js';
 import type { SessionError } from '../../lib/errors/session-errors.js';
 import { SessionErrors } from '../../lib/errors/session-errors.js';

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubInstallations, githubTokens } from '../../src/db/schema/github';
-import { type CachedPlugin, marketplaces } from '../../src/db/schema/marketplaces';
+import {
+  type CachedPlugin,
+  githubInstallations,
+  githubTokens,
+  marketplaces,
+} from '../../src/db/schema';
 import { MarketplaceService } from '../../src/services/marketplace.service';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
 

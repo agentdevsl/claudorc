@@ -12,7 +12,7 @@
 import { Readable } from 'node:stream';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tasks } from '../../src/db/schema/tasks';
+import { tasks } from '../../src/db/schema';
 import { createContainerBridge } from '../../src/lib/agents/container-bridge';
 import type { DurableStreamsService } from '../../src/services/durable-streams.service';
 import { createTestProject } from '../factories/project.factory';

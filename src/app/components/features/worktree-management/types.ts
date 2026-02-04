@@ -1,7 +1,7 @@
-import type { WorktreeStatus } from '@/db/schema/enums';
+import type { WorktreeStatus } from '@/db/schema';
 
 // Re-export for convenience
-export type { WorktreeStatus } from '@/db/schema/enums';
+export type { WorktreeStatus } from '@/db/schema';
 
 // ===== Extended Display Status =====
 // The spec defines additional UI states beyond the DB enum

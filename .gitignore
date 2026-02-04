@@ -12,7 +12,7 @@ dist/
 build/
 .next/
 out/
-
+bob/
 # TypeScript
 *.tsbuildinfo
 

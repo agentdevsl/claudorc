@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle, Lightning, Warning, WarningCircle, XCircle } from '@phosphor-icons/react';
 import type { AgentStatusInfo } from '@/app/hooks/use-container-agent-statuses';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import { LABEL_TYPES, type Priority } from './constants';
 import {

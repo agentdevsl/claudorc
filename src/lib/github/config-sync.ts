@@ -1,6 +1,6 @@
 import type { Octokit } from 'octokit';
 import { z } from 'zod';
-import type { ProjectConfig } from '../../db/schema/projects.js';
+import type { ProjectConfig } from '../../db/schema';
 import { GitHubErrors } from '../errors/github-errors.js';
 import type { Result } from '../utils/result.js';
 import { err, ok } from '../utils/result.js';

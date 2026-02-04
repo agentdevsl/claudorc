@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CaretDown, Plus } from '@phosphor-icons/react';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import { COLUMN_HEADER_STYLES, COLUMN_WIDTH } from './constants';
 import { COLUMN_ICONS } from './icons';

@@ -2,7 +2,7 @@ import { Circle, Copy, X } from '@phosphor-icons/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import type { TaskViewer } from './index';
 

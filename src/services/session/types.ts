@@ -78,7 +78,7 @@ export type HistoryOptions = {
 };
 
 export type ListSessionsWithFiltersOptions = {
-  status?: import('../../db/schema/enums.js').SessionStatus[];
+  status?: import('../../db/schema/index.js').SessionStatus[];
   agentId?: string;
   dateFrom?: string;
   dateTo?: string;

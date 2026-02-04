@@ -1,13 +1,12 @@
 import { and, desc, eq, like, or } from 'drizzle-orm';
-import { settings } from '../db/schema/settings.js';
 import type {
   NewTerraformRegistry,
   TerraformModule,
   TerraformOutput,
   TerraformRegistry,
   TerraformVariable,
-} from '../db/schema/terraform.js';
-import { terraformModules, terraformRegistries } from '../db/schema/terraform.js';
+} from '../db/schema';
+import { settings, terraformModules, terraformRegistries } from '../db/schema';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { TerraformErrors } from '../lib/errors/terraform-errors.js';
 import { type RegistryConfig, syncAllModules } from '../lib/terraform/registry-client.js';

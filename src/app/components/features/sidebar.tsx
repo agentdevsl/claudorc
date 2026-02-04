@@ -65,6 +65,7 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
   const { currentProject, openPicker } = useProjectContext();
   const navigate = useNavigate();
   const [isHealthy, setIsHealthy] = useState(true);
+  const [dbMode, setDbMode] = useState<string>('sqlite');
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Handle click with delay to distinguish from double-click
@@ -105,6 +106,9 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
     const checkHealth = async () => {
       const result = await apiClient.system.health();
       setIsHealthy(result.ok && result.data.status === 'healthy');
+      if (result.ok && result.data.checks.database.mode) {
+        setDbMode(result.data.checks.database.mode);
+      }
     };
     checkHealth();
     const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
@@ -392,7 +396,7 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
               Simon Lynch
             </div>
             <div data-testid="mode-indicator" className="text-xs text-fg-muted">
-              Local-first mode
+              {dbMode === 'postgres' ? 'PostgreSQL mode' : 'Local-first mode'}
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Task } from '../../src/db/schema/tasks.js';
+import type { Task } from '../../src/db/schema';
 import { ProjectErrors } from '../../src/lib/errors/project-errors.js';
 import { TaskErrors } from '../../src/lib/errors/task-errors.js';
 import { err, ok } from '../../src/lib/utils/result.js';

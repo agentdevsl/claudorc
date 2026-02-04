@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 
 const createTask = (overrides: Partial<Task> = {}): Task =>
   ({

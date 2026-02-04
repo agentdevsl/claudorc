@@ -28,7 +28,7 @@ import {
 import { MarkdownContent } from '@/app/components/ui/markdown-content';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Textarea } from '@/app/components/ui/textarea';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import type { DiffFile, DiffResult, DiffSummary } from '@/lib/types/diff';
 import { cn } from '@/lib/utils/cn';
 import { ChangesSummary } from './changes-summary';

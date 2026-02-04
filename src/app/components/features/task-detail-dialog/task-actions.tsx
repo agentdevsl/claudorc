@@ -10,7 +10,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Button } from '@/app/components/ui/button';
-import type { TaskColumn } from '@/db/schema/tasks';
+import type { TaskColumn } from '@/db/schema';
 
 interface TaskActionsProps {
   column: TaskColumn;

@@ -1,11 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq } from 'drizzle-orm';
-import { agentRuns } from '../../db/schema/agent-runs.js';
-import { agents } from '../../db/schema/agents.js';
-import { projects } from '../../db/schema/projects.js';
-import { sessions } from '../../db/schema/sessions.js';
-import { tasks } from '../../db/schema/tasks.js';
-import { worktrees } from '../../db/schema/worktrees.js';
+import { agentRuns, agents, projects, sessions, tasks, worktrees } from '../../db/schema';
 import { createAgentHooks } from '../../lib/agents/hooks/index.js';
 import { handleAgentError } from '../../lib/agents/recovery.js';
 import { runAgentPlanning } from '../../lib/agents/stream-handler.js';

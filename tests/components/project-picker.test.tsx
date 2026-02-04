@@ -6,7 +6,7 @@ import {
   ProjectPicker,
   type ProjectPickerItem,
 } from '@/app/components/features/project-picker';
-import type { Project } from '@/db/schema/projects';
+import type { Project } from '@/db/schema';
 
 const createProject = (overrides: Partial<Project>): Project => ({
   id: overrides.id ?? 'project-1',

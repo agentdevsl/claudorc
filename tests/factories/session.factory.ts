@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import type { NewSession, Session } from '../../src/db/schema/sessions';
-import { sessions } from '../../src/db/schema/sessions';
+import type { NewSession, Session } from '../../src/db/schema';
+import { sessions } from '../../src/db/schema';
 import { getTestDb } from '../helpers/database';
 
 type SessionStatus = 'idle' | 'initializing' | 'active' | 'paused' | 'closing' | 'closed' | 'error';

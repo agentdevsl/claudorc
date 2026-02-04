@@ -2,7 +2,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskHeader } from '@/app/components/features/task-detail-dialog/task-header';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 
 // Wrapper component to provide Dialog context with accessibility elements
 function DialogWrapper({ children }: { children: React.ReactNode }) {

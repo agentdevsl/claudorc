@@ -32,10 +32,7 @@ function warnLog(context: string, message: string, data?: Record<string, unknown
   console.warn(`[${timestamp}] [ContainerAgentService:${context}] ${message}${dataStr}`);
 }
 
-import { agents } from '../db/schema/agents.js';
-import { projects } from '../db/schema/projects.js';
-import { sessions } from '../db/schema/sessions.js';
-import { tasks } from '../db/schema/tasks.js';
+import { agents, projects, sessions, tasks } from '../db/schema';
 import { type ContainerBridge, createContainerBridge } from '../lib/agents/container-bridge.js';
 import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import { CONTAINER_WORKSPACE_PATH } from '../lib/constants/sandbox.js';
@@ -1589,7 +1586,7 @@ export class ContainerAgentService {
    * Handle plan ready event from planning phase.
    * Stores the plan data for later execution when approved.
    */
-  private handlePlanReady(
+  private async handlePlanReady(
     taskId: string,
     sessionId: string,
     projectId: string,
@@ -1599,7 +1596,7 @@ export class ContainerAgentService {
       sdkSessionId: string;
       allowedPrompts?: Array<{ tool: 'Bash'; prompt: string }>;
     }
-  ): void {
+  ): Promise<void> {
     infoLog('handlePlanReady', 'Storing plan data for approval', {
       taskId,
       sessionId,
@@ -1622,7 +1619,7 @@ export class ContainerAgentService {
     // Persist plan to the task record so it survives server restarts
     // Move card to waiting_approval so the user sees it on the Kanban board
     try {
-      this.db
+      await this.db
         .update(tasks)
         .set({
           plan: planData.plan,
@@ -1634,8 +1631,7 @@ export class ContainerAgentService {
           column: 'waiting_approval',
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(tasks.id, taskId))
-        .run();
+        .where(eq(tasks.id, taskId));
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
       infoLog('handlePlanReady', 'CRITICAL: Failed to persist plan to database', {
@@ -1737,14 +1733,13 @@ export class ContainerAgentService {
     // Move task back to in_progress for execution phase
     // lastAgentStatus stays as 'planning' until execution completes or errors (handleAgentComplete / handleAgentError sets it)
     try {
-      this.db
+      await this.db
         .update(tasks)
         .set({
           column: 'in_progress',
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(tasks.id, taskId))
-        .run();
+        .where(eq(tasks.id, taskId));
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
       infoLog('approvePlan', 'Failed to move task to in_progress for execution', {
@@ -1775,7 +1770,7 @@ export class ContainerAgentService {
    * Moves the task back to backlog and clears plan-related fields.
    * DB write happens FIRST; pendingPlans is only cleared on success.
    */
-  rejectPlan(taskId: string, reason?: string): Result<void, SandboxError> {
+  async rejectPlan(taskId: string, reason?: string): Promise<Result<void, SandboxError>> {
     const existed = this.pendingPlans.has(taskId);
 
     if (!existed) {
@@ -1798,7 +1793,7 @@ export class ContainerAgentService {
 
     // DB write FIRST — only clear in-memory on success
     try {
-      this.db
+      await this.db
         .update(tasks)
         .set({
           column: 'backlog',
@@ -1810,8 +1805,7 @@ export class ContainerAgentService {
           branch: null,
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(tasks.id, taskId))
-        .run();
+        .where(eq(tasks.id, taskId));
       infoLog('rejectPlan', 'Task moved to backlog and plan cleared', { taskId, reason });
     } catch (dbErr) {
       const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);

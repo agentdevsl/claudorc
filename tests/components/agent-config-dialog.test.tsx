@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentConfigDialog } from '@/app/components/features/agent-config-dialog';
-import type { Agent } from '@/db/schema/agents';
+import type { Agent } from '@/db/schema';
 
 const createAgent = (overrides: Partial<Agent> = {}): Agent => ({
   id: overrides.id ?? 'agent-1',

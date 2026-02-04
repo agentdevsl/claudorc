@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { TaskColumn } from '@/db/schema/tasks';
+import type { TaskColumn } from '@/db/schema';
 
 // =============================================================================
 // Types

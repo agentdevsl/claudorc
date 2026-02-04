@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import type { CachedAgent, CachedCommand, CachedSkill } from '../../src/db/schema';
 import { templateProjects, templates } from '../../src/db/schema';
-import type { CachedAgent, CachedCommand, CachedSkill } from '../../src/db/schema/templates';
 import { TemplateService } from '../../src/services/template.service';
 import { createTestProject } from '../factories/project.factory';
 import { clearTestDatabase, getTestDb, setupTestDatabase } from '../helpers/database';
@@ -28,7 +28,7 @@ vi.mock('../../src/lib/crypto/server-encryption.js', () => ({
   decryptToken: vi.fn().mockResolvedValue('decrypted-token'),
 }));
 
-import { githubInstallations, githubTokens } from '../../src/db/schema/github';
+import { githubInstallations, githubTokens } from '../../src/db/schema';
 import { TemplateErrors } from '../../src/lib/errors/template-errors';
 import { createOctokitFromToken, getInstallationOctokit } from '../../src/lib/github/client.js';
 import { parseGitHubUrl, syncTemplateFromGitHub } from '../../src/lib/github/template-sync.js';

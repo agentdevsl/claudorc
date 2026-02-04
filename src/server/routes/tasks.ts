@@ -298,7 +298,7 @@ export function createTasksRoutes({ taskService }: TasksDeps) {
         // No body or invalid JSON — reason is optional
       }
 
-      const result = taskService.rejectPlan(id, reason);
+      const result = await taskService.rejectPlan(id, reason);
 
       if (!result.ok) {
         return json({ ok: false, error: result.error }, result.error.status);

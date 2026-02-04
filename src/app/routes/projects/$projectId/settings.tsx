@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { ProjectSettings } from '@/app/components/features/project-settings';
-import type { Project, ProjectConfig } from '@/db/schema/projects';
+import type { Project, ProjectConfig } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 
 export const Route = createFileRoute('/projects/$projectId/settings')({

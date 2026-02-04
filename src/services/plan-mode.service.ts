@@ -1,9 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
-import type { PlanSession as DbPlanSession, NewPlanSession } from '../db/schema/plan-sessions.js';
-import { planSessions } from '../db/schema/plan-sessions.js';
-import { projects } from '../db/schema/projects.js';
-import { tasks } from '../db/schema/tasks.js';
+import type { PlanSession as DbPlanSession, NewPlanSession } from '../db/schema';
+import { planSessions, projects, tasks } from '../db/schema';
 import type { PlanModeError } from '../lib/errors/plan-mode-errors.js';
 import { PlanModeErrors } from '../lib/errors/plan-mode-errors.js';
 import type { GitHubIssueCreator } from '../lib/github/issue-creator.js';

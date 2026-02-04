@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { agents } from '../../src/db/schema/agents';
+import { agents } from '../../src/db/schema';
 import { AgentErrors } from '../../src/lib/errors/agent-errors';
 import { AgentService } from '../../src/services/agent.service';
 import { createRunningAgent, createTestAgent } from '../factories/agent.factory';

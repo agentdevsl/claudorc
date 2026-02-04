@@ -4,7 +4,7 @@
 
 import { and, count, desc, eq, like, or } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { workflows } from '../../db/schema/workflows.js';
+import { workflows } from '../../db/schema';
 import type { Database } from '../../types/database.js';
 import { isValidId, json } from '../shared.js';
 

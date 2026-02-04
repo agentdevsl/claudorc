@@ -1,7 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { Agent, AgentConfig, NewAgent } from '../../db/schema/agents.js';
-import { agents } from '../../db/schema/agents.js';
-import { projects } from '../../db/schema/projects.js';
+import type { Agent, AgentConfig, NewAgent } from '../../db/schema';
+import { agents, projects } from '../../db/schema';
 import type { AgentError } from '../../lib/errors/agent-errors.js';
 import { AgentErrors } from '../../lib/errors/agent-errors.js';
 import type { ValidationError } from '../../lib/errors/validation-errors.js';

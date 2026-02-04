@@ -1,8 +1,4 @@
-import type {
-  NewTerraformModule,
-  TerraformOutput,
-  TerraformVariable,
-} from '../../db/schema/terraform.js';
+import type { NewTerraformModule, TerraformOutput, TerraformVariable } from '../../db/schema';
 
 export interface RegistryConfig {
   baseUrl: string;

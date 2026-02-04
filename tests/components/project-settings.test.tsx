@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ProjectSettings } from '@/app/components/features/project-settings';
-import type { Project, ProjectConfig } from '@/db/schema/projects';
+import type { Project, ProjectConfig } from '@/db/schema';
 
 describe('ProjectSettings', () => {
   it('saves updated settings', () => {

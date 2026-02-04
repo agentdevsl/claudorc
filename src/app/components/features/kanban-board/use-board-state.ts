@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 
 export interface BoardState {
   selectedIds: Set<string>;

@@ -5,9 +5,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { agents } from '../../db/schema/agents.js';
-import { projects } from '../../db/schema/projects.js';
-import { tasks } from '../../db/schema/tasks.js';
+import { agents, projects, tasks } from '../../db/schema';
 import type { Database } from '../../types/database.js';
 import { isValidId, json } from '../shared.js';
 

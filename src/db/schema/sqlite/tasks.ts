@@ -2,18 +2,18 @@ import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { ExitPlanModeOptions } from '../../lib/agents/stream-handler';
-import type { DiffSummary } from '../../lib/types/diff';
+import type { ExitPlanModeOptions } from '../../../lib/agents/stream-handler';
+import type { DiffSummary } from '../../../lib/types/diff';
 
 /** Plan options stored on the task record, extending ExitPlanModeOptions with session context */
 export interface StoredPlanOptions extends ExitPlanModeOptions {
   sdkSessionId?: string;
 }
 
+import type { TaskColumn, TaskPriority } from '../shared/enums';
 import { agents } from './agents';
-import type { TaskColumn, TaskPriority } from './enums';
 
-export type { TaskColumn, TaskPriority } from './enums';
+export type { TaskColumn, TaskPriority } from '../shared/enums';
 
 import { projects } from './projects';
 import { sessions } from './sessions';

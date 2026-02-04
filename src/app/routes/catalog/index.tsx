@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import type { Workflow } from '@/db/schema/workflows';
+import type { Workflow } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import type { WorkflowEdge, WorkflowNode } from '@/lib/workflow-dsl/types';
 

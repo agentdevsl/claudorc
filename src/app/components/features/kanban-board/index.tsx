@@ -15,7 +15,7 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useMemo, useState } from 'react';
 import { useContainerAgentStatuses } from '@/app/hooks/use-container-agent-statuses';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 import { COLUMN_CONFIG, COLUMN_ORDER, VALID_TRANSITIONS } from './constants';
 import { DragOverlayCard } from './drag-overlay';
 import { KanbanCard } from './kanban-card';

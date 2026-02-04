@@ -13,7 +13,7 @@ import {
 } from '@phosphor-icons/react';
 import { Skeleton } from '@/app/components/ui/skeleton';
 import type { AgentStatusInfo } from '@/app/hooks/use-container-agent-statuses';
-import type { Task, TaskColumn } from '@/db/schema/tasks';
+import type { Task, TaskColumn } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 import type { ColumnConfig, Priority } from './kanban-board/constants';
 import { KanbanCard } from './kanban-card';

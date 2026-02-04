@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { apiKeys } from '../db/schema/api-keys.js';
+import { apiKeys } from '../db/schema';
 import { decryptToken, encryptToken, maskToken } from '../lib/crypto/server-encryption.js';
 import type { Result } from '../lib/utils/result.js';
 import { err, ok } from '../lib/utils/result.js';

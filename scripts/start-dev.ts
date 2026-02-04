@@ -153,6 +153,10 @@ async function main() {
   console.log(
     `\n${colors.bright}${colors.magenta}🚀 AgentPane Development Server${colors.reset}\n`
   );
+  const dbMode = process.env.DB_MODE ?? 'sqlite';
+  console.log(
+    `   ${colors.dim}Database: ${dbMode}${dbMode === 'postgres' ? ` (${process.env.DATABASE_URL?.replace(/:[^@]+@/, ':***@') ?? 'no URL'})` : ' (local)'}${colors.reset}`
+  );
   console.log(`${colors.dim}${'─'.repeat(50)}${colors.reset}`);
 
   // Kill any existing processes

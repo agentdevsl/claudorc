@@ -1,8 +1,8 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { AgentStatus } from '../shared/enums';
 import { agents } from './agents';
-import type { AgentStatus } from './enums';
 import { projects } from './projects';
 import { sessions } from './sessions';
 import { tasks } from './tasks';

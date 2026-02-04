@@ -1,7 +1,6 @@
 import { CaretDown } from '@phosphor-icons/react';
 import { useState } from 'react';
-import type { Task } from '@/db/schema/tasks';
-import type { Worktree } from '@/db/schema/worktrees';
+import type { Task, Worktree } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 
 function formatRelativeTime(dateStr: string | null | undefined): string {

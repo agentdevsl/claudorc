@@ -3,7 +3,7 @@
  * These types are derived from the domain types to ensure consistency.
  */
 
-import type { TaskPriority } from '@/db/schema/tasks';
+import type { TaskPriority } from '@/db/schema';
 
 /**
  * API error codes for categorizing different error types
@@ -85,5 +85,5 @@ export type PlanStreamEventType =
 /**
  * Re-export domain types for convenience
  */
-export type { TaskPriority } from '@/db/schema/tasks';
+export type { TaskPriority } from '@/db/schema';
 export type { PlanSession, PlanSessionStatus } from '@/lib/plan-mode/types';

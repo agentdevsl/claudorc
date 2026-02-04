@@ -1,9 +1,4 @@
-import type {
-  CachedAgent,
-  CachedCommand,
-  CachedSkill,
-  Template,
-} from '../../db/schema/templates.js';
+import type { CachedAgent, CachedCommand, CachedSkill, Template } from '../../db/schema';
 
 /**
  * Merged configuration from multiple template sources

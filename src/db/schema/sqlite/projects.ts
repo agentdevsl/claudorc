@@ -1,7 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { ProjectSandboxConfig } from '../../lib/sandbox/types';
+import type { ProjectSandboxConfig } from '../../../lib/sandbox/types';
 import { githubInstallations } from './github';
 import { sandboxConfigs } from './sandbox-configs';
 

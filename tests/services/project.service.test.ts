@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectConfig } from '../../src/db/schema/projects';
+import type { ProjectConfig } from '../../src/db/schema';
 import { ok } from '../../src/lib/utils/result';
 import { ProjectService } from '../../src/services/project.service';
 import { createRunningAgent } from '../factories/agent.factory';
@@ -325,7 +325,7 @@ describe('ProjectService', () => {
 
       // Update the recent task to have a more recent updatedAt
       const db = getTestDb();
-      const { tasks } = await import('../../src/db/schema/tasks');
+      const { tasks } = await import('../../src/db/schema');
       const { eq } = await import('drizzle-orm');
       await db
         .update(tasks)
@@ -931,7 +931,7 @@ describe('ProjectService', () => {
     it('handles GitHub sync exception gracefully', async () => {
       // Create a GitHub installation to pass the initial checks
       const db = getTestDb();
-      const { githubInstallations } = await import('../../src/db/schema/github');
+      const { githubInstallations } = await import('../../src/db/schema');
       await db.insert(githubInstallations).values({
         id: 'test-installation',
         installationId: '12345',

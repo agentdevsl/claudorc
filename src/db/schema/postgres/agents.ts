@@ -1,7 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import { sql } from 'drizzle-orm';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { AgentStatus, AgentType } from './enums';
+import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import type { AgentStatus, AgentType } from '../shared/enums';
 import { projects } from './projects';
 
 export type AgentConfig = {
@@ -12,7 +11,7 @@ export type AgentConfig = {
   temperature?: number;
 };
 
-export const agents = sqliteTable('agents', {
+export const agents = pgTable('agents', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -22,12 +21,12 @@ export const agents = sqliteTable('agents', {
   name: text('name').notNull(),
   type: text('type').$type<AgentType>().default('task').notNull(),
   status: text('status').$type<AgentStatus>().default('idle').notNull(),
-  config: text('config', { mode: 'json' }).$type<AgentConfig>(),
+  config: jsonb('config').$type<AgentConfig>(),
   currentTaskId: text('current_task_id'),
   currentSessionId: text('current_session_id'),
   currentTurn: integer('current_turn').default(0),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().notNull(),
 });
 
 export type Agent = typeof agents.$inferSelect;

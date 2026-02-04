@@ -1,10 +1,8 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { and, eq, inArray, lt } from 'drizzle-orm';
-import { agents } from '../db/schema/agents.js';
-import { projects } from '../db/schema/projects.js';
-import type { Worktree, WorktreeStatus } from '../db/schema/worktrees.js';
-import { worktrees } from '../db/schema/worktrees.js';
+import type { Worktree, WorktreeStatus } from '../db/schema';
+import { agents, projects, worktrees } from '../db/schema';
 import type { WorktreeError } from '../lib/errors/worktree-errors.js';
 import { WorktreeErrors } from '../lib/errors/worktree-errors.js';
 import type { Result } from '../lib/utils/result.js';

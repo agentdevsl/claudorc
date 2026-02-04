@@ -1,7 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { and, desc, eq, gt, lt } from 'drizzle-orm';
-import { cliSessions } from '../../db/schema/cli-sessions.js';
-import { settings } from '../../db/schema/settings.js';
+import { cliSessions, settings } from '../../db/schema';
 import type { Database } from '../../types/database.js';
 import type { CliSession, DaemonInfo, DaemonRegisterPayload } from './types.js';
 import { DAEMON_TIMEOUT_MS } from './types.js';
@@ -257,10 +256,9 @@ export class CliMonitorService {
       }
 
       const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
-      const result = this.db
+      const result = await this.db
         .delete(cliSessions)
-        .where(lt(cliSessions.lastActivityAt, cutoff))
-        .run();
+        .where(lt(cliSessions.lastActivityAt, cutoff));
 
       const changes = (result as { changes?: number }).changes ?? 0;
       if (changes > 0) {
@@ -320,7 +318,7 @@ export class CliMonitorService {
       };
 
       try {
-        this.db
+        await this.db
           .insert(cliSessions)
           .values({
             id: createId(),
@@ -330,8 +328,7 @@ export class CliMonitorService {
           .onConflictDoUpdate({
             target: cliSessions.sessionId,
             set: values,
-          })
-          .run();
+          });
       } catch (upsertErr) {
         console.error(
           `[CliMonitor] Upsert error for ${session.sessionId}:`,
@@ -343,7 +340,7 @@ export class CliMonitorService {
     // Remove deleted sessions from DB
     for (const id of removedIds) {
       try {
-        this.db.delete(cliSessions).where(eq(cliSessions.sessionId, id)).run();
+        await this.db.delete(cliSessions).where(eq(cliSessions.sessionId, id));
       } catch (deleteErr) {
         console.error(
           `[CliMonitor] Delete error for ${id}:`,

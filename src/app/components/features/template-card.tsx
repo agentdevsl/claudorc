@@ -20,8 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import type { CachedAgent, CachedCommand, CachedSkill, Template } from '@/db/schema/templates';
-import { SYNC_INTERVAL_OPTIONS } from '@/db/schema/templates';
+import type { CachedAgent, CachedCommand, CachedSkill, Template } from '@/db/schema';
+import { SYNC_INTERVAL_OPTIONS } from '@/db/schema';
 import { cn } from '@/lib/utils/cn';
 
 export interface TemplateCardProps {

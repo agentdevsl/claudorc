@@ -1,6 +1,6 @@
 import { type CanUseTool, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
-import type { TerraformModule } from '../db/schema/terraform.js';
+import type { TerraformModule } from '../db/schema';
 import { DEFAULT_AGENT_MODEL, getFullModelId } from '../lib/constants/models.js';
 import type { TerraformError } from '../lib/errors/terraform-errors.js';
 import { createLogger } from '../lib/logging/logger.js';

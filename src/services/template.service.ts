@@ -1,8 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { githubInstallations, githubTokens } from '../db/schema/github.js';
-import { templateProjects } from '../db/schema/template-projects.js';
-import type { NewTemplate, Template, TemplateScope } from '../db/schema/templates.js';
-import { templates } from '../db/schema/templates.js';
+import type { NewTemplate, Template, TemplateScope } from '../db/schema';
+import { githubInstallations, githubTokens, templateProjects, templates } from '../db/schema';
 import type { LocalConfig, MergedTemplateConfig } from '../lib/config/template-merge.js';
 import { mergeTemplates } from '../lib/config/template-merge.js';
 // Note: decryptToken is imported dynamically in sync() to avoid bundling node:path for browser

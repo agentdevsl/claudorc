@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sessions } from '../../src/db/schema/sessions';
-import { settings } from '../../src/db/schema/settings';
+import { sessions, settings } from '../../src/db/schema';
 import type { ProjectSandboxConfig } from '../../src/lib/sandbox/types';
 import { err, ok } from '../../src/lib/utils/result';
 import type { StartAgentInput } from '../../src/services/container-agent.service';

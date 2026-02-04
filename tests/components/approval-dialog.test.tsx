@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApprovalDialog } from '@/app/components/features/approval-dialog';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 
 const createTask = (overrides: Partial<Task>): Task => ({
   id: overrides.id ?? 'task-1',

@@ -11,7 +11,7 @@ import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog/i
 import { AIActionButton } from '@/app/components/ui/ai-action-button';
 import { useSandboxStatus } from '@/app/hooks/use-sandbox-status';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 import type { DiffSummary } from '@/lib/types/diff';
 

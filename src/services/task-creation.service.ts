@@ -6,8 +6,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
-import { projects } from '@/db/schema/projects';
-import { type NewTask, tasks } from '@/db/schema/tasks';
+import { type NewTask, projects, tasks } from '@/db/schema';
 import { DEFAULT_TASK_CREATION_MODEL, getFullModelId } from '@/lib/constants/models';
 import { DEFAULT_TASK_CREATION_TOOLS } from '@/lib/constants/tools';
 import { getPromptDefaultText, resolvePromptServer } from '@/lib/prompts';

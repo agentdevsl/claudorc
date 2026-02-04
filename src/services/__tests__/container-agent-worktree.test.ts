@@ -253,7 +253,7 @@ describe('ContainerAgentService — worktree integration', () => {
     expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);
   });
 
-  it('cleans up worktree and clears task fields on plan rejection', () => {
+  it('cleans up worktree and clears task fields on plan rejection', async () => {
     // Set up task with worktreeId
     db.query.tasks.findFirst.mockReturnValue({
       ...task,
@@ -273,7 +273,7 @@ describe('ContainerAgentService — worktree integration', () => {
       createdAt: new Date(),
     });
 
-    const result = service.rejectPlan('t1', 'Bad plan');
+    const result = await service.rejectPlan('t1', 'Bad plan');
 
     expect(result.ok).toBe(true);
 

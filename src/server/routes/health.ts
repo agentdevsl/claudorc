@@ -2,10 +2,13 @@
  * Health check routes
  */
 
+import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { GitHubTokenService } from '../../services/github-token.service.js';
 import type { Database } from '../../types/database.js';
 import { json } from '../shared.js';
+
+const DB_MODE = process.env.DB_MODE ?? 'sqlite';
 
 interface SandboxInfo {
   id: string;
@@ -30,7 +33,13 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
   app.get('/', async (_c) => {
     const startTime = Date.now();
     const checks: {
-      database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+      database: {
+        status: 'ok' | 'error';
+        latencyMs?: number;
+        mode?: string;
+        version?: string;
+        error?: string;
+      };
       github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
       sandbox: {
         status: 'ok' | 'error' | 'not_configured';
@@ -48,14 +57,40 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
     try {
       const dbStart = Date.now();
       const result = await db.query.projects.findFirst();
+      void result;
+
+      // Query database version
+      let version: string | undefined;
+      try {
+        if (DB_MODE === 'postgres') {
+          const rows = await (db as any).execute(sql`SELECT version() as v`);
+          const raw = rows?.[0]?.v ?? rows?.rows?.[0]?.v;
+          if (typeof raw === 'string') {
+            // Extract "PostgreSQL 18.2" from full version string
+            const match = raw.match(/^PostgreSQL\s+[\d.]+/);
+            version = match ? match[0] : raw.split(',')[0];
+          }
+        } else {
+          const rows = await (db as any).execute(sql`SELECT sqlite_version() as v`);
+          const raw = rows?.[0]?.v ?? rows?.rows?.[0]?.v;
+          if (typeof raw === 'string') {
+            version = `SQLite ${raw}`;
+          }
+        }
+      } catch {
+        // Version query failed — not critical
+      }
+
       checks.database = {
         status: 'ok',
         latencyMs: Date.now() - dbStart,
+        mode: DB_MODE,
+        version,
       };
-      void result;
     } catch (error) {
       checks.database = {
         status: 'error',
+        mode: DB_MODE,
         error: error instanceof Error ? error.message : 'Database query failed',
       };
     }

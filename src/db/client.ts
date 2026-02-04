@@ -1,8 +1,11 @@
 import * as fs from 'node:fs';
 import Database, { type Database as SQLiteDatabase } from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { MIGRATION_SQL } from '../lib/bootstrap/phases/schema';
-import * as schema from './schema';
+import * as pgSchema from './schema/postgres';
+import * as sqliteSchema from './schema/sqlite';
 
 // Re-export the Database type for external use
 export type { SQLiteDatabase };
@@ -28,6 +31,14 @@ const isE2EMode = () => {
   return false;
 };
 
+// Get database mode from environment
+const getDbMode = () => {
+  if (typeof process !== 'undefined') {
+    return process.env?.DB_MODE ?? 'sqlite';
+  }
+  return 'sqlite';
+};
+
 // Run schema migration on a database
 const runMigration = (sqlite: SQLiteDatabase): void => {
   try {
@@ -39,8 +50,8 @@ const runMigration = (sqlite: SQLiteDatabase): void => {
   }
 };
 
-// Create database connection (server-side only)
-const createDatabase = (): SQLiteDatabase | null => {
+// Create SQLite database connection (server-side only)
+const createSqliteDatabase = (): SQLiteDatabase | null => {
   // Don't create database in browser - this module should only run on server
   if (isBrowser()) {
     return null;
@@ -72,9 +83,25 @@ const createDatabase = (): SQLiteDatabase | null => {
   return sqlite;
 };
 
-const sqliteInstance = createDatabase();
+// Create PostgreSQL database connection
+const createPostgresDatabase = () => {
+  const connectionString = typeof process !== 'undefined' ? process.env?.DATABASE_URL : undefined;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required when DB_MODE=postgres');
+  }
+  const client = postgres(connectionString);
+  return drizzlePg(client, { schema: pgSchema });
+};
+
+const mode = getDbMode();
+const sqliteInstance = mode === 'sqlite' ? createSqliteDatabase() : null;
 export const sqlite: SQLiteDatabase | null = sqliteInstance;
-export const db = sqliteInstance ? drizzle(sqliteInstance, { schema }) : null;
+export const db =
+  mode === 'postgres'
+    ? createPostgresDatabase()
+    : sqliteInstance
+      ? drizzleSqlite(sqliteInstance, { schema: sqliteSchema })
+      : null;
 
 // Export for server-side use with custom data directory
 export const createServerDb = (dataDir: string = './data') => {
@@ -83,7 +110,7 @@ export const createServerDb = (dataDir: string = './data') => {
   serverSqlite.pragma('journal_mode = WAL');
   serverSqlite.pragma('foreign_keys = ON');
   runMigration(serverSqlite); // Run migration on startup
-  return drizzle(serverSqlite, { schema });
+  return drizzleSqlite(serverSqlite, { schema: sqliteSchema });
 };
 
 // Re-export for compatibility (pglite was the old name)

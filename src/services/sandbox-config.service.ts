@@ -1,7 +1,6 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
-import { projects } from '../db/schema/projects.js';
-import type { NewSandboxConfig, SandboxConfig, SandboxType } from '../db/schema/sandbox-configs.js';
-import { sandboxConfigs } from '../db/schema/sandbox-configs.js';
+import type { NewSandboxConfig, SandboxConfig, SandboxType } from '../db/schema';
+import { projects, sandboxConfigs } from '../db/schema';
 import type { SandboxConfigError } from '../lib/errors/sandbox-config-errors.js';
 import { SandboxConfigErrors } from '../lib/errors/sandbox-config-errors.js';
 import type { Result } from '../lib/utils/result.js';

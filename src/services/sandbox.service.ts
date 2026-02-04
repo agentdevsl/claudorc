@@ -1,12 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
-import { projects } from '../db/schema/projects.js';
-import type {
-  NewSandboxInstance,
-  NewSandboxTmuxSession,
-  SandboxInstance,
-} from '../db/schema/sandboxes.js';
-import { sandboxInstances, sandboxTmuxSessions } from '../db/schema/sandboxes.js';
+import type { NewSandboxInstance, NewSandboxTmuxSession, SandboxInstance } from '../db/schema';
+import { projects, sandboxInstances, sandboxTmuxSessions } from '../db/schema';
 import type { SandboxError } from '../lib/errors/sandbox-errors.js';
 import { SandboxErrors } from '../lib/errors/sandbox-errors.js';
 import type { CredentialsInjector } from '../lib/sandbox/credentials-injector.js';

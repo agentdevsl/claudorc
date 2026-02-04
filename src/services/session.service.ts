@@ -9,7 +9,7 @@
  * All types are re-exported for backward compatibility.
  */
 
-import type { NewSessionSummary, SessionSummary } from '../db/schema/session-summaries.js';
+import type { NewSessionSummary, SessionSummary } from '../db/schema';
 import type { SessionError } from '../lib/errors/session-errors.js';
 import type { Result } from '../lib/utils/result.js';
 import type { Database } from '../types/database.js';

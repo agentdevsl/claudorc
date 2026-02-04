@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Worktree, WorktreeStatus } from '@/db/schema/worktrees';
+import type { Worktree, WorktreeStatus } from '@/db/schema';
 import { WorktreeErrors } from '@/lib/errors/worktree-errors';
 import { err, ok } from '@/lib/utils/result';
 import { createWorktreesRoutes } from '@/server/routes/worktrees';

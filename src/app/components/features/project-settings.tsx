@@ -28,7 +28,7 @@ import {
 import { Switch } from '@/app/components/ui/switch';
 import { TextInput } from '@/app/components/ui/text-input';
 import { Textarea } from '@/app/components/ui/textarea';
-import type { Project, ProjectConfig } from '@/db/schema/projects';
+import type { Project, ProjectConfig } from '@/db/schema';
 import { apiClient } from '@/lib/api/client';
 import type { ProjectSandboxConfig } from '@/lib/sandbox/types';
 import { cn } from '@/lib/utils/cn';

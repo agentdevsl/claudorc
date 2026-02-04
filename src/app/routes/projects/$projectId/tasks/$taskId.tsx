@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { LayoutShell } from '@/app/components/features/layout-shell';
 import { TaskDetailDialog } from '@/app/components/features/task-detail-dialog';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { apiClient, type ProjectListItem } from '@/lib/api/client';
 
 // Client task type - subset of Task for client-side display

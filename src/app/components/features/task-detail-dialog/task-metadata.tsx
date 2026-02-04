@@ -8,7 +8,7 @@ import {
   Terminal,
 } from '@phosphor-icons/react';
 import { ModelSelectorInline } from '@/app/components/ui/model-selector';
-import type { Task } from '@/db/schema/tasks';
+import type { Task } from '@/db/schema';
 import { getModelById } from '@/lib/constants/models';
 import { cn } from '@/lib/utils/cn';
 

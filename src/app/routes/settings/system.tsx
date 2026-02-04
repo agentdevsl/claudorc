@@ -29,7 +29,13 @@ type HealthStatus = {
   timestamp: string;
   uptime: number;
   checks: {
-    database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    database: {
+      status: 'ok' | 'error';
+      latencyMs?: number;
+      mode?: string;
+      version?: string;
+      error?: string;
+    };
     github: { status: 'ok' | 'error' | 'not_configured'; login?: string | null };
   };
   responseTimeMs: number;
@@ -280,11 +286,23 @@ function SystemHealthPage(): React.JSX.Element {
                 <div className="space-y-2">
                   <StatusCard
                     icon={Database}
-                    title="SQLite Database"
+                    title={
+                      backendHealth.checks.database.version ??
+                      (backendHealth.checks.database.mode === 'postgres'
+                        ? 'PostgreSQL'
+                        : 'SQLite Database')
+                    }
                     subtitle={
-                      backendHealth.checks.database.latencyMs !== undefined
-                        ? `${backendHealth.checks.database.latencyMs}ms latency`
-                        : undefined
+                      [
+                        backendHealth.checks.database.mode
+                          ? `Mode: ${backendHealth.checks.database.mode}`
+                          : undefined,
+                        backendHealth.checks.database.latencyMs !== undefined
+                          ? `${backendHealth.checks.database.latencyMs}ms latency`
+                          : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || undefined
                     }
                     status={backendHealth.checks.database.status}
                     statusLabel={

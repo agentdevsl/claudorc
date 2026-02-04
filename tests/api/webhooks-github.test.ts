@@ -7,7 +7,7 @@ vi.mock('../../src/services/agent.service.js', () => ({ AgentService: class {} }
 vi.mock('../../src/services/project.service.js', () => ({ ProjectService: class {} }));
 vi.mock('../../src/db/client.js', () => ({ pglite: {}, sqlite: {}, db: {} }));
 
-import type { Template } from '../../src/db/schema/templates.js';
+import type { Template } from '../../src/db/schema';
 import { ok } from '../../src/lib/utils/result.js';
 import { createWebhooksRoutes } from '../../src/server/routes/webhooks.js';
 
