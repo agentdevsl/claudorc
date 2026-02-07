@@ -1,0 +1,22 @@
+apiVersion: v2
+name: agentpane
+description: AgentPane - AI agent orchestration platform with Kubernetes-native agent execution
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.28.0-0"
+keywords:
+  - ai
+  - agents
+  - claude
+  - orchestration
+  - devtools
+home: https://github.com/agentpane/agentpane
+maintainers:
+  - name: AgentPane
+    url: https://github.com/agentpane
+dependencies:
+  - name: postgresql
+    version: "16.5.2"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: database.internal.enabled

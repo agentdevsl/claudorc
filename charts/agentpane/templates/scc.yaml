@@ -1,0 +1,79 @@
+{{- if and (include "agentpane.openshift.enabled" .) .Values.openshift.createSCC -}}
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ include "agentpane.fullname" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/description: >-
+      SCC for AgentPane application and agent sandbox pods.
+      Based on restricted-v2 with minimal additions for agent execution.
+# Based on restricted-v2 — no host access, no privilege escalation
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowPrivilegeEscalation: false
+requiredDropCapabilities:
+  - ALL
+readOnlyRootFilesystem: false
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+users:
+  - system:serviceaccount:{{ .Release.Namespace }}:{{ include "agentpane.serviceAccountName" . }}
+---
+{{/* SCC for sandbox namespace service accounts */}}
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ include "agentpane.fullname" . }}-sandbox
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/description: >-
+      SCC for AgentPane sandbox agent pods.
+      Restricted baseline with ephemeral PVC support.
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowPrivilegeEscalation: false
+requiredDropCapabilities:
+  - ALL
+readOnlyRootFilesystem: false
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+groups:
+  - system:serviceaccounts:{{ include "agentpane.sandbox.namespace" . }}
+{{- end }}

@@ -1,0 +1,70 @@
+{{- if and .Values.sandbox.enabled .Values.sandbox.networkPolicy.enabled -}}
+{{/* Default deny all ingress — sandbox pods should not receive inbound traffic */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-default-deny
+  namespace: {{ include "agentpane.sandbox.namespace" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # DNS resolution (required for all network operations)
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if .Values.sandbox.networkPolicy.allowHttps }}
+    # HTTPS egress (package managers, API calls, Git over HTTPS)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # HTTP egress (some package managers)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- if .Values.sandbox.networkPolicy.allowGitSsh }}
+    # SSH egress (Git over SSH)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 22
+    {{- end }}
+    {{- range .Values.sandbox.networkPolicy.additionalEgressCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+    {{- end }}
+{{- end }}

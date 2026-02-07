@@ -1,0 +1,367 @@
+# -- Number of replicas for the AgentPane deployment
+replicaCount: 1
+
+image:
+  # -- Container image repository
+  repository: agentpane/agentpane
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag (defaults to .Chart.AppVersion)
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+# -- Override the release name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# Database Configuration
+# -----------------------------------------------------------------------------
+database:
+  # -- Database mode (always "postgres" for Helm deployment)
+  mode: postgres
+
+  internal:
+    # -- Deploy Bitnami PostgreSQL subchart
+    enabled: true
+    auth:
+      # -- PostgreSQL username
+      username: agentpane
+      # -- PostgreSQL password (ignored if existingSecret is set)
+      password: ""
+      # -- PostgreSQL database name
+      database: agentpane
+      # -- Name of an existing Secret containing the password
+      existingSecret: ""
+      secretKeys:
+        # -- Key in the existing Secret that contains the password
+        passwordKey: "password"
+
+  external:
+    # -- Use an external PostgreSQL instance (when internal.enabled is false)
+    enabled: false
+    # -- Hostname of the external PostgreSQL server
+    host: ""
+    # -- Port of the external PostgreSQL server
+    port: 5432
+    # -- Username for the external PostgreSQL server
+    username: ""
+    # -- Password for the external PostgreSQL server (ignored if existingSecret is set)
+    password: ""
+    # -- Database name on the external PostgreSQL server
+    database: agentpane
+    # -- SSL mode for external connection (disable, require, verify-ca, verify-full)
+    sslMode: "require"
+    # -- Name of an existing Secret containing the full DATABASE_URL
+    existingSecret: ""
+    secretKeys:
+      # -- Key in the existing Secret that contains DATABASE_URL
+      urlKey: "DATABASE_URL"
+      # -- Key in the existing Secret that contains the password (if not using full URL)
+      passwordKey: "password"
+
+# -----------------------------------------------------------------------------
+# AI Credentials
+# -----------------------------------------------------------------------------
+ai:
+  # -- Anthropic API key (ignored if existingSecret is set)
+  anthropicApiKey: ""
+  # -- Claude OAuth token (ignored if existingSecret is set)
+  claudeOauthToken: ""
+  # -- Name of an existing Secret containing AI credentials
+  existingSecret: ""
+  secretKeys:
+    # -- Key in the existing Secret for the Anthropic API key
+    anthropicApiKeyKey: "ANTHROPIC_API_KEY"
+    # -- Key in the existing Secret for the Claude OAuth token
+    claudeOauthTokenKey: "CLAUDE_OAUTH_TOKEN"
+
+# -----------------------------------------------------------------------------
+# GitHub Integration
+# -----------------------------------------------------------------------------
+github:
+  # -- Enable GitHub integration
+  enabled: false
+  # -- GitHub App ID
+  appId: ""
+  # -- GitHub App name/slug
+  appName: ""
+  # -- GitHub OAuth client ID
+  clientId: ""
+  # -- GitHub OAuth client secret (ignored if existingSecret is set)
+  clientSecret: ""
+  # -- GitHub App private key in PEM format (ignored if existingSecret is set)
+  privateKey: ""
+  # -- GitHub webhook secret (ignored if existingSecret is set)
+  webhookSecret: ""
+  # -- Name of an existing Secret containing GitHub credentials
+  existingSecret: ""
+  secretKeys:
+    # -- Key in the existing Secret for the client secret
+    clientSecretKey: "GITHUB_CLIENT_SECRET"
+    # -- Key in the existing Secret for the private key
+    privateKeyKey: "GITHUB_PRIVATE_KEY"
+    # -- Key in the existing Secret for the webhook secret
+    webhookSecretKey: "GITHUB_WEBHOOK_SECRET"
+
+# -----------------------------------------------------------------------------
+# Application Configuration
+# -----------------------------------------------------------------------------
+config:
+  # -- Node environment
+  nodeEnv: production
+  # -- Log level (debug, info, warn, error)
+  logLevel: info
+  # -- CORS allowed origin
+  corsOrigin: ""
+  # -- Maximum concurrent agents per project
+  maxConcurrentAgents: 3
+  # -- Maximum agent execution turns
+  maxTurns: 50
+  # -- Claude model to use
+  model: "claude-sonnet-4-20250514"
+
+# -----------------------------------------------------------------------------
+# Service Account
+# -----------------------------------------------------------------------------
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- Annotations to add to the ServiceAccount
+  annotations: {}
+  # -- Name of the ServiceAccount (generated if not set)
+  name: ""
+  # -- Automount API credentials
+  automountServiceAccountToken: true
+
+# -----------------------------------------------------------------------------
+# Pod Configuration
+# -----------------------------------------------------------------------------
+# -- Annotations to add to pods
+podAnnotations: {}
+# -- Labels to add to pods
+podLabels: {}
+
+podSecurityContext:
+  # -- Run as non-root
+  runAsNonRoot: true
+  # -- Run as user ID (1000 = bun user in the container)
+  runAsUser: 1000
+  # -- Run as group ID
+  runAsGroup: 1000
+  # -- Filesystem group
+  fsGroup: 1000
+  # -- Seccomp profile type
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  # -- Disallow privilege escalation
+  allowPrivilegeEscalation: false
+  # -- Read-only root filesystem
+  readOnlyRootFilesystem: true
+  # -- Drop all capabilities
+  capabilities:
+    drop:
+      - ALL
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 3001
+
+# -----------------------------------------------------------------------------
+# Gateway API (HTTPRoute)
+# -----------------------------------------------------------------------------
+gateway:
+  # -- Create an HTTPRoute resource
+  enabled: false
+  # -- Hostname for the HTTPRoute
+  hostname: agentpane.example.com
+  # -- Parent Gateway references
+  parentRefs: []
+  #   - name: my-gateway
+  #     namespace: gateway-system
+  #     sectionName: https
+  # -- Additional annotations for the HTTPRoute
+  annotations: {}
+  # -- TLS configuration (handled by the Gateway, not the HTTPRoute)
+  tls: {}
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# -----------------------------------------------------------------------------
+# Autoscaling
+# -----------------------------------------------------------------------------
+autoscaling:
+  # -- Enable Horizontal Pod Autoscaler
+  enabled: false
+  # -- Minimum replicas
+  minReplicas: 1
+  # -- Maximum replicas
+  maxReplicas: 5
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage
+  targetMemoryUtilizationPercentage: 80
+
+# -----------------------------------------------------------------------------
+# Probes
+# -----------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /api/liveness
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /api/readiness
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /api/liveness
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# -----------------------------------------------------------------------------
+# Node Scheduling
+# -----------------------------------------------------------------------------
+# -- Node selector labels
+nodeSelector: {}
+# -- Tolerations
+tolerations: []
+# -- Affinity rules
+affinity: {}
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -----------------------------------------------------------------------------
+# Agent Sandbox Configuration
+# -----------------------------------------------------------------------------
+sandbox:
+  # -- Enable agent sandbox pod management
+  enabled: true
+
+  image:
+    # -- Agent sandbox container image repository
+    repository: agentpane/agent-sandbox
+    # -- Image pull policy for sandbox pods
+    pullPolicy: IfNotPresent
+    # -- Overrides the sandbox image tag
+    tag: ""
+
+  # -- Namespace for agent sandbox pods
+  namespace: agentpane-sandboxes
+
+  # -- Maximum concurrent agent pods
+  maxConcurrentPods: 10
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  ephemeralPvc:
+    # -- Storage class for ephemeral agent PVCs (empty = cluster default)
+    storageClass: ""
+    # -- Size of each ephemeral agent PVC
+    size: 10Gi
+    # -- Access mode for ephemeral PVCs
+    accessMode: ReadWriteOnce
+
+  networkPolicy:
+    # -- Create network policies for sandbox namespace
+    enabled: true
+    # -- Allow egress to external HTTPS
+    allowHttps: true
+    # -- Allow egress for Git over SSH
+    allowGitSsh: true
+    # -- Additional egress CIDR blocks to allow
+    additionalEgressCidrs: []
+
+  resourceQuota:
+    # -- Create resource quota for sandbox namespace
+    enabled: true
+    # -- Maximum number of agent pods
+    maxPods: 20
+    # -- Maximum number of PVCs
+    maxPvcs: 20
+    # -- Total CPU request limit across all sandbox pods
+    totalCpuRequests: "16"
+    # -- Total memory request limit across all sandbox pods
+    totalMemoryRequests: 32Gi
+
+  limitRange:
+    # -- Create limit range for sandbox namespace
+    enabled: true
+    # -- Maximum CPU per container
+    maxCpu: "4"
+    # -- Maximum memory per container
+    maxMemory: 8Gi
+    # -- Minimum CPU per container
+    minCpu: 100m
+    # -- Minimum memory per container
+    minMemory: 256Mi
+
+# -----------------------------------------------------------------------------
+# OpenShift Compatibility
+# -----------------------------------------------------------------------------
+openshift:
+  # -- Enable OpenShift-specific resources (auto-detected if not set)
+  enabled: false
+  # -- Create SecurityContextConstraints
+  createSCC: true
+
+# -----------------------------------------------------------------------------
+# Bitnami PostgreSQL Subchart Overrides
+# -----------------------------------------------------------------------------
+postgresql:
+  auth:
+    username: agentpane
+    password: ""
+    database: agentpane
+    existingSecret: ""
+    secretKeys:
+      adminPasswordKey: "postgres-password"
+      userPasswordKey: "password"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi

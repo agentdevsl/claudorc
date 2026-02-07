@@ -1,0 +1,98 @@
+{{- if .Values.sandbox.enabled -}}
+{{/* Role in the sandbox namespace — allows the controller to manage agent pods and PVCs */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "agentpane.fullname" . }}-sandbox-controller
+  namespace: {{ include "agentpane.sandbox.namespace" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+rules:
+  # Pod lifecycle management
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create", "get"]
+  # Ephemeral PVC management
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Events for observability
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # ConfigMaps for agent configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "delete"]
+  # Secrets for agent credentials (scoped to sandbox namespace)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "delete"]
+  # Network policy management
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "get", "list", "update", "delete"]
+  # Resource quota reads
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["limitranges"]
+    verbs: ["get", "list"]
+---
+{{/* Bind the role to the app's service account */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "agentpane.fullname" . }}-sandbox-controller
+  namespace: {{ include "agentpane.sandbox.namespace" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "agentpane.fullname" . }}-sandbox-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "agentpane.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+{{/* ClusterRole for cross-namespace reads (health checks, node info) */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "agentpane.fullname" . }}-cluster-reader
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "agentpane.fullname" . }}-cluster-reader
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "agentpane.fullname" . }}-cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "agentpane.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
