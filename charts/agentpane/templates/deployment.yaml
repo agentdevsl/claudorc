@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentpane.fullname" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agentpane.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "agentpane.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "agentpane.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "agentpane.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3001
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentpane.fullname" . }}
+          env:
+            {{/* ---- Database URL ---- */}}
+            {{- if and .Values.database.external.enabled .Values.database.external.existingSecret }}
+            {{/* External DB with full URL in existing secret */}}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.external.existingSecret }}
+                  key: {{ .Values.database.external.secretKeys.urlKey | default "DATABASE_URL" }}
+            {{- else }}
+            {{/* Construct URL from password — requires DATABASE_PASSWORD intermediate var */}}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.database.secretName" . }}
+                  key: {{ include "agentpane.database.passwordKey" . }}
+            - name: DATABASE_URL
+              value: {{ include "agentpane.database.url" . | quote }}
+            {{- end }}
+            {{/* ---- AI Credentials ---- */}}
+            {{- if or .Values.ai.anthropicApiKey .Values.ai.existingSecret }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.ai.secretName" . }}
+                  key: {{ .Values.ai.secretKeys.anthropicApiKeyKey | default "ANTHROPIC_API_KEY" }}
+            {{- end }}
+            {{- if or .Values.ai.claudeOauthToken .Values.ai.existingSecret }}
+            - name: CLAUDE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.ai.secretName" . }}
+                  key: {{ .Values.ai.secretKeys.claudeOauthTokenKey | default "CLAUDE_OAUTH_TOKEN" }}
+                  optional: true
+            {{- end }}
+            {{/* ---- GitHub Credentials ---- */}}
+            {{- if .Values.github.enabled }}
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.github.secretName" . }}
+                  key: {{ .Values.github.secretKeys.clientSecretKey | default "GITHUB_CLIENT_SECRET" }}
+            - name: GITHUB_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.github.secretName" . }}
+                  key: {{ .Values.github.secretKeys.privateKeyKey | default "GITHUB_PRIVATE_KEY" }}
+                  optional: true
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentpane.github.secretName" . }}
+                  key: {{ .Values.github.secretKeys.webhookSecretKey | default "GITHUB_WEBHOOK_SECRET" }}
+                  optional: true
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

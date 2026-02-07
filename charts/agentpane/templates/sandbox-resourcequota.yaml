@@ -1,0 +1,15 @@
+{{- if and .Values.sandbox.enabled .Values.sandbox.resourceQuota.enabled -}}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sandbox-quota
+  namespace: {{ include "agentpane.sandbox.namespace" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+spec:
+  hard:
+    pods: {{ .Values.sandbox.resourceQuota.maxPods | quote }}
+    persistentvolumeclaims: {{ .Values.sandbox.resourceQuota.maxPvcs | quote }}
+    requests.cpu: {{ .Values.sandbox.resourceQuota.totalCpuRequests | quote }}
+    requests.memory: {{ .Values.sandbox.resourceQuota.totalMemoryRequests }}
+{{- end }}

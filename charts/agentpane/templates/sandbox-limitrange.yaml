@@ -1,0 +1,24 @@
+{{- if and .Values.sandbox.enabled .Values.sandbox.limitRange.enabled -}}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sandbox-limits
+  namespace: {{ include "agentpane.sandbox.namespace" . }}
+  labels:
+    {{- include "agentpane.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.sandbox.resources.limits.cpu | quote }}
+        memory: {{ .Values.sandbox.resources.limits.memory }}
+      defaultRequest:
+        cpu: {{ .Values.sandbox.resources.requests.cpu | quote }}
+        memory: {{ .Values.sandbox.resources.requests.memory }}
+      max:
+        cpu: {{ .Values.sandbox.limitRange.maxCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.maxMemory }}
+      min:
+        cpu: {{ .Values.sandbox.limitRange.minCpu }}
+        memory: {{ .Values.sandbox.limitRange.minMemory }}
+{{- end }}
