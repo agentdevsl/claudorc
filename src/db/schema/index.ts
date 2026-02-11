@@ -1,6 +1,8 @@
 // Default: SQLite schema (re-export everything for backward compatibility)
-
-// Named namespace exports for explicit schema selection per DB_MODE
-export * as pgSchema from './postgres';
 export * from './sqlite';
-export * as sqliteSchema from './sqlite';
+
+// NOTE: Do NOT use `export * as pgSchema` or `export * as sqliteSchema` here.
+// Module namespace objects have null prototypes, which crashes drizzle-orm's
+// extractTablesRelationalConfig. Import directly from the dialect directories:
+//   import * as pgSchema from '@/db/schema/postgres';
+//   import * as sqliteSchema from '@/db/schema/sqlite';

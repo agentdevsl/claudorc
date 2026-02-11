@@ -1,6 +1,6 @@
 import Database, { type Database as SQLiteDatabase } from 'better-sqlite3';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
-import * as schema from '../../src/db/schema';
+import * as schema from '../../src/db/schema/sqlite';
 import { MIGRATION_SQL } from '../../src/lib/bootstrap/phases/schema';
 import { createTestAgent } from '../factories/agent.factory';
 import { createTestProject } from '../factories/project.factory';
