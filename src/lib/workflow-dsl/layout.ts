@@ -557,6 +557,8 @@ export function fromReactFlowNodes(
 export interface LayoutWorkflowForReactFlowOptions extends LayoutOptions {
   /** Use compact node types (v3 design) - default: true */
   useCompactNodes?: boolean;
+  /** Skip ensureStartEndConnected — use when edges are already server-validated */
+  skipConnectivityFix?: boolean;
 }
 
 /**
@@ -573,12 +575,13 @@ export async function layoutWorkflowForReactFlow(
   edges: WorkflowEdge[],
   options?: LayoutWorkflowForReactFlowOptions
 ): Promise<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }> {
-  const { useCompactNodes = true, ...layoutOptions } = options ?? {};
+  const { useCompactNodes = true, skipConnectivityFix = false, ...layoutOptions } = options ?? {};
 
   const uniformWidth = calculateUniformNodeWidth(nodes);
 
-  // Ensure start/end nodes are connected before layout
-  const connectedEdges = ensureStartEndConnected(nodes, edges);
+  // Skip connectivity fix when edges are already server-validated to avoid
+  // the client's simpler ensureStartEndConnected undoing server repairs
+  const connectedEdges = skipConnectivityFix ? edges : ensureStartEndConnected(nodes, edges);
 
   const layoutedNodes = await layoutWorkflow(nodes, connectedEdges, layoutOptions);
 

@@ -178,6 +178,19 @@ function parseAIResponse(responseText: string): {
     }
   }
 
+  // Remove edges referencing non-existent nodes (AI sometimes generates
+  // edges to node IDs it didn't include in the nodes array)
+  const validNodeIds = new Set(nodes.map((n) => n.id));
+  for (let i = edges.length - 1; i >= 0; i--) {
+    const e = edges[i];
+    if (e && (!validNodeIds.has(e.sourceNodeId) || !validNodeIds.has(e.targetNodeId))) {
+      console.warn(
+        `[workflow-analyze] Removing edge to non-existent node: ${e.sourceNodeId} → ${e.targetNodeId}`
+      );
+      edges.splice(i, 1);
+    }
+  }
+
   // Ensure we have at least start and end nodes
   if (nodes.length === 0) {
     throw new Error('AI generated no valid nodes');
@@ -269,7 +282,9 @@ function parseAIResponse(responseText: string): {
     }
   }
 
-  // Graph connectivity check — ensure all nodes are reachable from Start
+  // Graph connectivity check — ensure all nodes are reachable from Start.
+  // Uses a single-pass approach: connect ALL unreachable nodes from their
+  // array-order predecessor, then fix the End edge from the true chain tail.
   if (startNode && nonStartEndNodes.length > 1) {
     const adjacency = new Map<string, Set<string>>();
     for (const edge of edges) {
@@ -294,31 +309,13 @@ function parseAIResponse(responseText: string): {
       }
     }
 
-    // Connect unreachable nodes.
-    // Isolated nodes (no middle edges) are appended after the chain tail
-    // to avoid creating forks. Non-isolated unreachable nodes (broken chain
-    // links) are connected from their array-order predecessor.
-    const middleIdSet = new Set(nonStartEndNodes.map((n) => n.id));
-    const isolatedNodes: WorkflowNode[] = [];
-
+    // Connect ALL unreachable nodes from their array-order predecessor.
+    // No isolated/non-isolated distinction — this avoids fork bugs where
+    // an "isolated" node gets both a repair edge and an End edge.
     for (let i = 0; i < nonStartEndNodes.length; i++) {
       const node = nonStartEndNodes[i];
       if (!node || reachable.has(node.id)) continue;
 
-      // Check if this node has any edges to/from other middle nodes
-      const hasMiddleEdge = edges.some(
-        (e) =>
-          (e.sourceNodeId === node.id && middleIdSet.has(e.targetNodeId)) ||
-          (e.targetNodeId === node.id && middleIdSet.has(e.sourceNodeId))
-      );
-
-      if (!hasMiddleEdge) {
-        // Truly isolated — defer to append after chain tail
-        isolatedNodes.push(node);
-        continue;
-      }
-
-      // Non-isolated but unreachable — connect from array-order predecessor
       const predecessor = i === 0 ? startNode : nonStartEndNodes[i - 1];
       if (!predecessor) continue;
 
@@ -354,53 +351,33 @@ function parseAIResponse(responseText: string): {
       }
     }
 
-    // Append isolated nodes after the chain tail, extending linearly.
-    // Then re-point the End edge from the new tail (last isolated node).
-    if (isolatedNodes.length > 0) {
-      const { tail: chainTail } = findChainHeadAndTail(nonStartEndNodes, edges);
-      let appendTarget = chainTail;
-
-      for (const node of isolatedNodes) {
-        const exists = edges.some(
-          (e) => e.sourceNodeId === appendTarget.id && e.targetNodeId === node.id
-        );
-        if (!exists) {
-          console.warn(
-            `[workflow-analyze] Isolated node "${node.label}", appending after "${appendTarget.label}"`
-          );
-          edges.push({
-            id: `edge-connect-${createId().slice(0, 8)}`,
-            type: 'sequential',
-            sourceNodeId: appendTarget.id,
-            targetNodeId: node.id,
-          });
-          if (!adjacency.has(appendTarget.id)) adjacency.set(appendTarget.id, new Set());
-          adjacency.get(appendTarget.id)?.add(node.id);
-        }
-        reachable.add(node.id);
-        appendTarget = node;
-      }
-
-      // Re-point End edge: remove old tail→End, add lastIsolated→End
-      if (endNode) {
+    // After all connectivity repairs, recompute the true chain tail and
+    // ensure End connects from it. This avoids forks where an intermediate
+    // node has both a downstream edge and an End edge.
+    if (endNode) {
+      const { tail: trueTail } = findChainHeadAndTail(nonStartEndNodes, edges);
+      const hasCorrectEndEdge = edges.some(
+        (e) => e.sourceNodeId === trueTail.id && e.targetNodeId === endNode.id
+      );
+      if (!hasCorrectEndEdge) {
+        // Remove all existing edges to End
         for (let i = edges.length - 1; i >= 0; i--) {
           if (edges[i]?.targetNodeId === endNode.id) {
             edges.splice(i, 1);
           }
         }
+        console.warn(`[workflow-analyze] Re-pointing End edge from "${trueTail.label}"`);
         edges.push({
-          id: `edge-end-fix-${createId().slice(0, 8)}`,
+          id: `edge-end-final-${createId().slice(0, 8)}`,
           type: 'sequential',
-          sourceNodeId: appendTarget.id,
+          sourceNodeId: trueTail.id,
           targetNodeId: endNode.id,
         });
-        if (!adjacency.has(appendTarget.id)) adjacency.set(appendTarget.id, new Set());
-        adjacency.get(appendTarget.id)?.add(endNode.id);
-        reachable.add(endNode.id);
       }
+      reachable.add(endNode.id);
     }
 
-    // Ensure end node is reachable — add a fallback edge if BFS didn't reach it
+    // Fallback: ensure end node is reachable
     if (endNode && !reachable.has(endNode.id)) {
       const { tail } = findChainHeadAndTail(nonStartEndNodes, edges);
       const alreadyConnected = edges.some(
