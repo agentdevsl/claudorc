@@ -351,40 +351,77 @@ export class TaskCreationService {
     'research',
   ];
 
-  /** Pre-compiled regex for JSON block parsing */
-  private static readonly JSON_BLOCK_REGEX = /```json\s*([\s\S]*?)\s*```/;
+  /**
+   * Extract JSON content from a ```json fenced code block in text.
+   *
+   * The naive regex /```json\s*([\s\S]*?)\s*```/ fails when the JSON itself
+   * contains triple-backtick markdown (e.g. directory trees in descriptions).
+   * Instead, we find the opening ```json fence, then try each subsequent ```
+   * as a potential closing fence, attempting JSON.parse on the content between.
+   * The first substring that parses as valid JSON wins.
+   */
+  private static extractJsonBlock(text: string): unknown | null {
+    const openMarker = '```json';
+    const closeMarker = '```';
+
+    let searchFrom = 0;
+    while (true) {
+      const openIdx = text.indexOf(openMarker, searchFrom);
+      if (openIdx === -1) return null;
+
+      // Content starts after the ```json marker and any trailing whitespace on that line
+      const contentStart = openIdx + openMarker.length;
+
+      // Try each subsequent ``` as a potential closing fence
+      let closeSearch = contentStart;
+      while (true) {
+        const closeIdx = text.indexOf(closeMarker, closeSearch);
+        if (closeIdx === -1) break; // No more closing fences for this opening
+
+        const candidate = text.substring(contentStart, closeIdx).trim();
+        if (candidate.length > 0) {
+          try {
+            return JSON.parse(candidate);
+          } catch {
+            // Not valid JSON yet — try the next ``` further along
+          }
+        }
+        closeSearch = closeIdx + closeMarker.length;
+      }
+
+      // None of the closing fences produced valid JSON for this opening.
+      // Try the next ```json opening in the text.
+      searchFrom = contentStart;
+    }
+  }
 
   /**
    * Parse a task suggestion from assistant response text
    */
   private parseSuggestion(text: string): TaskSuggestion | null {
-    // Look for JSON block in the response using pre-compiled regex
-    const jsonMatch = text.match(TaskCreationService.JSON_BLOCK_REGEX);
-    if (!jsonMatch || !jsonMatch[1]) return null;
+    const parsed = TaskCreationService.extractJsonBlock(text);
+    if (!parsed || typeof parsed !== 'object') return null;
 
-    try {
-      const parsed = JSON.parse(jsonMatch[1]);
-      if (parsed.type !== 'task_suggestion') return null;
+    const obj = parsed as Record<string, unknown>;
+    if (obj.type !== 'task_suggestion') return null;
 
-      // Validate and extract suggestion
-      if (!parsed.title || !parsed.description) return null;
+    // Validate and extract suggestion
+    if (!obj.title || !obj.description) return null;
 
-      return {
-        title: parsed.title,
-        description: parsed.description,
-        // Validate labels: filter to known valid labels only
-        labels: Array.isArray(parsed.labels)
-          ? parsed.labels.filter(
-              (label: unknown): label is string =>
-                typeof label === 'string' && TaskCreationService.VALID_LABELS.includes(label)
-            )
-          : [],
-        priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
-      };
-    } catch (error: unknown) {
-      console.error('[TaskCreationService] Failed to parse task suggestion JSON:', error);
-      return null;
-    }
+    return {
+      title: obj.title as string,
+      description: obj.description as string,
+      // Validate labels: filter to known valid labels only
+      labels: Array.isArray(obj.labels)
+        ? obj.labels.filter(
+            (label: unknown): label is string =>
+              typeof label === 'string' && TaskCreationService.VALID_LABELS.includes(label)
+          )
+        : [],
+      priority: ['high', 'medium', 'low'].includes(obj.priority as string)
+        ? (obj.priority as 'high' | 'medium' | 'low')
+        : 'medium',
+    };
   }
 
   /**
@@ -394,48 +431,42 @@ export class TaskCreationService {
     text: string,
     session: TaskCreationSession
   ): PendingQuestions | null {
-    // Look for JSON block in the response using pre-compiled regex
     console.log(
       '[TaskCreationService] Attempting to parse clarifying questions from text length:',
       text.length
     );
-    const jsonMatch = text.match(TaskCreationService.JSON_BLOCK_REGEX);
-    if (!jsonMatch || !jsonMatch[1]) {
-      console.log('[TaskCreationService] No JSON block found in response');
+    const parsed = TaskCreationService.extractJsonBlock(text);
+    if (!parsed || typeof parsed !== 'object') {
+      console.log('[TaskCreationService] No valid JSON block found in response');
       return null;
     }
-    console.log('[TaskCreationService] Found JSON block, attempting to parse');
+    console.log('[TaskCreationService] Found and parsed JSON block');
 
     try {
-      const jsonContent = jsonMatch[1];
-      console.log(
-        '[TaskCreationService] 📄 Raw JSON block (first 200 chars):',
-        jsonContent.substring(0, 200)
-      );
-
-      const parsed = JSON.parse(jsonContent);
-      console.log('[TaskCreationService] 📋 Parsed JSON block:', {
-        type: parsed.type,
-        hasQuestions: !!parsed.questions,
-        questionsCount: parsed.questions?.length,
-        keys: Object.keys(parsed),
+      const obj = parsed as Record<string, unknown>;
+      console.log('[TaskCreationService] Parsed JSON block:', {
+        type: obj.type,
+        hasQuestions: !!obj.questions,
+        questionsCount: Array.isArray(obj.questions) ? obj.questions.length : undefined,
+        keys: Object.keys(obj),
       });
 
-      if (parsed.type !== 'clarifying_questions') {
+      if (obj.type !== 'clarifying_questions') {
         console.log(
-          '[TaskCreationService] ⏭️ Not clarifying_questions type, skipping (found: ' +
-            parsed.type +
+          '[TaskCreationService] Not clarifying_questions type, skipping (found: ' +
+            String(obj.type) +
             ')'
         );
         return null;
       }
 
       // Validate questions array
-      if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) return null;
+      if (!Array.isArray(obj.questions) || obj.questions.length === 0) return null;
 
       // Validate each question
       const questions: ClarifyingQuestion[] = [];
-      for (const q of parsed.questions) {
+      // biome-ignore lint/suspicious/noExplicitAny: parsed from untyped JSON
+      for (const q of obj.questions as Array<any>) {
         if (!q.header || !q.question || !Array.isArray(q.options) || q.options.length === 0) {
           continue;
         }
