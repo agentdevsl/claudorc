@@ -294,15 +294,34 @@ function parseAIResponse(responseText: string): {
       }
     }
 
-    // Connect unreachable nodes
+    // Connect unreachable nodes.
+    // Isolated nodes (no middle edges) are appended after the chain tail
+    // to avoid creating forks. Non-isolated unreachable nodes (broken chain
+    // links) are connected from their array-order predecessor.
+    const middleIdSet = new Set(nonStartEndNodes.map((n) => n.id));
+    const isolatedNodes: WorkflowNode[] = [];
+
     for (let i = 0; i < nonStartEndNodes.length; i++) {
       const node = nonStartEndNodes[i];
       if (!node || reachable.has(node.id)) continue;
 
+      // Check if this node has any edges to/from other middle nodes
+      const hasMiddleEdge = edges.some(
+        (e) =>
+          (e.sourceNodeId === node.id && middleIdSet.has(e.targetNodeId)) ||
+          (e.targetNodeId === node.id && middleIdSet.has(e.sourceNodeId))
+      );
+
+      if (!hasMiddleEdge) {
+        // Truly isolated — defer to append after chain tail
+        isolatedNodes.push(node);
+        continue;
+      }
+
+      // Non-isolated but unreachable — connect from array-order predecessor
       const predecessor = i === 0 ? startNode : nonStartEndNodes[i - 1];
       if (!predecessor) continue;
 
-      // Guard against duplicate edges
       const exists = edges.some(
         (e) => e.sourceNodeId === predecessor.id && e.targetNodeId === node.id
       );
@@ -316,7 +335,6 @@ function parseAIResponse(responseText: string): {
           sourceNodeId: predecessor.id,
           targetNodeId: node.id,
         });
-        // Update adjacency
         if (!adjacency.has(predecessor.id)) adjacency.set(predecessor.id, new Set());
         adjacency.get(predecessor.id)?.add(node.id);
       }
@@ -333,6 +351,52 @@ function parseAIResponse(responseText: string): {
             subQueue.push(neighbor);
           }
         }
+      }
+    }
+
+    // Append isolated nodes after the chain tail, extending linearly.
+    // Then re-point the End edge from the new tail (last isolated node).
+    if (isolatedNodes.length > 0) {
+      const { tail: chainTail } = findChainHeadAndTail(nonStartEndNodes, edges);
+      let appendTarget = chainTail;
+
+      for (const node of isolatedNodes) {
+        const exists = edges.some(
+          (e) => e.sourceNodeId === appendTarget.id && e.targetNodeId === node.id
+        );
+        if (!exists) {
+          console.warn(
+            `[workflow-analyze] Isolated node "${node.label}", appending after "${appendTarget.label}"`
+          );
+          edges.push({
+            id: `edge-connect-${createId().slice(0, 8)}`,
+            type: 'sequential',
+            sourceNodeId: appendTarget.id,
+            targetNodeId: node.id,
+          });
+          if (!adjacency.has(appendTarget.id)) adjacency.set(appendTarget.id, new Set());
+          adjacency.get(appendTarget.id)?.add(node.id);
+        }
+        reachable.add(node.id);
+        appendTarget = node;
+      }
+
+      // Re-point End edge: remove old tail→End, add lastIsolated→End
+      if (endNode) {
+        for (let i = edges.length - 1; i >= 0; i--) {
+          if (edges[i]?.targetNodeId === endNode.id) {
+            edges.splice(i, 1);
+          }
+        }
+        edges.push({
+          id: `edge-end-fix-${createId().slice(0, 8)}`,
+          type: 'sequential',
+          sourceNodeId: appendTarget.id,
+          targetNodeId: endNode.id,
+        });
+        if (!adjacency.has(appendTarget.id)) adjacency.set(appendTarget.id, new Set());
+        adjacency.get(appendTarget.id)?.add(endNode.id);
+        reachable.add(endNode.id);
       }
     }
 
