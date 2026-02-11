@@ -244,11 +244,16 @@ function normalizePositions(positions: Map<string, Position>): void {
 // =============================================================================
 
 /**
- * Finds the topological head and tail of the middle-node chain using edges.
- * Head = middle node with no incoming edges from other middle nodes.
- * Tail = middle node with no outgoing edges to other middle nodes.
- * Prefers nodes that participate in the chain (have at least one middle edge)
- * over isolated nodes that have zero middle edges.
+ * Finds the topological head and tail of the middle-node chain by walking
+ * the longest path through the middle-edge subgraph.
+ *
+ * For each head candidate (no incoming middle edges), BFS forward and count
+ * reachable nodes. The candidate that reaches the most nodes is the real head;
+ * the furthest reachable node with no outgoing middle edges is the real tail.
+ *
+ * This correctly handles isolated nodes and dead-end forks — they have short
+ * reachable sets and lose to the main chain's head candidate.
+ *
  * Falls back to array order if topology is ambiguous.
  */
 export function findChainHeadAndTail(
@@ -270,24 +275,47 @@ export function findChainHeadAndTail(
   const hasIncoming = new Set(middleEdges.map((e) => e.targetNodeId));
   const hasOutgoing = new Set(middleEdges.map((e) => e.sourceNodeId));
 
-  // Nodes that participate in at least one middle edge (not isolated)
-  const connectedIds = new Set([...hasIncoming, ...hasOutgoing]);
+  // Build outgoing adjacency
+  const successors = new Map<string, Set<string>>();
+  for (const e of middleEdges) {
+    if (!successors.has(e.sourceNodeId)) successors.set(e.sourceNodeId, new Set());
+    successors.get(e.sourceNodeId)?.add(e.targetNodeId);
+  }
 
-  // Head: no incoming from other middle nodes, prefer connected nodes over isolated ones
-  // middleNodes.length >= 2 guaranteed (length === 1 returns early above)
-  const head: WorkflowNode = (middleNodes.find(
-    (n) => !hasIncoming.has(n.id) && connectedIds.has(n.id)
-  ) ??
-    middleNodes.find((n) => !hasIncoming.has(n.id)) ??
-    middleNodes[0]) as WorkflowNode;
-  // Tail: no outgoing to other middle nodes, prefer connected nodes over isolated ones
-  const tail: WorkflowNode = (middleNodes.find(
-    (n) => !hasOutgoing.has(n.id) && connectedIds.has(n.id)
-  ) ??
-    middleNodes.find((n) => !hasOutgoing.has(n.id)) ??
-    middleNodes[middleNodes.length - 1]) as WorkflowNode;
+  // Head candidates: no incoming from other middle nodes
+  const headCandidates = middleNodes.filter((n) => !hasIncoming.has(n.id));
 
-  return { head, tail };
+  let bestHead: WorkflowNode = (headCandidates[0] ?? middleNodes[0]) as WorkflowNode;
+  let bestTail: WorkflowNode = middleNodes[middleNodes.length - 1] as WorkflowNode;
+  let bestReachable = 0;
+
+  for (const candidate of headCandidates) {
+    // BFS from candidate to find all reachable middle nodes
+    const reachable = new Set<string>([candidate.id]);
+    const queue = [candidate.id];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) break;
+      for (const next of successors.get(current) ?? []) {
+        if (!reachable.has(next)) {
+          reachable.add(next);
+          queue.push(next);
+        }
+      }
+    }
+
+    if (reachable.size > bestReachable) {
+      bestReachable = reachable.size;
+      bestHead = candidate;
+      // Tail = reachable node with no outgoing middle edges (end of the chain)
+      const tailInChain = middleNodes.find(
+        (n) => reachable.has(n.id) && !hasOutgoing.has(n.id) && n.id !== candidate.id
+      );
+      bestTail = tailInChain ?? candidate;
+    }
+  }
+
+  return { head: bestHead, tail: bestTail };
 }
 
 /**
