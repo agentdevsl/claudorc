@@ -227,13 +227,63 @@ const DEFAULT_SUGGESTION: EditableSuggestion = {
 /**
  * Strip machine-readable JSON blocks from message content.
  * This includes task_suggestion and clarifying_questions blocks that shouldn't be shown to users.
+ *
+ * Uses progressive JSON.parse to find the correct closing ``` fence, which handles
+ * descriptions that contain nested triple-backtick markdown (e.g. directory trees).
  */
 function stripMachineReadableJson(content: string): string {
-  // Match ```json blocks containing "type": "task_suggestion" or "type": "clarifying_questions"
-  // Use [\s\S]*? for non-greedy matching of any character including newlines
-  const jsonBlockPattern =
-    /```json[\s\S]*?"type"\s*:\s*"(?:task_suggestion|clarifying_questions)"[\s\S]*?```/g;
-  return content.replace(jsonBlockPattern, '').trim();
+  const openMarker = '```json';
+  const closeMarker = '```';
+  let result = content;
+  let searchFrom = 0;
+
+  // Process all ```json blocks
+  let safetyLimit = 20;
+  while (safetyLimit-- > 0) {
+    const openIdx = result.indexOf(openMarker, searchFrom);
+    if (openIdx === -1) break;
+
+    const contentStart = openIdx + openMarker.length;
+    let removed = false;
+
+    // Try each subsequent ``` as a potential closing fence
+    let closeSearch = contentStart;
+    while (true) {
+      const closeIdx = result.indexOf(closeMarker, closeSearch);
+      if (closeIdx === -1) break;
+
+      const candidate = result.substring(contentStart, closeIdx).trim();
+      if (candidate.length > 0) {
+        try {
+          const parsed = JSON.parse(candidate);
+          // Only strip blocks that are machine-readable task/question JSON
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            (parsed.type === 'task_suggestion' || parsed.type === 'clarifying_questions')
+          ) {
+            // Remove the entire fenced block (including closing ```)
+            result = result.substring(0, openIdx) + result.substring(closeIdx + closeMarker.length);
+            removed = true;
+            break;
+          }
+          // Valid JSON but not a machine-readable block — stop trying further fences for this opening
+          break;
+        } catch {
+          // Not valid JSON yet — try the next ``` further along
+        }
+      }
+      closeSearch = closeIdx + closeMarker.length;
+    }
+
+    if (!removed) {
+      // Skip past this ```json opening and continue searching for more
+      searchFrom = contentStart;
+    }
+    // If removed, searchFrom stays the same (or resets to 0) to catch adjacent blocks
+  }
+
+  return result.trim();
 }
 
 // ============================================================================

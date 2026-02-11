@@ -127,7 +127,7 @@ export function Sidebar({ projectId: _projectId }: SidebarProps): React.JSX.Elem
 
   return (
     <aside
-      className="flex h-screen w-60 flex-col border-r border-border bg-surface"
+      className="flex h-full w-60 flex-col border-r border-border bg-surface"
       data-testid="sidebar"
     >
       {/* Header with logo */}

@@ -5,6 +5,7 @@
  * from the source file where it was previously hardcoded.
  */
 
+import { TERRAFORM_COMPOSE_STACKS_TEXT } from '../terraform/stacks-prompt.js';
 import type { PromptCategory, PromptCategoryInfo, PromptDefinition } from './types.js';
 
 // ============================================================================
@@ -226,9 +227,11 @@ Generate a JSON object with this structure:
 
 1. **Always include start and end nodes** - Every workflow must have exactly one start node and at least one end node.
 
-2. **PRESERVE ALL STEPS** - Do NOT simplify or collapse steps. If the source has 12 steps, generate 12+ nodes (plus start/end). Each numbered item or bullet point should become its own node.
+2. **CRITICAL: Every node MUST be connected by edges.** The start node MUST have a sequential edge to the first step. The last step MUST have a sequential edge to the end node. Every consecutive pair of nodes must be connected. For N nodes in a linear flow, you need exactly N-1 edges.
 
-3. **Use correct node types**:
+3. **PRESERVE ALL STEPS** - Do NOT simplify or collapse steps. If the source has 12 steps, generate 12+ nodes (plus start/end). Each numbered item or bullet point should become its own node.
+
+4. **Use correct node types**:
    - \`skill\` - For ANY "/name" invocation (items starting with "/")
    - Treat command list items as skills (use \`skill\` nodes)
    - \`context\` - For prompting/context content (items NOT starting with "/")
@@ -237,20 +240,20 @@ Generate a JSON object with this structure:
    - \`parallel\` - For concurrent execution (e.g., "concurrent agents", "in parallel")
    - \`conditional\` - For branching (e.g., "if tests pass", "otherwise fix issues")
 
-4. **Preserve descriptions** - Copy the FULL description from each step into the node's description field. Include details like "use tdd", "resolve issues independently", "validate all tests passing".
+5. **Preserve descriptions** - Copy the FULL description from each step into the node's description field. Include details like "use tdd", "resolve issues independently", "validate all tests passing".
 
-5. **Create meaningful connections** - Use appropriate edge types:
+6. **Create meaningful connections** - Use appropriate edge types:
    - Use \`sequential\` for simple step-by-step flow
    - Use \`dataflow\` when output from one node feeds into another
    - Use \`handoff\` when one agent delegates to another
    - Use \`conditional\` for branching logic
 
-6. **Position nodes logically** - Place nodes in a grid-like pattern:
+7. **Position nodes logically** - Place nodes in a grid-like pattern:
    - Start at position (100, 100)
    - Increment y by 140 for sequential flow (vertical layout)
    - Increment x by 250 for parallel branches
 
-7. **Set confidence score** - Rate your confidence (0.0-1.0) based on:
+8. **Set confidence score** - Rate your confidence (0.0-1.0) based on:
    - Clarity of the template structure
    - Certainty of inferred relationships
    - Completeness of generated workflow
@@ -267,18 +270,29 @@ For content like:
 \`\`\`
 
 Generate:
-1. start node
-2. skill node: skillId="speckit.specify", skillName="Create Spec", description="/speckit.specify - Create feature specification"
-3. context node: content="Validate implementation approach", label="Validate Approach"
-4. skill node: skillId="speckit.plan", skillName="Generate Plan", description="/speckit.plan - Generate implementation plan"
-5. loop node: description="Perform code review using concurrent opus agents", maxIterations=2
-6. context node: content="Create PR with summary", label="Create PR"
-7. end node
+
+Nodes:
+1. start node (id: "start")
+2. skill node (id: "step1"): skillId="speckit.specify", skillName="Create Spec"
+3. context node (id: "step2"): content="Validate implementation approach", label="Validate Approach"
+4. skill node (id: "step3"): skillId="speckit.plan", skillName="Generate Plan"
+5. loop node (id: "step4"): description="Perform code review using concurrent opus agents", maxIterations=2
+6. context node (id: "step5"): content="Create PR with summary", label="Create PR"
+7. end node (id: "end")
+
+Edges (connect EVERY consecutive pair):
+1. { "id": "e1", "type": "sequential", "sourceNodeId": "start", "targetNodeId": "step1" }
+2. { "id": "e2", "type": "sequential", "sourceNodeId": "step1", "targetNodeId": "step2" }
+3. { "id": "e3", "type": "sequential", "sourceNodeId": "step2", "targetNodeId": "step3" }
+4. { "id": "e4", "type": "sequential", "sourceNodeId": "step3", "targetNodeId": "step4" }
+5. { "id": "e5", "type": "sequential", "sourceNodeId": "step4", "targetNodeId": "step5" }
+6. { "id": "e6", "type": "sequential", "sourceNodeId": "step5", "targetNodeId": "end" }
 
 IMPORTANT:
 - Each step in the source becomes a separate node. Do not combine or simplify steps.
 - If an item starts with "/" → SKILL node
-- If an item does NOT start with "/" → CONTEXT node`;
+- If an item does NOT start with "/" → CONTEXT node
+- EVERY node must be connected. Count your edges: N nodes = N-1 edges.`;
 
 const WORKFLOW_ANALYSIS_TEXT = `## Template to Analyze
 
@@ -315,9 +329,10 @@ Steps:
 2. For each step, check if it starts with "/" or contains a /name reference
 3. "/" items → skill nodes; non-"/" items → context nodes
 4. Copy the FULL step description into the node's description field
-5. Connect nodes sequentially with edges
+5. Connect ALL consecutive nodes with sequential edges — including start→first step and last step→end. Every node must have at least one incoming or outgoing edge.
 6. Add start node at beginning, end node at the end
 7. Position nodes vertically (increment y by 140 for each step)
+8. Verify: count your edges. For N nodes in a linear flow, you need exactly N-1 edges.
 
 Return ONLY the JSON workflow object, no additional text.`;
 
@@ -475,6 +490,17 @@ export const PROMPT_REGISTRY: Record<string, PromptDefinition> = {
     settingsKey: 'prompt.terraform-compose',
     dynamicVariables: ['moduleContext'],
     wordCount: wordCount(TERRAFORM_COMPOSE_TEXT),
+  },
+  'terraform-compose-stacks': {
+    id: 'terraform-compose-stacks',
+    category: 'terraform-compose',
+    name: 'Stacks Composer',
+    description:
+      'System prompt for Terraform Stacks multi-file generation using components and deployments.',
+    defaultText: TERRAFORM_COMPOSE_STACKS_TEXT,
+    settingsKey: 'prompt.terraform-compose-stacks',
+    dynamicVariables: ['moduleContext', 'stacksReference'],
+    wordCount: wordCount(TERRAFORM_COMPOSE_STACKS_TEXT),
   },
   'workflow-generation-system': {
     id: 'workflow-generation-system',

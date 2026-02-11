@@ -306,10 +306,12 @@ export function AIGenerateDialog({
   const handleGenerate = useCallback(async () => {
     if (!aiWorkflow || !selected) return;
 
-    // Apply layout algorithm and convert DSL nodes/edges to ReactFlow format
+    // Apply layout algorithm and convert DSL nodes/edges to ReactFlow format.
+    // Skip connectivity fix — server already validated and repaired edges.
     const { nodes: reactFlowNodes, edges: reactFlowEdges } = await layoutWorkflowForReactFlow(
       aiWorkflow.nodes as WorkflowNode[],
-      aiWorkflow.edges as WorkflowEdge[]
+      aiWorkflow.edges as WorkflowEdge[],
+      { skipConnectivityFix: true }
     );
 
     onGenerate(reactFlowNodes, reactFlowEdges, selected.name, aiWorkflow.description ?? undefined);

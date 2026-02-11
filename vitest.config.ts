@@ -10,7 +10,7 @@ export default defineConfig({
       PGLITE_DATA_DIR: '',
     },
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['**/node_modules/**', 'node_modules', 'dist', '.claude', 'submodule'],
+    exclude: ['**/node_modules/**', 'node_modules', 'dist', '.claude', '.worktrees', 'submodule'],
     alias: {
       '@/db/client': resolve(__dirname, './src/db/client.ts'),
       '@/services/agent.service': resolve(__dirname, './src/services/agent.service.ts'),

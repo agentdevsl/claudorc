@@ -240,6 +240,139 @@ function normalizePositions(positions: Map<string, Position>): void {
 }
 
 // =============================================================================
+// EDGE CONNECTIVITY
+// =============================================================================
+
+/**
+ * Finds the topological head and tail of the middle-node chain by walking
+ * the longest path through the middle-edge subgraph.
+ *
+ * For each head candidate (no incoming middle edges), BFS forward and count
+ * reachable nodes. The candidate that reaches the most nodes is the real head;
+ * the furthest reachable node with no outgoing middle edges is the real tail.
+ *
+ * This correctly handles isolated nodes and dead-end forks — they have short
+ * reachable sets and lose to the main chain's head candidate.
+ *
+ * Falls back to array order if topology is ambiguous.
+ */
+export function findChainHeadAndTail(
+  middleNodes: WorkflowNode[],
+  edges: WorkflowEdge[]
+): { head: WorkflowNode; tail: WorkflowNode } {
+  if (middleNodes.length === 1) {
+    const only = middleNodes[0] as WorkflowNode;
+    return { head: only, tail: only };
+  }
+
+  const middleIds = new Set(middleNodes.map((n) => n.id));
+
+  // Edges between middle nodes only
+  const middleEdges = edges.filter(
+    (e) => middleIds.has(e.sourceNodeId) && middleIds.has(e.targetNodeId)
+  );
+
+  const hasIncoming = new Set(middleEdges.map((e) => e.targetNodeId));
+  const hasOutgoing = new Set(middleEdges.map((e) => e.sourceNodeId));
+
+  // Build outgoing adjacency
+  const successors = new Map<string, Set<string>>();
+  for (const e of middleEdges) {
+    if (!successors.has(e.sourceNodeId)) successors.set(e.sourceNodeId, new Set());
+    successors.get(e.sourceNodeId)?.add(e.targetNodeId);
+  }
+
+  // Head candidates: no incoming from other middle nodes
+  const headCandidates = middleNodes.filter((n) => !hasIncoming.has(n.id));
+
+  let bestHead: WorkflowNode = (headCandidates[0] ?? middleNodes[0]) as WorkflowNode;
+  let bestTail: WorkflowNode = middleNodes[middleNodes.length - 1] as WorkflowNode;
+  let bestReachable = 0;
+
+  for (const candidate of headCandidates) {
+    // BFS from candidate to find all reachable middle nodes
+    const reachable = new Set<string>([candidate.id]);
+    const queue = [candidate.id];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) break;
+      for (const next of successors.get(current) ?? []) {
+        if (!reachable.has(next)) {
+          reachable.add(next);
+          queue.push(next);
+        }
+      }
+    }
+
+    if (reachable.size > bestReachable) {
+      bestReachable = reachable.size;
+      bestHead = candidate;
+      // Tail = reachable node with no outgoing middle edges (end of the chain)
+      const tailInChain = middleNodes.find(
+        (n) => reachable.has(n.id) && !hasOutgoing.has(n.id) && n.id !== candidate.id
+      );
+      bestTail = tailInChain ?? candidate;
+    }
+  }
+
+  return { head: bestHead, tail: bestTail };
+}
+
+/**
+ * Ensures start and end nodes are properly connected to the workflow chain.
+ * Uses edge topology to find the actual first/last nodes in the chain,
+ * rather than relying on array order (which may not match workflow order).
+ * Returns a new edges array (does not mutate input).
+ */
+export function ensureStartEndConnected(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[]
+): WorkflowEdge[] {
+  const startNode = nodes.find((n) => n.type === 'start');
+  const endNode = nodes.find((n) => n.type === 'end');
+  const middleNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+
+  if (middleNodes.length === 0) return edges;
+
+  let result = [...edges];
+  const { head: firstNode, tail: lastNode } = findChainHeadAndTail(middleNodes, edges);
+
+  // Fix start → first middle node
+  if (startNode) {
+    const hasCorrectStartEdge = result.some(
+      (e) => e.sourceNodeId === startNode.id && e.targetNodeId === firstNode.id
+    );
+    if (!hasCorrectStartEdge) {
+      result = result.filter((e) => e.sourceNodeId !== startNode.id);
+      result.unshift({
+        id: `auto-start-${Date.now()}`,
+        type: 'sequential',
+        sourceNodeId: startNode.id,
+        targetNodeId: firstNode.id,
+      });
+    }
+  }
+
+  // Fix last middle node → end
+  if (endNode) {
+    const hasCorrectEndEdge = result.some(
+      (e) => e.sourceNodeId === lastNode.id && e.targetNodeId === endNode.id
+    );
+    if (!hasCorrectEndEdge) {
+      result = result.filter((e) => e.targetNodeId !== endNode.id);
+      result.push({
+        id: `auto-end-${Date.now()}`,
+        type: 'sequential',
+        sourceNodeId: lastNode.id,
+        targetNodeId: endNode.id,
+      });
+    }
+  }
+
+  return result;
+}
+
+// =============================================================================
 // MAIN LAYOUT FUNCTION
 // =============================================================================
 
@@ -424,6 +557,8 @@ export function fromReactFlowNodes(
 export interface LayoutWorkflowForReactFlowOptions extends LayoutOptions {
   /** Use compact node types (v3 design) - default: true */
   useCompactNodes?: boolean;
+  /** Skip ensureStartEndConnected — use when edges are already server-validated */
+  skipConnectivityFix?: boolean;
 }
 
 /**
@@ -440,20 +575,19 @@ export async function layoutWorkflowForReactFlow(
   edges: WorkflowEdge[],
   options?: LayoutWorkflowForReactFlowOptions
 ): Promise<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }> {
-  const { useCompactNodes = true, ...layoutOptions } = options ?? {};
+  const { useCompactNodes = true, skipConnectivityFix = false, ...layoutOptions } = options ?? {};
 
-  // Calculate uniform width based on content for CSS styling
-  // Note: ELK uses its default nodeWidth for positioning calculations
-  // to ensure stable layout, but we pass the calculated width to nodes
-  // for consistent visual rendering
   const uniformWidth = calculateUniformNodeWidth(nodes);
 
-  // Apply layout (uses default nodeWidth for ELK positioning)
-  const layoutedNodes = await layoutWorkflow(nodes, edges, layoutOptions);
+  // Skip connectivity fix when edges are already server-validated to avoid
+  // the client's simpler ensureStartEndConnected undoing server repairs
+  const connectedEdges = skipConnectivityFix ? edges : ensureStartEndConnected(nodes, edges);
+
+  const layoutedNodes = await layoutWorkflow(nodes, connectedEdges, layoutOptions);
 
   return {
     nodes: toReactFlowNodes(layoutedNodes, { useCompactNodes, uniformWidth }),
-    edges: toReactFlowEdges(edges),
+    edges: toReactFlowEdges(connectedEdges),
   };
 }
 
@@ -556,13 +690,13 @@ function mapEdgeType(edgeType: WorkflowEdge['type']): string {
   // Map to registered edge types: sequential, handoff, dataflow, conditional
   switch (edgeType) {
     case 'sequential':
-      return 'straight';
+      return 'sequential';
     case 'handoff':
     case 'dataflow':
     case 'conditional':
       return edgeType;
     default:
       // Default to sequential for unknown types
-      return 'straight';
+      return 'sequential';
   }
 }

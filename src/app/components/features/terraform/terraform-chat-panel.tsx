@@ -516,6 +516,8 @@ interface ChatInputProps {
   input: string;
   setInput: (v: string) => void;
   isStreaming: boolean;
+  composeMode: 'terraform' | 'stacks';
+  setComposeMode: (mode: 'terraform' | 'stacks') => void;
   onSubmit: () => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -525,32 +527,58 @@ function ChatInput({
   input,
   setInput,
   isStreaming,
+  composeMode,
+  setComposeMode,
   onSubmit,
   onKeyDown,
   inputRef,
 }: ChatInputProps): React.JSX.Element {
   return (
     <div className="border-t border-border bg-surface px-6 py-4">
-      <div className="flex items-end gap-3 rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Describe your infrastructure needs..."
-          rows={6}
-          className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
-          disabled={isStreaming}
-        />
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={!input.trim() || isStreaming}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] text-white transition-colors hover:bg-[#1f6feb]/90 disabled:opacity-50"
-          aria-label="Send message"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </button>
+      <div className="rounded-xl border border-border bg-canvas p-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/15">
+        {/* Mode chips */}
+        <div className="mb-2 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setComposeMode(composeMode === 'stacks' ? 'terraform' : 'stacks')}
+            disabled={isStreaming}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
+              composeMode === 'stacks'
+                ? 'border-[#844fba] bg-[#844fba]/10 text-[#844fba]'
+                : 'border-border text-fg-muted opacity-60 hover:opacity-100 hover:border-[#844fba]/50 hover:text-[#844fba]/70',
+              isStreaming && 'pointer-events-none opacity-40'
+            )}
+          >
+            <Stack className="h-3 w-3" />
+            Stacks
+          </button>
+        </div>
+        <div className="flex items-end gap-3">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={
+              composeMode === 'stacks'
+                ? 'Describe your multi-environment infrastructure...'
+                : 'Describe your infrastructure needs...'
+            }
+            rows={6}
+            className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-fg placeholder:text-fg-subtle outline-none"
+            disabled={isStreaming}
+          />
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!input.trim() || isStreaming}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] text-white transition-colors hover:bg-[#1f6feb]/90 disabled:opacity-50"
+            aria-label="Send message"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -564,6 +592,8 @@ export function TerraformChatPanel(): React.JSX.Element {
     composeComplete,
     matchedModules,
     error,
+    composeMode,
+    setComposeMode,
     sendMessage,
     resetConversation,
     clearError,
@@ -606,13 +636,20 @@ export function TerraformChatPanel(): React.JSX.Element {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-auto px-8 animate-fade-in">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgba(132,79,186,0.15)] shadow-[0_0_24px_rgba(132,79,186,0.15)]">
-            <Cube className="h-8 w-8 text-[#844fba]" weight="duotone" />
+            {composeMode === 'stacks' ? (
+              <Stack className="h-8 w-8 text-[#844fba]" weight="duotone" />
+            ) : (
+              <Cube className="h-8 w-8 text-[#844fba]" weight="duotone" />
+            )}
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-semibold tracking-tight text-fg">Compose Infrastructure</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-fg">
+              {composeMode === 'stacks' ? 'Compose Stacks' : 'Compose Infrastructure'}
+            </h2>
             <p className="mt-1 max-w-md text-sm text-fg-muted">
-              Describe what you need in plain English. We'll match your requirements to private
-              modules and compose the Terraform configuration.
+              {composeMode === 'stacks'
+                ? 'Describe your multi-environment infrastructure. We\u2019ll generate Terraform Stacks with components and deployments.'
+                : 'Describe what you need in plain English. We\u2019ll match your requirements to private modules and compose the Terraform configuration.'}
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
@@ -633,6 +670,8 @@ export function TerraformChatPanel(): React.JSX.Element {
           input={input}
           setInput={setInput}
           isStreaming={isStreaming}
+          composeMode={composeMode}
+          setComposeMode={setComposeMode}
           onSubmit={handleSubmit}
           onKeyDown={handleKeyDown}
           inputRef={inputRef}
@@ -731,6 +770,8 @@ export function TerraformChatPanel(): React.JSX.Element {
             input={input}
             setInput={setInput}
             isStreaming={isStreaming}
+            composeMode={composeMode}
+            setComposeMode={setComposeMode}
             onSubmit={handleSubmit}
             onKeyDown={handleKeyDown}
             inputRef={inputRef}

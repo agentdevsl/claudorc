@@ -2,27 +2,55 @@ import { Code, Copy, DownloadSimple, FileCode, GitBranch, Sliders } from '@phosp
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { parseHclVariables } from '@/lib/terraform/parse-hcl-variables';
+import { cn } from '@/lib/utils/cn';
 import { useTerraform } from './terraform-context';
 import { TerraformDependencyDiagram } from './terraform-dependency-diagram';
 import { downloadAsFile } from './terraform-utils';
 import { TerraformVariablesForm } from './terraform-variables-form';
 
 export function TerraformRightPanel(): React.JSX.Element {
-  const { generatedCode } = useTerraform();
+  const { generatedCode, generatedFiles, composeMode } = useTerraform();
   const [activeTab, setActiveTab] = useState('code');
+  const [activeFileIdx, setActiveFileIdx] = useState(0);
   const prevCodeRef = useRef<string | null>(null);
+  const isStacks = composeMode === 'stacks';
+
   const variableCount = useMemo(
-    () => (generatedCode ? parseHclVariables(generatedCode).length : 0),
-    [generatedCode]
+    () => (!isStacks && generatedCode ? parseHclVariables(generatedCode).length : 0),
+    [generatedCode, isStacks]
   );
 
-  // Auto-switch to dependencies tab when code is first generated
+  const activeFile = useMemo(() => {
+    if (generatedFiles && generatedFiles.length > 1) {
+      const file = generatedFiles[Math.min(activeFileIdx, generatedFiles.length - 1)];
+      return file ?? null;
+    }
+    return null;
+  }, [generatedFiles, activeFileIdx]);
+
+  const displayCode = activeFile?.code ?? generatedCode;
+  const displayFilename =
+    activeFile?.filename ?? (composeMode === 'stacks' ? 'stack.tfcomponent.hcl' : 'main.tf');
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset file index when files change
+  useEffect(() => {
+    setActiveFileIdx(0);
+  }, [generatedFiles]);
+
+  // Reset to code tab when entering stacks mode (dependencies/variables tabs hidden)
+  useEffect(() => {
+    if (isStacks && activeTab !== 'code') {
+      setActiveTab('code');
+    }
+  }, [isStacks, activeTab]);
+
+  // Auto-switch tab when code is first generated
   useEffect(() => {
     if (generatedCode && !prevCodeRef.current) {
-      setActiveTab('dependencies');
+      setActiveTab(composeMode === 'stacks' ? 'code' : 'dependencies');
     }
     prevCodeRef.current = generatedCode;
-  }, [generatedCode]);
+  }, [generatedCode, composeMode]);
 
   return (
     <Tabs
@@ -35,38 +63,69 @@ export function TerraformRightPanel(): React.JSX.Element {
         <TabsList className="h-7 border-0 bg-transparent p-0">
           <TabsTrigger value="code" className="h-6 gap-1 px-2 text-[11px]">
             <Code className="h-3 w-3" />
-            Code
+            {isStacks ? 'Files' : 'Code'}
           </TabsTrigger>
-          <TabsTrigger value="dependencies" className="h-6 gap-1 px-2 text-[11px]">
-            <GitBranch className="h-3 w-3" />
-            Dependencies
-          </TabsTrigger>
-          <TabsTrigger value="variables" className="h-6 gap-1 px-2 text-[11px]">
-            <Sliders className="h-3 w-3" />
-            Variables
-            {variableCount > 0 && (
-              <span className="ml-1 rounded-full bg-accent/15 px-1.5 text-[9px] font-medium text-accent">
-                {variableCount}
-              </span>
-            )}
-          </TabsTrigger>
+          {!isStacks && (
+            <TabsTrigger value="dependencies" className="h-6 gap-1 px-2 text-[11px]">
+              <GitBranch className="h-3 w-3" />
+              Dependencies
+            </TabsTrigger>
+          )}
+          {!isStacks && (
+            <TabsTrigger value="variables" className="h-6 gap-1 px-2 text-[11px]">
+              <Sliders className="h-3 w-3" />
+              Variables
+              {variableCount > 0 && (
+                <span className="ml-1 rounded-full bg-accent/15 px-1.5 text-[9px] font-medium text-accent">
+                  {variableCount}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
       </div>
 
       {/* Code tab */}
-      <TabsContent value="code" className="mt-0 min-h-0 flex-1 overflow-y-auto">
-        <CodePreview code={generatedCode} />
+      <TabsContent value="code" className="mt-0 min-h-0 flex-1 overflow-hidden flex flex-col">
+        {/* File sub-tabs when multiple stacks files */}
+        {generatedFiles && generatedFiles.length > 1 && (
+          <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border bg-surface-subtle px-3 py-1.5">
+            {generatedFiles.map((file, idx) => (
+              <button
+                key={file.filename}
+                type="button"
+                onClick={() => setActiveFileIdx(idx)}
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-mono transition-colors',
+                  idx === activeFileIdx
+                    ? 'bg-[#844fba]/10 text-[#844fba] border border-[#844fba]/30'
+                    : 'text-fg-muted hover:text-fg hover:bg-surface-emphasis'
+                )}
+              >
+                <FileCode className="h-3 w-3 shrink-0" />
+                {file.filename}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <CodePreview code={displayCode} filename={displayFilename} />
+        </div>
       </TabsContent>
 
-      {/* Dependencies tab */}
-      <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
-        <TerraformDependencyDiagram />
-      </TabsContent>
+      {/* Dependencies tab (standard Terraform only) */}
+      {!isStacks && (
+        <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
+          <TerraformDependencyDiagram />
+        </TabsContent>
+      )}
 
-      {/* Variables tab */}
-      <TabsContent value="variables" className="mt-0 min-h-0 flex-1 overflow-y-auto">
-        <TerraformVariablesForm />
-      </TabsContent>
+      {/* Variables tab (standard Terraform only) */}
+      {!isStacks && (
+        <TabsContent value="variables" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+          <TerraformVariablesForm />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
@@ -102,7 +161,13 @@ function useHighlightedCode(code: string | null): string | null {
   return html;
 }
 
-function CodePreview({ code }: { code: string | null }): React.JSX.Element {
+function CodePreview({
+  code,
+  filename = 'main.tf',
+}: {
+  code: string | null;
+  filename?: string;
+}): React.JSX.Element {
   const [copied, setCopied] = useState(false);
   const highlightedHtml = useHighlightedCode(code);
 
@@ -119,8 +184,8 @@ function CodePreview({ code }: { code: string | null }): React.JSX.Element {
 
   const handleDownload = useCallback(() => {
     if (!code) return;
-    downloadAsFile(code, 'main.tf');
-  }, [code]);
+    downloadAsFile(code, filename);
+  }, [code, filename]);
 
   if (!code) {
     return (
@@ -128,7 +193,11 @@ function CodePreview({ code }: { code: string | null }): React.JSX.Element {
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-emphasis">
           <Code className="h-6 w-6 text-fg-subtle" />
         </div>
-        <p className="text-sm text-fg-muted">Generated Terraform code will appear here.</p>
+        <p className="text-sm text-fg-muted">
+          {filename.endsWith('.hcl')
+            ? 'Generated Stacks files will appear here.'
+            : 'Generated Terraform code will appear here.'}
+        </p>
       </div>
     );
   }
@@ -139,7 +208,7 @@ function CodePreview({ code }: { code: string | null }): React.JSX.Element {
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface-subtle px-3 py-2">
         <span className="flex items-center gap-1.5 font-mono text-xs text-fg-muted">
           <FileCode className="h-3.5 w-3.5 text-fg-subtle" />
-          main.tf
+          {filename}
         </span>
         <div className="flex gap-1">
           <button
@@ -156,8 +225,8 @@ function CodePreview({ code }: { code: string | null }): React.JSX.Element {
             type="button"
             onClick={handleDownload}
             className="rounded p-1.5 text-fg-muted transition-all hover:bg-surface-emphasis hover:text-fg"
-            title="Download as .tf file"
-            aria-label="Download as .tf file"
+            title={`Download ${filename}`}
+            aria-label={`Download ${filename}`}
           >
             <DownloadSimple className="h-3.5 w-3.5" />
           </button>

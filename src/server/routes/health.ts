@@ -5,7 +5,7 @@
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { GitHubTokenService } from '../../services/github-token.service.js';
-import type { Database } from '../../types/database.js';
+import type { Database, PostgresDatabase, SqliteDatabase } from '../../types/database.js';
 import { json } from '../shared.js';
 
 const DB_MODE = process.env.DB_MODE ?? 'sqlite';
@@ -63,16 +63,18 @@ export function createHealthRoutes({ db, githubService, sandboxProvider }: Healt
       let version: string | undefined;
       try {
         if (DB_MODE === 'postgres') {
-          const rows = await (db as any).execute(sql`SELECT version() as v`);
-          const raw = rows?.[0]?.v ?? rows?.rows?.[0]?.v;
+          const rows = await (db as unknown as PostgresDatabase).execute(
+            sql`SELECT version() as v`
+          );
+          const raw = rows?.[0]?.v ?? (rows as unknown as { rows: { v: string }[] })?.rows?.[0]?.v;
           if (typeof raw === 'string') {
             // Extract "PostgreSQL X.Y" prefix from the full version string
             const match = raw.match(/^PostgreSQL\s+[\d.]+/);
             version = match ? match[0] : raw.split(',')[0];
           }
         } else {
-          const rows = await (db as any).execute(sql`SELECT sqlite_version() as v`);
-          const raw = rows?.[0]?.v ?? rows?.rows?.[0]?.v;
+          const rows = (db as SqliteDatabase).all<{ v: string }>(sql`SELECT sqlite_version() as v`);
+          const raw = rows?.[0]?.v;
           if (typeof raw === 'string') {
             version = `SQLite ${raw}`;
           }

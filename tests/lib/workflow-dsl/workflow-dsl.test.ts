@@ -578,7 +578,7 @@ describe('Workflow DSL Module', () => {
         expect(result).toHaveLength(3);
         expect(result[0].source).toBe('start');
         expect(result[0].target).toBe('task1');
-        expect(result[0].type).toBe('straight');
+        expect(result[0].type).toBe('sequential');
       });
 
       it('extracts handoff edge data correctly', async () => {

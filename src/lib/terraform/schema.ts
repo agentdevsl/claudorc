@@ -12,6 +12,7 @@ export const composeRequestSchema = z.object({
   sessionId: z.string().optional(),
   messages: z.array(composeMessageSchema).min(1),
   registryId: z.string().optional(),
+  composeMode: z.enum(['terraform', 'stacks']).optional().default('terraform'),
 });
 
 export const createRegistrySchema = z.object({

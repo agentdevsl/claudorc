@@ -1,5 +1,14 @@
 import type { TerraformOutput, TerraformVariable } from '../../db/schema';
 
+/** Compose mode — standard Terraform HCL or Terraform Stacks multi-file output */
+export type ComposeMode = 'terraform' | 'stacks';
+
+/** A single generated file in multi-file (Stacks) output */
+export interface GeneratedFile {
+  filename: string;
+  code: string;
+}
+
 /** Provider color classes shared across UI components */
 export const PROVIDER_COLORS: Record<string, string> = {
   aws: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
@@ -70,13 +79,14 @@ export type ComposeEvent =
   | { type: 'status'; stage: ComposeStage }
   | { type: 'text'; content: string }
   | { type: 'modules'; modules: ModuleMatch[] }
-  | { type: 'code'; code: string }
+  | { type: 'code'; code: string; files?: GeneratedFile[] }
   | { type: 'questions'; questions: ClarifyingQuestion[] }
   | {
       type: 'done';
       sessionId: string;
       matchedModules?: ModuleMatch[];
       generatedCode?: string;
+      generatedFiles?: GeneratedFile[];
       usage: { inputTokens: number; outputTokens: number };
     }
   | { type: 'error'; error: string };
