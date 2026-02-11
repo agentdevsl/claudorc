@@ -118,14 +118,14 @@ declare const Bun: {
 const DB_MODE = process.env.DB_MODE ?? 'sqlite';
 log.info(`Database mode: ${DB_MODE}`);
 
-// Select the correct schema tables based on DB_MODE
-const schema = DB_MODE === 'postgres' ? pgSchema : sqliteSchema;
+// Use SQLite schema tables for type compatibility with Database (= SqliteDatabase).
+// At runtime the table definitions are structurally identical across both schemas.
 const schemaTables = {
-  agents: schema.agents,
-  tasks: schema.tasks,
-  settings: schema.settings,
-  worktrees: schema.worktrees,
-  sessions: schema.sessions,
+  agents: sqliteSchema.agents,
+  tasks: sqliteSchema.tasks,
+  settings: sqliteSchema.settings,
+  worktrees: sqliteSchema.worktrees,
+  sessions: sqliteSchema.sessions,
 };
 
 /** Return the number of rows affected by an update/delete, handling both SQLite and PG results */
@@ -148,7 +148,7 @@ if (DB_MODE === 'postgres') {
   db = drizzlePg(pgClient, { schema: pgSchema }) as unknown as Database;
 
   // Run Drizzle Kit migrations (reuse the existing drizzle instance)
-  await migratePg(db as ReturnType<typeof drizzlePg>, {
+  await migratePg(db as unknown as ReturnType<typeof drizzlePg>, {
     migrationsFolder: './src/db/migrations-pg',
   });
   log.info('PostgreSQL migrations applied');
@@ -281,13 +281,10 @@ try {
 // Clean up orphaned worktrees from tasks where agents are no longer running (Gap 2)
 // After a server crash, tasks may still reference worktrees that should be cleaned up.
 try {
-  const orphanedTasks = (await db
+  const orphanedTasks = await db
     .select({ id: schemaTables.tasks.id, worktreeId: schemaTables.tasks.worktreeId })
     .from(schemaTables.tasks)
-    .where(isNotNull(schemaTables.tasks.worktreeId))) as Array<{
-    id: string;
-    worktreeId: string | null;
-  }>;
+    .where(isNotNull(schemaTables.tasks.worktreeId));
 
   // Filter to tasks whose agent is not actively running (after restart, none are)
   const tasksToClean = orphanedTasks.filter(

@@ -90,7 +90,7 @@ export function WorkflowCanvas({
         maxZoom={2}
         defaultEdgeOptions={{
           animated: false,
-          type: 'straight',
+          type: 'sequential',
           style: { strokeWidth: 1, stroke: 'var(--border-muted)' },
         }}
         proOptions={{

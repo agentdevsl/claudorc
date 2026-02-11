@@ -381,7 +381,8 @@ export function createTerraformRoutes({
       const result = await terraformComposeService.startCompose(
         parsed.data.sessionId,
         parsed.data.messages,
-        parsed.data.registryId
+        parsed.data.registryId,
+        parsed.data.composeMode
       );
 
       if (!result.ok) {

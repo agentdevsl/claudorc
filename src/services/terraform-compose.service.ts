@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { type CanUseTool, unstable_v2_createSession } from '@anthropic-ai/claude-agent-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import type { TerraformModule } from '../db/schema';
@@ -10,6 +12,7 @@ import type {
   ComposeEvent,
   ComposeMessage,
   ComposeStage,
+  GeneratedFile,
   ModuleMatch,
 } from '../lib/terraform/types.js';
 import type { Result } from '../lib/utils/result.js';
@@ -19,6 +22,16 @@ import { getGlobalDefaultModel, type SettingsService } from './settings.service.
 import type { TerraformRegistryService } from './terraform-registry.service.js';
 
 const log = createLogger('TerraformCompose');
+
+let cachedSkillContent: string | null = null;
+
+/** Load the Terraform Stacks SKILL.md content, caching in memory after first read. */
+async function loadStacksSkillContent(): Promise<string> {
+  if (cachedSkillContent) return cachedSkillContent;
+  const skillPath = resolve(process.cwd(), '.claude/skills/terraform-stacks/SKILL.md');
+  cachedSkillContent = await readFile(skillPath, 'utf-8');
+  return cachedSkillContent;
+}
 
 const MAX_SESSIONS = 100;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -105,7 +118,8 @@ export class TerraformComposeService {
   async startCompose(
     sessionId: string | undefined,
     messages: ComposeMessage[],
-    registryId?: string
+    registryId?: string,
+    composeMode: 'terraform' | 'stacks' = 'terraform'
   ): Promise<Result<{ sessionId: string }, TerraformError>> {
     const sid = sessionId || createId();
 
@@ -121,7 +135,7 @@ export class TerraformComposeService {
     this.jobs.set(sid, job);
 
     // Run pipeline without awaiting — the caller returns the session ID immediately.
-    this.runPipeline(sid, messages, registryId, job).catch((pipelineErr) => {
+    this.runPipeline(sid, messages, registryId, job, composeMode).catch((pipelineErr) => {
       log.error('Unhandled pipeline error', { error: pipelineErr });
       this.sendEvent(job, {
         type: 'error',
@@ -281,7 +295,8 @@ export class TerraformComposeService {
     sid: string,
     messages: ComposeMessage[],
     registryId: string | undefined,
-    job: ComposeJob
+    job: ComposeJob,
+    composeMode: 'terraform' | 'stacks' = 'terraform'
   ): Promise<void> {
     // Wait for the SSE subscriber to connect before pushing events
     const subscriberReady = await this.waitForSubscriber(job);
@@ -311,9 +326,14 @@ export class TerraformComposeService {
         return;
       }
 
+      // Load stacks reference content if in stacks mode (server-only file read)
+      const stacksReference = composeMode === 'stacks' ? await loadStacksSkillContent() : undefined;
+
       const systemPrompt = await buildCompositionSystemPrompt(
         contextResult.value,
-        this.settingsService
+        this.settingsService,
+        composeMode,
+        stacksReference
       );
 
       const modulesResult = await this.registryService.listModules(
@@ -474,10 +494,21 @@ export class TerraformComposeService {
       // Stage 4: Extract code
       this.sendStatus(job, 'generating_code');
 
-      const generatedCode = extractHclCode(fullResponse);
+      let generatedCode: string | null = null;
+      let generatedFiles: GeneratedFile[] | undefined;
 
-      if (generatedCode) {
-        this.sendEvent(job, { type: 'code', code: generatedCode });
+      if (composeMode === 'stacks') {
+        const stacksFiles = extractStacksFiles(fullResponse);
+        if (stacksFiles.length > 0) {
+          generatedFiles = stacksFiles;
+          generatedCode = stacksFiles.map((f) => f.code).join('\n\n');
+          this.sendEvent(job, { type: 'code', code: generatedCode, files: generatedFiles });
+        }
+      } else {
+        generatedCode = extractHclCode(fullResponse);
+        if (generatedCode) {
+          this.sendEvent(job, { type: 'code', code: generatedCode });
+        }
       }
 
       // Fallback: parse clarifying questions from assistant text if AskUserQuestion
@@ -489,8 +520,8 @@ export class TerraformComposeService {
         }
       }
 
-      // Stage 5: Validate HCL
-      if (generatedCode) {
+      // Stage 5: Validate HCL (skip for stacks — the parser only understands standard Terraform)
+      if (generatedCode && composeMode !== 'stacks') {
         this.sendStatus(job, 'validating_hcl');
         const validation = await this.validateCode(generatedCode);
         if (!validation.valid) {
@@ -524,6 +555,7 @@ export class TerraformComposeService {
         sessionId: sid,
         matchedModules,
         generatedCode: generatedCode ?? undefined,
+        generatedFiles,
         usage: {
           inputTokens,
           outputTokens,
@@ -668,6 +700,53 @@ function extractHclCode(text: string): string | null {
     .filter(Boolean);
 
   return matches.length > 0 ? matches.join('\n\n') : null;
+}
+
+/**
+ * Extract multiple files from Stacks-mode response text.
+ * Supports title annotations: ```hcl title="filename.tfcomponent.hcl"
+ * Falls back to content-based filename inference when titles are missing.
+ */
+function extractStacksFiles(text: string): { filename: string; code: string }[] {
+  const files: { filename: string; code: string }[] = [];
+
+  // Match fenced code blocks with optional title annotations
+  const blockRegex = /```(?:hcl|terraform|tf)(?:\s+title="([^"]+)")?\n([\s\S]*?)```/g;
+  for (const match of text.matchAll(blockRegex)) {
+    const title = match[1] ?? null;
+    const code = match[2]?.trim();
+    if (!code) continue;
+
+    if (title) {
+      files.push({ filename: title, code });
+    } else {
+      const filename = inferStacksFilename(code);
+      files.push({ filename, code });
+    }
+  }
+
+  // If no blocks found, return empty (caller should fall back)
+  if (files.length === 0) return files;
+
+  // Deduplicate by filename — merge code for same filename
+  const merged = new Map<string, string>();
+  for (const f of files) {
+    const existing = merged.get(f.filename);
+    merged.set(f.filename, existing ? `${existing}\n\n${f.code}` : f.code);
+  }
+
+  return Array.from(merged.entries()).map(([filename, code]) => ({ filename, code }));
+}
+
+/** Infer a Stacks filename from HCL content based on block types present. */
+function inferStacksFilename(code: string): string {
+  if (/\bdeployment\s+"/.test(code) || /\bdeployment_group\s+"/.test(code))
+    return 'deployments.tfdeploy.hcl';
+  if (/\bprovider\s+"/.test(code)) return 'providers.tfcomponent.hcl';
+  if (/\bvariable\s+"/.test(code)) return 'variables.tfcomponent.hcl';
+  if (/\boutput\s+"/.test(code)) return 'outputs.tfcomponent.hcl';
+  if (/\bcomponent\s+"/.test(code)) return 'components.tfcomponent.hcl';
+  return 'stack.tfcomponent.hcl';
 }
 
 /** Names too generic to match by name alone — they appear in every Terraform response. */

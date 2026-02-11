@@ -240,6 +240,111 @@ function normalizePositions(positions: Map<string, Position>): void {
 }
 
 // =============================================================================
+// EDGE CONNECTIVITY
+// =============================================================================
+
+/**
+ * Finds the topological head and tail of the middle-node chain using edges.
+ * Head = middle node with no incoming edges from other middle nodes.
+ * Tail = middle node with no outgoing edges to other middle nodes.
+ * Prefers nodes that participate in the chain (have at least one middle edge)
+ * over isolated nodes that have zero middle edges.
+ * Falls back to array order if topology is ambiguous.
+ */
+export function findChainHeadAndTail(
+  middleNodes: WorkflowNode[],
+  edges: WorkflowEdge[]
+): { head: WorkflowNode; tail: WorkflowNode } {
+  if (middleNodes.length === 1) {
+    const only = middleNodes[0] as WorkflowNode;
+    return { head: only, tail: only };
+  }
+
+  const middleIds = new Set(middleNodes.map((n) => n.id));
+
+  // Edges between middle nodes only
+  const middleEdges = edges.filter(
+    (e) => middleIds.has(e.sourceNodeId) && middleIds.has(e.targetNodeId)
+  );
+
+  const hasIncoming = new Set(middleEdges.map((e) => e.targetNodeId));
+  const hasOutgoing = new Set(middleEdges.map((e) => e.sourceNodeId));
+
+  // Nodes that participate in at least one middle edge (not isolated)
+  const connectedIds = new Set([...hasIncoming, ...hasOutgoing]);
+
+  // Head: no incoming from other middle nodes, prefer connected nodes over isolated ones
+  // middleNodes.length >= 2 guaranteed (length === 1 returns early above)
+  const head: WorkflowNode = (middleNodes.find(
+    (n) => !hasIncoming.has(n.id) && connectedIds.has(n.id)
+  ) ??
+    middleNodes.find((n) => !hasIncoming.has(n.id)) ??
+    middleNodes[0]) as WorkflowNode;
+  // Tail: no outgoing to other middle nodes, prefer connected nodes over isolated ones
+  const tail: WorkflowNode = (middleNodes.find(
+    (n) => !hasOutgoing.has(n.id) && connectedIds.has(n.id)
+  ) ??
+    middleNodes.find((n) => !hasOutgoing.has(n.id)) ??
+    middleNodes[middleNodes.length - 1]) as WorkflowNode;
+
+  return { head, tail };
+}
+
+/**
+ * Ensures start and end nodes are properly connected to the workflow chain.
+ * Uses edge topology to find the actual first/last nodes in the chain,
+ * rather than relying on array order (which may not match workflow order).
+ * Returns a new edges array (does not mutate input).
+ */
+export function ensureStartEndConnected(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[]
+): WorkflowEdge[] {
+  const startNode = nodes.find((n) => n.type === 'start');
+  const endNode = nodes.find((n) => n.type === 'end');
+  const middleNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+
+  if (middleNodes.length === 0) return edges;
+
+  let result = [...edges];
+  const { head: firstNode, tail: lastNode } = findChainHeadAndTail(middleNodes, edges);
+
+  // Fix start → first middle node
+  if (startNode) {
+    const hasCorrectStartEdge = result.some(
+      (e) => e.sourceNodeId === startNode.id && e.targetNodeId === firstNode.id
+    );
+    if (!hasCorrectStartEdge) {
+      result = result.filter((e) => e.sourceNodeId !== startNode.id);
+      result.unshift({
+        id: `auto-start-${Date.now()}`,
+        type: 'sequential',
+        sourceNodeId: startNode.id,
+        targetNodeId: firstNode.id,
+      });
+    }
+  }
+
+  // Fix last middle node → end
+  if (endNode) {
+    const hasCorrectEndEdge = result.some(
+      (e) => e.sourceNodeId === lastNode.id && e.targetNodeId === endNode.id
+    );
+    if (!hasCorrectEndEdge) {
+      result = result.filter((e) => e.targetNodeId !== endNode.id);
+      result.push({
+        id: `auto-end-${Date.now()}`,
+        type: 'sequential',
+        sourceNodeId: lastNode.id,
+        targetNodeId: endNode.id,
+      });
+    }
+  }
+
+  return result;
+}
+
+// =============================================================================
 // MAIN LAYOUT FUNCTION
 // =============================================================================
 
@@ -442,18 +547,16 @@ export async function layoutWorkflowForReactFlow(
 ): Promise<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }> {
   const { useCompactNodes = true, ...layoutOptions } = options ?? {};
 
-  // Calculate uniform width based on content for CSS styling
-  // Note: ELK uses its default nodeWidth for positioning calculations
-  // to ensure stable layout, but we pass the calculated width to nodes
-  // for consistent visual rendering
   const uniformWidth = calculateUniformNodeWidth(nodes);
 
-  // Apply layout (uses default nodeWidth for ELK positioning)
-  const layoutedNodes = await layoutWorkflow(nodes, edges, layoutOptions);
+  // Ensure start/end nodes are connected before layout
+  const connectedEdges = ensureStartEndConnected(nodes, edges);
+
+  const layoutedNodes = await layoutWorkflow(nodes, connectedEdges, layoutOptions);
 
   return {
     nodes: toReactFlowNodes(layoutedNodes, { useCompactNodes, uniformWidth }),
-    edges: toReactFlowEdges(edges),
+    edges: toReactFlowEdges(connectedEdges),
   };
 }
 
@@ -556,13 +659,13 @@ function mapEdgeType(edgeType: WorkflowEdge['type']): string {
   // Map to registered edge types: sequential, handoff, dataflow, conditional
   switch (edgeType) {
     case 'sequential':
-      return 'straight';
+      return 'sequential';
     case 'handoff':
     case 'dataflow':
     case 'conditional':
       return edgeType;
     default:
       // Default to sequential for unknown types
-      return 'straight';
+      return 'sequential';
   }
 }

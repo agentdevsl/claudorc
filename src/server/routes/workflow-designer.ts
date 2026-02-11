@@ -14,7 +14,7 @@ import {
   resolveWorkflowGenerationSystemPrompt,
   WORKFLOW_GENERATION_SYSTEM_PROMPT,
 } from '../../lib/workflow-dsl/ai-prompts.js';
-import { layoutWorkflow } from '../../lib/workflow-dsl/layout.js';
+import { findChainHeadAndTail, layoutWorkflow } from '../../lib/workflow-dsl/layout.js';
 import type { Workflow, WorkflowEdge, WorkflowNode } from '../../lib/workflow-dsl/types.js';
 import { workflowEdgeSchema, workflowNodeSchema } from '../../lib/workflow-dsl/types.js';
 import type { SettingsService } from '../../services/settings.service.js';
@@ -217,53 +217,55 @@ function parseAIResponse(responseText: string): {
   const endNode = nodes.find((n) => n.type === 'end');
   const nonStartEndNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
 
-  if (startNode && nonStartEndNodes.length > 0) {
-    const firstNode = nonStartEndNodes[0];
-    const hasCorrectStartEdge = edges.some(
-      (e) => e.sourceNodeId === startNode.id && e.targetNodeId === firstNode.id
-    );
-    if (!hasCorrectStartEdge) {
-      // Remove any AI-generated edges from start (they connect to wrong nodes)
-      const startEdgeCount = edges.filter((e) => e.sourceNodeId === startNode.id).length;
-      if (startEdgeCount > 0) {
-        console.warn('[workflow-analyze] Replacing incorrect start edges');
-        for (let i = edges.length - 1; i >= 0; i--) {
-          if (edges[i].sourceNodeId === startNode.id) {
-            edges.splice(i, 1);
-          }
-        }
-      }
-      edges.unshift({
-        id: `edge-start-${createId().slice(0, 8)}`,
-        type: 'sequential',
-        sourceNodeId: startNode.id,
-        targetNodeId: firstNode.id,
-      });
-    }
-  }
+  // Use edge topology to find the actual first/last nodes in the chain,
+  // rather than relying on array order (AI may return nodes in any order).
+  if (nonStartEndNodes.length > 0) {
+    const { head: firstNode, tail: lastNode } = findChainHeadAndTail(nonStartEndNodes, edges);
 
-  if (endNode && nonStartEndNodes.length > 0) {
-    const lastNode = nonStartEndNodes[nonStartEndNodes.length - 1];
-    const hasCorrectEndEdge = edges.some(
-      (e) => e.sourceNodeId === lastNode.id && e.targetNodeId === endNode.id
-    );
-    if (!hasCorrectEndEdge) {
-      // Remove any AI-generated edges to end (they connect from wrong nodes)
-      const endEdgeCount = edges.filter((e) => e.targetNodeId === endNode.id).length;
-      if (endEdgeCount > 0) {
-        console.warn('[workflow-analyze] Replacing incorrect end edges');
-        for (let i = edges.length - 1; i >= 0; i--) {
-          if (edges[i].targetNodeId === endNode.id) {
-            edges.splice(i, 1);
+    if (startNode) {
+      const hasCorrectStartEdge = edges.some(
+        (e) => e.sourceNodeId === startNode.id && e.targetNodeId === firstNode.id
+      );
+      if (!hasCorrectStartEdge) {
+        const startEdgeCount = edges.filter((e) => e.sourceNodeId === startNode.id).length;
+        if (startEdgeCount > 0) {
+          console.warn('[workflow-analyze] Replacing incorrect start edges');
+          for (let i = edges.length - 1; i >= 0; i--) {
+            if (edges[i]?.sourceNodeId === startNode.id) {
+              edges.splice(i, 1);
+            }
           }
         }
+        edges.unshift({
+          id: `edge-start-${createId().slice(0, 8)}`,
+          type: 'sequential',
+          sourceNodeId: startNode.id,
+          targetNodeId: firstNode.id,
+        });
       }
-      edges.push({
-        id: `edge-end-${createId().slice(0, 8)}`,
-        type: 'sequential',
-        sourceNodeId: lastNode.id,
-        targetNodeId: endNode.id,
-      });
+    }
+
+    if (endNode) {
+      const hasCorrectEndEdge = edges.some(
+        (e) => e.sourceNodeId === lastNode.id && e.targetNodeId === endNode.id
+      );
+      if (!hasCorrectEndEdge) {
+        const endEdgeCount = edges.filter((e) => e.targetNodeId === endNode.id).length;
+        if (endEdgeCount > 0) {
+          console.warn('[workflow-analyze] Replacing incorrect end edges');
+          for (let i = edges.length - 1; i >= 0; i--) {
+            if (edges[i]?.targetNodeId === endNode.id) {
+              edges.splice(i, 1);
+            }
+          }
+        }
+        edges.push({
+          id: `edge-end-${createId().slice(0, 8)}`,
+          type: 'sequential',
+          sourceNodeId: lastNode.id,
+          targetNodeId: endNode.id,
+        });
+      }
     }
   }
 
@@ -274,7 +276,7 @@ function parseAIResponse(responseText: string): {
       if (!adjacency.has(edge.sourceNodeId)) {
         adjacency.set(edge.sourceNodeId, new Set());
       }
-      adjacency.get(edge.sourceNodeId)!.add(edge.targetNodeId);
+      adjacency.get(edge.sourceNodeId)?.add(edge.targetNodeId);
     }
 
     // BFS from start
@@ -282,7 +284,8 @@ function parseAIResponse(responseText: string): {
     const queue: string[] = [startNode.id];
     reachable.add(startNode.id);
     while (queue.length > 0) {
-      const current = queue.shift()!;
+      const current = queue.shift();
+      if (!current) break;
       for (const neighbor of adjacency.get(current) ?? []) {
         if (!reachable.has(neighbor)) {
           reachable.add(neighbor);
@@ -294,9 +297,10 @@ function parseAIResponse(responseText: string): {
     // Connect unreachable nodes
     for (let i = 0; i < nonStartEndNodes.length; i++) {
       const node = nonStartEndNodes[i];
-      if (reachable.has(node.id)) continue;
+      if (!node || reachable.has(node.id)) continue;
 
       const predecessor = i === 0 ? startNode : nonStartEndNodes[i - 1];
+      if (!predecessor) continue;
 
       // Guard against duplicate edges
       const exists = edges.some(
@@ -314,14 +318,15 @@ function parseAIResponse(responseText: string): {
         });
         // Update adjacency
         if (!adjacency.has(predecessor.id)) adjacency.set(predecessor.id, new Set());
-        adjacency.get(predecessor.id)!.add(node.id);
+        adjacency.get(predecessor.id)?.add(node.id);
       }
 
       // Mark node + its downstream subtree as reachable
       reachable.add(node.id);
       const subQueue = [node.id];
       while (subQueue.length > 0) {
-        const sub = subQueue.shift()!;
+        const sub = subQueue.shift();
+        if (!sub) break;
         for (const neighbor of adjacency.get(sub) ?? []) {
           if (!reachable.has(neighbor)) {
             reachable.add(neighbor);
@@ -331,15 +336,23 @@ function parseAIResponse(responseText: string): {
       }
     }
 
-    // Verify end node reachable
+    // Ensure end node is reachable — add a fallback edge if BFS didn't reach it
     if (endNode && !reachable.has(endNode.id)) {
-      const lastNode = nonStartEndNodes[nonStartEndNodes.length - 1];
-      edges.push({
-        id: `edge-end-fix-${createId().slice(0, 8)}`,
-        type: 'sequential',
-        sourceNodeId: lastNode.id,
-        targetNodeId: endNode.id,
-      });
+      const { tail } = findChainHeadAndTail(nonStartEndNodes, edges);
+      const alreadyConnected = edges.some(
+        (e) => e.sourceNodeId === tail.id && e.targetNodeId === endNode.id
+      );
+      if (!alreadyConnected) {
+        console.warn(
+          `[workflow-analyze] End node unreachable after BFS, connecting from "${tail.label}"`
+        );
+        edges.push({
+          id: `edge-end-fix-${createId().slice(0, 8)}`,
+          type: 'sequential',
+          sourceNodeId: tail.id,
+          targetNodeId: endNode.id,
+        });
+      }
     }
   }
 
