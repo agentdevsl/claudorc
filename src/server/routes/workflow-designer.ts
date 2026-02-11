@@ -209,38 +209,138 @@ function parseAIResponse(responseText: string): {
     });
   }
 
-  // Ensure start and end nodes are connected to the rest of the graph.
-  // The AI often generates start/end nodes but omits the connecting edges,
-  // causing ELK to place them as disconnected components.
-  const edgeSourceIds = new Set(edges.map((e) => e.sourceNodeId));
-  const edgeTargetIds = new Set(edges.map((e) => e.targetNodeId));
-
+  // Ensure start and end nodes are properly connected to the workflow chain.
+  // The AI often generates start/end nodes but either omits the connecting
+  // edges or connects them to the wrong nodes (e.g., start → third node
+  // instead of start → first node), causing ELK layout issues.
   const startNode = nodes.find((n) => n.type === 'start');
   const endNode = nodes.find((n) => n.type === 'end');
   const nonStartEndNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
 
-  // Connect start → first non-start node if no outgoing edge from start exists
-  if (startNode && nonStartEndNodes.length > 0 && !edgeSourceIds.has(startNode.id)) {
+  if (startNode && nonStartEndNodes.length > 0) {
     const firstNode = nonStartEndNodes[0];
-    console.warn('[workflow-analyze] Start node has no outgoing edge, connecting to first node');
-    edges.unshift({
-      id: `edge-start-${createId().slice(0, 8)}`,
-      type: 'sequential',
-      sourceNodeId: startNode.id,
-      targetNodeId: firstNode.id,
-    });
+    const hasCorrectStartEdge = edges.some(
+      (e) => e.sourceNodeId === startNode.id && e.targetNodeId === firstNode.id
+    );
+    if (!hasCorrectStartEdge) {
+      // Remove any AI-generated edges from start (they connect to wrong nodes)
+      const startEdgeCount = edges.filter((e) => e.sourceNodeId === startNode.id).length;
+      if (startEdgeCount > 0) {
+        console.warn('[workflow-analyze] Replacing incorrect start edges');
+        for (let i = edges.length - 1; i >= 0; i--) {
+          if (edges[i].sourceNodeId === startNode.id) {
+            edges.splice(i, 1);
+          }
+        }
+      }
+      edges.unshift({
+        id: `edge-start-${createId().slice(0, 8)}`,
+        type: 'sequential',
+        sourceNodeId: startNode.id,
+        targetNodeId: firstNode.id,
+      });
+    }
   }
 
-  // Connect last non-end node → end if no incoming edge to end exists
-  if (endNode && nonStartEndNodes.length > 0 && !edgeTargetIds.has(endNode.id)) {
+  if (endNode && nonStartEndNodes.length > 0) {
     const lastNode = nonStartEndNodes[nonStartEndNodes.length - 1];
-    console.warn('[workflow-analyze] End node has no incoming edge, connecting from last node');
-    edges.push({
-      id: `edge-end-${createId().slice(0, 8)}`,
-      type: 'sequential',
-      sourceNodeId: lastNode.id,
-      targetNodeId: endNode.id,
-    });
+    const hasCorrectEndEdge = edges.some(
+      (e) => e.sourceNodeId === lastNode.id && e.targetNodeId === endNode.id
+    );
+    if (!hasCorrectEndEdge) {
+      // Remove any AI-generated edges to end (they connect from wrong nodes)
+      const endEdgeCount = edges.filter((e) => e.targetNodeId === endNode.id).length;
+      if (endEdgeCount > 0) {
+        console.warn('[workflow-analyze] Replacing incorrect end edges');
+        for (let i = edges.length - 1; i >= 0; i--) {
+          if (edges[i].targetNodeId === endNode.id) {
+            edges.splice(i, 1);
+          }
+        }
+      }
+      edges.push({
+        id: `edge-end-${createId().slice(0, 8)}`,
+        type: 'sequential',
+        sourceNodeId: lastNode.id,
+        targetNodeId: endNode.id,
+      });
+    }
+  }
+
+  // Graph connectivity check — ensure all nodes are reachable from Start
+  if (startNode && nonStartEndNodes.length > 1) {
+    const adjacency = new Map<string, Set<string>>();
+    for (const edge of edges) {
+      if (!adjacency.has(edge.sourceNodeId)) {
+        adjacency.set(edge.sourceNodeId, new Set());
+      }
+      adjacency.get(edge.sourceNodeId)!.add(edge.targetNodeId);
+    }
+
+    // BFS from start
+    const reachable = new Set<string>();
+    const queue: string[] = [startNode.id];
+    reachable.add(startNode.id);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const neighbor of adjacency.get(current) ?? []) {
+        if (!reachable.has(neighbor)) {
+          reachable.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    // Connect unreachable nodes
+    for (let i = 0; i < nonStartEndNodes.length; i++) {
+      const node = nonStartEndNodes[i];
+      if (reachable.has(node.id)) continue;
+
+      const predecessor = i === 0 ? startNode : nonStartEndNodes[i - 1];
+
+      // Guard against duplicate edges
+      const exists = edges.some(
+        (e) => e.sourceNodeId === predecessor.id && e.targetNodeId === node.id
+      );
+      if (!exists) {
+        console.warn(
+          `[workflow-analyze] Node "${node.label}" unreachable, connecting from "${predecessor.label}"`
+        );
+        edges.push({
+          id: `edge-connect-${createId().slice(0, 8)}`,
+          type: 'sequential',
+          sourceNodeId: predecessor.id,
+          targetNodeId: node.id,
+        });
+        // Update adjacency
+        if (!adjacency.has(predecessor.id)) adjacency.set(predecessor.id, new Set());
+        adjacency.get(predecessor.id)!.add(node.id);
+      }
+
+      // Mark node + its downstream subtree as reachable
+      reachable.add(node.id);
+      const subQueue = [node.id];
+      while (subQueue.length > 0) {
+        const sub = subQueue.shift()!;
+        for (const neighbor of adjacency.get(sub) ?? []) {
+          if (!reachable.has(neighbor)) {
+            reachable.add(neighbor);
+            subQueue.push(neighbor);
+          }
+        }
+      }
+    }
+
+    // Verify end node reachable
+    if (endNode && !reachable.has(endNode.id)) {
+      const lastNode = nonStartEndNodes[nonStartEndNodes.length - 1];
+      edges.push({
+        id: `edge-end-fix-${createId().slice(0, 8)}`,
+        type: 'sequential',
+        sourceNodeId: lastNode.id,
+        targetNodeId: endNode.id,
+      });
+    }
   }
 
   return {
