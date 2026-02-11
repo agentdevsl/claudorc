@@ -352,28 +352,29 @@ describe('ContainerAgentService — worktree integration', () => {
       phase: 'plan',
     });
 
-    // Make db.update throw to simulate DB failure during plan persistence
+    // Make db.update throw to simulate DB failure during plan persistence.
+    // The Drizzle ORM chain is: db.update(table).set({...}).where(eq(...))
+    // The await resolves at .where(), so .where() must throw to trigger the catch.
     db.update.mockImplementation(() => ({
       set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          run: vi.fn(() => {
-            throw new Error('DB write failed');
-          }),
-          returning: vi.fn(),
-        })),
-        run: vi.fn(() => {
+        where: vi.fn(() => {
           throw new Error('DB write failed');
         }),
+        run: vi.fn(),
       })),
     }));
 
-    // Trigger handlePlanReady
+    // Trigger handlePlanReady and await it (async method)
     const handlePlanReady = (service as any).handlePlanReady.bind(service);
-    handlePlanReady('t1', 's1', 'p1', {
+    await handlePlanReady('t1', 's1', 'p1', {
       plan: 'Test plan',
       turnCount: 3,
       sdkSessionId: 'sdk-1',
     });
+
+    // cleanupWorktree is called with `void` (fire-and-forget) inside the catch,
+    // so flush the microtask queue to let the promise settle
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Worktree should have been cleaned up
     expect(worktreeService.remove).toHaveBeenCalledWith('wt-1', true);

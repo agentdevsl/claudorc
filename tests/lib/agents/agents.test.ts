@@ -49,10 +49,10 @@ describe('SDK Utils - agentQuery', () => {
     );
 
     const { agentQuery } = await import('@/lib/agents/agent-sdk-utils');
-    await agentQuery('Test prompt', { model: 'claude-sonnet-4-20250514' });
+    await agentQuery('Test prompt', { model: 'claude-sonnet-4-5-20250929' });
 
     expect(mockSessionCreate).toHaveBeenCalledWith({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
     });
   });
@@ -68,7 +68,7 @@ describe('SDK Utils - agentQuery', () => {
     await agentQuery('Test prompt');
 
     expect(mockSessionCreate).toHaveBeenCalledWith({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       env: expect.objectContaining({ CLAUDE_CODE_ENABLE_TASKS: 'true' }),
     });
   });

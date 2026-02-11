@@ -19,7 +19,7 @@ function createMockTrigger(overrides: Partial<ContainerAgentTrigger> = {}): Cont
     stopAgent: vi.fn().mockResolvedValue(ok(undefined)),
     isAgentRunning: vi.fn().mockReturnValue(false),
     approvePlan: vi.fn().mockResolvedValue(ok(undefined)),
-    rejectPlan: vi.fn().mockReturnValue(ok(undefined)),
+    rejectPlan: vi.fn().mockResolvedValue(ok(undefined)),
     ...overrides,
   };
 }
@@ -107,8 +107,8 @@ describe('TaskService plan approval/rejection', () => {
   });
 
   describe('rejectPlan', () => {
-    it('returns 503 when no container agent service is configured', () => {
-      const result = taskService.rejectPlan('any-task-id');
+    it('returns 503 when no container agent service is configured', async () => {
+      const result = await taskService.rejectPlan('any-task-id');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('CONTAINER_AGENT_SERVICE_UNAVAILABLE');
@@ -116,34 +116,34 @@ describe('TaskService plan approval/rejection', () => {
       }
     });
 
-    it('returns ok on successful rejection', () => {
+    it('returns ok on successful rejection', async () => {
       const trigger = createMockTrigger();
       taskService.setContainerAgentService(trigger);
 
-      const result = taskService.rejectPlan('task-1');
+      const result = await taskService.rejectPlan('task-1');
       expect(result.ok).toBe(true);
       expect(trigger.rejectPlan).toHaveBeenCalledWith('task-1', undefined);
     });
 
-    it('threads reason parameter to containerAgentService', () => {
+    it('threads reason parameter to containerAgentService', async () => {
       const trigger = createMockTrigger();
       taskService.setContainerAgentService(trigger);
 
-      taskService.rejectPlan('task-1', 'Plan is too complex');
+      await taskService.rejectPlan('task-1', 'Plan is too complex');
       expect(trigger.rejectPlan).toHaveBeenCalledWith('task-1', 'Plan is too complex');
     });
 
-    it('propagates PLAN_NOT_FOUND from containerAgentService', () => {
+    it('propagates PLAN_NOT_FOUND from containerAgentService', async () => {
       const trigger = createMockTrigger({
         rejectPlan: vi
           .fn()
-          .mockReturnValue(
+          .mockResolvedValue(
             err({ code: 'SANDBOX_PLAN_NOT_FOUND', message: 'No pending plan found', status: 404 })
           ),
       });
       taskService.setContainerAgentService(trigger);
 
-      const result = taskService.rejectPlan('task-1');
+      const result = await taskService.rejectPlan('task-1');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('SANDBOX_PLAN_NOT_FOUND');
@@ -151,17 +151,17 @@ describe('TaskService plan approval/rejection', () => {
       }
     });
 
-    it('propagates PLAN_REJECTION_FAILED from containerAgentService', () => {
+    it('propagates PLAN_REJECTION_FAILED from containerAgentService', async () => {
       const trigger = createMockTrigger({
         rejectPlan: vi
           .fn()
-          .mockReturnValue(
+          .mockResolvedValue(
             err({ code: 'SANDBOX_PLAN_REJECTION_FAILED', message: 'DB write failed', status: 500 })
           ),
       });
       taskService.setContainerAgentService(trigger);
 
-      const result = taskService.rejectPlan('task-1');
+      const result = await taskService.rejectPlan('task-1');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('SANDBOX_PLAN_REJECTION_FAILED');
