@@ -189,7 +189,6 @@ function parseAIResponse(responseText: string): {
   // Auto-generate start/end nodes if missing
   if (!hasStart) {
     console.warn('[workflow-analyze] AI did not generate start node, adding one');
-    const firstNode = nodes[0];
     nodes.unshift({
       id: `start-${createId().slice(0, 8)}`,
       type: 'start',
@@ -197,36 +196,51 @@ function parseAIResponse(responseText: string): {
       position: { x: 0, y: 0 },
       inputs: [],
     });
-    const startNode = nodes[0];
-    if (firstNode && startNode) {
-      edges.unshift({
-        id: `edge-start-${createId().slice(0, 8)}`,
-        type: 'sequential',
-        sourceNodeId: startNode.id,
-        targetNodeId: firstNode.id,
-      });
-    }
   }
 
   if (!hasEnd) {
     console.warn('[workflow-analyze] AI did not generate end node, adding one');
-    const lastNode = nodes[nodes.length - 1];
-    const newEndNode = {
+    nodes.push({
       id: `end-${createId().slice(0, 8)}`,
       type: 'end' as const,
       label: 'End',
       position: { x: 0, y: 0 },
       outputs: [],
-    };
-    nodes.push(newEndNode);
-    if (lastNode && lastNode.type !== 'start') {
-      edges.push({
-        id: `edge-end-${createId().slice(0, 8)}`,
-        type: 'sequential',
-        sourceNodeId: lastNode.id,
-        targetNodeId: newEndNode.id,
-      });
-    }
+    });
+  }
+
+  // Ensure start and end nodes are connected to the rest of the graph.
+  // The AI often generates start/end nodes but omits the connecting edges,
+  // causing ELK to place them as disconnected components.
+  const edgeSourceIds = new Set(edges.map((e) => e.sourceNodeId));
+  const edgeTargetIds = new Set(edges.map((e) => e.targetNodeId));
+
+  const startNode = nodes.find((n) => n.type === 'start');
+  const endNode = nodes.find((n) => n.type === 'end');
+  const nonStartEndNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+
+  // Connect start → first non-start node if no outgoing edge from start exists
+  if (startNode && nonStartEndNodes.length > 0 && !edgeSourceIds.has(startNode.id)) {
+    const firstNode = nonStartEndNodes[0];
+    console.warn('[workflow-analyze] Start node has no outgoing edge, connecting to first node');
+    edges.unshift({
+      id: `edge-start-${createId().slice(0, 8)}`,
+      type: 'sequential',
+      sourceNodeId: startNode.id,
+      targetNodeId: firstNode.id,
+    });
+  }
+
+  // Connect last non-end node → end if no incoming edge to end exists
+  if (endNode && nonStartEndNodes.length > 0 && !edgeTargetIds.has(endNode.id)) {
+    const lastNode = nonStartEndNodes[nonStartEndNodes.length - 1];
+    console.warn('[workflow-analyze] End node has no incoming edge, connecting from last node');
+    edges.push({
+      id: `edge-end-${createId().slice(0, 8)}`,
+      type: 'sequential',
+      sourceNodeId: lastNode.id,
+      targetNodeId: endNode.id,
+    });
   }
 
   return {
