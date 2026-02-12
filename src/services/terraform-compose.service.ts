@@ -514,6 +514,10 @@ export class TerraformComposeService {
           generatedFiles = stacksFiles;
           generatedCode = stacksFiles.map((f) => f.code).join('\n\n');
           this.sendEvent(job, { type: 'code', code: generatedCode, files: generatedFiles });
+        } else if (fullResponse) {
+          log.warn('Stacks mode produced no files from non-empty response', {
+            data: { responseLength: fullResponse.length },
+          });
         }
       } else {
         generatedCode = extractHclCode(fullResponse);
@@ -586,6 +590,7 @@ export class TerraformComposeService {
         reason.includes('context_length') || reason.includes('too many tokens');
 
       if (isAuthError) {
+        log.error('Authentication error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error:

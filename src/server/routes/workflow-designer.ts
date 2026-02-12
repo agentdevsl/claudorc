@@ -283,7 +283,7 @@ function parseAIResponse(responseText: string): {
   }
 
   // Graph connectivity check — ensure all nodes are reachable from Start.
-  // Uses a single-pass approach: connect ALL unreachable nodes from their
+  // BFS from Start, then connect any unreachable nodes from their
   // array-order predecessor, then fix the End edge from the true chain tail.
   if (startNode && nonStartEndNodes.length > 1) {
     const adjacency = new Map<string, Set<string>>();
