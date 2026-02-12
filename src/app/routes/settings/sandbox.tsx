@@ -144,6 +144,9 @@ function SandboxSettingsPage(): React.JSX.Element {
   // Runtime class state
   const [runtimeClass, setRuntimeClass] = useState<'gvisor' | 'kata' | 'none'>('none');
 
+  // TLS verification state
+  const [skipTLSVerify, setSkipTLSVerify] = useState(true);
+
   // Warm pool state
   const [warmPoolEnabled, setWarmPoolEnabled] = useState(false);
   const [warmPoolSize, setWarmPoolSize] = useState(2);
@@ -190,6 +193,7 @@ function SandboxSettingsPage(): React.JSX.Element {
             enableWarmPool?: boolean;
             warmPoolSize?: number;
             runtimeClassName?: 'gvisor' | 'kata' | 'none';
+            skipTLSVerify?: boolean;
           };
           if (k8s.namespace) setK8sNamespace(k8s.namespace);
           if (k8s.kubeConfigPath) setK8sConfigPath(k8s.kubeConfigPath);
@@ -197,6 +201,7 @@ function SandboxSettingsPage(): React.JSX.Element {
           if (k8s.enableWarmPool !== undefined) setWarmPoolEnabled(k8s.enableWarmPool);
           if (k8s.warmPoolSize !== undefined) setWarmPoolSize(k8s.warmPoolSize);
           if (k8s.runtimeClassName) setRuntimeClass(k8s.runtimeClassName);
+          if (k8s.skipTLSVerify !== undefined) setSkipTLSVerify(k8s.skipTLSVerify);
         }
       }
     } catch (_err) {
@@ -225,6 +230,7 @@ function SandboxSettingsPage(): React.JSX.Element {
           enableWarmPool: warmPoolEnabled,
           warmPoolSize,
           runtimeClassName: runtimeClass,
+          skipTLSVerify,
         };
       }
 
@@ -254,6 +260,7 @@ function SandboxSettingsPage(): React.JSX.Element {
       const params = new URLSearchParams();
       if (k8sConfigPath) params.set('kubeconfigPath', k8sConfigPath);
       if (k8sContext) params.set('context', k8sContext);
+      if (skipTLSVerify) params.set('skipTLSVerify', 'true');
 
       // Run cluster status + controller status checks in parallel
       const [statusResponse, controllerResponse] = await Promise.all([
@@ -290,7 +297,7 @@ function SandboxSettingsPage(): React.JSX.Element {
       setK8sStatusLoading(false);
       setControllerLoading(false);
     }
-  }, [k8sConfigPath, k8sContext]);
+  }, [k8sConfigPath, k8sContext, skipTLSVerify]);
 
   // Load K8s contexts
   const loadK8sContexts = useCallback(async () => {
@@ -1110,6 +1117,34 @@ function SandboxSettingsPage(): React.JSX.Element {
                   <p className="mt-1 text-xs text-fg-muted">
                     Leave empty to use default kubeconfig discovery
                   </p>
+                </div>
+
+                {/* Skip TLS Verification */}
+                <div className="flex items-center justify-between rounded-md border border-border bg-surface-subtle px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-fg">Skip TLS Verification</p>
+                    <p className="text-xs text-fg-muted">
+                      Required for local clusters with self-signed certificates (minikube, kind)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={skipTLSVerify}
+                    onClick={() => setSkipTLSVerify(!skipTLSVerify)}
+                    className={cn(
+                      'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors',
+                      skipTLSVerify ? 'bg-accent' : 'bg-fg-muted/30'
+                    )}
+                    data-testid="k8s-skip-tls-toggle"
+                  >
+                    <span
+                      className={cn(
+                        'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform mt-0.5',
+                        skipTLSVerify ? 'translate-x-4' : 'translate-x-0.5'
+                      )}
+                    />
+                  </button>
                 </div>
 
                 {/* Context Selection */}

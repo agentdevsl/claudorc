@@ -567,6 +567,7 @@ if (providerType === 'kubernetes') {
       warmPoolSize?: number;
       runtimeClassName?: 'gvisor' | 'kata' | 'none';
       image?: string;
+      skipTLSVerify?: boolean;
     } = {};
 
     try {
@@ -588,6 +589,7 @@ if (providerType === 'kubernetes') {
       warmPoolSize: k8sSettings.warmPoolSize,
       runtimeClassName: k8sSettings.runtimeClassName,
       image: k8sSettings.image,
+      skipTLSVerify: k8sSettings.skipTLSVerify,
     });
 
     // Verify cluster connectivity and controller installation

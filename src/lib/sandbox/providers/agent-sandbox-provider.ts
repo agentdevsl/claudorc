@@ -48,6 +48,9 @@ export interface AgentSandboxProviderOptions {
   /** Timeout in seconds for sandbox to reach Ready state. Default: 120 */
   readyTimeoutSeconds?: number;
 
+  /** Skip TLS verification for self-signed certs (minikube, kind). Default: false */
+  skipTLSVerify?: boolean;
+
   /** Pre-constructed SDK client (for testing) */
   client?: AgentSandboxClient;
 }
@@ -100,6 +103,7 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
         namespace: this.namespace,
         kubeconfigPath: options.kubeConfigPath,
         context: options.kubeContext,
+        skipTLSVerify: options.skipTLSVerify,
       });
   }
 

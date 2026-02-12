@@ -236,7 +236,8 @@ export function createK8sRoutes(deps?: { db?: Database }) {
 
     try {
       // Load kubeconfig
-      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify: true }); // skipTLSVerify for local dev
+      const skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify });
 
       // Resolve context if specified
       if (context) {
@@ -431,9 +432,10 @@ export function createK8sRoutes(deps?: { db?: Database }) {
 
     const context = c.req.query('context') ?? undefined;
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
+    const skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
 
     try {
-      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify: true });
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify });
 
       if (context) {
         resolveContext(kc, context);
@@ -474,6 +476,7 @@ export function createK8sRoutes(deps?: { db?: Database }) {
       let namespace = 'agentpane-sandboxes';
       let kubeconfigPath: string | undefined = c.req.query('kubeconfigPath') ?? undefined;
       let kubeContext: string | undefined = c.req.query('context') ?? undefined;
+      let skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
 
       // Also try loading from DB settings if available
       if (deps?.db && !kubeconfigPath && !kubeContext) {
@@ -488,6 +491,7 @@ export function createK8sRoutes(deps?: { db?: Database }) {
             namespace = parsed.namespace ?? namespace;
             kubeconfigPath = parsed.kubeConfigPath;
             kubeContext = parsed.kubeContext;
+            skipTLSVerify = parsed.skipTLSVerify ?? skipTLSVerify;
           }
         } catch {
           // Use defaults
@@ -499,8 +503,8 @@ export function createK8sRoutes(deps?: { db?: Database }) {
         namespace,
         kubeconfigPath,
         context: kubeContext,
+        skipTLSVerify,
       });
-
       const health = await client.healthCheck();
 
       return json({
