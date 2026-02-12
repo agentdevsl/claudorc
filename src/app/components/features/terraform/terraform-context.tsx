@@ -140,7 +140,16 @@ function extractStacksFilesFromText(text: string): GeneratedFile[] | null {
       }
     }
   }
-  return files.length > 1 ? files : null;
+  if (files.length === 0) return null;
+
+  // Deduplicate by filename — merge code for same filename
+  const merged = new Map<string, string>();
+  for (const f of files) {
+    const existing = merged.get(f.filename);
+    merged.set(f.filename, existing ? `${existing}\n\n${f.code}` : f.code);
+  }
+
+  return Array.from(merged.entries()).map(([filename, code]) => ({ filename, code }));
 }
 
 interface TerraformContextValue {
@@ -499,13 +508,14 @@ export function TerraformProvider({ children }: { children: React.ReactNode }): 
           });
         }
         // Parse clarifying questions from assistant text and attach to message
+        // (only if the server didn't already send questions via SSE events)
         if (assistantContent) {
           const questions = parseClarifyingQuestions(assistantContent);
           if (questions.length > 0) {
             setMessages((prev) => {
               const updated = [...prev];
               const lastMsg = updated[updated.length - 1];
-              if (lastMsg?.role === 'assistant') {
+              if (lastMsg?.role === 'assistant' && !lastMsg.clarifyingQuestions?.length) {
                 updated[updated.length - 1] = { ...lastMsg, clarifyingQuestions: questions };
               }
               return updated;

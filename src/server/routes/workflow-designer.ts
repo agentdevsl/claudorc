@@ -283,7 +283,7 @@ function parseAIResponse(responseText: string): {
   }
 
   // Graph connectivity check — ensure all nodes are reachable from Start.
-  // Uses a single-pass approach: connect ALL unreachable nodes from their
+  // BFS from Start, then connect any unreachable nodes from their
   // array-order predecessor, then fix the End edge from the true chain tail.
   if (startNode && nonStartEndNodes.length > 1) {
     const adjacency = new Map<string, Set<string>>();
@@ -375,25 +375,6 @@ function parseAIResponse(responseText: string): {
         });
       }
       reachable.add(endNode.id);
-    }
-
-    // Fallback: ensure end node is reachable
-    if (endNode && !reachable.has(endNode.id)) {
-      const { tail } = findChainHeadAndTail(nonStartEndNodes, edges);
-      const alreadyConnected = edges.some(
-        (e) => e.sourceNodeId === tail.id && e.targetNodeId === endNode.id
-      );
-      if (!alreadyConnected) {
-        console.warn(
-          `[workflow-analyze] End node unreachable after BFS, connecting from "${tail.label}"`
-        );
-        edges.push({
-          id: `edge-end-fix-${createId().slice(0, 8)}`,
-          type: 'sequential',
-          sourceNodeId: tail.id,
-          targetNodeId: endNode.id,
-        });
-      }
     }
   }
 

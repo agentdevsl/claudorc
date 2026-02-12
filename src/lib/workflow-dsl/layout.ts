@@ -11,6 +11,7 @@
  * - Random: Random placement
  */
 
+import { createId } from '@paralleldrive/cuid2';
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react';
 import type { LayoutOptions as ElkLayoutOptions, ElkNode } from 'elkjs/lib/elk.bundled.js';
 import type { Position, WorkflowEdge, WorkflowNode } from './types.js';
@@ -222,7 +223,7 @@ async function elkLayout(
 
 /**
  * Normalizes node positions to start at x=0.
- * With uniform node widths (enforced by CSS min-width), handles align automatically.
+ * With uniform node widths (enforced by CSS min-width), alignment is handled automatically.
  */
 function normalizePositions(positions: Map<string, Position>): void {
   if (positions.size === 0) return;
@@ -244,12 +245,13 @@ function normalizePositions(positions: Map<string, Position>): void {
 // =============================================================================
 
 /**
- * Finds the topological head and tail of the middle-node chain by walking
- * the longest path through the middle-edge subgraph.
+ * Finds the topological head and tail of the middle-node chain using
+ * BFS reachability cardinality through the middle-edge subgraph.
  *
  * For each head candidate (no incoming middle edges), BFS forward and count
  * reachable nodes. The candidate that reaches the most nodes is the real head;
- * the furthest reachable node with no outgoing middle edges is the real tail.
+ * the first reachable node (in array order) with no outgoing middle edges is
+ * the real tail.
  *
  * This correctly handles isolated nodes and dead-end forks — they have short
  * reachable sets and lose to the main chain's head candidate.
@@ -345,7 +347,7 @@ export function ensureStartEndConnected(
     if (!hasCorrectStartEdge) {
       result = result.filter((e) => e.sourceNodeId !== startNode.id);
       result.unshift({
-        id: `auto-start-${Date.now()}`,
+        id: `auto-start-${createId().slice(0, 8)}`,
         type: 'sequential',
         sourceNodeId: startNode.id,
         targetNodeId: firstNode.id,
@@ -361,7 +363,7 @@ export function ensureStartEndConnected(
     if (!hasCorrectEndEdge) {
       result = result.filter((e) => e.targetNodeId !== endNode.id);
       result.push({
-        id: `auto-end-${Date.now()}`,
+        id: `auto-end-${createId().slice(0, 8)}`,
         type: 'sequential',
         sourceNodeId: lastNode.id,
         targetNodeId: endNode.id,

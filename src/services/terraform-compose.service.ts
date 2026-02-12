@@ -11,6 +11,7 @@ import type {
   ClarifyingQuestion,
   ComposeEvent,
   ComposeMessage,
+  ComposeMode,
   ComposeStage,
   GeneratedFile,
   ModuleMatch,
@@ -29,8 +30,17 @@ let cachedSkillContent: string | null = null;
 async function loadStacksSkillContent(): Promise<string> {
   if (cachedSkillContent) return cachedSkillContent;
   const skillPath = resolve(process.cwd(), '.claude/skills/terraform-stacks/SKILL.md');
-  cachedSkillContent = await readFile(skillPath, 'utf-8');
-  return cachedSkillContent;
+  try {
+    const content = await readFile(skillPath, 'utf-8');
+    cachedSkillContent = content;
+    return content;
+  } catch (err) {
+    log.warn('Failed to load Stacks SKILL.md, continuing without reference', {
+      data: { skillPath },
+      error: err,
+    });
+    return '';
+  }
 }
 
 const MAX_SESSIONS = 100;
@@ -52,7 +62,7 @@ export interface ComposeSession {
  * via `controller.enqueue()` — matching the pattern used by sessions,
  * task-creation, and cli-monitor SSE endpoints.
  *
- * `pendingEvents` buffers critical events (error, done) that arrive before
+ * `pendingEvents` buffers critical events (error, done, code) that arrive before
  * a subscriber connects, so late subscribers still receive them.
  */
 interface ComposeJob {
@@ -119,7 +129,7 @@ export class TerraformComposeService {
     sessionId: string | undefined,
     messages: ComposeMessage[],
     registryId?: string,
-    composeMode: 'terraform' | 'stacks' = 'terraform'
+    composeMode: ComposeMode = 'terraform'
   ): Promise<Result<{ sessionId: string }, TerraformError>> {
     const sid = sessionId || createId();
 
@@ -296,7 +306,7 @@ export class TerraformComposeService {
     messages: ComposeMessage[],
     registryId: string | undefined,
     job: ComposeJob,
-    composeMode: 'terraform' | 'stacks' = 'terraform'
+    composeMode: ComposeMode
   ): Promise<void> {
     // Wait for the SSE subscriber to connect before pushing events
     const subscriberReady = await this.waitForSubscriber(job);
@@ -391,7 +401,9 @@ export class TerraformComposeService {
       const filteredEnv = Object.fromEntries(
         Object.entries(process.env).filter(
           ([key]) =>
-            !/^(DATABASE_URL|DB_|ENCRYPTION_KEY|SESSION_SECRET|GITHUB_APP_PRIVATE_KEY)$/i.test(key)
+            !/^(DATABASE_URL|DB_.*|ENCRYPTION_KEY|SESSION_SECRET|GITHUB_APP_PRIVATE_KEY)$/i.test(
+              key
+            )
         )
       ) as Record<string, string>;
 
@@ -503,6 +515,10 @@ export class TerraformComposeService {
           generatedFiles = stacksFiles;
           generatedCode = stacksFiles.map((f) => f.code).join('\n\n');
           this.sendEvent(job, { type: 'code', code: generatedCode, files: generatedFiles });
+        } else if (fullResponse) {
+          log.warn('Stacks mode produced no files from non-empty response', {
+            data: { responseLength: fullResponse.length },
+          });
         }
       } else {
         generatedCode = extractHclCode(fullResponse);
@@ -575,6 +591,7 @@ export class TerraformComposeService {
         reason.includes('context_length') || reason.includes('too many tokens');
 
       if (isAuthError) {
+        log.error('Authentication error', { data: { reason } });
         this.sendEvent(job, {
           type: 'error',
           error:
