@@ -46,7 +46,8 @@ export function TerraformRightPanel(): React.JSX.Element {
 
   // Auto-switch tab when code is first generated
   useEffect(() => {
-    const hasOutput = composeMode === 'stacks' ? (generatedFiles?.length ?? 0) > 0 : !!generatedCode;
+    const hasOutput =
+      composeMode === 'stacks' ? (generatedFiles?.length ?? 0) > 0 : !!generatedCode;
     if (hasOutput && !prevCodeRef.current) {
       setActiveTab('dependencies');
     }
