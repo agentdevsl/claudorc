@@ -37,20 +37,22 @@ export function TerraformRightPanel(): React.JSX.Element {
     setActiveFileIdx(0);
   }, [generatedFiles]);
 
-  // Reset to code tab when entering stacks mode (dependencies/variables tabs hidden)
+  // Reset to code tab when entering stacks mode (variables tab hidden)
   useEffect(() => {
-    if (isStacks && activeTab !== 'code') {
+    if (isStacks && activeTab === 'variables') {
       setActiveTab('code');
     }
   }, [isStacks, activeTab]);
 
   // Auto-switch tab when code is first generated
   useEffect(() => {
-    if (generatedCode && !prevCodeRef.current) {
-      setActiveTab(composeMode === 'stacks' ? 'code' : 'dependencies');
+    const hasOutput =
+      composeMode === 'stacks' ? (generatedFiles?.length ?? 0) > 0 : !!generatedCode;
+    if (hasOutput && !prevCodeRef.current) {
+      setActiveTab('dependencies');
     }
     prevCodeRef.current = generatedCode;
-  }, [generatedCode, composeMode]);
+  }, [generatedCode, generatedFiles, composeMode]);
 
   return (
     <Tabs
@@ -65,12 +67,10 @@ export function TerraformRightPanel(): React.JSX.Element {
             <Code className="h-3 w-3" />
             {isStacks ? 'Files' : 'Code'}
           </TabsTrigger>
-          {!isStacks && (
-            <TabsTrigger value="dependencies" className="h-6 gap-1 px-2 text-[11px]">
-              <GitBranch className="h-3 w-3" />
-              Dependencies
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="dependencies" className="h-6 gap-1 px-2 text-[11px]">
+            <GitBranch className="h-3 w-3" />
+            Dependencies
+          </TabsTrigger>
           {!isStacks && (
             <TabsTrigger value="variables" className="h-6 gap-1 px-2 text-[11px]">
               <Sliders className="h-3 w-3" />
@@ -113,12 +113,10 @@ export function TerraformRightPanel(): React.JSX.Element {
         </div>
       </TabsContent>
 
-      {/* Dependencies tab (standard Terraform only) */}
-      {!isStacks && (
-        <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
-          <TerraformDependencyDiagram />
-        </TabsContent>
-      )}
+      {/* Dependencies tab */}
+      <TabsContent value="dependencies" className="mt-0 min-h-0 flex-1">
+        <TerraformDependencyDiagram />
+      </TabsContent>
 
       {/* Variables tab (standard Terraform only) */}
       {!isStacks && (
