@@ -10,7 +10,16 @@ export default defineConfig({
       PGLITE_DATA_DIR: '',
     },
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['**/node_modules/**', 'node_modules', 'dist', '.claude', '.worktrees', 'submodule'],
+    exclude: [
+      '**/node_modules/**',
+      'node_modules',
+      'dist',
+      '.claude',
+      '.worktrees',
+      'submodule',
+      '**/_archived/**',
+      'packages/**',
+    ],
     alias: {
       '@/db/client': resolve(__dirname, './src/db/client.ts'),
       '@/services/agent.service': resolve(__dirname, './src/services/agent.service.ts'),
@@ -47,6 +56,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@agentpane/agent-sandbox-sdk': resolve(
+        __dirname,
+        './packages/agent-sandbox-sdk/src/index.ts'
+      ),
     },
   },
 });

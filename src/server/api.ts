@@ -73,6 +73,8 @@ import {
   TERRAFORM_MIGRATION_SQL,
 } from '../lib/bootstrap/phases/schema.js';
 import { createDockerProvider } from '../lib/sandbox/index.js';
+import { createAgentSandboxProvider } from '../lib/sandbox/providers/agent-sandbox-provider.js';
+import type { EventEmittingSandboxProvider } from '../lib/sandbox/providers/sandbox-provider.js';
 import { SANDBOX_DEFAULTS } from '../lib/sandbox/types.js';
 import { AgentService } from '../services/agent.service.js';
 import { ApiKeyService } from '../services/api-key.service.js';
@@ -522,127 +524,229 @@ taskService.setWorktreeService({
   remove: (worktreeId: string) => worktreeService.remove(worktreeId),
 });
 
-// Docker provider for sandbox containers (optional - only if Docker is available)
-let dockerProvider: ReturnType<typeof createDockerProvider> | null = null;
+// ============================================================================
+// Sandbox Provider Initialization
+// ============================================================================
+// Selects and initializes the configured sandbox provider (Docker or K8s CRD).
+// The selected provider is passed to createContainerAgentService for agent execution.
+
+let sandboxProvider: EventEmittingSandboxProvider | null = null;
 let containerAgentService: ReturnType<typeof createContainerAgentService> | null = null;
 
-// Step 1: Initialize Docker provider
+// Step 1: Determine which provider to use from settings
+type ProviderSelection = 'docker' | 'kubernetes';
+let providerType: ProviderSelection = 'docker'; // default
+
 try {
-  dockerProvider = createDockerProvider();
-  log.info('[API Server] Docker provider initialized');
-
-  // Recover existing containers from previous runs
-  const { recovered, removed } = await dockerProvider.recover();
-  if (recovered > 0 || removed > 0) {
-    console.log(
-      `[API Server] Container recovery: ${recovered} recovered, ${removed} stale removed`
-    );
+  const providerSetting = await db.query.settings.findFirst({
+    where: eq(schemaTables.settings.key, 'sandbox.defaults'),
+  });
+  if (providerSetting?.value) {
+    const parsed = JSON.parse(providerSetting.value) as { provider?: string };
+    if (parsed.provider === 'kubernetes') {
+      providerType = 'kubernetes';
+    }
   }
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  // Distinguish between expected Docker unavailability and unexpected errors
-  const isExpectedError =
-    message.includes('ENOENT') || // Docker socket not found
-    message.includes('connect ECONNREFUSED') || // Docker not running
-    message.includes('permission denied') || // No access to Docker socket
-    message.includes('Cannot connect to Docker'); // Docker daemon offline
+} catch (settingsErr) {
+  console.warn(
+    '[API Server] Failed to load sandbox provider setting (using Docker default):',
+    settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
+  );
+}
 
-  if (isExpectedError) {
-    log.info('[API Server] Docker not available (expected), container agent service disabled');
-  } else {
-    log.error(`[API Server] Docker initialization failed with unexpected error: ${message}`);
+// Step 2: Initialize the selected provider
+if (providerType === 'kubernetes') {
+  // ------ Kubernetes CRD Provider ------
+  try {
+    // Load K8s-specific settings from the sandbox.kubernetes key
+    let k8sSettings: {
+      namespace?: string;
+      kubeConfigPath?: string;
+      kubeContext?: string;
+      enableWarmPool?: boolean;
+      warmPoolSize?: number;
+      runtimeClassName?: 'gvisor' | 'kata' | 'none';
+      image?: string;
+    } = {};
+
+    try {
+      const k8sSetting = await db.query.settings.findFirst({
+        where: eq(schemaTables.settings.key, 'sandbox.kubernetes'),
+      });
+      if (k8sSetting?.value) {
+        k8sSettings = JSON.parse(k8sSetting.value);
+      }
+    } catch {
+      // Use defaults
+    }
+
+    const k8sProvider = createAgentSandboxProvider({
+      namespace: k8sSettings.namespace,
+      kubeConfigPath: k8sSettings.kubeConfigPath,
+      kubeContext: k8sSettings.kubeContext,
+      enableWarmPool: k8sSettings.enableWarmPool,
+      warmPoolSize: k8sSettings.warmPoolSize,
+      runtimeClassName: k8sSettings.runtimeClassName,
+      image: k8sSettings.image,
+    });
+
+    // Verify cluster connectivity and controller installation
+    const health = await k8sProvider.healthCheck();
+    if (health.healthy) {
+      sandboxProvider = k8sProvider;
+      log.info('[API Server] Kubernetes CRD sandbox provider initialized', {
+        data: {
+          namespace: k8sSettings.namespace ?? 'agentpane-sandboxes',
+          controller: health.details?.controller,
+        },
+      });
+
+      // Initialize warm pool if enabled
+      if (k8sSettings.enableWarmPool) {
+        try {
+          await k8sProvider.initWarmPool();
+          log.info('[API Server] Warm pool initialized');
+        } catch (warmPoolErr) {
+          console.warn(
+            '[API Server] Warm pool initialization failed (continuing without):',
+            warmPoolErr instanceof Error ? warmPoolErr.message : String(warmPoolErr)
+          );
+        }
+      }
+    } else {
+      console.warn(
+        `[API Server] Kubernetes CRD provider unhealthy: ${health.message}. ` +
+          'Falling back to Docker provider.'
+      );
+      // Fall through to Docker initialization below
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[API Server] Kubernetes CRD provider init failed: ${message}. ` + 'Falling back to Docker.'
+    );
   }
 }
 
-// Step 2: Create default sandbox (only if Docker is available)
-if (dockerProvider) {
+// Step 3: Fall back to Docker if K8s was not initialized (or was not selected)
+if (!sandboxProvider) {
   try {
-    const existingDefault = await dockerProvider.get('default');
-    if (!existingDefault) {
-      // Get global sandbox defaults from settings
-      interface SandboxDefaults {
-        image?: string;
-        memoryMb?: number;
-        cpuCores?: number;
-        idleTimeoutMinutes?: number;
-      }
-      let defaults: SandboxDefaults | null = null;
+    const dockerProvider = createDockerProvider();
+    log.info('[API Server] Docker provider initialized');
 
-      try {
-        const globalDefaults = await db.query.settings.findFirst({
-          where: eq(schemaTables.settings.key, 'sandbox.defaults'),
-        });
-        if (globalDefaults?.value) {
-          defaults = JSON.parse(globalDefaults.value) as SandboxDefaults;
+    // Recover existing containers from previous runs
+    const { recovered, removed } = await dockerProvider.recover();
+    if (recovered > 0 || removed > 0) {
+      console.log(
+        `[API Server] Container recovery: ${recovered} recovered, ` + `${removed} stale removed`
+      );
+    }
+
+    sandboxProvider = dockerProvider;
+
+    // Create default sandbox (Docker-specific behavior, not needed for K8s CRD)
+    try {
+      const existingDefault = await dockerProvider.get('default');
+      if (!existingDefault) {
+        interface SandboxDefaults {
+          image?: string;
+          memoryMb?: number;
+          cpuCores?: number;
+          idleTimeoutMinutes?: number;
         }
-      } catch (settingsErr) {
-        console.warn(
-          '[API Server] Failed to load sandbox settings (using defaults):',
-          settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
-        );
-      }
+        let defaults: SandboxDefaults | null = null;
 
-      const defaultImage = defaults?.image ?? SANDBOX_DEFAULTS.image;
-      console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
-
-      // Check if the image exists
-      const imageAvailable = await dockerProvider.isImageAvailable(defaultImage);
-      console.log(`[API Server] Image available: ${imageAvailable}`);
-      if (imageAvailable) {
         try {
-          // Use project data directory for default sandbox workspace (must be Docker-shareable)
-          const defaultWorkspacePath = path.join(
-            process.cwd(),
-            'data',
-            'sandbox-workspaces',
-            'default'
-          );
-          await fs.mkdir(defaultWorkspacePath, { recursive: true });
-
-          await dockerProvider.create({
-            projectId: 'default',
-            projectPath: defaultWorkspacePath,
-            image: defaultImage,
-            memoryMb: defaults?.memoryMb ?? 2048,
-            cpuCores: defaults?.cpuCores ?? 2,
-            idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
-            volumeMounts: [],
+          const globalDefaults = await db.query.settings.findFirst({
+            where: eq(schemaTables.settings.key, 'sandbox.defaults'),
           });
-          log.info('[API Server] Default global sandbox created');
-        } catch (createErr) {
-          log.warn('[API Server] Failed to create default sandbox', { error: createErr });
+          if (globalDefaults?.value) {
+            defaults = JSON.parse(globalDefaults.value) as SandboxDefaults;
+          }
+        } catch (settingsErr) {
+          console.warn(
+            '[API Server] Failed to load sandbox settings (using defaults):',
+            settingsErr instanceof Error ? settingsErr.message : String(settingsErr)
+          );
+        }
+
+        const defaultImage = defaults?.image ?? SANDBOX_DEFAULTS.image;
+        console.log(`[API Server] Checking for default sandbox image: ${defaultImage}`);
+
+        const imageAvailable = await dockerProvider.isImageAvailable(defaultImage);
+        console.log(`[API Server] Image available: ${imageAvailable}`);
+        if (imageAvailable) {
+          try {
+            const defaultWorkspacePath = path.join(
+              process.cwd(),
+              'data',
+              'sandbox-workspaces',
+              'default'
+            );
+            await fs.mkdir(defaultWorkspacePath, { recursive: true });
+
+            await dockerProvider.create({
+              projectId: 'default',
+              projectPath: defaultWorkspacePath,
+              image: defaultImage,
+              memoryMb: defaults?.memoryMb ?? 2048,
+              cpuCores: defaults?.cpuCores ?? 2,
+              idleTimeoutMinutes: defaults?.idleTimeoutMinutes ?? 30,
+              volumeMounts: [],
+            });
+            log.info('[API Server] Default global sandbox created');
+          } catch (createErr) {
+            log.warn('[API Server] Failed to create default sandbox', {
+              error: createErr,
+            });
+          }
+        } else {
+          console.log(
+            `[API Server] Default sandbox image '${defaultImage}' not available, ` +
+              'skipping default sandbox creation'
+          );
         }
       } else {
-        console.log(
-          `[API Server] Default sandbox image '${defaultImage}' not available, skipping default sandbox creation`
-        );
+        log.info('[API Server] Default global sandbox already exists');
       }
-    } else {
-      log.info('[API Server] Default global sandbox already exists');
+    } catch (sandboxErr) {
+      console.warn(
+        '[API Server] Failed to setup default sandbox (container agent still available):',
+        sandboxErr instanceof Error ? sandboxErr.message : String(sandboxErr)
+      );
     }
-  } catch (sandboxErr) {
-    // Sandbox setup failed but Docker is still available - container agent can still work
-    console.warn(
-      '[API Server] Failed to setup default sandbox (container agent still available):',
-      sandboxErr instanceof Error ? sandboxErr.message : String(sandboxErr)
-    );
-  }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isExpectedError =
+      message.includes('ENOENT') ||
+      message.includes('connect ECONNREFUSED') ||
+      message.includes('permission denied') ||
+      message.includes('Cannot connect to Docker');
 
-  // Step 3: Create ContainerAgentService (only if Docker is available)
+    if (isExpectedError) {
+      log.info('[API Server] Docker not available (expected), container agent service disabled');
+    } else {
+      log.error(`[API Server] Docker initialization failed with unexpected error: ${message}`);
+    }
+  }
+}
+
+// Step 4: Create ContainerAgentService with whichever provider was initialized
+if (sandboxProvider) {
   try {
-    // Create DurableStreamsService for container agent events
-    // Create ContainerAgentService for Docker-based agent execution
     containerAgentService = createContainerAgentService(
       db,
-      dockerProvider,
+      sandboxProvider,
       durableStreamsService,
       apiKeyService,
       worktreeService
     );
 
-    // Wire up container agent service to task service
     taskService.setContainerAgentService(containerAgentService);
-    log.info('[API Server] ContainerAgentService wired up to TaskService');
+    log.info(
+      `[API Server] ContainerAgentService wired up to TaskService ` +
+        `(provider: ${sandboxProvider.name})`
+    );
   } catch (serviceErr) {
     console.error(
       '[API Server] Failed to create ContainerAgentService:',
@@ -681,7 +785,7 @@ const app = createRouter({
   agentService,
   commandRunner: bunCommandRunner,
   durableStreamsService,
-  dockerProvider,
+  dockerProvider: sandboxProvider,
   cliMonitorService,
   terraformRegistryService,
   terraformComposeService,

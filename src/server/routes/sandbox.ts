@@ -2,14 +2,15 @@
  * Sandbox routes (including K8s)
  */
 
-import { Hono } from 'hono';
 import {
+  AgentSandboxClient,
   getClusterInfo,
-  K8S_PROVIDER_DEFAULTS,
   loadKubeConfig,
   resolveContext,
-} from '../../lib/sandbox/providers/k8s-config.js';
+} from '@agentpane/agent-sandbox-sdk';
+import { Hono } from 'hono';
 import type { SandboxConfigService } from '../../services/sandbox-config.service.js';
+import type { Database } from '../../types/database.js';
 import { json } from '../shared.js';
 
 interface SandboxDeps {
@@ -182,7 +183,7 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
 /**
  * Create K8s-specific routes
  */
-export function createK8sRoutes() {
+export function createK8sRoutes(deps?: { db?: Database }) {
   const app = new Hono();
 
   // GET /api/sandbox/k8s/status
@@ -192,7 +193,7 @@ export function createK8sRoutes() {
 
     try {
       // Load kubeconfig
-      const kc = loadKubeConfig(kubeconfigPath, true); // skipTLSVerify for local dev
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify: true }); // skipTLSVerify for local dev
 
       // Resolve context if specified
       if (context) {
@@ -261,7 +262,7 @@ export function createK8sRoutes() {
       }
 
       // Check namespace
-      const namespace = K8S_PROVIDER_DEFAULTS.namespace;
+      const namespace = 'agentpane-sandboxes';
       let namespaceExists = false;
       let pods = 0;
       let podsRunning = 0;
@@ -324,7 +325,7 @@ export function createK8sRoutes() {
     const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
 
     try {
-      const kc = loadKubeConfig(kubeconfigPath);
+      const kc = loadKubeConfig({ kubeconfigPath });
       const contexts = kc.getContexts();
       const currentContext = kc.getCurrentContext();
 
@@ -360,7 +361,7 @@ export function createK8sRoutes() {
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
 
     try {
-      const kc = loadKubeConfig(kubeconfigPath, true);
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify: true });
 
       if (context) {
         resolveContext(kc, context);
@@ -388,6 +389,70 @@ export function createK8sRoutes() {
         {
           ok: false,
           error: { code: 'K8S_API_ERROR', message },
+        },
+        500
+      );
+    }
+  });
+
+  // GET /api/sandbox/k8s/controller - CRD controller installation status
+  app.get('/controller', async (c) => {
+    try {
+      // Load K8s settings from query params or defaults
+      let namespace = 'agentpane-sandboxes';
+      let kubeconfigPath: string | undefined = c.req.query('kubeconfigPath') ?? undefined;
+      let kubeContext: string | undefined = c.req.query('context') ?? undefined;
+
+      // Also try loading from DB settings if available
+      if (deps?.db && !kubeconfigPath && !kubeContext) {
+        try {
+          const { eq } = await import('drizzle-orm');
+          const { settings } = await import('../../db/schema/sqlite/index.js');
+          const k8sSetting = await deps.db.query.settings.findFirst({
+            where: eq(settings.key, 'sandbox.kubernetes'),
+          });
+          if (k8sSetting?.value) {
+            const parsed = JSON.parse(k8sSetting.value);
+            namespace = parsed.namespace ?? namespace;
+            kubeconfigPath = parsed.kubeConfigPath;
+            kubeContext = parsed.kubeContext;
+          }
+        } catch {
+          // Use defaults
+        }
+      }
+
+      // Create a temporary SDK client to check controller status
+      const client = new AgentSandboxClient({
+        namespace,
+        kubeconfigPath,
+        context: kubeContext,
+      });
+
+      const health = await client.healthCheck();
+
+      return json({
+        ok: true,
+        data: {
+          installed: health.controllerInstalled,
+          version: health.controllerVersion ?? null,
+          crdRegistered: health.crdRegistered,
+          crdGroup: 'agents.x-k8s.io',
+          crdApiVersion: 'v1alpha1',
+          clusterVersion: health.clusterVersion ?? null,
+          ready: health.healthy,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[K8s Controller] Error:', message);
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'K8S_CONTROLLER_ERROR',
+            message: `Failed to check CRD controller: ${message}`,
+          },
         },
         500
       );

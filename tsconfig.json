@@ -25,9 +25,10 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@agentpane/agent-sandbox-sdk": ["./packages/agent-sandbox-sdk/src/index.ts"]
     }
   },
   "include": ["src/**/*", "*.config.ts", "*.config.js"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/_archived/**"]
 }

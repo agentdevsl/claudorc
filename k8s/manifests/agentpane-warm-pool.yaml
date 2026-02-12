@@ -1,0 +1,28 @@
+# AgentPane Sandbox Warm Pool
+# Maintains a pool of pre-warmed sandbox instances for fast allocation.
+# When an agent task starts, a sandbox can be claimed from the pool
+# instead of waiting for cold-start pod creation (~10-30s).
+#
+# The CRD controller manages the pool lifecycle:
+#   - Maintains desiredReady sandboxes in a Ready state
+#   - Replaces claimed or unhealthy sandboxes automatically
+#   - Respects maxSize to bound cluster resource usage
+#
+# This replaces the ~1000 LOC manual warm pool in Phase 1 k8s-warm-pool.ts
+# with a single declarative CRD resource.
+apiVersion: agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: agentpane-pool
+  namespace: agentpane-sandboxes
+  labels:
+    app.kubernetes.io/name: agentpane
+    app.kubernetes.io/component: warm-pool
+    agentpane.io/managed: "true"
+  annotations:
+    agentpane.io/description: "Pre-warmed sandbox pool for fast agent allocation"
+spec:
+  templateRef:
+    name: agentpane-default
+  desiredReady: 2
+  maxSize: 5
