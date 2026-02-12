@@ -9,6 +9,7 @@ import '@xyflow/react/dist/style.css';
 import type { ElkNode } from 'elkjs/lib/elk.bundled.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseHclDependencies, type TerraformGraph } from '@/lib/terraform/parse-hcl-dependencies';
+import { parseStacksDependencies } from '@/lib/terraform/parse-stacks-dependencies';
 import { getElk } from '@/lib/workflow-dsl/layout';
 import { useTerraform } from './terraform-context';
 import { TerraformDependencyEdge, TerraformEdgeMarkers } from './terraform-dependency-edge';
@@ -130,16 +131,20 @@ async function layoutGraph(
 }
 
 function DiagramInner(): React.JSX.Element {
-  const { generatedCode, matchedModules } = useTerraform();
+  const { generatedCode, generatedFiles, composeMode, matchedModules } = useTerraform();
   const [nodes, setNodes] = useState<ReactFlowNode[]>([]);
   const [edges, setEdges] = useState<ReactFlowEdge[]>([]);
   const [isEmpty, setIsEmpty] = useState(true);
   const layoutInFlight = useRef(false);
 
   const graph = useMemo(() => {
+    if (composeMode === 'stacks') {
+      if (!generatedFiles?.length) return null;
+      return parseStacksDependencies(generatedFiles, matchedModules);
+    }
     if (!generatedCode) return null;
     return parseHclDependencies(generatedCode, matchedModules);
-  }, [generatedCode, matchedModules]);
+  }, [composeMode, generatedCode, generatedFiles, matchedModules]);
 
   const runLayout = useCallback(async (g: TerraformGraph) => {
     if (layoutInFlight.current) return;
@@ -167,16 +172,17 @@ function DiagramInner(): React.JSX.Element {
     void runLayout(graph);
   }, [graph, runLayout]);
 
-  if (!generatedCode || isEmpty) {
+  const hasSource = composeMode === 'stacks' ? (generatedFiles?.length ?? 0) > 0 : !!generatedCode;
+  if (!hasSource || isEmpty) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-emphasis">
           <GitBranch className="h-6 w-6 text-fg-subtle" />
         </div>
         <p className="text-sm text-fg-muted">
-          {generatedCode
-            ? 'No module dependencies detected in the generated code.'
-            : 'Module dependencies will appear here after code generation.'}
+          {hasSource
+            ? `No ${composeMode === 'stacks' ? 'component' : 'module'} dependencies detected in the generated code.`
+            : `${composeMode === 'stacks' ? 'Component' : 'Module'} dependencies will appear here after code generation.`}
         </p>
       </div>
     );
