@@ -54,14 +54,12 @@ export function loadKubeConfig(options?: KubeConfigOptions): KubeConfig {
   }
 
   // Apply skipTLSVerify if requested.
-  // Set on all clusters so Node.js-based clients use rejectUnauthorized: false.
-  // Also set NODE_TLS_REJECT_UNAUTHORIZED=0 as a workaround for runtimes (bun)
-  // that don't propagate the per-cluster setting to their fetch/HTTP implementation.
+  // Set on all clusters so the k8s client creates agents with rejectUnauthorized: false.
+  // The bun-compat module handles translating this to bun's tls option.
   if (options?.skipTLSVerify) {
     for (const cluster of kc.clusters) {
       (cluster as { skipTLSVerify: boolean }).skipTLSVerify = true;
     }
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 
   return kc;

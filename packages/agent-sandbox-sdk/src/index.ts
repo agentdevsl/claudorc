@@ -1,3 +1,10 @@
+// Bun compatibility — apply patches before any k8s client usage
+export { applyBunCompat } from './bun-compat.js';
+
+import { applyBunCompat } from './bun-compat.js';
+
+applyBunCompat();
+
 // Client
 
 export { SandboxClaimBuilder } from './builders/claim.js';
