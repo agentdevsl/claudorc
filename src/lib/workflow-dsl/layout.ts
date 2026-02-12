@@ -223,7 +223,7 @@ async function elkLayout(
 
 /**
  * Normalizes node positions to start at x=0.
- * With uniform node widths (enforced by CSS min-width), handles align automatically.
+ * With uniform node widths (enforced by CSS min-width), alignment is handled automatically.
  */
 function normalizePositions(positions: Map<string, Position>): void {
   if (positions.size === 0) return;

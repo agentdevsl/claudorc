@@ -9,7 +9,7 @@ import type { ComposeMode } from './types.js';
  * Build the Terraform composition system prompt.
  *
  * When mode is 'stacks', uses the Stacks-specific prompt with injected skill reference.
- * The caller must provide `stacksReference` content (loaded server-side).
+ * The caller should provide `stacksReference` content (loaded server-side).
  * When mode is 'terraform' (default), uses the standard Terraform compose prompt.
  */
 export async function buildCompositionSystemPrompt(

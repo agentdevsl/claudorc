@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   ClarifyingQuestion,
   ComposeMessage,
+  ComposeMode,
   ComposeStage,
   ModuleMatch,
 } from '@/lib/terraform/types';
@@ -516,8 +517,8 @@ interface ChatInputProps {
   input: string;
   setInput: (v: string) => void;
   isStreaming: boolean;
-  composeMode: 'terraform' | 'stacks';
-  setComposeMode: (mode: 'terraform' | 'stacks') => void;
+  composeMode: ComposeMode;
+  setComposeMode: (mode: ComposeMode) => void;
   onSubmit: () => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;

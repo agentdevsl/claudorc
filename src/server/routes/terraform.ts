@@ -313,7 +313,7 @@ export function createTerraformRoutes({
     }
   });
 
-  // POST /validate — validate generated HCL code using terraform CLI via Agent SDK
+  // POST /validate — validate generated HCL code using @cdktf/hcl2json
   app.post('/validate', async (c) => {
     let body: { code: string; tfvars?: string };
     try {

@@ -11,6 +11,7 @@ import type {
   ClarifyingQuestion,
   ComposeEvent,
   ComposeMessage,
+  ComposeMode,
   ComposeStage,
   GeneratedFile,
   ModuleMatch,
@@ -61,7 +62,7 @@ export interface ComposeSession {
  * via `controller.enqueue()` — matching the pattern used by sessions,
  * task-creation, and cli-monitor SSE endpoints.
  *
- * `pendingEvents` buffers critical events (error, done) that arrive before
+ * `pendingEvents` buffers critical events (error, done, code) that arrive before
  * a subscriber connects, so late subscribers still receive them.
  */
 interface ComposeJob {
@@ -128,7 +129,7 @@ export class TerraformComposeService {
     sessionId: string | undefined,
     messages: ComposeMessage[],
     registryId?: string,
-    composeMode: 'terraform' | 'stacks' = 'terraform'
+    composeMode: ComposeMode = 'terraform'
   ): Promise<Result<{ sessionId: string }, TerraformError>> {
     const sid = sessionId || createId();
 
@@ -305,7 +306,7 @@ export class TerraformComposeService {
     messages: ComposeMessage[],
     registryId: string | undefined,
     job: ComposeJob,
-    composeMode: 'terraform' | 'stacks' = 'terraform'
+    composeMode: ComposeMode
   ): Promise<void> {
     // Wait for the SSE subscriber to connect before pushing events
     const subscriberReady = await this.waitForSubscriber(job);
