@@ -46,48 +46,29 @@ export function startWatch<T extends CRDResource>(
 
   let abortRequest: (() => void) | undefined;
 
-  const done = new Promise<void>((resolve, reject) => {
-    const queryParams: Record<string, string> = {};
-    if (options.labelSelector) {
-      queryParams.labelSelector = options.labelSelector;
-    }
-    if (options.resourceVersion) {
-      queryParams.resourceVersion = options.resourceVersion;
-    }
-    if (options.timeoutSeconds) {
-      queryParams.timeoutSeconds = String(options.timeoutSeconds);
-    }
+  const queryParams: Record<string, string> = {};
+  if (options.labelSelector) queryParams.labelSelector = options.labelSelector;
+  if (options.resourceVersion) queryParams.resourceVersion = options.resourceVersion;
+  if (options.timeoutSeconds) queryParams.timeoutSeconds = String(options.timeoutSeconds);
 
+  const done = new Promise<void>((resolve, reject) => {
     watch
       .watch(
         path,
         queryParams,
         (type: string, apiObj: T) => {
-          callback({
-            type: type as WatchEvent<T>['type'],
-            object: apiObj,
-          });
+          callback({ type: type as WatchEvent<T>['type'], object: apiObj });
         },
-        (err?: Error) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
+        (err?: Error) => (err ? reject(err) : resolve())
       )
       .then((req) => {
-        abortRequest = () => {
-          req.abort();
-        };
+        abortRequest = () => req.abort();
       })
       .catch(reject);
   });
 
   return {
-    stop: () => {
-      abortRequest?.();
-    },
+    stop: () => abortRequest?.(),
     done,
   };
 }

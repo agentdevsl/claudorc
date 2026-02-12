@@ -53,7 +53,7 @@ export const sandboxSpecSchema = z.object({
       namespace: z.string().optional(),
     })
     .optional(),
-  podTemplate: z.any().optional(),
+  podTemplateSpec: z.any().optional(),
   replicas: z.number().int().min(0).max(1).optional(),
   networkPolicy: z
     .object({

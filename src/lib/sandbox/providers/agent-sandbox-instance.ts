@@ -135,63 +135,39 @@ export class AgentSandboxInstance implements Sandbox {
     // so we prefix the command with env assignments in the shell.
     const envEntries = Object.entries(env);
     if (envEntries.length > 0) {
+      // Validate env keys to prevent command injection (keys are not shell-escaped)
+      const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+      for (const [key] of envEntries) {
+        if (!ENV_KEY_PATTERN.test(key)) {
+          throw K8sErrors.EXEC_FAILED(cmd, `Invalid environment variable key: ${key}`);
+        }
+      }
+
       const envPrefix = envEntries.map(([k, v]) => `${k}=${this.shellEscape(v)}`).join(' ');
 
       if (fullCmd[0] === 'sh' && fullCmd[1] === '-c') {
         // Already wrapped in shell -- inject env into the shell command
         fullCmd = ['sh', '-c', `${envPrefix} ${fullCmd[2]}`];
       } else {
-        // Wrap with env command
+        // Values are passed as separate argv entries to env, so shell escaping is not needed
+        // here (unlike the sh -c path above where values are embedded in a shell string).
         fullCmd = ['env', ...envEntries.map(([k, v]) => `${k}=${v}`), ...fullCmd];
       }
     }
 
-    // Create PassThrough streams for stdout and stderr.
-    // These are the streams that ContainerBridge.processStream reads from.
-    const stdoutStream = new PassThrough();
-    const stderrStream = new PassThrough();
-    let killed = false;
-
     // Delegate to the SDK's execStream which manages the K8s Exec WebSocket.
-    // The SDK returns streams and wait/kill methods.
     const sdkStream = await this.client.execStream({
       sandboxName: this.sandboxName,
       command: fullCmd,
       container: 'sandbox',
     });
 
-    // Pipe SDK output to our PassThrough streams
-    sdkStream.stdout.on('data', (chunk: Buffer) => {
-      if (!killed) {
-        stdoutStream.write(chunk);
-      }
-    });
+    // Pipe SDK output through PassThrough streams for the ContainerBridge contract.
+    const stdoutStream = new PassThrough();
+    const stderrStream = new PassThrough();
 
-    sdkStream.stderr.on('data', (chunk: Buffer) => {
-      if (!killed) {
-        stderrStream.write(chunk);
-      }
-    });
-
-    sdkStream.stdout.on('end', () => {
-      if (!killed) {
-        stdoutStream.end();
-      }
-    });
-
-    sdkStream.stderr.on('end', () => {
-      if (!killed) {
-        stderrStream.end();
-      }
-    });
-
-    sdkStream.stdout.on('error', (err: Error) => {
-      stdoutStream.destroy(err);
-    });
-
-    sdkStream.stderr.on('error', (err: Error) => {
-      stderrStream.destroy(err);
-    });
+    sdkStream.stdout.pipe(stdoutStream);
+    sdkStream.stderr.pipe(stderrStream);
 
     return {
       stdout: stdoutStream as Readable,
@@ -202,7 +178,8 @@ export class AgentSandboxInstance implements Sandbox {
       },
 
       async kill(): Promise<void> {
-        killed = true;
+        sdkStream.stdout.unpipe(stdoutStream);
+        sdkStream.stderr.unpipe(stderrStream);
         stdoutStream.end();
         stderrStream.end();
         await sdkStream.kill();

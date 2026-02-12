@@ -41,7 +41,7 @@ describe('SandboxBuilder', () => {
   it('builds a sandbox with inline image', () => {
     const sandbox = new SandboxBuilder('test').image('ubuntu:24.04').build();
 
-    const container = sandbox.spec.podTemplate?.spec?.containers?.[0];
+    const container = sandbox.spec.podTemplateSpec?.spec?.containers?.[0];
     expect(container?.name).toBe('sandbox');
     expect(container?.image).toBe('ubuntu:24.04');
   });
@@ -52,16 +52,16 @@ describe('SandboxBuilder', () => {
       .resources({ cpu: '500m', memory: '512Mi' })
       .build();
 
-    const container = sandbox.spec.podTemplate?.spec?.containers?.[0];
+    const container = sandbox.spec.podTemplateSpec?.spec?.containers?.[0];
     expect(container?.image).toBe('ubuntu:24.04');
     expect(container?.resources?.limits).toEqual({ cpu: '500m', memory: '512Mi' });
   });
 
-  it('resources creates podTemplate if not present', () => {
+  it('resources creates podTemplateSpec if not present', () => {
     const sandbox = new SandboxBuilder('test').resources({ cpu: '1', memory: '1Gi' }).build();
 
-    expect(sandbox.spec.podTemplate).toBeDefined();
-    const container = sandbox.spec.podTemplate?.spec?.containers?.[0];
+    expect(sandbox.spec.podTemplateSpec).toBeDefined();
+    const container = sandbox.spec.podTemplateSpec?.spec?.containers?.[0];
     expect(container?.resources?.limits).toEqual({ cpu: '1', memory: '1Gi' });
   });
 
@@ -173,14 +173,14 @@ describe('SandboxBuilder', () => {
   });
 
   it('sets pod template directly', () => {
-    const podTemplate = {
+    const podTemplateSpec = {
       spec: {
         containers: [{ name: 'custom', image: 'nginx:latest' }],
       },
     };
-    const sandbox = new SandboxBuilder('test').withPodTemplate(podTemplate).build();
+    const sandbox = new SandboxBuilder('test').withPodTemplate(podTemplateSpec).build();
 
-    expect(sandbox.spec.podTemplate).toEqual(podTemplate);
+    expect(sandbox.spec.podTemplateSpec).toEqual(podTemplateSpec);
   });
 
   it('supports fluent API chaining', () => {
@@ -210,7 +210,7 @@ describe('SandboxBuilder', () => {
     expect(sandbox.spec.volumeClaims).toHaveLength(1);
   });
 
-  it('image() updates existing podTemplate container', () => {
+  it('image() updates existing podTemplateSpec container', () => {
     const sandbox = new SandboxBuilder('test')
       .withPodTemplate({
         spec: { containers: [{ name: 'sandbox', image: 'old:v1' }] },
@@ -218,7 +218,7 @@ describe('SandboxBuilder', () => {
       .image('new:v2')
       .build();
 
-    expect(sandbox.spec.podTemplate?.spec?.containers?.[0]?.image).toBe('new:v2');
+    expect(sandbox.spec.podTemplateSpec?.spec?.containers?.[0]?.image).toBe('new:v2');
   });
 });
 
@@ -226,7 +226,7 @@ describe('SandboxTemplateBuilder', () => {
   it('builds a template with correct apiVersion and kind', () => {
     const template = new SandboxTemplateBuilder('base-template').build();
 
-    expect(template.apiVersion).toBe(CRD_API.extensionsApiVersion);
+    expect(template.apiVersion).toBe(CRD_API.apiVersion);
     expect(template.kind).toBe(CRD_KINDS.sandboxTemplate);
     expect(template.metadata.name).toBe('base-template');
   });
@@ -243,7 +243,7 @@ describe('SandboxTemplateBuilder', () => {
       .resources({ cpu: '1', memory: '1Gi' })
       .build();
 
-    const container = template.spec.podTemplate?.spec?.containers?.[0];
+    const container = template.spec.podTemplateSpec?.spec?.containers?.[0];
     expect(container?.image).toBe('node:22');
     expect(container?.resources?.limits).toEqual({ cpu: '1', memory: '1Gi' });
   });
@@ -279,15 +279,15 @@ describe('SandboxTemplateBuilder', () => {
     expect(template.spec.volumeClaims![0].name).toBe('workspace');
   });
 
-  it('sets podTemplate directly', () => {
-    const podTemplate = {
+  it('sets podTemplateSpec directly', () => {
+    const podTemplateSpec = {
       spec: {
         containers: [{ name: 'sandbox', image: 'ubuntu:24.04' }],
       },
     };
-    const template = new SandboxTemplateBuilder('test').podTemplate(podTemplate).build();
+    const template = new SandboxTemplateBuilder('test').podTemplateSpec(podTemplateSpec).build();
 
-    expect(template.spec.podTemplate).toEqual(podTemplate);
+    expect(template.spec.podTemplateSpec).toEqual(podTemplateSpec);
   });
 
   it('supports fluent chaining', () => {
@@ -377,7 +377,7 @@ describe('SandboxWarmPoolBuilder', () => {
   it('builds a warm pool with correct apiVersion and kind', () => {
     const pool = new SandboxWarmPoolBuilder('my-pool').build();
 
-    expect(pool.apiVersion).toBe(CRD_API.extensionsApiVersion);
+    expect(pool.apiVersion).toBe(CRD_API.apiVersion);
     expect(pool.kind).toBe(CRD_KINDS.sandboxWarmPool);
     expect(pool.metadata.name).toBe('my-pool');
   });
@@ -388,16 +388,16 @@ describe('SandboxWarmPoolBuilder', () => {
     expect(pool.metadata.namespace).toBe('default');
   });
 
-  it('sets replicas', () => {
+  it('sets replicas (desiredReady)', () => {
     const pool = new SandboxWarmPoolBuilder('test').replicas(3).build();
 
-    expect(pool.spec.replicas).toBe(3);
+    expect(pool.spec.desiredReady).toBe(3);
   });
 
   it('sets template ref', () => {
     const pool = new SandboxWarmPoolBuilder('test').templateRef('base-template').build();
 
-    expect(pool.spec.sandboxTemplateRef).toEqual({
+    expect(pool.spec.templateRef).toEqual({
       name: 'base-template',
       namespace: undefined,
     });
@@ -406,17 +406,16 @@ describe('SandboxWarmPoolBuilder', () => {
   it('sets template ref with namespace', () => {
     const pool = new SandboxWarmPoolBuilder('test').templateRef('base-template', 'tpl-ns').build();
 
-    expect(pool.spec.sandboxTemplateRef).toEqual({
+    expect(pool.spec.templateRef).toEqual({
       name: 'base-template',
       namespace: 'tpl-ns',
     });
   });
 
-  it('sets autoscaling bounds', () => {
-    const pool = new SandboxWarmPoolBuilder('test').autoscale(1, 10).build();
+  it('sets maxSize', () => {
+    const pool = new SandboxWarmPoolBuilder('test').autoscale(10).build();
 
-    expect(pool.spec.minReplicas).toBe(1);
-    expect(pool.spec.maxReplicas).toBe(10);
+    expect(pool.spec.maxSize).toBe(10);
   });
 
   it('sets labels', () => {
@@ -430,15 +429,14 @@ describe('SandboxWarmPoolBuilder', () => {
       .namespace('default')
       .replicas(3)
       .templateRef('base-template')
-      .autoscale(1, 10)
+      .autoscale(10)
       .labels({ tier: 'warm' })
       .build();
 
     expect(pool.metadata.name).toBe('my-pool');
     expect(pool.metadata.namespace).toBe('default');
-    expect(pool.spec.replicas).toBe(3);
-    expect(pool.spec.sandboxTemplateRef?.name).toBe('base-template');
-    expect(pool.spec.minReplicas).toBe(1);
-    expect(pool.spec.maxReplicas).toBe(10);
+    expect(pool.spec.desiredReady).toBe(3);
+    expect(pool.spec.templateRef?.name).toBe('base-template');
+    expect(pool.spec.maxSize).toBe(10);
   });
 });

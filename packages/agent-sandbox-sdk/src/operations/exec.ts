@@ -10,19 +10,31 @@ import type {
 } from '../types/exec.js';
 
 /**
+ * Parse exit code from a K8s exec V1Status response.
+ */
+function parseExitCode(status: k8s.V1Status): number {
+  if (status.status === 'Success') return 0;
+
+  const exitCause = status.details?.causes?.find((c) => c.reason === 'ExitCode');
+  if (exitCause?.message) {
+    return parseInt(exitCause.message, 10) || 1;
+  }
+
+  return 1;
+}
+
+/**
  * Execute a command inside a sandbox pod (buffered).
  * Collects all stdout/stderr and returns when the process exits.
  */
 export async function execInSandbox(kc: KubeConfig, options: ExecOptions): Promise<ExecResult> {
   const { sandboxName, namespace, container, command, timeoutMs } = options;
 
-  // Resolve the pod name from the sandbox
   const podName = await resolvePodName(kc, namespace, sandboxName);
 
   const execPromise = new Promise<ExecResult>((resolve, reject) => {
     let stdout = '';
     let stderr = '';
-    let exitCode = 0;
 
     const stdoutStream = new Writable({
       write(chunk: Buffer, _encoding, callback) {
@@ -51,21 +63,8 @@ export async function execInSandbox(kc: KubeConfig, options: ExecOptions): Promi
         null, // stdin
         false, // tty
         (status: k8s.V1Status) => {
-          if (status.status === 'Success') {
-            exitCode = 0;
-          } else if (status.details?.causes) {
-            const exitCause = status.details.causes.find((c) => c.reason === 'ExitCode');
-            if (exitCause?.message) {
-              exitCode = parseInt(exitCause.message, 10) || 1;
-            } else {
-              exitCode = 1;
-            }
-          } else {
-            exitCode = 1;
-          }
-
           resolve({
-            exitCode,
+            exitCode: parseExitCode(status),
             stdout: stdout.trim(),
             stderr: stderr.trim(),
           });
@@ -126,23 +125,9 @@ export async function execStreamInSandbox(
       stdin ?? null,
       tty ?? false,
       (status: k8s.V1Status) => {
-        let exitCode = 0;
-        if (status.status === 'Success') {
-          exitCode = 0;
-        } else if (status.details?.causes) {
-          const exitCause = status.details.causes.find((c) => c.reason === 'ExitCode');
-          if (exitCause?.message) {
-            exitCode = parseInt(exitCause.message, 10) || 1;
-          } else {
-            exitCode = 1;
-          }
-        } else {
-          exitCode = 1;
-        }
-
         stdoutPassThrough.end();
         stderrPassThrough.end();
-        resolveWait({ exitCode });
+        resolveWait({ exitCode: parseExitCode(status) });
       }
     );
   } catch (error) {
@@ -168,7 +153,9 @@ export async function execStreamInSandbox(
 
 /**
  * Resolve the pod name from a sandbox resource.
- * Reads the sandbox status.podName, falling back to the sandbox name.
+ * Reads the sandbox status.podName, falling back to the sandbox name
+ * only if the sandbox CRD resource is not found (404).
+ * Propagates auth, network, and other errors.
  */
 async function resolvePodName(
   kc: KubeConfig,
@@ -185,8 +172,13 @@ async function resolvePodName(
       name: sandboxName,
     })) as { status?: { podName?: string } };
     return sandbox.status?.podName ?? sandboxName;
-  } catch {
-    // Fall back to using sandbox name as pod name
-    return sandboxName;
+  } catch (error) {
+    // Only fall back for 404 (sandbox CRD not found — might be using raw pods).
+    // Propagate auth, network, and other real errors.
+    const statusCode = (error as { response?: { statusCode?: number } }).response?.statusCode;
+    if (statusCode === 404) {
+      return sandboxName;
+    }
+    throw error;
   }
 }

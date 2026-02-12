@@ -330,7 +330,7 @@ describe('AgentSandboxProvider', () => {
               creationTimestamp: '2026-01-01T00:00:00Z',
             },
             spec: {
-              podTemplate: {
+              podTemplateSpec: {
                 spec: {
                   containers: [
                     {
@@ -558,7 +558,7 @@ describe('AgentSandboxProvider', () => {
         expect.objectContaining({
           kind: 'SandboxWarmPool',
           spec: expect.objectContaining({
-            replicas: 3,
+            desiredReady: 3,
           }),
         })
       );
@@ -572,18 +572,17 @@ describe('AgentSandboxProvider', () => {
       expect(mockClient.createWarmPool).not.toHaveBeenCalled();
     });
 
-    it('deletes existing warm pool before creating new one', async () => {
-      mockClient.getWarmPool.mockResolvedValue({
-        metadata: { name: 'agentpane-warm-pool' },
-        spec: { replicas: 2 },
-      });
+    it('deletes existing warm pool and recreates when create fails (409)', async () => {
+      mockClient.createWarmPool
+        .mockRejectedValueOnce(new Error('already exists'))
+        .mockResolvedValueOnce({});
 
       const provider = createProvider({ enableWarmPool: true });
 
       await provider.initWarmPool();
 
       expect(mockClient.deleteWarmPool).toHaveBeenCalledWith('agentpane-warm-pool');
-      expect(mockClient.createWarmPool).toHaveBeenCalled();
+      expect(mockClient.createWarmPool).toHaveBeenCalledTimes(2);
     });
   });
 });

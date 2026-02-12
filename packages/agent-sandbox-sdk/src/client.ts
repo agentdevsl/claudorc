@@ -56,7 +56,7 @@ export class AgentSandboxClient {
     });
 
     this.templateCrud = new CustomResourceCrud<SandboxTemplate>(this.kubeConfig, {
-      group: CRD_API.extensionsGroup,
+      group: CRD_API.group,
       version: CRD_API.version,
       plural: CRD_PLURALS.sandboxTemplate,
     });
@@ -68,7 +68,7 @@ export class AgentSandboxClient {
     });
 
     this.warmPoolCrud = new CustomResourceCrud<SandboxWarmPool>(this.kubeConfig, {
-      group: CRD_API.extensionsGroup,
+      group: CRD_API.group,
       version: CRD_API.version,
       plural: CRD_PLURALS.sandboxWarmPool,
     });

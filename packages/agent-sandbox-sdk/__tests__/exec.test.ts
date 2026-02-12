@@ -347,8 +347,11 @@ describe('execInSandbox', () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it('falls back to sandbox name when pod resolution fails', async () => {
-    mockGetNamespacedCustomObject.mockRejectedValue(new Error('not found'));
+  it('falls back to sandbox name when pod resolution gets 404', async () => {
+    const notFoundError = Object.assign(new Error('not found'), {
+      response: { statusCode: 404 },
+    });
+    mockGetNamespacedCustomObject.mockRejectedValue(notFoundError);
 
     mockExec.mockImplementation(
       (
@@ -376,6 +379,35 @@ describe('execInSandbox', () => {
     });
 
     expect(result.stdout).toBe('fallback-name');
+  });
+
+  it('propagates non-404 errors from pod resolution', async () => {
+    const authError = Object.assign(new Error('Unauthorized'), {
+      response: { statusCode: 401 },
+    });
+    mockGetNamespacedCustomObject.mockRejectedValue(authError);
+
+    const kc = makeMockKc();
+    await expect(
+      execInSandbox(kc, {
+        sandboxName: 'my-sandbox',
+        namespace: 'default',
+        command: ['echo', 'hello'],
+      })
+    ).rejects.toThrow('Unauthorized');
+  });
+
+  it('propagates errors without a status code from pod resolution', async () => {
+    mockGetNamespacedCustomObject.mockRejectedValue(new Error('network error'));
+
+    const kc = makeMockKc();
+    await expect(
+      execInSandbox(kc, {
+        sandboxName: 'my-sandbox',
+        namespace: 'default',
+        command: ['echo', 'hello'],
+      })
+    ).rejects.toThrow('network error');
   });
 
   it('uses podName from sandbox status when available', async () => {
@@ -448,7 +480,10 @@ describe('execInSandbox', () => {
 describe('execStreamInSandbox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetNamespacedCustomObject.mockRejectedValue(new Error('not found'));
+    const notFoundError = Object.assign(new Error('not found'), {
+      response: { statusCode: 404 },
+    });
+    mockGetNamespacedCustomObject.mockRejectedValue(notFoundError);
   });
 
   it('returns stdout and stderr streams plus wait and kill', async () => {

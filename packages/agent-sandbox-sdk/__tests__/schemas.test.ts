@@ -247,11 +247,11 @@ describe('sandboxVolumeClaimSchema', () => {
 
 describe('sandboxTemplateSchema', () => {
   const validTemplate = {
-    apiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
+    apiVersion: 'agents.x-k8s.io/v1alpha1',
     kind: 'SandboxTemplate',
     metadata: { name: 'base' },
     spec: {
-      podTemplate: {
+      podTemplateSpec: {
         spec: { containers: [{ name: 'sandbox', image: 'ubuntu:24.04' }] },
       },
     },
@@ -307,22 +307,22 @@ describe('sandboxTemplateSchema', () => {
 });
 
 describe('sandboxTemplateSpecSchema', () => {
-  it('accepts spec with podTemplate as any object', () => {
+  it('accepts spec with podTemplateSpec as any object', () => {
     const result = sandboxTemplateSpecSchema.safeParse({
-      podTemplate: { spec: { containers: [] } },
+      podTemplateSpec: { spec: { containers: [] } },
     });
     expect(result.success).toBe(true);
   });
 
-  it('accepts spec without podTemplate (z.any allows undefined)', () => {
-    // podTemplate is typed as z.any() which permits undefined
+  it('accepts spec without podTemplateSpec (z.any allows undefined)', () => {
+    // podTemplateSpec is typed as z.any() which permits undefined
     const result = sandboxTemplateSpecSchema.safeParse({});
     expect(result.success).toBe(true);
   });
 
   it('accepts spec with all optional fields', () => {
     const result = sandboxTemplateSpecSchema.safeParse({
-      podTemplate: { spec: { containers: [] } },
+      podTemplateSpec: { spec: { containers: [] } },
       runtimeClassName: 'gvisor',
       networkPolicy: { egress: [], ingress: [] },
       volumeClaims: [
@@ -433,12 +433,12 @@ describe('sandboxClaimSpecSchema', () => {
 
 describe('sandboxWarmPoolSchema', () => {
   const validPool = {
-    apiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
+    apiVersion: 'agents.x-k8s.io/v1alpha1',
     kind: 'SandboxWarmPool',
     metadata: { name: 'my-pool' },
     spec: {
-      replicas: 3,
-      sandboxTemplateRef: { name: 'base' },
+      desiredReady: 3,
+      templateRef: { name: 'base' },
     },
   };
 
@@ -455,37 +455,36 @@ describe('sandboxWarmPoolSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects warm pool with negative replicas', () => {
+  it('rejects warm pool with negative desiredReady', () => {
     const result = sandboxWarmPoolSchema.safeParse({
       ...validPool,
-      spec: { ...validPool.spec, replicas: -1 },
+      spec: { ...validPool.spec, desiredReady: -1 },
     });
     expect(result.success).toBe(false);
   });
 
-  it('accepts warm pool with zero replicas', () => {
+  it('accepts warm pool with zero desiredReady', () => {
     const result = sandboxWarmPoolSchema.safeParse({
       ...validPool,
-      spec: { ...validPool.spec, replicas: 0 },
+      spec: { ...validPool.spec, desiredReady: 0 },
     });
     expect(result.success).toBe(true);
   });
 
-  it('rejects warm pool with non-integer replicas', () => {
+  it('rejects warm pool with non-integer desiredReady', () => {
     const result = sandboxWarmPoolSchema.safeParse({
       ...validPool,
-      spec: { ...validPool.spec, replicas: 1.5 },
+      spec: { ...validPool.spec, desiredReady: 1.5 },
     });
     expect(result.success).toBe(false);
   });
 
-  it('accepts warm pool with autoscaling', () => {
+  it('accepts warm pool with maxSize', () => {
     const result = sandboxWarmPoolSchema.safeParse({
       ...validPool,
       spec: {
         ...validPool.spec,
-        minReplicas: 1,
-        maxReplicas: 10,
+        maxSize: 10,
       },
     });
     expect(result.success).toBe(true);
@@ -496,8 +495,7 @@ describe('sandboxWarmPoolSchema', () => {
       ...validPool,
       status: {
         readyReplicas: 3,
-        allocatedReplicas: 1,
-        replicas: 4,
+        availableReplicas: 1,
       },
     });
     expect(result.success).toBe(true);
@@ -513,24 +511,24 @@ describe('sandboxWarmPoolSchema', () => {
 });
 
 describe('sandboxWarmPoolSpecSchema', () => {
-  it('requires replicas', () => {
+  it('requires desiredReady', () => {
     const result = sandboxWarmPoolSpecSchema.safeParse({
-      sandboxTemplateRef: { name: 'base' },
+      templateRef: { name: 'base' },
     });
     expect(result.success).toBe(false);
   });
 
-  it('requires sandboxTemplateRef', () => {
+  it('requires templateRef', () => {
     const result = sandboxWarmPoolSpecSchema.safeParse({
-      replicas: 3,
+      desiredReady: 3,
     });
     expect(result.success).toBe(false);
   });
 
-  it('requires sandboxTemplateRef.name', () => {
+  it('requires templateRef.name', () => {
     const result = sandboxWarmPoolSpecSchema.safeParse({
-      replicas: 3,
-      sandboxTemplateRef: {},
+      desiredReady: 3,
+      templateRef: {},
     });
     expect(result.success).toBe(false);
   });

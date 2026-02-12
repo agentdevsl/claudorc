@@ -1,19 +1,17 @@
 import { z } from 'zod';
 
 export const sandboxWarmPoolSpecSchema = z.object({
-  replicas: z.number().int().min(0),
-  sandboxTemplateRef: z.object({
+  desiredReady: z.number().int().min(0),
+  templateRef: z.object({
     name: z.string(),
     namespace: z.string().optional(),
   }),
-  minReplicas: z.number().int().min(0).optional(),
-  maxReplicas: z.number().int().min(0).optional(),
+  maxSize: z.number().int().min(0).optional(),
 });
 
 export const sandboxWarmPoolStatusSchema = z.object({
   readyReplicas: z.number().optional(),
-  allocatedReplicas: z.number().optional(),
-  replicas: z.number().optional(),
+  availableReplicas: z.number().optional(),
   conditions: z.array(z.any()).optional(),
 });
 

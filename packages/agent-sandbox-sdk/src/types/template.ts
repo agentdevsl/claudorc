@@ -6,8 +6,8 @@ import type { SandboxNetworkPolicy } from './sandbox.js';
  * SandboxTemplate spec
  */
 export interface SandboxTemplateSpec {
-  /** Pod template for sandboxes created from this template */
-  podTemplate: V1PodTemplateSpec;
+  /** Pod template spec for sandboxes created from this template */
+  podTemplateSpec: V1PodTemplateSpec;
 
   /** Default network policy for sandboxes */
   networkPolicy?: SandboxNetworkPolicy;

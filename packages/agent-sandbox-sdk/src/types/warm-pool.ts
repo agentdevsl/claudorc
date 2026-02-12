@@ -4,20 +4,17 @@ import type { Condition, CRDResource, CRDResourceList } from './common.js';
  * SandboxWarmPool spec
  */
 export interface SandboxWarmPoolSpec {
-  /** Number of warm replicas to maintain */
-  replicas: number;
+  /** Number of warm sandboxes to keep ready */
+  desiredReady: number;
 
   /** Reference to the SandboxTemplate used for pool members */
-  sandboxTemplateRef: {
+  templateRef: {
     name: string;
     namespace?: string;
   };
 
-  /** Minimum replicas (for autoscaling) */
-  minReplicas?: number;
-
-  /** Maximum replicas (for autoscaling) */
-  maxReplicas?: number;
+  /** Maximum pool size (for autoscaling) */
+  maxSize?: number;
 }
 
 /**
@@ -27,11 +24,8 @@ export interface SandboxWarmPoolStatus {
   /** Number of ready warm sandboxes */
   readyReplicas?: number;
 
-  /** Number of allocated sandboxes */
-  allocatedReplicas?: number;
-
-  /** Total replicas (warm + allocated) */
-  replicas?: number;
+  /** Number of available sandboxes */
+  availableReplicas?: number;
 
   /** Conditions */
   conditions?: Condition[];

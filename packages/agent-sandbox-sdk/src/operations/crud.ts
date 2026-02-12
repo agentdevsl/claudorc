@@ -85,21 +85,7 @@ export class CustomResourceCrud<T extends CRDResource> {
   /** List resources */
   async list(options?: ListOptions): Promise<CRDResourceList<T>> {
     try {
-      const namespace = options?.namespace;
-      if (namespace) {
-        const response = await this.api.listNamespacedCustomObject({
-          group: this.config.group,
-          version: this.config.version,
-          namespace,
-          plural: this.config.plural,
-          labelSelector: options?.labelSelector,
-          fieldSelector: options?.fieldSelector,
-          limit: options?.limit,
-          _continue: options?.continueToken,
-        });
-        return response as CRDResourceList<T>;
-      }
-      const response = await this.api.listClusterCustomObject({
+      const shared = {
         group: this.config.group,
         version: this.config.version,
         plural: this.config.plural,
@@ -107,7 +93,12 @@ export class CustomResourceCrud<T extends CRDResource> {
         fieldSelector: options?.fieldSelector,
         limit: options?.limit,
         _continue: options?.continueToken,
-      });
+      };
+
+      const response = options?.namespace
+        ? await this.api.listNamespacedCustomObject({ ...shared, namespace: options.namespace })
+        : await this.api.listClusterCustomObject(shared);
+
       return response as CRDResourceList<T>;
     } catch (error) {
       throw this.wrapError('list', error);

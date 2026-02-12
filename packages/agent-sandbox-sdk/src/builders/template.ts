@@ -17,7 +17,7 @@ export class SandboxTemplateBuilder {
 
   constructor(name: string) {
     this.resource = {
-      apiVersion: CRD_API.extensionsApiVersion,
+      apiVersion: CRD_API.apiVersion,
       kind: CRD_KINDS.sandboxTemplate,
       metadata: { name },
       spec: {},
@@ -38,24 +38,24 @@ export class SandboxTemplateBuilder {
   }
 
   /** Set the pod template */
-  podTemplate(template: V1PodTemplateSpec): this {
-    this.resource.spec.podTemplate = template;
+  podTemplateSpec(template: V1PodTemplateSpec): this {
+    this.resource.spec.podTemplateSpec = template;
     return this;
   }
 
   /** Set container image */
   image(image: string): this {
-    if (!this.resource.spec.podTemplate) {
-      this.resource.spec.podTemplate = {
+    if (!this.resource.spec.podTemplateSpec) {
+      this.resource.spec.podTemplateSpec = {
         spec: { containers: [{ name: 'sandbox', image }] },
       };
     } else {
-      const containers = this.resource.spec.podTemplate.spec?.containers;
+      const containers = this.resource.spec.podTemplateSpec.spec?.containers;
       if (containers && containers.length > 0 && containers[0]) {
         containers[0].image = image;
       } else {
-        this.resource.spec.podTemplate.spec = {
-          ...this.resource.spec.podTemplate.spec,
+        this.resource.spec.podTemplateSpec.spec = {
+          ...this.resource.spec.podTemplateSpec.spec,
           containers: [{ name: 'sandbox', image }],
         };
       }
@@ -65,14 +65,14 @@ export class SandboxTemplateBuilder {
 
   /** Set resource limits */
   resources(limits: { cpu: string; memory: string }): this {
-    if (!this.resource.spec.podTemplate) {
-      this.resource.spec.podTemplate = {
+    if (!this.resource.spec.podTemplateSpec) {
+      this.resource.spec.podTemplateSpec = {
         spec: {
           containers: [{ name: 'sandbox', resources: { limits } }],
         },
       };
     } else {
-      const containers = this.resource.spec.podTemplate.spec?.containers;
+      const containers = this.resource.spec.podTemplateSpec.spec?.containers;
       if (containers && containers.length > 0 && containers[0]) {
         containers[0].resources = { ...containers[0].resources, limits };
       }

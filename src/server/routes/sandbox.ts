@@ -181,6 +181,34 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
 }
 
 /**
+ * Validate kubeconfigPath to prevent path traversal attacks.
+ * Only allows paths under the user's home directory or standard kubeconfig locations.
+ */
+function validateKubeconfigPath(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+
+  // Reject path traversal attempts
+  if (path.includes('..')) {
+    throw new Error('Invalid kubeconfig path: path traversal not allowed');
+  }
+
+  // Only allow paths that look like kubeconfig files
+  const normalized = path.startsWith('~/') ? path.replace('~', process.env.HOME ?? '') : path;
+
+  // Must be under home directory or /etc/kubernetes or /var/run
+  const homeDir = process.env.HOME ?? '/home';
+  const allowedPrefixes = [homeDir, '/etc/kubernetes', '/var/run/secrets/kubernetes.io'];
+
+  if (!allowedPrefixes.some((prefix) => normalized.startsWith(prefix))) {
+    throw new Error(
+      'Invalid kubeconfig path: must be under home directory or standard K8s config location'
+    );
+  }
+
+  return path;
+}
+
+/**
  * Create K8s-specific routes
  */
 export function createK8sRoutes(deps?: { db?: Database }) {
@@ -188,8 +216,23 @@ export function createK8sRoutes(deps?: { db?: Database }) {
 
   // GET /api/sandbox/k8s/status
   app.get('/status', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
     const context = c.req.query('context') ?? undefined;
+
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
 
     try {
       // Load kubeconfig
@@ -322,7 +365,21 @@ export function createK8sRoutes(deps?: { db?: Database }) {
 
   // GET /api/sandbox/k8s/contexts
   app.get('/contexts', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
 
     try {
       const kc = loadKubeConfig({ kubeconfigPath });
@@ -356,7 +413,22 @@ export function createK8sRoutes(deps?: { db?: Database }) {
 
   // GET /api/sandbox/k8s/namespaces
   app.get('/namespaces', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
+
     const context = c.req.query('context') ?? undefined;
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
 

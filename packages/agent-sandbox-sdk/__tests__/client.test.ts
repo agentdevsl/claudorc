@@ -210,19 +210,19 @@ describe('AgentSandboxClient', () => {
   });
 
   describe('Template CRUD', () => {
-    it('createTemplate uses extensions group and sandboxtemplates plural', async () => {
+    it('createTemplate uses agents group and sandboxtemplates plural', async () => {
       const template = {
-        apiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
+        apiVersion: 'agents.x-k8s.io/v1alpha1',
         kind: 'SandboxTemplate',
         metadata: { name: 'base' },
-        spec: { podTemplate: {} },
+        spec: { podTemplateSpec: {} },
       };
       mockCustomObjectsApi.createNamespacedCustomObject.mockResolvedValue(template);
 
       await client.createTemplate(template as any);
       expect(mockCustomObjectsApi.createNamespacedCustomObject).toHaveBeenCalledWith(
         expect.objectContaining({
-          group: 'extensions.agents.x-k8s.io',
+          group: 'agents.x-k8s.io',
           plural: 'sandboxtemplates',
         })
       );
@@ -320,19 +320,19 @@ describe('AgentSandboxClient', () => {
   });
 
   describe('WarmPool CRUD', () => {
-    it('createWarmPool uses extensions group and sandboxwarmpools plural', async () => {
+    it('createWarmPool uses agents group and sandboxwarmpools plural', async () => {
       const pool = {
-        apiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
+        apiVersion: 'agents.x-k8s.io/v1alpha1',
         kind: 'SandboxWarmPool',
         metadata: { name: 'pool-1' },
-        spec: { replicas: 3, sandboxTemplateRef: { name: 'base' } },
+        spec: { desiredReady: 3, templateRef: { name: 'base' } },
       };
       mockCustomObjectsApi.createNamespacedCustomObject.mockResolvedValue(pool);
 
       await client.createWarmPool(pool as any);
       expect(mockCustomObjectsApi.createNamespacedCustomObject).toHaveBeenCalledWith(
         expect.objectContaining({
-          group: 'extensions.agents.x-k8s.io',
+          group: 'agents.x-k8s.io',
           plural: 'sandboxwarmpools',
         })
       );

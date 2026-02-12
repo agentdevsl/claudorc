@@ -11,8 +11,8 @@ export interface SandboxSpec {
     namespace?: string;
   };
 
-  /** Inline pod template (alternative to templateRef) */
-  podTemplate?: V1PodTemplateSpec;
+  /** Inline pod template spec (alternative to templateRef) */
+  podTemplateSpec?: V1PodTemplateSpec;
 
   /** Number of replicas (0 = paused, 1 = running) */
   replicas?: number;

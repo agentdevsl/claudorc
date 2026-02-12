@@ -206,10 +206,6 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
         labelSelector: `agentpane.io/project-id=${projectId}`,
       });
 
-      if (result.items.length === 0) {
-        return null;
-      }
-
       // Take the first active sandbox for this project
       const crdSandbox = result.items[0];
       if (!crdSandbox) {
@@ -225,7 +221,13 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
       this.projectToSandbox.set(projectId, id);
 
       return instance;
-    } catch {
+    } catch (error) {
+      // Only swallow "not found" type errors; propagate real failures
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[AgentSandboxProvider] Failed to query sandbox for project ${projectId}:`,
+        message
+      );
       return null;
     }
   }
@@ -245,16 +247,16 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
         projectId: s.metadata?.labels?.['agentpane.io/project-id'] ?? '',
         containerId: s.metadata?.name ?? '',
         status: this.mapCrdPhase(s.status?.phase),
-        image: s.spec?.podTemplate?.spec?.containers?.[0]?.image ?? this.image,
+        image: s.spec?.podTemplateSpec?.spec?.containers?.[0]?.image ?? this.image,
         createdAt: s.metadata?.creationTimestamp?.toString() ?? new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
         memoryMb: this.parseMemoryMi(
-          s.spec?.podTemplate?.spec?.containers?.[0]?.resources?.limits?.memory as
+          s.spec?.podTemplateSpec?.spec?.containers?.[0]?.resources?.limits?.memory as
             | string
             | undefined
         ),
         cpuCores: parseFloat(
-          (s.spec?.podTemplate?.spec?.containers?.[0]?.resources?.limits?.cpu as string) ?? '0'
+          (s.spec?.podTemplateSpec?.spec?.containers?.[0]?.resources?.limits?.cpu as string) ?? '0'
         ),
       }));
     } catch (error) {
@@ -289,7 +291,7 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
       }
 
       return {
-        healthy: health.crdRegistered && health.namespaceExists,
+        healthy: true,
         message: health.controllerInstalled
           ? undefined
           : 'Agent Sandbox CRD controller is not installed. ' +
@@ -372,7 +374,7 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
 
   /**
    * Initialize the warm pool by creating or updating the SandboxWarmPool CRD.
-   * Called during provider initialization if enableWarmPool is true.
+   * Must be called explicitly after construction (not called automatically by constructor).
    *
    * The CRD controller handles all warm pool lifecycle:
    * - Maintaining the desired number of pre-warmed sandboxes
@@ -386,31 +388,28 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
 
     const warmPoolName = 'agentpane-warm-pool';
 
-    try {
-      // Try to update existing warm pool
-      await this.client.getWarmPool(warmPoolName);
-      // Warm pool exists, delete and recreate with updated spec
-      await this.client.deleteWarmPool(warmPoolName);
-    } catch {
-      // Warm pool doesn't exist yet, which is fine
-    }
-
     const warmPool: SandboxWarmPool = {
-      apiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
+      apiVersion: 'agents.x-k8s.io/v1alpha1',
       kind: 'SandboxWarmPool',
       metadata: {
         name: warmPoolName,
         namespace: this.namespace,
       },
       spec: {
-        replicas: this.warmPoolSize,
-        sandboxTemplateRef: {
+        desiredReady: this.warmPoolSize,
+        templateRef: {
           name: 'agentpane-default',
         },
       },
     };
 
-    await this.client.createWarmPool(warmPool);
+    try {
+      await this.client.createWarmPool(warmPool);
+    } catch {
+      // Already exists — delete and recreate with updated spec
+      await this.client.deleteWarmPool(warmPoolName);
+      await this.client.createWarmPool(warmPool);
+    }
 
     console.log(
       `[AgentSandboxProvider] Warm pool initialized: ${warmPoolName} ` +

@@ -10,12 +10,6 @@ export const CRD_API = {
 
   /** Fully qualified apiVersion string */
   apiVersion: 'agents.x-k8s.io/v1alpha1',
-
-  /** Extensions API group (for SandboxTemplate, SandboxWarmPool) */
-  extensionsGroup: 'extensions.agents.x-k8s.io',
-
-  /** Extensions fully qualified apiVersion */
-  extensionsApiVersion: 'extensions.agents.x-k8s.io/v1alpha1',
 } as const;
 
 /**

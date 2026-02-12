@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { sandboxNetworkRuleSchema, sandboxVolumeClaimSchema } from './sandbox.js';
 
 export const sandboxTemplateSpecSchema = z.object({
-  podTemplate: z.any(),
+  podTemplateSpec: z.any(),
   networkPolicy: z
     .object({
       egress: z.array(sandboxNetworkRuleSchema).optional(),

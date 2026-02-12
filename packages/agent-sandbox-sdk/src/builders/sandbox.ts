@@ -1,4 +1,4 @@
-import type { V1PodTemplateSpec } from '@kubernetes/client-node';
+import type { V1Container, V1PodTemplateSpec } from '@kubernetes/client-node';
 import { CRD_ANNOTATIONS, CRD_API, CRD_KINDS } from '../constants.js';
 import type {
   Sandbox,
@@ -58,44 +58,20 @@ export class SandboxBuilder {
 
   /** Inline pod template */
   withPodTemplate(template: V1PodTemplateSpec): this {
-    this.resource.spec.podTemplate = template;
+    this.resource.spec.podTemplateSpec = template;
     return this;
   }
 
   /** Set container image */
   image(image: string): this {
-    if (!this.resource.spec.podTemplate) {
-      this.resource.spec.podTemplate = {
-        spec: { containers: [{ name: 'sandbox', image }] },
-      };
-    } else {
-      const containers = this.resource.spec.podTemplate.spec?.containers;
-      if (containers && containers.length > 0 && containers[0]) {
-        containers[0].image = image;
-      } else {
-        this.resource.spec.podTemplate.spec = {
-          ...this.resource.spec.podTemplate.spec,
-          containers: [{ name: 'sandbox', image }],
-        };
-      }
-    }
+    this.ensureSandboxContainer().image = image;
     return this;
   }
 
   /** Set resource limits */
   resources(limits: { cpu: string; memory: string }): this {
-    if (!this.resource.spec.podTemplate) {
-      this.resource.spec.podTemplate = {
-        spec: {
-          containers: [{ name: 'sandbox', resources: { limits } }],
-        },
-      };
-    } else {
-      const containers = this.resource.spec.podTemplate.spec?.containers;
-      if (containers && containers.length > 0 && containers[0]) {
-        containers[0].resources = { ...containers[0].resources, limits };
-      }
-    }
+    const container = this.ensureSandboxContainer();
+    container.resources = { ...container.resources, limits };
     return this;
   }
 
@@ -107,9 +83,7 @@ export class SandboxBuilder {
 
   /** Add volume claim */
   addVolumeClaim(claim: SandboxVolumeClaim): this {
-    if (!this.resource.spec.volumeClaims) {
-      this.resource.spec.volumeClaims = [];
-    }
+    this.resource.spec.volumeClaims ??= [];
     this.resource.spec.volumeClaims.push(claim);
     return this;
   }
@@ -144,6 +118,25 @@ export class SandboxBuilder {
       annotations[CRD_ANNOTATIONS.sandboxId] = ctx.sandboxId;
     }
     return this.annotations(annotations);
+  }
+
+  /**
+   * Ensure the podTemplateSpec has a 'sandbox' container and return a mutable
+   * reference to it. Creates the podTemplateSpec and container array if needed.
+   */
+  private ensureSandboxContainer(): V1Container {
+    if (!this.resource.spec.podTemplateSpec) {
+      this.resource.spec.podTemplateSpec = {
+        spec: { containers: [{ name: 'sandbox' }] },
+      };
+    }
+
+    const spec = this.resource.spec.podTemplateSpec.spec!;
+    if (!spec.containers || spec.containers.length === 0) {
+      spec.containers = [{ name: 'sandbox' }];
+    }
+
+    return spec.containers[0]!;
   }
 
   /** Build the Sandbox resource */

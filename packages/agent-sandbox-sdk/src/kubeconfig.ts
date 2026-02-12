@@ -26,80 +26,21 @@ export interface KubeConfigOptions {
  */
 export function loadKubeConfig(options?: KubeConfigOptions): KubeConfig {
   const kc = new KubeConfig();
-  let loaded = false;
 
-  // Tier 1: Explicit path provided
-  if (options?.kubeconfigPath) {
-    if (!existsSync(options.kubeconfigPath)) {
-      throw new KubeConfigError(`Kubeconfig file not found: ${options.kubeconfigPath}`);
-    }
-    try {
-      kc.loadFromFile(options.kubeconfigPath);
-      loaded = true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new KubeConfigError(`Invalid kubeconfig: ${message}`);
-    }
-  }
-
-  // Tier 2: K8S_KUBECONFIG env var
-  if (!loaded) {
-    const k8sKubeconfigEnv = process.env.K8S_KUBECONFIG;
-    if (k8sKubeconfigEnv) {
-      if (!existsSync(k8sKubeconfigEnv)) {
-        throw new KubeConfigError(`Kubeconfig file not found: ${k8sKubeconfigEnv}`);
-      }
-      try {
-        kc.loadFromFile(k8sKubeconfigEnv);
-        loaded = true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new KubeConfigError(`Invalid kubeconfig: ${message}`);
-      }
-    }
-  }
-
-  // Tier 3: KUBECONFIG env var (standard, colon-separated)
-  if (!loaded) {
-    const kubeconfigEnv = process.env.KUBECONFIG;
-    if (kubeconfigEnv) {
-      const paths = kubeconfigEnv.split(':').filter(Boolean);
-      const existingPath = paths.find((p) => existsSync(p));
-      if (existingPath) {
-        try {
-          kc.loadFromFile(existingPath);
-          loaded = true;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          throw new KubeConfigError(`Invalid kubeconfig: ${message}`);
-        }
-      }
-    }
-  }
-
-  // Tier 4: Default path ~/.kube/config
-  if (!loaded) {
-    const defaultPath = join(homedir(), '.kube', 'config');
-    if (existsSync(defaultPath)) {
-      try {
-        kc.loadFromFile(defaultPath);
-        loaded = true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new KubeConfigError(`Invalid kubeconfig: ${message}`);
-      }
-    }
-  }
-
-  // Tier 5: In-cluster config
-  if (!loaded) {
-    try {
-      kc.loadFromCluster();
-      loaded = true;
-    } catch {
-      // In-cluster config not available
-    }
-  }
+  const loaded =
+    // Tier 1: Explicit path provided
+    tryLoadFromFile(kc, options?.kubeconfigPath, true) ||
+    // Tier 2: K8S_KUBECONFIG env var
+    tryLoadFromFile(kc, process.env.K8S_KUBECONFIG, true) ||
+    // Tier 3: KUBECONFIG env var (standard, colon-separated)
+    tryLoadFromFile(
+      kc,
+      process.env.KUBECONFIG?.split(':').find((p) => p && existsSync(p))
+    ) ||
+    // Tier 4: Default path ~/.kube/config
+    tryLoadFromFile(kc, join(homedir(), '.kube', 'config')) ||
+    // Tier 5: In-cluster config
+    tryLoadFromCluster(kc);
 
   if (!loaded) {
     throw new KubeConfigError(
@@ -168,4 +109,40 @@ export function getClusterInfo(kc: KubeConfig): { name: string; server: string }
     name: context.cluster,
     server: cluster.server,
   };
+}
+
+/**
+ * Try to load a kubeconfig from a file path.
+ * When `requireExists` is true, throws if the path is specified but the file is missing.
+ * Returns true if the config was loaded successfully.
+ */
+function tryLoadFromFile(kc: KubeConfig, path?: string, requireExists = false): boolean {
+  if (!path) return false;
+
+  if (!existsSync(path)) {
+    if (requireExists) {
+      throw new KubeConfigError(`Kubeconfig file not found: ${path}`);
+    }
+    return false;
+  }
+
+  try {
+    kc.loadFromFile(path);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new KubeConfigError(`Invalid kubeconfig: ${message}`);
+  }
+}
+
+/**
+ * Try to load in-cluster kubeconfig. Returns true if successful.
+ */
+function tryLoadFromCluster(kc: KubeConfig): boolean {
+  try {
+    kc.loadFromCluster();
+    return true;
+  } catch {
+    return false;
+  }
 }
