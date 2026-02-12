@@ -592,6 +592,7 @@ export function TerraformChatPanel(): React.JSX.Element {
     composeStage,
     composeComplete,
     matchedModules,
+    generatedCode,
     error,
     composeMode,
     setComposeMode,
@@ -743,7 +744,8 @@ export function TerraformChatPanel(): React.JSX.Element {
               </div>
             </div>
           ))}
-          {((isStreaming && composeStage) || (composeComplete && composeStage)) && (
+          {((isStreaming && composeStage) ||
+            (composeComplete && composeStage && generatedCode)) && (
             <ComposeProgress
               currentStage={composeStage}
               matchedModules={matchedModules}
