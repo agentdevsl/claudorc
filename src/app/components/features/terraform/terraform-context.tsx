@@ -140,7 +140,16 @@ function extractStacksFilesFromText(text: string): GeneratedFile[] | null {
       }
     }
   }
-  return files.length > 1 ? files : null;
+  if (files.length === 0) return null;
+
+  // Deduplicate by filename — merge code for same filename
+  const merged = new Map<string, string>();
+  for (const f of files) {
+    const existing = merged.get(f.filename);
+    merged.set(f.filename, existing ? `${existing}\n\n${f.code}` : f.code);
+  }
+
+  return Array.from(merged.entries()).map(([filename, code]) => ({ filename, code }));
 }
 
 interface TerraformContextValue {

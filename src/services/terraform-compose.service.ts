@@ -29,8 +29,17 @@ let cachedSkillContent: string | null = null;
 async function loadStacksSkillContent(): Promise<string> {
   if (cachedSkillContent) return cachedSkillContent;
   const skillPath = resolve(process.cwd(), '.claude/skills/terraform-stacks/SKILL.md');
-  cachedSkillContent = await readFile(skillPath, 'utf-8');
-  return cachedSkillContent;
+  try {
+    const content = await readFile(skillPath, 'utf-8');
+    cachedSkillContent = content;
+    return content;
+  } catch (err) {
+    log.warn('Failed to load Stacks SKILL.md, continuing without reference', {
+      data: { skillPath },
+      error: err,
+    });
+    return '';
+  }
 }
 
 const MAX_SESSIONS = 100;
@@ -391,7 +400,9 @@ export class TerraformComposeService {
       const filteredEnv = Object.fromEntries(
         Object.entries(process.env).filter(
           ([key]) =>
-            !/^(DATABASE_URL|DB_|ENCRYPTION_KEY|SESSION_SECRET|GITHUB_APP_PRIVATE_KEY)$/i.test(key)
+            !/^(DATABASE_URL|DB_.*|ENCRYPTION_KEY|SESSION_SECRET|GITHUB_APP_PRIVATE_KEY)$/i.test(
+              key
+            )
         )
       ) as Record<string, string>;
 
