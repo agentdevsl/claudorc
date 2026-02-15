@@ -185,7 +185,7 @@ export function createRouter(deps: RouterDependencies) {
     '/api/sandbox/status',
     createSandboxStatusRoutes({ db: deps.db, dockerProvider: deps.dockerProvider ?? null })
   );
-  app.route('/api/sandbox/k8s', createK8sRoutes());
+  app.route('/api/sandbox/k8s', createK8sRoutes({ db: deps.db }));
   app.route('/api/keys', createApiKeysRoutes({ apiKeyService: deps.apiKeyService }));
   app.route('/api/filesystem', createFilesystemRoutes());
   app.route(

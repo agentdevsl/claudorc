@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+where possible use concurrent OPUS subagents
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **Note**: This project uses AGENTS.md files for detailed guidance and has comprehensive specifications in `/specs/application`.

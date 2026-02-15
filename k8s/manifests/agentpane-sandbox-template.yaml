@@ -1,0 +1,57 @@
+# AgentPane Default SandboxTemplate
+# Defines the default pod template for Agent Sandbox CRD instances.
+# The CRD controller uses this template when creating sandbox pods,
+# applying the specified container image, resource limits, security
+# context, and network policy.
+#
+# This replaces the manual pod spec building from Phase 1 k8s-provider.ts
+# with a declarative CRD resource managed by the cluster controller.
+apiVersion: agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: agentpane-default
+  namespace: agentpane-sandboxes
+  labels:
+    app.kubernetes.io/name: agentpane
+    app.kubernetes.io/component: sandbox
+    agentpane.io/managed: "true"
+  annotations:
+    agentpane.io/description: "Default sandbox template for AgentPane agent execution"
+spec:
+  podTemplateSpec:
+    spec:
+      runtimeClassName: gvisor
+      containers:
+        - name: sandbox
+          image: srlynch1/agent-sandbox:v0.1.0
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: workspace
+              mountPath: /home/node/workspace
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: 10Gi
+  networkPolicy:
+    allowedEgressPorts:
+      - port: 443
+        protocol: TCP
+      - port: 80
+        protocol: TCP
+    allowedEgressHosts:
+      - "*.github.com"
+      - "*.npmjs.org"
+      - "registry.npmjs.org"

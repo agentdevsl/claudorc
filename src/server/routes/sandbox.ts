@@ -2,14 +2,15 @@
  * Sandbox routes (including K8s)
  */
 
-import { Hono } from 'hono';
 import {
+  AgentSandboxClient,
   getClusterInfo,
-  K8S_PROVIDER_DEFAULTS,
   loadKubeConfig,
   resolveContext,
-} from '../../lib/sandbox/providers/k8s-config.js';
+} from '@agentpane/agent-sandbox-sdk';
+import { Hono } from 'hono';
 import type { SandboxConfigService } from '../../services/sandbox-config.service.js';
+import type { Database } from '../../types/database.js';
 import { json } from '../shared.js';
 
 interface SandboxDeps {
@@ -180,19 +181,63 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
 }
 
 /**
+ * Validate kubeconfigPath to prevent path traversal attacks.
+ * Only allows paths under the user's home directory or standard kubeconfig locations.
+ */
+function validateKubeconfigPath(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+
+  // Reject path traversal attempts
+  if (path.includes('..')) {
+    throw new Error('Invalid kubeconfig path: path traversal not allowed');
+  }
+
+  // Only allow paths that look like kubeconfig files
+  const normalized = path.startsWith('~/') ? path.replace('~', process.env.HOME ?? '') : path;
+
+  // Must be under home directory or /etc/kubernetes or /var/run
+  const homeDir = process.env.HOME ?? '/home';
+  const allowedPrefixes = [homeDir, '/etc/kubernetes', '/var/run/secrets/kubernetes.io'];
+
+  if (!allowedPrefixes.some((prefix) => normalized.startsWith(prefix))) {
+    throw new Error(
+      'Invalid kubeconfig path: must be under home directory or standard K8s config location'
+    );
+  }
+
+  return path;
+}
+
+/**
  * Create K8s-specific routes
  */
-export function createK8sRoutes() {
+export function createK8sRoutes(deps?: { db?: Database }) {
   const app = new Hono();
 
   // GET /api/sandbox/k8s/status
   app.get('/status', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
     const context = c.req.query('context') ?? undefined;
+
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
 
     try {
       // Load kubeconfig
-      const kc = loadKubeConfig(kubeconfigPath, true); // skipTLSVerify for local dev
+      const skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify });
 
       // Resolve context if specified
       if (context) {
@@ -261,7 +306,7 @@ export function createK8sRoutes() {
       }
 
       // Check namespace
-      const namespace = K8S_PROVIDER_DEFAULTS.namespace;
+      const namespace = 'agentpane-sandboxes';
       let namespaceExists = false;
       let pods = 0;
       let podsRunning = 0;
@@ -321,10 +366,24 @@ export function createK8sRoutes() {
 
   // GET /api/sandbox/k8s/contexts
   app.get('/contexts', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
 
     try {
-      const kc = loadKubeConfig(kubeconfigPath);
+      const kc = loadKubeConfig({ kubeconfigPath });
       const contexts = kc.getContexts();
       const currentContext = kc.getCurrentContext();
 
@@ -355,12 +414,28 @@ export function createK8sRoutes() {
 
   // GET /api/sandbox/k8s/namespaces
   app.get('/namespaces', async (c) => {
-    const kubeconfigPath = c.req.query('kubeconfigPath') ?? undefined;
+    let kubeconfigPath: string | undefined;
+    try {
+      kubeconfigPath = validateKubeconfigPath(c.req.query('kubeconfigPath') ?? undefined);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'INVALID_KUBECONFIG_PATH',
+            message: error instanceof Error ? error.message : 'Invalid kubeconfig path',
+          },
+        },
+        400
+      );
+    }
+
     const context = c.req.query('context') ?? undefined;
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
+    const skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
 
     try {
-      const kc = loadKubeConfig(kubeconfigPath, true);
+      const kc = loadKubeConfig({ kubeconfigPath, skipTLSVerify });
 
       if (context) {
         resolveContext(kc, context);
@@ -388,6 +463,72 @@ export function createK8sRoutes() {
         {
           ok: false,
           error: { code: 'K8S_API_ERROR', message },
+        },
+        500
+      );
+    }
+  });
+
+  // GET /api/sandbox/k8s/controller - CRD controller installation status
+  app.get('/controller', async (c) => {
+    try {
+      // Load K8s settings from query params or defaults
+      let namespace = 'agentpane-sandboxes';
+      let kubeconfigPath: string | undefined = c.req.query('kubeconfigPath') ?? undefined;
+      let kubeContext: string | undefined = c.req.query('context') ?? undefined;
+      let skipTLSVerify = c.req.query('skipTLSVerify') === 'true';
+
+      // Also try loading from DB settings if available
+      if (deps?.db && !kubeconfigPath && !kubeContext) {
+        try {
+          const { eq } = await import('drizzle-orm');
+          const { settings } = await import('../../db/schema/sqlite/index.js');
+          const k8sSetting = await deps.db.query.settings.findFirst({
+            where: eq(settings.key, 'sandbox.kubernetes'),
+          });
+          if (k8sSetting?.value) {
+            const parsed = JSON.parse(k8sSetting.value);
+            namespace = parsed.namespace ?? namespace;
+            kubeconfigPath = parsed.kubeConfigPath;
+            kubeContext = parsed.kubeContext;
+            skipTLSVerify = parsed.skipTLSVerify ?? skipTLSVerify;
+          }
+        } catch {
+          // Use defaults
+        }
+      }
+
+      // Create a temporary SDK client to check controller status
+      const client = new AgentSandboxClient({
+        namespace,
+        kubeconfigPath,
+        context: kubeContext,
+        skipTLSVerify,
+      });
+      const health = await client.healthCheck();
+
+      return json({
+        ok: true,
+        data: {
+          installed: health.controllerInstalled,
+          version: health.controllerVersion ?? null,
+          crdRegistered: health.crdRegistered,
+          crdGroup: 'agents.x-k8s.io',
+          crdApiVersion: 'v1alpha1',
+          clusterVersion: health.clusterVersion ?? null,
+          ready: health.healthy,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[K8s Controller] Error:', message);
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'K8S_CONTROLLER_ERROR',
+            message: `Failed to check CRD controller: ${message}`,
+          },
         },
         500
       );

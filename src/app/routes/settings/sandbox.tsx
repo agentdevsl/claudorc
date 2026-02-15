@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
+import { z } from 'zod';
 import { Button } from '@/app/components/ui/button';
 import { ConfigSection } from '@/app/components/ui/config-section';
 import {
@@ -68,6 +69,16 @@ interface K8sContext {
   user: string;
   namespace?: string;
 }
+
+const K8sSettingsSchema = z.object({
+  namespace: z.string().optional(),
+  kubeConfigPath: z.string().optional(),
+  kubeContext: z.string().optional(),
+  enableWarmPool: z.boolean().optional(),
+  warmPoolSize: z.number().optional(),
+  runtimeClassName: z.enum(['gvisor', 'kata', 'none']).optional(),
+  skipTLSVerify: z.boolean().optional(),
+});
 
 export const Route = createFileRoute('/settings/sandbox')({
   component: SandboxSettingsPage,
@@ -131,6 +142,26 @@ function SandboxSettingsPage(): React.JSX.Element {
   const [formKubeContext, setFormKubeContext] = useState('');
   const [formKubeNamespace, setFormKubeNamespace] = useState('agentpane-sandboxes');
 
+  // CRD controller state
+  const [controllerStatus, setControllerStatus] = useState<{
+    installed: boolean;
+    version?: string;
+    crdRegistered?: boolean;
+    crdApiVersion?: string;
+    ready?: boolean;
+  } | null>(null);
+  const [controllerLoading, setControllerLoading] = useState(false);
+
+  // Runtime class state
+  const [runtimeClass, setRuntimeClass] = useState<'gvisor' | 'kata' | 'none'>('none');
+
+  // TLS verification state
+  const [skipTLSVerify, setSkipTLSVerify] = useState(true);
+
+  // Warm pool state
+  const [warmPoolEnabled, setWarmPoolEnabled] = useState(false);
+  const [warmPoolSize, setWarmPoolSize] = useState(2);
+
   const loadConfigs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -152,13 +183,33 @@ function SandboxSettingsPage(): React.JSX.Element {
   const loadDefaultSettings = useCallback(async () => {
     setIsLoadingDefaults(true);
     try {
-      const result = await apiClient.settings.get(['sandbox.defaults']);
-      if (result.ok && result.data.settings['sandbox.defaults']) {
-        const saved = result.data.settings['sandbox.defaults'] as DefaultSandboxSettings;
-        setDefaultSettings(saved);
-        // Sync provider selection with defaults
-        if (saved.provider) {
-          setSelectedProvider(saved.provider);
+      const result = await apiClient.settings.get(['sandbox.defaults', 'sandbox.kubernetes']);
+      if (result.ok) {
+        // Load default settings
+        if (result.data.settings['sandbox.defaults']) {
+          const saved = result.data.settings['sandbox.defaults'] as DefaultSandboxSettings;
+          setDefaultSettings(saved);
+          // Sync provider selection with defaults
+          if (saved.provider) {
+            setSelectedProvider(saved.provider);
+          }
+        }
+
+        // Load K8s-specific settings
+        if (result.data.settings['sandbox.kubernetes']) {
+          const parsed = K8sSettingsSchema.safeParse(result.data.settings['sandbox.kubernetes']);
+          if (parsed.success) {
+            const k8s = parsed.data;
+            if (k8s.namespace) setK8sNamespace(k8s.namespace);
+            if (k8s.kubeConfigPath) setK8sConfigPath(k8s.kubeConfigPath);
+            if (k8s.kubeContext) setK8sContext(k8s.kubeContext);
+            if (k8s.enableWarmPool !== undefined) setWarmPoolEnabled(k8s.enableWarmPool);
+            if (k8s.warmPoolSize !== undefined) setWarmPoolSize(k8s.warmPoolSize);
+            if (k8s.runtimeClassName) setRuntimeClass(k8s.runtimeClassName);
+            if (k8s.skipTLSVerify !== undefined) setSkipTLSVerify(k8s.skipTLSVerify);
+          } else {
+            console.warn('Invalid sandbox.kubernetes settings:', parsed.error.issues);
+          }
         }
       }
     } catch (_err) {
@@ -172,11 +223,26 @@ function SandboxSettingsPage(): React.JSX.Element {
   const saveDefaultSettings = async () => {
     setIsSavingDefaults(true);
     try {
-      const result = await apiClient.settings.update({
+      const settingsToSave: Record<string, unknown> = {
         'sandbox.defaults': defaultSettings,
         // Also save container mode separately for container-agent.service to read
         'sandbox.mode': defaultSettings.containerMode ?? 'shared',
-      });
+      };
+
+      // If Kubernetes is selected, also persist K8s-specific settings
+      if (defaultSettings.provider === 'kubernetes') {
+        settingsToSave['sandbox.kubernetes'] = {
+          namespace: k8sNamespace || 'agentpane-sandboxes',
+          kubeConfigPath: k8sConfigPath || undefined,
+          kubeContext: k8sContext || undefined,
+          enableWarmPool: warmPoolEnabled,
+          warmPoolSize,
+          runtimeClassName: runtimeClass,
+          skipTLSVerify,
+        };
+      }
+
+      const result = await apiClient.settings.update(settingsToSave);
       if (result.ok) {
         setDefaultsSaved(true);
         setTimeout(() => setDefaultsSaved(false), 2000);
@@ -196,31 +262,50 @@ function SandboxSettingsPage(): React.JSX.Element {
   // Load K8s status when provider is selected
   const loadK8sStatus = useCallback(async () => {
     setK8sStatusLoading(true);
+    setControllerLoading(true);
+
     try {
       const params = new URLSearchParams();
       if (k8sConfigPath) params.set('kubeconfigPath', k8sConfigPath);
       if (k8sContext) params.set('context', k8sContext);
+      if (skipTLSVerify) params.set('skipTLSVerify', 'true');
 
-      const response = await fetch(`/api/sandbox/k8s/status?${params.toString()}`);
-      const result = await response.json();
+      // Run cluster status + controller status checks in parallel
+      const [statusResponse, controllerResponse] = await Promise.all([
+        fetch(`/api/sandbox/k8s/status?${params.toString()}`),
+        fetch(`/api/sandbox/k8s/controller?${params.toString()}`),
+      ]);
 
-      if (result.ok) {
-        setK8sStatus(result.data);
+      const statusResult = await statusResponse.json();
+      const controllerResult = await controllerResponse.json();
+
+      // Update cluster status
+      if (statusResult.ok) {
+        setK8sStatus(statusResult.data);
       } else {
         setK8sStatus({
           healthy: false,
-          message: result.error?.message ?? 'Failed to connect to cluster',
+          message: statusResult.error?.message ?? 'Failed to connect to cluster',
         });
+      }
+
+      // Update controller status
+      if (controllerResult.ok) {
+        setControllerStatus(controllerResult.data);
+      } else {
+        setControllerStatus({ installed: false });
       }
     } catch (_err) {
       setK8sStatus({
         healthy: false,
         message: 'Failed to check cluster status',
       });
+      setControllerStatus({ installed: false });
     } finally {
       setK8sStatusLoading(false);
+      setControllerLoading(false);
     }
-  }, [k8sConfigPath, k8sContext]);
+  }, [k8sConfigPath, k8sContext, skipTLSVerify]);
 
   // Load K8s contexts
   const loadK8sContexts = useCallback(async () => {
@@ -980,6 +1065,43 @@ function SandboxSettingsPage(): React.JSX.Element {
                 </Button>
               </div>
 
+              {/* CRD Controller Status */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
+                <div className="flex items-center gap-3">
+                  {controllerLoading ? (
+                    <CircleNotch className="h-5 w-5 animate-spin text-fg-muted" />
+                  ) : controllerStatus?.installed ? (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success-muted">
+                      <Check className="h-4 w-4 text-success" weight="bold" />
+                    </div>
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-danger-muted">
+                      <Warning className="h-4 w-4 text-danger" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-fg">
+                      {controllerLoading
+                        ? 'Checking controller...'
+                        : controllerStatus?.installed
+                          ? 'Agent Sandbox Controller'
+                          : 'Controller Not Installed'}
+                    </p>
+                    {controllerStatus?.installed && (
+                      <p className="text-xs text-fg-muted">
+                        v{controllerStatus.version} &middot; CRD{' '}
+                        {controllerStatus.crdApiVersion ?? 'v1alpha1'}
+                      </p>
+                    )}
+                    {!controllerStatus?.installed && !controllerLoading && (
+                      <p className="text-xs text-danger">
+                        Install the Agent Sandbox CRD controller to use Kubernetes sandboxes
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* K8s Form Fields */}
               <div className="space-y-4">
                 {/* Kubeconfig Path */}
@@ -1003,6 +1125,34 @@ function SandboxSettingsPage(): React.JSX.Element {
                   <p className="mt-1 text-xs text-fg-muted">
                     Leave empty to use default kubeconfig discovery
                   </p>
+                </div>
+
+                {/* Skip TLS Verification */}
+                <div className="flex items-center justify-between rounded-md border border-border bg-surface-subtle px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-fg">Skip TLS Verification</p>
+                    <p className="text-xs text-fg-muted">
+                      Required for local clusters with self-signed certificates (minikube, kind)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={skipTLSVerify}
+                    onClick={() => setSkipTLSVerify(!skipTLSVerify)}
+                    className={cn(
+                      'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors',
+                      skipTLSVerify ? 'bg-accent' : 'bg-fg-muted/30'
+                    )}
+                    data-testid="k8s-skip-tls-toggle"
+                  >
+                    <span
+                      className={cn(
+                        'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform mt-0.5',
+                        skipTLSVerify ? 'translate-x-4' : 'translate-x-0.5'
+                      )}
+                    />
+                  </button>
                 </div>
 
                 {/* Context Selection */}
@@ -1070,6 +1220,32 @@ function SandboxSettingsPage(): React.JSX.Element {
                     Namespace for sandbox pods (will be created if it doesn&apos;t exist)
                   </p>
                 </div>
+
+                {/* Runtime Class */}
+                <div>
+                  <label
+                    htmlFor="k8s-runtime-class"
+                    className="mb-1.5 block text-sm font-medium text-fg"
+                  >
+                    Runtime Class
+                  </label>
+                  <select
+                    id="k8s-runtime-class"
+                    value={runtimeClass}
+                    onChange={(e) => setRuntimeClass(e.target.value as 'gvisor' | 'kata' | 'none')}
+                    className="w-full rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    data-testid="k8s-runtime-class-select"
+                  >
+                    <option value="none">Default (runc)</option>
+                    <option value="gvisor">gVisor (runsc) -- Recommended</option>
+                    <option value="kata">Kata Containers (VM isolation)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-fg-muted">
+                    gVisor provides user-space kernel isolation with low overhead. Kata uses
+                    lightweight VMs for stronger isolation. Default uses the cluster&apos;s standard
+                    container runtime.
+                  </p>
+                </div>
               </div>
 
               {/* Cluster Info - shown when connected */}
@@ -1105,6 +1281,81 @@ function SandboxSettingsPage(): React.JSX.Element {
                   </div>
                 </div>
               )}
+
+              {/* Warm Pool Configuration */}
+              <div className="space-y-4">
+                {/* Warm Pool Toggle */}
+                <div className="flex items-center justify-between rounded-lg border border-border bg-surface-subtle p-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                        warmPoolEnabled
+                          ? 'bg-success/20 text-success'
+                          : 'bg-surface-muted text-fg-muted'
+                      )}
+                    >
+                      <Gauge className="h-5 w-5" weight={warmPoolEnabled ? 'fill' : 'regular'} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-fg">Warm Pool</p>
+                      <p className="text-sm text-fg-muted">
+                        {warmPoolEnabled
+                          ? `Maintaining ${warmPoolSize} pre-warmed sandbox${warmPoolSize !== 1 ? 'es' : ''} for instant allocation`
+                          : 'Sandboxes are created on-demand (cold start ~10-30s)'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={warmPoolEnabled}
+                    onClick={() => setWarmPoolEnabled(!warmPoolEnabled)}
+                    className={cn(
+                      'relative h-6 w-11 rounded-full transition-colors',
+                      warmPoolEnabled ? 'bg-success' : 'bg-surface-muted'
+                    )}
+                    data-testid="k8s-warm-pool-toggle"
+                  >
+                    <span
+                      className={cn(
+                        'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                        warmPoolEnabled ? 'translate-x-5' : 'translate-x-0'
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {/* Warm Pool Size Slider -- only shown when enabled */}
+                {warmPoolEnabled && (
+                  <div className="pl-4">
+                    <label
+                      htmlFor="k8s-warm-pool-size"
+                      className="mb-1.5 flex items-center justify-between text-sm font-medium text-fg"
+                    >
+                      <span>Pool Size</span>
+                      <span className="rounded bg-accent-muted px-2 py-0.5 font-mono text-xs text-accent">
+                        {warmPoolSize} sandbox{warmPoolSize !== 1 ? 'es' : ''}
+                      </span>
+                    </label>
+                    <input
+                      id="k8s-warm-pool-size"
+                      type="range"
+                      min={1}
+                      max={10}
+                      step={1}
+                      value={warmPoolSize}
+                      onChange={(e) => setWarmPoolSize(Number(e.target.value))}
+                      className="w-full accent-accent"
+                      data-testid="k8s-warm-pool-size-slider"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-fg-subtle">
+                      <span>1</span>
+                      <span>10</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </ConfigSection>
         )}
