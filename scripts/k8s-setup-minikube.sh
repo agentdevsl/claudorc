@@ -143,7 +143,7 @@ if kubectl get crd sandboxes.agents.x-k8s.io &>/dev/null 2>&1; then
   log_success "Agent Sandbox CRDs already installed"
 else
   log_info "Installing CRD controller from: $CRD_INSTALL_URL"
-  if kubectl apply -f "$CRD_INSTALL_URL" 2>/dev/null; then
+  if kubectl apply -f "$CRD_INSTALL_URL"; then
     log_success "CRD controller installed"
   else
     log_warn "Could not install from release URL. The CRD controller may need manual installation."

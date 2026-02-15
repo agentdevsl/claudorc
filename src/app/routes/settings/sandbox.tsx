@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
+import { z } from 'zod';
 import { Button } from '@/app/components/ui/button';
 import { ConfigSection } from '@/app/components/ui/config-section';
 import {
@@ -68,6 +69,16 @@ interface K8sContext {
   user: string;
   namespace?: string;
 }
+
+const K8sSettingsSchema = z.object({
+  namespace: z.string().optional(),
+  kubeConfigPath: z.string().optional(),
+  kubeContext: z.string().optional(),
+  enableWarmPool: z.boolean().optional(),
+  warmPoolSize: z.number().optional(),
+  runtimeClassName: z.enum(['gvisor', 'kata', 'none']).optional(),
+  skipTLSVerify: z.boolean().optional(),
+});
 
 export const Route = createFileRoute('/settings/sandbox')({
   component: SandboxSettingsPage,
@@ -186,22 +197,19 @@ function SandboxSettingsPage(): React.JSX.Element {
 
         // Load K8s-specific settings
         if (result.data.settings['sandbox.kubernetes']) {
-          const k8s = result.data.settings['sandbox.kubernetes'] as {
-            namespace?: string;
-            kubeConfigPath?: string;
-            kubeContext?: string;
-            enableWarmPool?: boolean;
-            warmPoolSize?: number;
-            runtimeClassName?: 'gvisor' | 'kata' | 'none';
-            skipTLSVerify?: boolean;
-          };
-          if (k8s.namespace) setK8sNamespace(k8s.namespace);
-          if (k8s.kubeConfigPath) setK8sConfigPath(k8s.kubeConfigPath);
-          if (k8s.kubeContext) setK8sContext(k8s.kubeContext);
-          if (k8s.enableWarmPool !== undefined) setWarmPoolEnabled(k8s.enableWarmPool);
-          if (k8s.warmPoolSize !== undefined) setWarmPoolSize(k8s.warmPoolSize);
-          if (k8s.runtimeClassName) setRuntimeClass(k8s.runtimeClassName);
-          if (k8s.skipTLSVerify !== undefined) setSkipTLSVerify(k8s.skipTLSVerify);
+          const parsed = K8sSettingsSchema.safeParse(result.data.settings['sandbox.kubernetes']);
+          if (parsed.success) {
+            const k8s = parsed.data;
+            if (k8s.namespace) setK8sNamespace(k8s.namespace);
+            if (k8s.kubeConfigPath) setK8sConfigPath(k8s.kubeConfigPath);
+            if (k8s.kubeContext) setK8sContext(k8s.kubeContext);
+            if (k8s.enableWarmPool !== undefined) setWarmPoolEnabled(k8s.enableWarmPool);
+            if (k8s.warmPoolSize !== undefined) setWarmPoolSize(k8s.warmPoolSize);
+            if (k8s.runtimeClassName) setRuntimeClass(k8s.runtimeClassName);
+            if (k8s.skipTLSVerify !== undefined) setSkipTLSVerify(k8s.skipTLSVerify);
+          } else {
+            console.warn('Invalid sandbox.kubernetes settings:', parsed.error.issues);
+          }
         }
       }
     } catch (_err) {

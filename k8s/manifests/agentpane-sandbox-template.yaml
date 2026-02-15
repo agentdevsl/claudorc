@@ -23,7 +23,7 @@ spec:
       runtimeClassName: gvisor
       containers:
         - name: sandbox
-          image: srlynch1/agent-sandbox:latest
+          image: srlynch1/agent-sandbox:v0.1.0
           resources:
             requests:
               memory: "2Gi"

@@ -1,5 +1,9 @@
 import type { SandboxWarmPool } from '@agentpane/agent-sandbox-sdk';
-import { AgentSandboxClient, SandboxBuilder } from '@agentpane/agent-sandbox-sdk';
+import {
+  AgentSandboxClient,
+  AlreadyExistsError,
+  SandboxBuilder,
+} from '@agentpane/agent-sandbox-sdk';
 import { createId } from '@paralleldrive/cuid2';
 import { K8sErrors } from '../../errors/k8s-errors.js';
 import type { SandboxConfig, SandboxHealthCheck, SandboxInfo, SandboxStatus } from '../types.js';
@@ -409,8 +413,11 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
 
     try {
       await this.client.createWarmPool(warmPool);
-    } catch {
-      // Already exists — delete and recreate with updated spec
+    } catch (error) {
+      if (!(error instanceof AlreadyExistsError)) {
+        throw error;
+      }
+      // Already exists (409) — delete and recreate with updated spec
       await this.client.deleteWarmPool(warmPoolName);
       await this.client.createWarmPool(warmPool);
     }

@@ -106,7 +106,10 @@ function patchIsomorphicFetch(): void {
       );
       return from(resultPromise);
     };
-  } catch {
-    // If patching fails (e.g. different k8s-client version), fall back silently
+  } catch (error) {
+    console.warn(
+      '[agent-sandbox-sdk] Failed to apply Bun compatibility patch for @kubernetes/client-node.',
+      error
+    );
   }
 }
