@@ -1,6 +1,8 @@
 import {
   ArrowsClockwise,
   CircleNotch,
+  Cube,
+  CubeTransparent,
   GitBranch,
   Robot,
   Timer,
@@ -27,6 +29,7 @@ interface ContainerAgentHeaderProps {
   currentTurn: number;
   maxTurns?: number;
   startedAt?: number;
+  sandboxProvider?: string;
   connectionState: ConnectionState;
   isStreaming: boolean;
 }
@@ -97,6 +100,7 @@ export function ContainerAgentHeader({
   currentTurn,
   maxTurns,
   startedAt,
+  sandboxProvider,
   connectionState,
   isStreaming,
 }: ContainerAgentHeaderProps): React.JSX.Element {
@@ -139,6 +143,26 @@ export function ContainerAgentHeader({
         <span className={statusDotVariants({ status })} />
         {statusLabels[status]}
       </div>
+
+      {/* Sandbox provider badge */}
+      {sandboxProvider && (
+        <div
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+            sandboxProvider === 'kubernetes'
+              ? 'bg-accent/15 text-accent'
+              : 'bg-done/15 text-done'
+          }`}
+          data-testid="sandbox-provider-badge"
+          title={`Executing on ${sandboxProvider === 'kubernetes' ? 'Kubernetes' : 'Docker'}`}
+        >
+          {sandboxProvider === 'kubernetes' ? (
+            <CubeTransparent className="h-3.5 w-3.5" weight="duotone" />
+          ) : (
+            <Cube className="h-3.5 w-3.5" weight="duotone" />
+          )}
+          {sandboxProvider === 'kubernetes' ? 'Kubernetes' : 'Docker'}
+        </div>
+      )}
 
       {/* Branch indicator */}
       {branch && (

@@ -102,6 +102,8 @@ export interface ContainerAgentState {
   errorCode?: string;
   /** Plan content if plan_ready */
   plan?: string;
+  /** Sandbox provider (docker or kubernetes) */
+  sandboxProvider?: string;
   /** Started timestamp */
   startedAt?: number;
   /** Completed timestamp */
@@ -162,6 +164,7 @@ export function useContainerAgent(sessionId: string | null): {
       model: data.model,
       maxTurns: data.maxTurns,
       remainingTurns: data.maxTurns,
+      sandboxProvider: data.sandboxProvider,
       startedAt: data.timestamp,
     }));
   }, []);

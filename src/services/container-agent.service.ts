@@ -975,6 +975,7 @@ export class ContainerAgentService {
           sessionId,
           model: agentConfig.model,
           maxTurns: agentConfig.maxTurns,
+          sandboxProvider: this.provider.name,
         });
         infoLog('startAgent', 'Agent started', { taskId, sessionId });
 
