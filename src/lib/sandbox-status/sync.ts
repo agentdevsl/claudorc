@@ -27,6 +27,7 @@ async function fetchSandboxStatus(projectId: string): Promise<SandboxStatus | nu
         containerStatus: result.data.containerStatus,
         containerId: result.data.containerId,
         dockerAvailable: result.data.dockerAvailable,
+        provider: result.data.provider ?? 'none',
         updatedAt: Date.now(),
       };
     }

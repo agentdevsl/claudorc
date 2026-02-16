@@ -160,6 +160,7 @@ export function createSandboxStatusRoutes({ db, dockerProvider }: SandboxStatusD
           containerStatus,
           containerId,
           dockerAvailable: !!dockerProvider,
+          provider: dockerProvider?.name ?? 'none',
         },
       });
     } catch (error) {
