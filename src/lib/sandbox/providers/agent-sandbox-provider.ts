@@ -291,10 +291,22 @@ export class AgentSandboxProvider implements EventEmittingSandboxProvider {
       const health = await this.client.healthCheck();
 
       if (!health.healthy) {
+        const issues: string[] = [];
+        if (!health.clusterVersion) issues.push('Cluster is not reachable');
+        if (!health.crdRegistered) issues.push('Agent Sandbox CRD is not registered');
+        if (!health.namespaceExists) issues.push(`Namespace '${this.namespace}' does not exist`);
         return {
           healthy: false,
-          message: 'Cluster not reachable or CRD not registered',
-          details: { provider: 'kubernetes' },
+          message:
+            issues.length > 0 ? issues.join('; ') : 'Cluster not reachable or CRD not registered',
+          details: {
+            provider: 'kubernetes',
+            namespace: this.namespace,
+            clusterReachable: !!health.clusterVersion,
+            crdRegistered: health.crdRegistered,
+            namespaceExists: health.namespaceExists,
+            clusterVersion: health.clusterVersion,
+          },
         };
       }
 

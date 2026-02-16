@@ -536,16 +536,21 @@ let containerAgentService: ReturnType<typeof createContainerAgentService> | null
 // Step 1: Determine which provider to use from settings
 type ProviderSelection = 'docker' | 'kubernetes';
 let providerType: ProviderSelection = 'docker'; // default
+let k8sFallbackToDocker = false;
 
 try {
   const providerSetting = await db.query.settings.findFirst({
     where: eq(schemaTables.settings.key, 'sandbox.defaults'),
   });
   if (providerSetting?.value) {
-    const parsed = JSON.parse(providerSetting.value) as { provider?: string };
+    const parsed = JSON.parse(providerSetting.value) as {
+      provider?: string;
+      fallbackToDocker?: boolean;
+    };
     if (parsed.provider === 'kubernetes') {
       providerType = 'kubernetes';
     }
+    k8sFallbackToDocker = parsed.fallbackToDocker ?? false;
   }
 } catch (settingsErr) {
   console.warn(
@@ -568,6 +573,7 @@ if (providerType === 'kubernetes') {
       runtimeClassName?: 'gvisor' | 'kata' | 'none';
       image?: string;
       skipTLSVerify?: boolean;
+      autoStartMinikube?: boolean;
     } = {};
 
     try {
@@ -593,7 +599,7 @@ if (providerType === 'kubernetes') {
     });
 
     // Verify cluster connectivity and controller installation
-    const health = await k8sProvider.healthCheck();
+    let health = await k8sProvider.healthCheck();
     if (health.healthy) {
       sandboxProvider = k8sProvider;
       log.info('[API Server] Kubernetes CRD sandbox provider initialized', {
@@ -616,22 +622,108 @@ if (providerType === 'kubernetes') {
         }
       }
     } else {
-      console.warn(
-        `[API Server] Kubernetes CRD provider unhealthy: ${health.message}. ` +
-          'Falling back to Docker provider.'
-      );
-      // Fall through to Docker initialization below
+      // K8s unhealthy — attempt minikube autostart if configured
+      const clusterUnreachable =
+        !health.details?.clusterVersion && !health.details?.clusterReachable;
+
+      if (
+        clusterUnreachable &&
+        k8sSettings.autoStartMinikube &&
+        isMinikubeContext(k8sSettings.kubeContext)
+      ) {
+        log.info('[API Server] Kubernetes cluster unreachable, attempting minikube start...');
+        const started = await attemptMinikubeStart();
+        if (started) {
+          log.info('[API Server] Minikube started successfully, retrying health check...');
+          health = await k8sProvider.healthCheck();
+          if (health.healthy) {
+            sandboxProvider = k8sProvider;
+            log.info(
+              '[API Server] Kubernetes CRD sandbox provider initialized after minikube start',
+              {
+                data: { namespace: k8sSettings.namespace ?? 'agentpane-sandboxes' },
+              }
+            );
+            // Initialize warm pool if enabled
+            if (k8sSettings.enableWarmPool) {
+              try {
+                await k8sProvider.initWarmPool();
+                log.info('[API Server] Warm pool initialized');
+              } catch (warmPoolErr) {
+                console.warn(
+                  '[API Server] Warm pool initialization failed (continuing without):',
+                  warmPoolErr instanceof Error ? warmPoolErr.message : String(warmPoolErr)
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Still unhealthy after potential minikube start
+      if (!sandboxProvider) {
+        const diagnosis = diagnoseK8sFailure(health);
+        if (k8sFallbackToDocker) {
+          console.warn(
+            `[API Server] Kubernetes CRD provider unhealthy: ${diagnosis}. ` +
+              'Falling back to Docker provider (fallbackToDocker enabled).'
+          );
+        } else {
+          log.error(
+            `[API Server] Kubernetes CRD provider unhealthy: ${diagnosis}. ` +
+              'Docker fallback is disabled. Container agent service will not be available.'
+          );
+          try {
+            await db
+              .insert(schemaTables.settings)
+              .values({
+                key: 'sandbox.kubernetes.lastError',
+                value: JSON.stringify({ error: diagnosis, timestamp: new Date().toISOString() }),
+              })
+              .onConflictDoUpdate({
+                target: schemaTables.settings.key,
+                set: {
+                  value: JSON.stringify({ error: diagnosis, timestamp: new Date().toISOString() }),
+                },
+              });
+          } catch (persistErr) {
+            console.warn('[API Server] Failed to persist K8s error:', persistErr);
+          }
+        }
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(
-      `[API Server] Kubernetes CRD provider init failed: ${message}. Falling back to Docker.`
-    );
+    if (k8sFallbackToDocker) {
+      console.warn(
+        `[API Server] Kubernetes CRD provider init failed: ${message}. Falling back to Docker (fallbackToDocker enabled).`
+      );
+    } else {
+      log.error(
+        `[API Server] Kubernetes CRD provider init failed: ${message}. ` +
+          'Docker fallback is disabled. Container agent service will not be available.'
+      );
+      try {
+        await db
+          .insert(schemaTables.settings)
+          .values({
+            key: 'sandbox.kubernetes.lastError',
+            value: JSON.stringify({ error: message, timestamp: new Date().toISOString() }),
+          })
+          .onConflictDoUpdate({
+            target: schemaTables.settings.key,
+            set: { value: JSON.stringify({ error: message, timestamp: new Date().toISOString() }) },
+          });
+      } catch (persistErr) {
+        console.warn('[API Server] Failed to persist K8s error:', persistErr);
+      }
+    }
   }
 }
 
 // Step 3: Fall back to Docker if K8s was not initialized (or was not selected)
-if (!sandboxProvider) {
+// Skip Docker fallback if K8s was configured and fallback is explicitly disabled
+if (!sandboxProvider && !(providerType === 'kubernetes' && !k8sFallbackToDocker)) {
   try {
     const dockerProvider = createDockerProvider();
     log.info('[API Server] Docker provider initialized');
@@ -731,6 +823,52 @@ if (!sandboxProvider) {
       log.error(`[API Server] Docker initialization failed with unexpected error: ${message}`);
     }
   }
+}
+
+// K8s diagnostic helpers
+function isMinikubeContext(kubeContext?: string): boolean {
+  return kubeContext === 'minikube';
+}
+
+async function attemptMinikubeStart(): Promise<boolean> {
+  try {
+    const proc = Bun.spawn(['minikube', 'start'], {
+      cwd: process.cwd(),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const result = await Promise.race([
+      proc.exited,
+      new Promise<number>((_, reject) =>
+        setTimeout(() => reject(new Error('minikube start timed out after 120s')), 120_000)
+      ),
+    ]);
+    return result === 0;
+  } catch (err) {
+    console.warn(
+      '[API Server] Failed to start minikube:',
+      err instanceof Error ? err.message : String(err)
+    );
+    return false;
+  }
+}
+
+function diagnoseK8sFailure(health: {
+  healthy: boolean;
+  message?: string;
+  details?: Record<string, unknown>;
+}): string {
+  const details = health.details ?? {};
+  if (!details.clusterVersion && !details.clusterReachable) {
+    return 'Kubernetes cluster is not reachable';
+  }
+  if (details.crdRegistered === false) {
+    return 'Agent Sandbox CRD is not registered in the cluster';
+  }
+  if (details.namespaceExists === false) {
+    return `Namespace '${details.namespace ?? 'unknown'}' does not exist`;
+  }
+  return health.message ?? 'Kubernetes cluster health check failed';
 }
 
 // Step 4: Create ContainerAgentService with whichever provider was initialized

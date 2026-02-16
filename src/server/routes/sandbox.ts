@@ -54,12 +54,19 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
       const body = (await c.req.json()) as {
         name: string;
         description?: string;
+        type?: 'docker' | 'devcontainer' | 'kubernetes';
         isDefault?: boolean;
         baseImage?: string;
         memoryMb?: number;
         cpuCores?: number;
         maxProcesses?: number;
         timeoutMinutes?: number;
+        volumeMountPath?: string;
+        kubeConfigPath?: string;
+        kubeContext?: string;
+        kubeNamespace?: string;
+        networkPolicyEnabled?: boolean;
+        allowedEgressHosts?: string[];
       };
 
       if (!body.name) {
@@ -72,12 +79,19 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
       const result = await sandboxConfigService.create({
         name: body.name,
         description: body.description,
+        type: body.type,
         isDefault: body.isDefault,
         baseImage: body.baseImage,
         memoryMb: body.memoryMb,
         cpuCores: body.cpuCores,
         maxProcesses: body.maxProcesses,
         timeoutMinutes: body.timeoutMinutes,
+        volumeMountPath: body.volumeMountPath,
+        kubeConfigPath: body.kubeConfigPath,
+        kubeContext: body.kubeContext,
+        kubeNamespace: body.kubeNamespace,
+        networkPolicyEnabled: body.networkPolicyEnabled,
+        allowedEgressHosts: body.allowedEgressHosts,
       });
 
       if (!result.ok) {
@@ -123,23 +137,37 @@ export function createSandboxRoutes({ sandboxConfigService }: SandboxDeps) {
       const body = (await c.req.json()) as {
         name?: string;
         description?: string;
+        type?: 'docker' | 'devcontainer' | 'kubernetes';
         isDefault?: boolean;
         baseImage?: string;
         memoryMb?: number;
         cpuCores?: number;
         maxProcesses?: number;
         timeoutMinutes?: number;
+        volumeMountPath?: string;
+        kubeConfigPath?: string;
+        kubeContext?: string;
+        kubeNamespace?: string;
+        networkPolicyEnabled?: boolean;
+        allowedEgressHosts?: string[];
       };
 
       const result = await sandboxConfigService.update(id, {
         name: body.name,
         description: body.description,
+        type: body.type,
         isDefault: body.isDefault,
         baseImage: body.baseImage,
         memoryMb: body.memoryMb,
         cpuCores: body.cpuCores,
         maxProcesses: body.maxProcesses,
         timeoutMinutes: body.timeoutMinutes,
+        volumeMountPath: body.volumeMountPath,
+        kubeConfigPath: body.kubeConfigPath,
+        kubeContext: body.kubeContext,
+        kubeNamespace: body.kubeNamespace,
+        networkPolicyEnabled: body.networkPolicyEnabled,
+        allowedEgressHosts: body.allowedEgressHosts,
       });
 
       if (!result.ok) {
@@ -209,6 +237,34 @@ function validateKubeconfigPath(path: string | undefined): string | undefined {
 }
 
 /**
+ * Attempt to start minikube. Returns true if started successfully.
+ */
+async function attemptMinikubeStart(): Promise<{ started: boolean; message: string }> {
+  try {
+    const { exec } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execAsync = promisify(exec);
+
+    const { stdout, stderr } = await execAsync('minikube start', {
+      timeout: 120_000,
+    });
+    const output = stdout || stderr;
+    return { started: true, message: output.trim().split('\n').pop() ?? 'Minikube started' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[K8s] Failed to start minikube:', message);
+    return { started: false, message: `Failed to start minikube: ${message}` };
+  }
+}
+
+/**
+ * Check if the given context is minikube.
+ */
+function isMinikubeContext(context?: string): boolean {
+  return context === 'minikube';
+}
+
+/**
  * Create K8s-specific routes
  */
 export function createK8sRoutes(deps?: { db?: Database }) {
@@ -253,7 +309,9 @@ export function createK8sRoutes(deps?: { db?: Database }) {
       const coreApi = kc.makeApiClient(k8s.CoreV1Api);
 
       // Get server version using Node.js https module
+      // This also serves as the cluster connectivity check
       let serverVersion = 'unknown';
+      let clusterReachable = false;
       try {
         const cluster = kc.getCurrentCluster();
         if (cluster?.server) {
@@ -271,6 +329,7 @@ export function createK8sRoutes(deps?: { db?: Database }) {
               {
                 method: 'GET',
                 rejectUnauthorized: false,
+                timeout: 5000,
               },
               (res) => {
                 let data = '';
@@ -292,17 +351,110 @@ export function createK8sRoutes(deps?: { db?: Database }) {
                 });
               }
             );
+            req.on('timeout', () => {
+              req.destroy();
+              reject(new Error('Connection timed out'));
+            });
             req.on('error', reject);
             req.end();
           });
 
           serverVersion = versionData.gitVersion || `v${versionData.major}.${versionData.minor}`;
+          clusterReachable = true;
         }
       } catch (versionError) {
         console.debug(
           '[K8s Status] Version fetch failed:',
           versionError instanceof Error ? versionError.message : versionError
         );
+      }
+
+      // If version fetch failed, the cluster is not reachable
+      if (!clusterReachable) {
+        // Check if autoStartMinikube is enabled and context is minikube
+        let autoStartEnabled = false;
+        if (deps?.db && isMinikubeContext(currentContext)) {
+          try {
+            const { eq } = await import('drizzle-orm');
+            const { settings } = await import('../../db/schema/sqlite/index.js');
+            const k8sSetting = await deps.db.query.settings.findFirst({
+              where: eq(settings.key, 'sandbox.kubernetes'),
+            });
+            if (k8sSetting?.value) {
+              const parsed = JSON.parse(k8sSetting.value);
+              autoStartEnabled = parsed.autoStartMinikube === true;
+            }
+          } catch {
+            // Ignore DB errors, just skip auto-start
+          }
+        }
+
+        // Attempt auto-start if configured
+        if (autoStartEnabled) {
+          console.log('[K8s Status] Auto-starting minikube (autoStartMinikube enabled)...');
+          const startResult = await attemptMinikubeStart();
+          if (startResult.started) {
+            console.log('[K8s Status] Minikube auto-started, retrying cluster check...');
+            // Retry the version fetch after minikube starts
+            try {
+              const cluster = kc.getCurrentCluster();
+              if (cluster?.server) {
+                const https = await import('node:https');
+                const { URL } = await import('node:url');
+                const retryUrl = new URL('/version', cluster.server);
+                const retryData = await new Promise<{
+                  gitVersion?: string;
+                  major?: string;
+                  minor?: string;
+                }>((resolve, reject) => {
+                  const retryReq = https.request(
+                    retryUrl,
+                    { method: 'GET', rejectUnauthorized: false, timeout: 10000 },
+                    (res) => {
+                      let data = '';
+                      res.on('data', (chunk) => {
+                        data += chunk;
+                      });
+                      res.on('end', () => {
+                        try {
+                          resolve(JSON.parse(data));
+                        } catch {
+                          reject(new Error('Parse error'));
+                        }
+                      });
+                    }
+                  );
+                  retryReq.on('timeout', () => {
+                    retryReq.destroy();
+                    reject(new Error('Timeout'));
+                  });
+                  retryReq.on('error', reject);
+                  retryReq.end();
+                });
+                serverVersion = retryData.gitVersion || `v${retryData.major}.${retryData.minor}`;
+                clusterReachable = true;
+              }
+            } catch {
+              // Still unreachable after auto-start
+            }
+          }
+        }
+
+        // If still unreachable, return unhealthy status
+        if (!clusterReachable) {
+          return json({
+            ok: true,
+            data: {
+              healthy: false,
+              message:
+                'Cannot reach the Kubernetes cluster. Check that minikube or your cluster is running.',
+              context: currentContext,
+              cluster: clusterInfo?.name,
+              server: clusterInfo?.server,
+              serverVersion,
+            },
+          });
+        }
       }
 
       // Check namespace
@@ -528,6 +680,51 @@ export function createK8sRoutes(deps?: { db?: Database }) {
           error: {
             code: 'K8S_CONTROLLER_ERROR',
             message: `Failed to check CRD controller: ${message}`,
+          },
+        },
+        500
+      );
+    }
+  });
+
+  // POST /api/sandbox/k8s/minikube/start - Manually start minikube
+  app.post('/minikube/start', async (c) => {
+    const context = c.req.query('context') ?? undefined;
+
+    // Only allow starting minikube if context is minikube (or unset, defaulting to minikube)
+    if (context && !isMinikubeContext(context)) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'NOT_MINIKUBE',
+            message: 'Minikube start is only supported when the context is minikube',
+          },
+        },
+        400
+      );
+    }
+
+    try {
+      console.log('[K8s Minikube] Starting minikube...');
+      const result = await attemptMinikubeStart();
+
+      return json({
+        ok: true,
+        data: {
+          started: result.started,
+          message: result.message,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[K8s Minikube] Start error:', message);
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'MINIKUBE_START_ERROR',
+            message: `Failed to start minikube: ${message}`,
           },
         },
         500

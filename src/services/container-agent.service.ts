@@ -616,33 +616,38 @@ export class ContainerAgentService {
       // Create database session record for this container agent run
       debugLog('startAgent', 'Creating session record', { sessionId, taskId });
       try {
-        await this.db.insert(sessions).values({
-          id: sessionId,
-          projectId,
-          taskId,
-          agentId,
-          title: task.title ?? `Container Agent - ${taskId}`,
-          url: `/projects/${projectId}/sessions/${sessionId}`,
-          status: 'active',
+        await this.db
+          .insert(sessions)
+          .values({
+            id: sessionId,
+            projectId,
+            taskId,
+            agentId,
+            title: task.title ?? `Container Agent - ${taskId}`,
+            url: `/projects/${projectId}/sessions/${sessionId}`,
+            status: 'active',
+            sandboxProvider: this.provider.name,
+            createdAt: new Date().toISOString(),
+          })
+          .onConflictDoUpdate({
+            target: sessions.id,
+            set: {
+              sandboxProvider: this.provider.name,
+              agentId,
+            },
+          });
+        debugLog('startAgent', 'Session record created/updated', {
+          sessionId,
           sandboxProvider: this.provider.name,
-          createdAt: new Date().toISOString(),
         });
-        debugLog('startAgent', 'Session record created', { sessionId });
       } catch (dbErr) {
         const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-        // Only ignore UNIQUE constraint violations (session already exists from retry)
-        if (
-          !errorMessage.includes('UNIQUE constraint failed') &&
-          !errorMessage.includes('already exists')
-        ) {
-          infoLog('startAgent', 'Failed to create session record', {
-            sessionId,
-            taskId,
-            error: errorMessage,
-          });
-          return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
-        }
-        debugLog('startAgent', 'Session already exists, continuing', { sessionId });
+        infoLog('startAgent', 'Failed to create session record', {
+          sessionId,
+          taskId,
+          error: errorMessage,
+        });
+        return err(SandboxErrors.SESSION_CREATE_FAILED(errorMessage));
       }
 
       // Link agent and session to task
