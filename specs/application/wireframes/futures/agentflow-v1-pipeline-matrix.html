@@ -1,0 +1,2085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane — AgentFlow: Pipeline Matrix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=mona-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       Reset & Root
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    ul, ol { list-style: none; }
+    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+    input, select { font: inherit; color: inherit; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --fg-on-emphasis: #ffffff;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --danger-fg: #f85149;
+      --attention-fg: #d29922;
+      --done-fg: #a371f7;
+
+      /* Agent type colors */
+      --agent-orchestrator: #FFD866;
+      --agent-planner: #A78BFA;
+      --agent-coder: #67E8F9;
+      --agent-reviewer: #C084FC;
+      --agent-tester: #FCA572;
+      --agent-scanner: #F87171;
+      --agent-deployer: #34D399;
+
+      /* Status colors */
+      --status-completed: #A78BFA;
+      --status-running: #34D399;
+      --status-verifying: #FFD866;
+      --status-blocked: #FCA572;
+      --status-failed: #F87171;
+      --status-queued: #475569;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+
+      --radius-sm: 4px;
+      --radius: 6px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.15);
+      --shadow-md: 0 4px 8px rgba(0,0,0,0.2);
+      --shadow-lg: 0 8px 16px rgba(0,0,0,0.25);
+      --shadow-xl: 0 16px 48px rgba(0,0,0,0.3);
+
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+      --ease: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Layout
+       ======================================== */
+    .app {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      grid-template-columns: 1fr 360px;
+      height: 100vh;
+    }
+
+    /* ========================================
+       Header Bar
+       ======================================== */
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 48px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent-fg), var(--done-fg));
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 11px;
+      color: #fff;
+    }
+
+    .header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .header h1 span {
+      color: var(--fg-muted);
+      font-weight: 400;
+      margin-left: 6px;
+      font-size: 12px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-controls .btn {
+      height: 30px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all var(--duration-fast) var(--ease);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg-muted);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-default);
+    }
+
+    .btn-primary {
+      background: var(--accent-emphasis);
+      color: var(--fg-on-emphasis);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-fg);
+    }
+
+    .sim-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    .sim-badge.active {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--status-running);
+    }
+
+    .sim-badge.paused {
+      background: rgba(255, 216, 102, 0.12);
+      color: var(--agent-orchestrator);
+    }
+
+    .sim-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    .sim-badge.paused .sim-dot {
+      animation: none;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ========================================
+       Metrics Bar
+       ======================================== */
+    .metrics-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 40px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 16px;
+      height: 100%;
+      border-right: 1px solid var(--border-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .metric:last-child {
+      border-right: none;
+    }
+
+    .metric-label {
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 10px;
+    }
+
+    .metric-value {
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    .metric-value.highlight {
+      color: var(--status-running);
+    }
+
+    .metric-value.cost {
+      color: var(--agent-orchestrator);
+    }
+
+    .metric-value.danger {
+      color: var(--status-failed);
+    }
+
+    /* Proportional status bar */
+    .status-bar-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+      height: 100%;
+    }
+
+    .status-bar-label {
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .status-bar {
+      flex: 1;
+      height: 8px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      display: flex;
+      background: var(--bg-emphasis);
+    }
+
+    .status-bar-segment {
+      height: 100%;
+      transition: width var(--duration-slow) var(--ease);
+      min-width: 0;
+    }
+
+    .status-bar-legend {
+      display: flex;
+      gap: 10px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+    }
+
+    .status-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--fg-subtle);
+    }
+
+    .status-legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ========================================
+       Pipeline List (Main Content)
+       ======================================== */
+    .pipeline-area {
+      overflow-y: auto;
+      padding: 12px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--bg-emphasis) transparent;
+    }
+
+    .pipeline-area::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .pipeline-area::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 3px;
+    }
+
+    .pipeline-row {
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      transition: border-color var(--duration-fast) var(--ease);
+      cursor: pointer;
+    }
+
+    .pipeline-row:hover {
+      border-color: var(--fg-subtle);
+    }
+
+    .pipeline-row.expanded {
+      border-color: var(--accent-fg);
+    }
+
+    .pipeline-header {
+      display: grid;
+      grid-template-columns: 200px 1fr 100px 80px 80px 32px;
+      align-items: center;
+      padding: 10px 12px;
+      gap: 12px;
+      min-height: 52px;
+    }
+
+    .pipeline-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .pipeline-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pipeline-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .priority-badge {
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .priority-badge.p0 {
+      background: rgba(248, 113, 113, 0.15);
+      color: #F87171;
+    }
+
+    .priority-badge.p1 {
+      background: rgba(255, 216, 102, 0.15);
+      color: #FFD866;
+    }
+
+    .priority-badge.p2 {
+      background: rgba(71, 85, 105, 0.3);
+      color: var(--fg-muted);
+    }
+
+    /* Inline Pipeline SVG Visualization */
+    .pipeline-viz {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pipeline-viz svg {
+      width: 100%;
+      height: 32px;
+    }
+
+    .pipeline-progress-text {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg-default);
+      text-align: right;
+    }
+
+    .pipeline-agents-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-muted);
+      text-align: center;
+    }
+
+    .pipeline-cost {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--agent-orchestrator);
+      text-align: right;
+    }
+
+    .pipeline-expand-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-subtle);
+      transition: transform var(--duration-fast) var(--ease);
+    }
+
+    .pipeline-row.expanded .pipeline-expand-icon {
+      transform: rotate(180deg);
+    }
+
+    /* Expanded agent grid */
+    .pipeline-detail {
+      display: none;
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--border-muted);
+    }
+
+    .pipeline-row.expanded .pipeline-detail {
+      display: block;
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+      padding-top: 12px;
+    }
+
+    .agent-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius);
+      padding: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+    }
+
+    .agent-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .agent-card-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .agent-type-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .agent-status-pill {
+      padding: 2px 6px;
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .agent-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .agent-stat {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .agent-stat-value {
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+
+    /* Sparkline */
+    .agent-sparkline {
+      width: 100%;
+      height: 24px;
+    }
+
+    .agent-sparkline polyline {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .agent-sparkline .sparkline-area {
+      stroke: none;
+      opacity: 0.15;
+    }
+
+    /* Progress ring in pipeline viz */
+    .progress-ring-bg {
+      fill: none;
+      stroke: var(--bg-emphasis);
+      stroke-width: 3;
+    }
+
+    .progress-ring-fg {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset var(--duration-slow) var(--ease);
+    }
+
+    /* Flow lines between nodes */
+    .flow-line {
+      stroke: var(--border-default);
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    .flow-line.active {
+      stroke: var(--status-running);
+      stroke-dasharray: 6 3;
+      animation: flow-dash 1s linear infinite;
+    }
+
+    @keyframes flow-dash {
+      to { stroke-dashoffset: -9; }
+    }
+
+    /* Node in pipeline viz */
+    .node-circle {
+      cursor: default;
+    }
+
+    .node-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      fill: var(--fg-muted);
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+    }
+
+    /* ========================================
+       Decision Log (Right Sidebar)
+       ======================================== */
+    .decision-log {
+      background: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .decision-log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .decision-log-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-default);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .decision-count {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--fg-subtle);
+      background: var(--bg-emphasis);
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+    }
+
+    .decision-filters {
+      display: flex;
+      gap: 4px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-muted);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .decision-filter-btn {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      background: transparent;
+      border: 1px solid var(--border-muted);
+      transition: all var(--duration-fast) var(--ease);
+      white-space: nowrap;
+    }
+
+    .decision-filter-btn:hover {
+      border-color: var(--fg-subtle);
+      color: var(--fg-muted);
+    }
+
+    .decision-filter-btn.active {
+      background: var(--bg-emphasis);
+      border-color: var(--fg-subtle);
+      color: var(--fg-default);
+    }
+
+    .decision-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--bg-emphasis) transparent;
+    }
+
+    .decision-feed::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .decision-feed::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 2px;
+    }
+
+    .decision-entry {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      gap: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease);
+      align-items: start;
+      border-left: 2px solid transparent;
+    }
+
+    .decision-entry:hover {
+      background: var(--bg-subtle);
+    }
+
+    .decision-entry.new {
+      animation: decision-flash 0.6s var(--ease);
+    }
+
+    @keyframes decision-flash {
+      0% { background: rgba(88, 166, 255, 0.08); }
+      100% { background: transparent; }
+    }
+
+    .decision-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+
+    .decision-body {
+      min-width: 0;
+    }
+
+    .decision-summary {
+      font-size: 12px;
+      color: var(--fg-default);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .decision-detail-line {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .decision-time {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      white-space: nowrap;
+      padding-top: 2px;
+    }
+
+    .decision-confidence {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 3px;
+    }
+
+    .confidence-bar-mini {
+      width: 40px;
+      height: 3px;
+      background: var(--bg-emphasis);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .confidence-bar-mini-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width var(--duration-normal) var(--ease);
+    }
+
+    .confidence-value-mini {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    /* ========================================
+       Decision Popover
+       ======================================== */
+    .decision-popover-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: none;
+    }
+
+    .decision-popover-overlay.visible {
+      display: block;
+    }
+
+    .decision-popover {
+      position: fixed;
+      z-index: 1000;
+      width: 340px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      display: none;
+      overflow: hidden;
+    }
+
+    .decision-popover.visible {
+      display: block;
+      animation: popover-in 0.2s var(--ease);
+    }
+
+    @keyframes popover-in {
+      from { opacity: 0; transform: translateY(4px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .popover-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .popover-type {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .popover-type-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .popover-close {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .popover-close:hover {
+      background: var(--bg-subtle);
+      color: var(--fg-muted);
+    }
+
+    .popover-body {
+      padding: 12px 16px;
+    }
+
+    .popover-summary {
+      font-size: 13px;
+      color: var(--fg-default);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .popover-detail {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.5;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+    }
+
+    .popover-section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-subtle);
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+    }
+
+    /* Confidence bar */
+    .confidence-bar-container {
+      margin-bottom: 12px;
+    }
+
+    .confidence-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-emphasis);
+      border-radius: var(--radius-full);
+      position: relative;
+      overflow: visible;
+      margin-top: 4px;
+      margin-bottom: 4px;
+    }
+
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width var(--duration-normal) var(--ease);
+    }
+
+    .confidence-thresholds {
+      position: relative;
+      height: 0;
+      top: -6px;
+    }
+
+    .confidence-threshold {
+      position: absolute;
+      width: 1px;
+      height: 10px;
+      top: -2px;
+      background: var(--fg-subtle);
+    }
+
+    .confidence-threshold-label {
+      position: absolute;
+      top: 10px;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .confidence-value-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      margin-top: 10px;
+    }
+
+    /* Criteria tags */
+    .criteria-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .criteria-tag {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+    }
+
+    /* Alternatives */
+    .alternatives-list {
+      margin-bottom: 12px;
+    }
+
+    .alternative-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .alternative-item:last-child {
+      border-bottom: none;
+    }
+
+    .alternative-name {
+      color: var(--fg-muted);
+    }
+
+    .alternative-score {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--fg-subtle);
+    }
+
+    .alternative-item.chosen {
+      color: var(--fg-default);
+    }
+
+    .alternative-item.chosen .alternative-name {
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    .alternative-item.chosen .alternative-score {
+      color: var(--status-running);
+    }
+
+    .popover-policy {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      padding: 6px 8px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-sm);
+      margin-bottom: 12px;
+    }
+
+    .popover-footer {
+      padding: 8px 16px 12px;
+      border-top: 1px solid var(--border-muted);
+    }
+
+    .override-btn {
+      width: 100%;
+      height: 32px;
+      border-radius: var(--radius);
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all var(--duration-fast) var(--ease);
+    }
+
+    .override-btn:hover {
+      background: rgba(248, 113, 113, 0.1);
+      border-color: var(--status-failed);
+      color: var(--status-failed);
+    }
+
+    /* ========================================
+       Animations
+       ======================================== */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spin {
+      animation: spin 2s linear infinite;
+    }
+
+    /* ========================================
+       Scrollbar for main area
+       ======================================== */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 3px;
+    }
+
+    /* ========================================
+       Utility
+       ======================================== */
+    .mono { font-family: var(--font-mono); }
+    .text-subtle { color: var(--fg-subtle); }
+    .text-muted { color: var(--fg-muted); }
+
+    /* Speed control */
+    .speed-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .speed-control select {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 2px 4px;
+      font-size: 10px;
+      color: var(--fg-muted);
+      outline: none;
+    }
+
+    /* Pipeline row active indicators */
+    .pipeline-row-active-line {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+    }
+
+    .pipeline-header { position: relative; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============ Header ============ -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo-mark">AF</div>
+        <h1>AgentFlow <span>Pipeline Matrix</span></h1>
+      </div>
+      <div class="header-controls">
+        <div class="speed-control">
+          <span>Speed</span>
+          <select id="simSpeed">
+            <option value="2000">0.5x</option>
+            <option value="1000" selected>1x</option>
+            <option value="500">2x</option>
+            <option value="250">4x</option>
+          </select>
+        </div>
+        <div class="sim-badge active" id="simBadge">
+          <div class="sim-dot"></div>
+          <span id="simLabel">LIVE</span>
+        </div>
+        <button class="btn btn-ghost" id="pauseBtn" title="Pause simulation">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="2" width="3" height="10" rx="1"/><rect x="8" y="2" width="3" height="10" rx="1"/></svg>
+          Pause
+        </button>
+        <button class="btn btn-ghost" id="resetBtn" title="Reset simulation">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7a5 5 0 019.5-1.5M12 7a5 5 0 01-9.5 1.5"/><path d="M12 2v3.5h-3.5M2 12V8.5h3.5"/></svg>
+          Reset
+        </button>
+      </div>
+    </header>
+
+    <!-- ============ Metrics Bar ============ -->
+    <div class="metrics-bar">
+      <div class="metric">
+        <span class="metric-label">Agents</span>
+        <span class="metric-value highlight" id="metricAgents">0/33</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Tokens</span>
+        <span class="metric-value mono" id="metricTokens">0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Cost</span>
+        <span class="metric-value cost" id="metricCost">$0.00</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Decisions/s</span>
+        <span class="metric-value mono" id="metricDecRate">0.0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Errors</span>
+        <span class="metric-value" id="metricErrors">0</span>
+      </div>
+      <div class="status-bar-container">
+        <span class="status-bar-label">Status</span>
+        <div class="status-bar" id="statusBar"></div>
+        <div class="status-bar-legend">
+          <span class="status-legend-item"><span class="status-legend-dot" style="background:var(--status-completed)"></span>Done</span>
+          <span class="status-legend-item"><span class="status-legend-dot" style="background:var(--status-running)"></span>Run</span>
+          <span class="status-legend-item"><span class="status-legend-dot" style="background:var(--status-verifying)"></span>Verify</span>
+          <span class="status-legend-item"><span class="status-legend-dot" style="background:var(--status-blocked)"></span>Block</span>
+          <span class="status-legend-item"><span class="status-legend-dot" style="background:var(--status-queued)"></span>Queue</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Pipeline List ============ -->
+    <div class="pipeline-area" id="pipelineArea"></div>
+
+    <!-- ============ Decision Log ============ -->
+    <div class="decision-log">
+      <div class="decision-log-header">
+        <div class="decision-log-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14"/><circle cx="8" cy="8" r="6"/></svg>
+          Decision Log
+          <span class="decision-count" id="decisionCount">0</span>
+        </div>
+        <button class="btn btn-ghost" style="font-size:10px;height:24px;padding:0 6px;" id="clearDecisions">Clear</button>
+      </div>
+      <div class="decision-filters" id="decisionFilters"></div>
+      <div class="decision-feed" id="decisionFeed"></div>
+    </div>
+  </div>
+
+  <!-- ============ Decision Popover ============ -->
+  <div class="decision-popover-overlay" id="popoverOverlay"></div>
+  <div class="decision-popover" id="decisionPopover"></div>
+
+  <script>
+    // =====================================================
+    // DATA MODEL
+    // =====================================================
+
+    const AGENT_TYPES = {
+      orchestrator: { color: '#FFD866', label: 'Orchestrator', abbr: 'ORC' },
+      planner:      { color: '#A78BFA', label: 'Planner',      abbr: 'PLN' },
+      coder:        { color: '#67E8F9', label: 'Coder',        abbr: 'COD' },
+      reviewer:     { color: '#C084FC', label: 'Reviewer',     abbr: 'REV' },
+      tester:       { color: '#FCA572', label: 'Tester',       abbr: 'TST' },
+      scanner:      { color: '#F87171', label: 'Scanner',      abbr: 'SCN' },
+      deployer:     { color: '#34D399', label: 'Deployer',     abbr: 'DEP' },
+    };
+
+    const STATUS_COLORS = {
+      completed:  '#A78BFA',
+      running:    '#34D399',
+      verifying:  '#FFD866',
+      blocked:    '#FCA572',
+      failed:     '#F87171',
+      queued:     '#475569',
+    };
+
+    const DECISION_TYPES = {
+      auto_verify:  { icon: '\u26A1', color: '#34D399', bg: 'rgba(52,211,153,0.12)',  label: 'Auto Verify' },
+      route:        { icon: '\u2442', color: '#67E8F9', bg: 'rgba(103,232,249,0.12)', label: 'Route' },
+      retry:        { icon: '\u21BB', color: '#FCA572', bg: 'rgba(252,165,114,0.12)', label: 'Retry' },
+      escalate:     { icon: '\u25B2', color: '#F87171', bg: 'rgba(248,113,113,0.12)', label: 'Escalate' },
+      spawn:        { icon: '\u25C7', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', label: 'Spawn' },
+      tool_select:  { icon: '\u2699', color: '#FFD866', bg: 'rgba(255,216,102,0.12)', label: 'Tool Select' },
+      delegate:     { icon: '\u2192', color: '#67E8F9', bg: 'rgba(103,232,249,0.12)', label: 'Delegate' },
+      throttle:     { icon: '\u25D1', color: '#FCA572', bg: 'rgba(252,165,114,0.12)', label: 'Throttle' },
+      prioritize:   { icon: '\u2605', color: '#FFD866', bg: 'rgba(255,216,102,0.12)', label: 'Prioritize' },
+    };
+
+    // Decision reasoning templates
+    const DECISION_TEMPLATES = {
+      auto_verify: [
+        { summary: 'All 24 unit tests pass', detail: 'Test suite completed in 3.2s. Coverage: 94%. No regressions detected against baseline.', criteria: ['tests_pass','coverage_above_90','no_regressions'], alternatives: [{ name: 'Manual review', score: 0.3 }, { name: 'Auto-verify', score: 0.95, chosen: true }], policy: 'auto-verify-policy-v2' },
+        { summary: 'Schema validation passed', detail: 'OpenAPI spec diff shows 0 breaking changes. All required fields present. Response types match.', criteria: ['no_breaking_changes','types_valid','fields_present'], alternatives: [{ name: 'Schema review', score: 0.4 }, { name: 'Auto-approve', score: 0.92, chosen: true }], policy: 'schema-verify-policy' },
+        { summary: 'Safe diff: style-only changes', detail: 'Diff analysis: 12 lines changed, all CSS/style properties. No logic changes detected. AST unchanged.', criteria: ['style_only','ast_unchanged','no_side_effects'], alternatives: [{ name: 'Full review', score: 0.2 }, { name: 'Auto-merge', score: 0.97, chosen: true }], policy: 'safe-diff-policy' },
+      ],
+      route: [
+        { summary: 'Load-balanced to Coder-2', detail: 'Coder-1 at 87% utilization. Coder-2 idle for 12s. Task complexity: medium. Routing to least-loaded.', criteria: ['load_balance','idle_agent','compatible_skills'], alternatives: [{ name: 'Coder-1', score: 0.13 }, { name: 'Coder-2', score: 0.87, chosen: true }], policy: 'round-robin-lb-policy' },
+        { summary: 'Specialist match: VPC module', detail: 'Agent has prior context on VPC architecture. 3 related tasks completed. Context similarity: 0.91.', criteria: ['context_match','specialist','prior_work'], alternatives: [{ name: 'General agent', score: 0.45 }, { name: 'VPC specialist', score: 0.91, chosen: true }], policy: 'specialist-routing-policy' },
+      ],
+      retry: [
+        { summary: 'Transient API timeout, retrying', detail: 'GitHub API returned 504 after 30s. Retry #1 of 3. Backoff: 2s. Previous success rate: 99.2%.', criteria: ['transient_error','retry_budget_available','high_success_rate'], alternatives: [{ name: 'Abort', score: 0.05 }, { name: 'Retry with backoff', score: 0.88, chosen: true }, { name: 'Skip task', score: 0.07 }], policy: 'retry-with-backoff-v3' },
+        { summary: 'Quality below threshold, regenerating', detail: 'Code quality score: 0.52 (threshold: 0.70). Issues: missing error handling, no input validation.', criteria: ['quality_below_threshold','fixable_issues','budget_remaining'], alternatives: [{ name: 'Accept as-is', score: 0.15 }, { name: 'Regenerate', score: 0.82, chosen: true }], policy: 'quality-gate-policy' },
+      ],
+      escalate: [
+        { summary: 'Low confidence on auth changes', detail: 'Confidence: 0.42. Touching authentication middleware. 3 security-sensitive files modified. Requires human review.', criteria: ['low_confidence','security_sensitive','auth_scope'], alternatives: [{ name: 'Auto-approve', score: 0.08 }, { name: 'Escalate to human', score: 0.92, chosen: true }], policy: 'security-escalation-policy' },
+        { summary: 'Security-sensitive path detected', detail: 'Changes to /api/auth/* routes. Token handling modified. OWASP check flagged: potential token exposure.', criteria: ['security_path','owasp_flag','token_handling'], alternatives: [{ name: 'Continue', score: 0.12 }, { name: 'Escalate', score: 0.88, chosen: true }], policy: 'security-escalation-policy' },
+      ],
+      spawn: [
+        { summary: 'Parallel paths detected: 3 modules', detail: 'VPC, EKS, and RDS modules have no dependencies. Spawning 3 parallel agents for independent work.', criteria: ['no_dependencies','parallelizable','resource_available'], alternatives: [{ name: 'Sequential', score: 0.2 }, { name: 'Parallel spawn', score: 0.95, chosen: true }], policy: 'parallel-execution-policy' },
+        { summary: 'Spawning test runners in parallel', detail: 'Unit tests and E2E tests can run concurrently. Estimated time saving: 4.2 min.', criteria: ['independent_suites','time_saving','resource_available'], alternatives: [{ name: 'Sequential tests', score: 0.3 }, { name: 'Parallel tests', score: 0.88, chosen: true }], policy: 'test-parallelization-policy' },
+      ],
+      tool_select: [
+        { summary: 'Selected claude-sonnet for analysis', detail: 'Task type: code analysis. Token budget: 8K. Sonnet selected for speed/cost balance on non-generative task.', criteria: ['task_type','token_budget','cost_optimization'], alternatives: [{ name: 'opus-4', score: 0.45 }, { name: 'sonnet-4', score: 0.85, chosen: true }, { name: 'haiku-3.5', score: 0.35 }], policy: 'model-selection-policy' },
+      ],
+      delegate: [
+        { summary: 'Subtask extracted: API validation', detail: 'Main task too large (est. 45 turns). Extracted input validation as independent subtask. Delegating to idle agent.', criteria: ['task_decomposition','independent_subtask','idle_agent'], alternatives: [{ name: 'Keep in main', score: 0.25 }, { name: 'Delegate subtask', score: 0.82, chosen: true }], policy: 'task-decomposition-policy' },
+      ],
+      throttle: [
+        { summary: 'Rate limit at 80%, throttling', detail: 'API rate: 4,200/5,000 requests per min. Throttling non-critical agents to preserve quota for P0 tasks.', criteria: ['rate_limit_approaching','non_critical_agents','p0_priority'], alternatives: [{ name: 'Continue full speed', score: 0.15 }, { name: 'Throttle non-P0', score: 0.85, chosen: true }], policy: 'rate-limit-policy' },
+      ],
+      prioritize: [
+        { summary: 'Critical path boost: Auth Migration', detail: 'Auth Migration on critical path. Blocking 3 downstream tasks. Boosting priority from P1 to P0.', criteria: ['critical_path','blocking_tasks','deadline_risk'], alternatives: [{ name: 'Maintain priority', score: 0.2 }, { name: 'Boost to P0', score: 0.9, chosen: true }], policy: 'critical-path-policy' },
+      ],
+    };
+
+    // Pipeline data
+    const PIPELINES = [
+      {
+        id: 'api-platform',
+        name: 'API Platform v2',
+        priority: 'P0',
+        agents: [
+          { id: 'ap-orc',  name: 'Orchestrator', type: 'orchestrator', deps: [],            progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-pln',  name: 'Planner',      type: 'planner',      deps: ['ap-orc'],    progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-api',  name: 'API Builder',   type: 'coder',        deps: ['ap-pln'],    progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-ui',   name: 'UI Crafter',    type: 'coder',        deps: ['ap-pln'],    progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-unit', name: 'Unit Tests',    type: 'tester',       deps: ['ap-api','ap-ui'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-e2e',  name: 'E2E Runner',    type: 'tester',       deps: ['ap-api','ap-ui'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-rev1', name: 'Reviewer 1',    type: 'reviewer',     deps: ['ap-unit','ap-e2e'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-rev2', name: 'Reviewer 2',    type: 'reviewer',     deps: ['ap-unit','ap-e2e'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-scn',  name: 'Scanner',       type: 'scanner',      deps: ['ap-rev1','ap-rev2'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ap-dep',  name: 'Deployer',      type: 'deployer',     deps: ['ap-scn'],    progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+      {
+        id: 'auth-migration',
+        name: 'Auth Migration',
+        priority: 'P0',
+        agents: [
+          { id: 'am-orc', name: 'Orchestrator', type: 'orchestrator', deps: [],           progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'am-pln', name: 'Planner',      type: 'planner',      deps: ['am-orc'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'am-oidc',name: 'OIDC Agent',   type: 'coder',        deps: ['am-pln'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'am-tst', name: 'Auth Tests',   type: 'tester',       deps: ['am-oidc'],  progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'am-dep', name: 'Deployer',     type: 'deployer',     deps: ['am-tst'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+      {
+        id: 'terraform-refactor',
+        name: 'Terraform Refactor',
+        priority: 'P1',
+        agents: [
+          { id: 'tf-orc', name: 'Orchestrator', type: 'orchestrator', deps: [],               progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'tf-vpc', name: 'VPC Module',   type: 'coder',        deps: ['tf-orc'],       progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'tf-eks', name: 'EKS Module',   type: 'coder',        deps: ['tf-orc'],       progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'tf-rds', name: 'RDS Module',   type: 'coder',        deps: ['tf-orc'],       progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'tf-rev', name: 'TF Reviewer',  type: 'reviewer',     deps: ['tf-vpc','tf-eks','tf-rds'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'tf-app', name: 'TF Apply',     type: 'deployer',     deps: ['tf-rev'],       progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+      {
+        id: 'dashboard-redesign',
+        name: 'Dashboard Redesign',
+        priority: 'P1',
+        agents: [
+          { id: 'dr-orc', name: 'Orchestrator', type: 'orchestrator', deps: [],             progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dr-cmp', name: 'Components',   type: 'coder',        deps: ['dr-orc'],     progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dr-pgs', name: 'Pages',        type: 'coder',        deps: ['dr-orc'],     progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dr-rev', name: 'Reviewer',     type: 'reviewer',     deps: ['dr-cmp','dr-pgs'], progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dr-vt',  name: 'Visual Tests', type: 'tester',       deps: ['dr-rev'],     progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+      {
+        id: 'data-pipeline',
+        name: 'Data Pipeline ETL',
+        priority: 'P0',
+        agents: [
+          { id: 'dp-orc', name: 'Orchestrator', type: 'orchestrator', deps: [],           progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dp-ext', name: 'Extractor',    type: 'coder',        deps: ['dp-orc'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dp-tfm', name: 'Transformer',  type: 'coder',        deps: ['dp-ext'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dp-val', name: 'Validator',    type: 'tester',       deps: ['dp-tfm'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'dp-dep', name: 'Deployer',     type: 'deployer',     deps: ['dp-val'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+      {
+        id: 'ci-optimization',
+        name: 'CI Optimization',
+        priority: 'P2',
+        agents: [
+          { id: 'ci-orc', name: 'Orchestrator',    type: 'orchestrator', deps: [],           progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+          { id: 'ci-pip', name: 'Pipeline Agent',   type: 'coder',        deps: ['ci-orc'],   progress: 0, status: 'queued', tokens: 0, sparkline: [] },
+        ],
+      },
+    ];
+
+    // =====================================================
+    // STATE
+    // =====================================================
+
+    let decisions = [];
+    let decisionId = 0;
+    let simRunning = true;
+    let simInterval = null;
+    let simSpeed = 1000;
+    let tickCount = 0;
+    let totalTokens = 0;
+    let totalCost = 0;
+    let errorCount = 0;
+    let expandedPipeline = null;
+    let activeFilters = new Set();
+    let decisionRateWindow = [];
+
+    // =====================================================
+    // HELPERS
+    // =====================================================
+
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function formatTokens(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    }
+    function formatCost(n) { return '$' + n.toFixed(2); }
+    function timeAgo(ts) {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 5) return 'now';
+      if (s < 60) return s + 's ago';
+      return Math.floor(s / 60) + 'm ago';
+    }
+
+    // =====================================================
+    // PIPELINE VISUALIZATION (Inline SVG)
+    // =====================================================
+
+    function computePipelineLayout(agents) {
+      // Group agents into layers (by topological order)
+      const layers = [];
+      const placed = new Set();
+      const remaining = [...agents];
+
+      while (remaining.length > 0) {
+        const layer = [];
+        for (let i = remaining.length - 1; i >= 0; i--) {
+          const a = remaining[i];
+          if (a.deps.every(d => placed.has(d))) {
+            layer.push(a);
+            remaining.splice(i, 1);
+          }
+        }
+        if (layer.length === 0) break; // prevent infinite loop
+        layer.forEach(a => placed.add(a.id));
+        layers.push(layer);
+      }
+
+      return layers;
+    }
+
+    function renderPipelineSVG(pipeline, width) {
+      const layers = computePipelineLayout(pipeline.agents);
+      const nodeR = 11;
+      const layerGap = Math.max(40, (width - 40) / Math.max(layers.length - 1, 1));
+      const height = 32;
+
+      const positions = {};
+      layers.forEach((layer, li) => {
+        const x = 20 + li * layerGap;
+        const maxInLayer = layer.length;
+        layer.forEach((agent, ai) => {
+          const y = height / 2 + (ai - (maxInLayer - 1) / 2) * (maxInLayer > 1 ? Math.min(18, 28 / maxInLayer) : 0);
+          positions[agent.id] = { x, y };
+        });
+      });
+
+      let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
+
+      // Flow lines
+      pipeline.agents.forEach(agent => {
+        const to = positions[agent.id];
+        if (!to) return;
+        agent.deps.forEach(depId => {
+          const from = positions[depId];
+          if (!from) return;
+          const depAgent = pipeline.agents.find(a => a.id === depId);
+          const isActive = depAgent && (depAgent.status === 'running' || depAgent.status === 'completed') && (agent.status === 'running' || agent.status === 'queued');
+          const isComplete = depAgent && depAgent.status === 'completed' && agent.status !== 'queued';
+          const cls = isActive ? 'active' : '';
+          const color = isComplete ? STATUS_COLORS.completed + '40' : isActive ? STATUS_COLORS.running : '#30363d';
+          svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${color}" stroke-width="1.5" ${isActive ? 'stroke-dasharray="6 3"' : ''} class="flow-line ${cls}"/>`;
+        });
+      });
+
+      // Nodes with progress rings
+      pipeline.agents.forEach(agent => {
+        const pos = positions[agent.id];
+        if (!pos) return;
+        const typeInfo = AGENT_TYPES[agent.type];
+        const statusColor = STATUS_COLORS[agent.status] || STATUS_COLORS.queued;
+        const circumference = 2 * Math.PI * (nodeR - 1.5);
+        const dashoffset = circumference * (1 - agent.progress / 100);
+
+        // Background circle
+        svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${nodeR}" fill="${agent.status === 'queued' ? '#1c2128' : typeInfo.color + '18'}" stroke="${agent.status === 'queued' ? '#30363d' : typeInfo.color + '40'}" stroke-width="1"/>`;
+
+        // Progress ring
+        if (agent.progress > 0) {
+          svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${nodeR - 1.5}" fill="none" stroke="${statusColor}" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${dashoffset}" transform="rotate(-90 ${pos.x} ${pos.y})" opacity="0.9"/>`;
+        }
+
+        // Inner icon (abbreviated type)
+        const iconColor = agent.status === 'queued' ? '#6e7681' : typeInfo.color;
+        svg += `<text x="${pos.x}" y="${pos.y + 0.5}" text-anchor="middle" dominant-baseline="middle" font-family="'Fira Code',monospace" font-size="7" font-weight="500" fill="${iconColor}">${typeInfo.abbr[0]}</text>`;
+
+        // Running indicator
+        if (agent.status === 'running') {
+          svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${nodeR + 2}" fill="none" stroke="${statusColor}" stroke-width="1" opacity="0.4"><animate attributeName="r" from="${nodeR + 1}" to="${nodeR + 5}" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite"/></circle>`;
+        }
+
+        // Failed indicator
+        if (agent.status === 'failed') {
+          svg += `<line x1="${pos.x - 4}" y1="${pos.y - 4}" x2="${pos.x + 4}" y2="${pos.y + 4}" stroke="${STATUS_COLORS.failed}" stroke-width="2" stroke-linecap="round"/>`;
+          svg += `<line x1="${pos.x + 4}" y1="${pos.y - 4}" x2="${pos.x - 4}" y2="${pos.y + 4}" stroke="${STATUS_COLORS.failed}" stroke-width="2" stroke-linecap="round"/>`;
+        }
+      });
+
+      svg += '</svg>';
+      return svg;
+    }
+
+    // =====================================================
+    // SPARKLINE
+    // =====================================================
+
+    function renderSparkline(data, color, width = 180, height = 24) {
+      if (!data || data.length < 2) return `<svg width="${width}" height="${height}"></svg>`;
+      const max = Math.max(...data, 1);
+      const points = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * width;
+        const y = height - (v / max) * (height - 4) - 2;
+        return `${x},${y}`;
+      }).join(' ');
+      const areaPoints = points + ` ${width},${height} 0,${height}`;
+      return `<svg class="agent-sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <polygon points="${areaPoints}" fill="${color}" class="sparkline-area"/>
+        <polyline points="${points}" stroke="${color}" stroke-opacity="0.8"/>
+      </svg>`;
+    }
+
+    // =====================================================
+    // RENDER: Pipeline Area
+    // =====================================================
+
+    function renderPipelines() {
+      const area = document.getElementById('pipelineArea');
+      area.innerHTML = '';
+
+      PIPELINES.forEach(pipeline => {
+        const row = document.createElement('div');
+        row.className = 'pipeline-row' + (expandedPipeline === pipeline.id ? ' expanded' : '');
+        row.dataset.id = pipeline.id;
+
+        // Compute stats
+        const totalAgents = pipeline.agents.length;
+        const activeAgents = pipeline.agents.filter(a => a.status === 'running' || a.status === 'verifying').length;
+        const completedAgents = pipeline.agents.filter(a => a.status === 'completed').length;
+        const overallProgress = Math.round(pipeline.agents.reduce((s, a) => s + a.progress, 0) / totalAgents);
+        const pipelineCost = pipeline.agents.reduce((s, a) => s + a.tokens * 0.000003, 0);
+        const priorityClass = pipeline.priority.toLowerCase();
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'pipeline-header';
+        header.innerHTML = `
+          <div class="pipeline-info">
+            <div class="pipeline-name">${pipeline.name}</div>
+            <div class="pipeline-meta">
+              <span class="priority-badge ${priorityClass}">${pipeline.priority}</span>
+              <span>${completedAgents}/${totalAgents} done</span>
+            </div>
+          </div>
+          <div class="pipeline-viz" id="viz-${pipeline.id}"></div>
+          <div class="pipeline-progress-text">${overallProgress}%</div>
+          <div class="pipeline-agents-count">${activeAgents} active</div>
+          <div class="pipeline-cost">${formatCost(pipelineCost)}</div>
+          <div class="pipeline-expand-icon">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5l4 4 4-4"/></svg>
+          </div>
+        `;
+        header.addEventListener('click', () => {
+          expandedPipeline = expandedPipeline === pipeline.id ? null : pipeline.id;
+          renderPipelines();
+        });
+        row.appendChild(header);
+
+        // Detail (expanded)
+        if (expandedPipeline === pipeline.id) {
+          const detail = document.createElement('div');
+          detail.className = 'pipeline-detail';
+          detail.style.display = 'block';
+
+          const grid = document.createElement('div');
+          grid.className = 'agent-grid';
+
+          pipeline.agents.forEach(agent => {
+            const typeInfo = AGENT_TYPES[agent.type];
+            const statusColor = STATUS_COLORS[agent.status] || STATUS_COLORS.queued;
+            const statusBg = statusColor + '18';
+
+            const card = document.createElement('div');
+            card.className = 'agent-card';
+            card.style.cssText = `--agent-color: ${typeInfo.color}`;
+            card.innerHTML = `
+              <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${typeInfo.color};opacity:${agent.status === 'queued' ? '0.2' : '0.6'}"></div>
+              <div class="agent-card-header">
+                <div class="agent-card-name">
+                  <span class="agent-type-dot" style="background:${typeInfo.color};box-shadow:0 0 6px ${typeInfo.color}40"></span>
+                  ${agent.name}
+                </div>
+                <span class="agent-status-pill" style="background:${statusBg};color:${statusColor}">${agent.status}</span>
+              </div>
+              <div class="agent-stats">
+                <div class="agent-stat">Progress <span class="agent-stat-value">${Math.round(agent.progress)}%</span></div>
+                <div class="agent-stat">Tokens <span class="agent-stat-value">${formatTokens(agent.tokens)}</span></div>
+                <div class="agent-stat">Cost <span class="agent-stat-value">${formatCost(agent.tokens * 0.000003)}</span></div>
+                <div class="agent-stat">Type <span class="agent-stat-value">${typeInfo.label}</span></div>
+              </div>
+              ${renderSparkline(agent.sparkline, typeInfo.color)}
+            `;
+            grid.appendChild(card);
+          });
+
+          detail.appendChild(grid);
+          row.appendChild(detail);
+        }
+
+        area.appendChild(row);
+
+        // Render inline SVG
+        const vizContainer = document.getElementById(`viz-${pipeline.id}`);
+        if (vizContainer) {
+          const w = vizContainer.clientWidth || 400;
+          vizContainer.innerHTML = renderPipelineSVG(pipeline, w);
+        }
+      });
+    }
+
+    // =====================================================
+    // RENDER: Decision Feed
+    // =====================================================
+
+    function renderDecisionFilters() {
+      const container = document.getElementById('decisionFilters');
+      const allBtn = `<button class="decision-filter-btn ${activeFilters.size === 0 ? 'active' : ''}" data-filter="all">All</button>`;
+      const btns = Object.entries(DECISION_TYPES).map(([key, dt]) => {
+        return `<button class="decision-filter-btn ${activeFilters.has(key) ? 'active' : ''}" data-filter="${key}" style="${activeFilters.has(key) ? 'border-color:' + dt.color + ';color:' + dt.color : ''}">${dt.icon} ${dt.label}</button>`;
+      }).join('');
+      container.innerHTML = allBtn + btns;
+
+      container.querySelectorAll('.decision-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const f = btn.dataset.filter;
+          if (f === 'all') {
+            activeFilters.clear();
+          } else {
+            if (activeFilters.has(f)) {
+              activeFilters.delete(f);
+            } else {
+              activeFilters.add(f);
+            }
+          }
+          renderDecisionFilters();
+          renderDecisionFeed();
+        });
+      });
+    }
+
+    function renderDecisionFeed() {
+      const feed = document.getElementById('decisionFeed');
+      const filtered = activeFilters.size === 0
+        ? decisions
+        : decisions.filter(d => activeFilters.has(d.type));
+
+      // Show last 100
+      const visible = filtered.slice(-100).reverse();
+
+      feed.innerHTML = visible.map(d => {
+        const dt = DECISION_TYPES[d.type];
+        const confColor = d.confidence >= 0.85 ? '#34D399' : d.confidence >= 0.6 ? '#FFD866' : '#F87171';
+        return `
+          <div class="decision-entry ${d.isNew ? 'new' : ''}" data-decision-id="${d.id}" onclick="showDecisionPopover(event, ${d.id})">
+            <div class="decision-icon" style="background:${dt.bg};color:${dt.color}">${dt.icon}</div>
+            <div class="decision-body">
+              <div class="decision-summary">${d.summary}</div>
+              <div class="decision-detail-line">${d.pipeline} / ${d.agent}</div>
+              <div class="decision-confidence">
+                <div class="confidence-bar-mini"><div class="confidence-bar-mini-fill" style="width:${d.confidence * 100}%;background:${confColor}"></div></div>
+                <span class="confidence-value-mini">${Math.round(d.confidence * 100)}%</span>
+              </div>
+            </div>
+            <div class="decision-time">${timeAgo(d.timestamp)}</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('decisionCount').textContent = decisions.length;
+    }
+
+    // =====================================================
+    // DECISION POPOVER
+    // =====================================================
+
+    function showDecisionPopover(event, id) {
+      event.stopPropagation();
+      const d = decisions.find(x => x.id === id);
+      if (!d) return;
+
+      const dt = DECISION_TYPES[d.type];
+      const confColor = d.confidence >= 0.85 ? '#34D399' : d.confidence >= 0.6 ? '#FFD866' : '#F87171';
+
+      const popover = document.getElementById('decisionPopover');
+      const overlay = document.getElementById('popoverOverlay');
+
+      popover.innerHTML = `
+        <div class="popover-header">
+          <div class="popover-type">
+            <div class="popover-type-icon" style="background:${dt.bg};color:${dt.color}">${dt.icon}</div>
+            ${dt.label}
+          </div>
+          <button class="popover-close" onclick="hideDecisionPopover()">&times;</button>
+        </div>
+        <div class="popover-body">
+          <div class="popover-summary">${d.summary}</div>
+          <div class="popover-detail">${d.detail}</div>
+
+          <div class="popover-section-label">Confidence</div>
+          <div class="confidence-bar-container">
+            <div class="confidence-bar">
+              <div class="confidence-bar-fill" style="width:${d.confidence * 100}%;background:${confColor}"></div>
+              <div class="confidence-thresholds">
+                <div class="confidence-threshold" style="left:60%">
+                  <span class="confidence-threshold-label">60</span>
+                </div>
+                <div class="confidence-threshold" style="left:85%">
+                  <span class="confidence-threshold-label">85</span>
+                </div>
+              </div>
+            </div>
+            <div class="confidence-value-label">
+              <span style="color:var(--fg-subtle)">0%</span>
+              <span style="color:${confColor};font-weight:500">${Math.round(d.confidence * 100)}%</span>
+              <span style="color:var(--fg-subtle)">100%</span>
+            </div>
+          </div>
+
+          <div class="popover-section-label">Criteria</div>
+          <div class="criteria-tags">
+            ${d.criteria.map(c => `<span class="criteria-tag">${c}</span>`).join('')}
+          </div>
+
+          <div class="popover-section-label">Alternatives Considered</div>
+          <div class="alternatives-list">
+            ${d.alternatives.map(a => `
+              <div class="alternative-item ${a.chosen ? 'chosen' : ''}">
+                <span class="alternative-name">${a.chosen ? '\u2713 ' : ''}${a.name}</span>
+                <span class="alternative-score">${Math.round(a.score * 100)}%</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="popover-section-label">Policy</div>
+          <div class="popover-policy">${d.policy}</div>
+        </div>
+        <div class="popover-footer">
+          <button class="override-btn" onclick="alert('Override requested for decision #${d.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 12M2 2l10 10"/></svg>
+            Override Decision
+          </button>
+        </div>
+      `;
+
+      // Position near click but within viewport
+      const rect = event.currentTarget.getBoundingClientRect();
+      let top = rect.top;
+      let left = rect.left - 360;
+      if (left < 10) left = rect.right + 10;
+      if (top + 500 > window.innerHeight) top = window.innerHeight - 510;
+      if (top < 10) top = 10;
+
+      popover.style.top = top + 'px';
+      popover.style.left = left + 'px';
+      popover.classList.add('visible');
+      overlay.classList.add('visible');
+    }
+
+    function hideDecisionPopover() {
+      document.getElementById('decisionPopover').classList.remove('visible');
+      document.getElementById('popoverOverlay').classList.remove('visible');
+    }
+
+    document.getElementById('popoverOverlay').addEventListener('click', hideDecisionPopover);
+
+    // =====================================================
+    // RENDER: Metrics Bar
+    // =====================================================
+
+    function updateMetrics() {
+      const allAgents = PIPELINES.flatMap(p => p.agents);
+      const active = allAgents.filter(a => a.status === 'running' || a.status === 'verifying').length;
+      const total = allAgents.length;
+
+      document.getElementById('metricAgents').textContent = `${active}/${total}`;
+      document.getElementById('metricTokens').textContent = formatTokens(totalTokens);
+      document.getElementById('metricCost').textContent = formatCost(totalCost);
+      document.getElementById('metricErrors').textContent = errorCount;
+      document.getElementById('metricErrors').className = 'metric-value' + (errorCount > 0 ? ' danger' : '');
+
+      // Decision rate
+      const now = Date.now();
+      decisionRateWindow = decisionRateWindow.filter(t => now - t < 10000);
+      const rate = decisionRateWindow.length / 10;
+      document.getElementById('metricDecRate').textContent = rate.toFixed(1);
+
+      // Status bar
+      const counts = { completed: 0, running: 0, verifying: 0, blocked: 0, failed: 0, queued: 0 };
+      allAgents.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
+      const bar = document.getElementById('statusBar');
+      bar.innerHTML = '';
+      ['completed','running','verifying','blocked','failed','queued'].forEach(s => {
+        if (counts[s] > 0) {
+          const pct = (counts[s] / total * 100).toFixed(1);
+          const seg = document.createElement('div');
+          seg.className = 'status-bar-segment';
+          seg.style.width = pct + '%';
+          seg.style.background = STATUS_COLORS[s];
+          bar.appendChild(seg);
+        }
+      });
+    }
+
+    // =====================================================
+    // SIMULATION ENGINE
+    // =====================================================
+
+    function emitDecision(pipeline, agent, type) {
+      const dt = DECISION_TYPES[type];
+      const templates = DECISION_TEMPLATES[type];
+      const template = pick(templates);
+      const confidence = Math.min(1, Math.max(0.3, rand(0.5, 0.98)));
+
+      const decision = {
+        id: ++decisionId,
+        type,
+        pipeline: pipeline.name,
+        agent: agent.name,
+        summary: template.summary,
+        detail: template.detail,
+        confidence,
+        criteria: template.criteria,
+        alternatives: template.alternatives,
+        policy: template.policy,
+        timestamp: Date.now(),
+        isNew: true,
+      };
+
+      decisions.push(decision);
+      decisionRateWindow.push(Date.now());
+
+      // Mark new for animation
+      setTimeout(() => { decision.isNew = false; }, 700);
+
+      return decision;
+    }
+
+    function simTick() {
+      tickCount++;
+      let anyChange = false;
+
+      PIPELINES.forEach(pipeline => {
+        pipeline.agents.forEach(agent => {
+          // Check if dependencies are met
+          const depsCompleted = agent.deps.every(depId => {
+            const dep = pipeline.agents.find(a => a.id === depId);
+            return dep && dep.status === 'completed';
+          });
+
+          // Transition from queued to running when deps are met
+          if (agent.status === 'queued' && depsCompleted) {
+            agent.status = 'running';
+            agent.progress = 0;
+
+            // Emit spawn/route/delegate decisions on start
+            if (agent.deps.length > 0) {
+              const startDecisions = ['route', 'delegate', 'tool_select', 'prioritize'];
+              if (Math.random() < 0.6) {
+                emitDecision(pipeline, agent, pick(startDecisions));
+              }
+            }
+            if (agent.deps.length === 0) {
+              emitDecision(pipeline, agent, 'spawn');
+            }
+            anyChange = true;
+          }
+
+          // Progress running agents
+          if (agent.status === 'running') {
+            const progressIncrement = rand(2, 8) * (pipeline.priority === 'P0' ? 1.2 : pipeline.priority === 'P1' ? 1.0 : 0.8);
+            agent.progress = Math.min(100, agent.progress + progressIncrement);
+
+            const tokenIncrement = randInt(200, 1200);
+            agent.tokens += tokenIncrement;
+            totalTokens += tokenIncrement;
+            totalCost += tokenIncrement * 0.000003;
+
+            // Sparkline data
+            agent.sparkline.push(tokenIncrement);
+            if (agent.sparkline.length > 20) agent.sparkline.shift();
+
+            // Random decisions during execution
+            if (Math.random() < 0.12) {
+              const midDecisions = ['auto_verify', 'retry', 'throttle', 'tool_select', 'route'];
+              emitDecision(pipeline, agent, pick(midDecisions));
+            }
+
+            // Random block chance (very rare)
+            if (Math.random() < 0.008 && agent.progress > 20 && agent.progress < 80) {
+              agent.status = 'blocked';
+              emitDecision(pipeline, agent, 'escalate');
+              anyChange = true;
+              return;
+            }
+
+            // Transition to verifying at 100%
+            if (agent.progress >= 100) {
+              agent.progress = 100;
+              agent.status = 'verifying';
+              emitDecision(pipeline, agent, 'auto_verify');
+              anyChange = true;
+            }
+          }
+
+          // Unblock after some ticks
+          if (agent.status === 'blocked') {
+            if (Math.random() < 0.15) {
+              agent.status = 'running';
+              emitDecision(pipeline, agent, 'retry');
+              anyChange = true;
+            }
+          }
+
+          // Transition from verifying to completed
+          if (agent.status === 'verifying') {
+            if (Math.random() < 0.3) {
+              agent.status = 'completed';
+              emitDecision(pipeline, agent, 'auto_verify');
+
+              // Check for spawn decisions on newly unblocked agents
+              pipeline.agents.forEach(downstreamAgent => {
+                if (downstreamAgent.status === 'queued' && downstreamAgent.deps.includes(agent.id)) {
+                  const otherDepsComplete = downstreamAgent.deps.every(dId => {
+                    const dAgent = pipeline.agents.find(a => a.id === dId);
+                    return dAgent && dAgent.status === 'completed';
+                  });
+                  if (otherDepsComplete && Math.random() < 0.4) {
+                    emitDecision(pipeline, downstreamAgent, 'spawn');
+                  }
+                }
+              });
+
+              anyChange = true;
+            }
+          }
+
+          // Very rare failure (only during verifying)
+          if (agent.status === 'verifying' && Math.random() < 0.01) {
+            agent.status = 'failed';
+            errorCount++;
+            emitDecision(pipeline, agent, 'escalate');
+            anyChange = true;
+          }
+        });
+      });
+
+      // Occasional global decisions
+      if (Math.random() < 0.05) {
+        const globalPipeline = pick(PIPELINES);
+        const activeAgent = globalPipeline.agents.find(a => a.status === 'running');
+        if (activeAgent) {
+          emitDecision(globalPipeline, activeAgent, pick(['throttle', 'prioritize']));
+        }
+      }
+
+      updateMetrics();
+      renderPipelines();
+      renderDecisionFeed();
+    }
+
+    // =====================================================
+    // SIMULATION CONTROLS
+    // =====================================================
+
+    function startSim() {
+      if (simInterval) clearInterval(simInterval);
+      simInterval = setInterval(simTick, simSpeed);
+      simRunning = true;
+      document.getElementById('simBadge').className = 'sim-badge active';
+      document.getElementById('simLabel').textContent = 'LIVE';
+      document.getElementById('pauseBtn').innerHTML = `
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="2" width="3" height="10" rx="1"/><rect x="8" y="2" width="3" height="10" rx="1"/></svg>
+        Pause
+      `;
+    }
+
+    function pauseSim() {
+      if (simInterval) clearInterval(simInterval);
+      simInterval = null;
+      simRunning = false;
+      document.getElementById('simBadge').className = 'sim-badge paused';
+      document.getElementById('simLabel').textContent = 'PAUSED';
+      document.getElementById('pauseBtn').innerHTML = `
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="4,2 12,7 4,12"/></svg>
+        Resume
+      `;
+    }
+
+    function resetSim() {
+      pauseSim();
+      PIPELINES.forEach(p => {
+        p.agents.forEach(a => {
+          a.progress = 0;
+          a.status = 'queued';
+          a.tokens = 0;
+          a.sparkline = [];
+        });
+      });
+      decisions = [];
+      decisionId = 0;
+      totalTokens = 0;
+      totalCost = 0;
+      errorCount = 0;
+      tickCount = 0;
+      decisionRateWindow = [];
+      expandedPipeline = null;
+      updateMetrics();
+      renderPipelines();
+      renderDecisionFeed();
+      setTimeout(startSim, 300);
+    }
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      if (simRunning) pauseSim(); else startSim();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', resetSim);
+
+    document.getElementById('simSpeed').addEventListener('change', (e) => {
+      simSpeed = parseInt(e.target.value);
+      if (simRunning) startSim();
+    });
+
+    document.getElementById('clearDecisions').addEventListener('click', () => {
+      decisions = [];
+      renderDecisionFeed();
+    });
+
+    // =====================================================
+    // INIT
+    // =====================================================
+
+    function init() {
+      renderDecisionFilters();
+      renderPipelines();
+      updateMetrics();
+
+      // Pre-seed: advance first orchestrators immediately
+      PIPELINES.forEach(p => {
+        const orc = p.agents[0];
+        if (orc && orc.deps.length === 0) {
+          orc.status = 'running';
+          orc.progress = randInt(20, 60);
+          orc.tokens = randInt(1000, 5000);
+          orc.sparkline = Array.from({ length: 8 }, () => randInt(100, 800));
+          totalTokens += orc.tokens;
+          totalCost += orc.tokens * 0.000003;
+        }
+      });
+
+      // Pre-seed some decisions
+      const seedTypes = ['spawn', 'tool_select', 'prioritize', 'route', 'auto_verify'];
+      for (let i = 0; i < 8; i++) {
+        const p = pick(PIPELINES);
+        const a = p.agents[0];
+        const d = emitDecision(p, a, pick(seedTypes));
+        d.timestamp = Date.now() - randInt(5000, 60000);
+        d.isNew = false;
+      }
+
+      updateMetrics();
+      renderPipelines();
+      renderDecisionFeed();
+
+      startSim();
+    }
+
+    // Handle window resize for pipeline SVG
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(renderPipelines, 200);
+    });
+
+    init();
+  </script>
+</body>
+</html>

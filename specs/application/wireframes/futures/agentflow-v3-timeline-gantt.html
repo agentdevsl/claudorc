@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentPane - AgentFlow V3: Timeline Gantt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       DESIGN TOKENS (AgentPane Dark Theme)
+       ============================================================ */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-canvas: #0d1117;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-subtle: rgba(240, 246, 252, 0.1);
+
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --fg-on-emphasis: #ffffff;
+
+      --accent-fg: #58a6ff;
+      --accent-emphasis: #1f6feb;
+      --accent-muted: rgba(56, 139, 253, 0.15);
+
+      --success-fg: #3fb950;
+      --danger-fg: #f85149;
+      --attention-fg: #d29922;
+      --done-fg: #a371f7;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.2);
+      --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.25);
+      --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.3);
+
+      --radius-sm: 4px;
+      --radius: 6px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+
+      --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', "SF Mono", Menlo, Consolas, monospace;
+
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+      --ease: cubic-bezier(0.25, 1, 0.5, 1);
+
+      /* Agent type colors */
+      --color-orchestrator: #FFD866;
+      --color-planner: #A78BFA;
+      --color-coder: #67E8F9;
+      --color-reviewer: #C084FC;
+      --color-tester: #FCA572;
+      --color-scanner: #F87171;
+      --color-deployer: #34D399;
+
+      /* Status colors */
+      --status-completed: #A78BFA;
+      --status-running: #34D399;
+      --status-verifying: #FFD866;
+      --status-blocked: #FCA572;
+      --status-failed: #F87171;
+      --status-queued: #475569;
+
+      /* Timeline */
+      --label-col-width: 280px;
+      --row-height: 36px;
+      --group-header-height: 40px;
+      --time-header-height: 48px;
+      --pixels-per-minute: 8;
+      --timeline-duration: 60; /* minutes */
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .app-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ============================================================
+       HEADER BAR
+       ============================================================ */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: 0 16px;
+      background: var(--bg-default);
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+      z-index: 30;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-title svg {
+      width: 24px;
+      height: 24px;
+      color: var(--accent-fg);
+    }
+
+    .header-title h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .header-title .view-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      background: rgba(88, 166, 255, 0.12);
+      color: var(--accent-fg);
+      border-radius: var(--radius-full);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Metric cards */
+    .metrics-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--fg-muted);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius-sm);
+    }
+
+    .metric .label {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .metric .value {
+      color: var(--fg-default);
+      font-weight: 500;
+    }
+
+    .metric .value.success { color: var(--success-fg); }
+    .metric .value.running { color: var(--status-running); }
+    .metric .value.attention { color: var(--attention-fg); }
+    .metric .value.danger { color: var(--danger-fg); }
+    .metric .value.accent { color: var(--accent-fg); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease);
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent-emphasis);
+      color: var(--fg-on-emphasis);
+      border-color: var(--accent-emphasis);
+    }
+    .btn-primary:hover { background: var(--accent-fg); border-color: var(--accent-fg); }
+
+    .btn-secondary {
+      background: var(--bg-muted);
+      color: var(--fg-default);
+      border-color: var(--border-default);
+    }
+    .btn-secondary:hover { background: var(--bg-emphasis); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg-muted);
+    }
+    .btn-ghost:hover { background: var(--bg-subtle); color: var(--fg-default); }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--fg-muted);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease);
+    }
+    .btn-icon:hover { background: var(--bg-subtle); color: var(--fg-default); }
+    .btn-icon.active { background: var(--accent-muted); color: var(--accent-fg); border-color: rgba(56,139,253,0.25); }
+
+    /* Zoom controls */
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius);
+    }
+
+    .zoom-controls .btn-icon {
+      width: 28px;
+      height: 28px;
+      font-size: 16px;
+    }
+
+    .zoom-controls .zoom-label {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-muted);
+      padding: 0 6px;
+      min-width: 40px;
+      text-align: center;
+    }
+
+    /* ============================================================
+       MAIN CONTENT (Gantt + Panel)
+       ============================================================ */
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       GANTT CONTAINER
+       ============================================================ */
+    .gantt-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Left labels column (sticky) */
+    .gantt-labels {
+      width: var(--label-col-width);
+      flex-shrink: 0;
+      background: var(--bg-default);
+      border-right: 1px solid var(--border-default);
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 10;
+    }
+
+    .gantt-labels::-webkit-scrollbar { display: none; }
+
+    .gantt-labels-header {
+      height: var(--time-header-height);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-default);
+      background: var(--bg-default);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .gantt-labels-header span {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-subtle);
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      height: var(--row-height);
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-muted);
+      gap: 8px;
+      cursor: default;
+      transition: background var(--duration-fast) var(--ease);
+    }
+
+    .label-row:hover {
+      background: var(--bg-subtle);
+    }
+
+    .label-row.group-header {
+      height: var(--group-header-height);
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+      cursor: pointer;
+    }
+
+    .label-row.group-header:hover {
+      background: var(--bg-muted);
+    }
+
+    .group-expand {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-subtle);
+      font-size: 10px;
+      transition: transform var(--duration-fast) var(--ease);
+    }
+
+    .group-expand.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .group-priority {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.02em;
+    }
+
+    .group-priority.p0 { background: rgba(248, 113, 113, 0.15); color: #F87171; }
+    .group-priority.p1 { background: rgba(252, 165, 114, 0.15); color: #FCA572; }
+    .group-priority.p2 { background: rgba(71, 85, 105, 0.25); color: #8b949e; }
+
+    .group-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .group-stats {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .agent-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .agent-name {
+      font-size: 12px;
+      color: var(--fg-muted);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .agent-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .agent-status-dot.running {
+      background: var(--status-running);
+      box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .agent-status-dot.completed { background: var(--status-completed); }
+    .agent-status-dot.queued { background: var(--status-queued); }
+    .agent-status-dot.blocked { background: var(--status-blocked); }
+    .agent-status-dot.failed { background: var(--status-failed); }
+    .agent-status-dot.verifying { background: var(--status-verifying); }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ============================================================
+       TIMELINE AREA
+       ============================================================ */
+    .gantt-timeline-wrapper {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+
+    .gantt-timeline-wrapper::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .gantt-timeline-wrapper::-webkit-scrollbar-track {
+      background: var(--bg-canvas);
+    }
+    .gantt-timeline-wrapper::-webkit-scrollbar-thumb {
+      background: var(--bg-emphasis);
+      border-radius: 4px;
+    }
+    .gantt-timeline-wrapper::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-subtle);
+    }
+    .gantt-timeline-wrapper::-webkit-scrollbar-corner {
+      background: var(--bg-canvas);
+    }
+
+    .gantt-timeline {
+      position: relative;
+      min-width: 100%;
+    }
+
+    /* Time header */
+    .time-header {
+      height: var(--time-header-height);
+      display: flex;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--border-default);
+      position: sticky;
+      top: 0;
+      background: var(--bg-default);
+      z-index: 5;
+    }
+
+    .time-tick {
+      position: absolute;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .time-tick .tick-label {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+
+    .time-tick .tick-line {
+      width: 1px;
+      height: 8px;
+      background: var(--border-default);
+    }
+
+    .time-tick.major .tick-label { color: var(--fg-muted); }
+    .time-tick.major .tick-line { height: 12px; background: var(--fg-subtle); }
+
+    /* Grid lines */
+    .grid-line {
+      position: absolute;
+      top: var(--time-header-height);
+      bottom: 0;
+      width: 1px;
+      background: var(--border-muted);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .grid-line.major {
+      background: var(--border-default);
+    }
+
+    /* Current time indicator */
+    .now-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #F87171;
+      z-index: 8;
+      pointer-events: none;
+      transition: left 100ms linear;
+    }
+
+    .now-line::before {
+      content: 'NOW';
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #F87171;
+      background: var(--bg-default);
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .now-line::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -4px;
+      width: 10px;
+      height: 10px;
+      background: #F87171;
+      clip-path: polygon(50% 100%, 0 0, 100% 0);
+    }
+
+    /* Timeline rows */
+    .timeline-row {
+      position: relative;
+      height: var(--row-height);
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .timeline-row:hover {
+      background: rgba(255,255,255,0.015);
+    }
+
+    .timeline-row.group-header {
+      height: var(--group-header-height);
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    /* Agent bars */
+    .agent-bar {
+      position: absolute;
+      top: 5px;
+      height: 26px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: top var(--duration-fast) var(--ease), height var(--duration-fast) var(--ease);
+      z-index: 2;
+    }
+
+    .agent-bar:hover {
+      top: 3px;
+      height: 30px;
+      z-index: 4;
+      filter: brightness(1.15);
+    }
+
+    .agent-bar .bar-fill {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .agent-bar .bar-progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      border-radius: var(--radius-sm);
+      opacity: 0.9;
+    }
+
+    .agent-bar .bar-estimate {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      opacity: 0.15;
+      border: 1px dashed;
+      border-left: none;
+    }
+
+    .agent-bar .bar-label {
+      position: absolute;
+      top: 50%;
+      left: 8px;
+      transform: translateY(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(0,0,0,0.8);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1;
+      text-shadow: 0 0 4px rgba(255,255,255,0.3);
+    }
+
+    /* Running bar shimmer */
+    .agent-bar.running .bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255,255,255,0.15) 40%,
+        rgba(255,255,255,0.25) 50%,
+        rgba(255,255,255,0.15) 60%,
+        transparent 100%
+      );
+      animation: shimmer 2s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Queued bar (dashed) */
+    .agent-bar.queued .bar-fill {
+      border: 1.5px dashed var(--status-queued);
+      background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 4px,
+        rgba(71, 85, 105, 0.1) 4px,
+        rgba(71, 85, 105, 0.1) 8px
+      );
+    }
+
+    .agent-bar.queued .bar-label { color: var(--fg-subtle); text-shadow: none; }
+
+    /* Blocked bar */
+    .agent-bar.blocked .bar-fill {
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 3px,
+        rgba(252, 165, 114, 0.1) 3px,
+        rgba(252, 165, 114, 0.1) 6px
+      );
+      border: 1.5px solid rgba(252, 165, 114, 0.4);
+    }
+    .agent-bar.blocked .bar-label { color: var(--status-blocked); text-shadow: none; }
+
+    /* Verifying bar */
+    .agent-bar.verifying .bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 216, 102, 0.2),
+        transparent
+      );
+      animation: verifyPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes verifyPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* Decision markers on timeline */
+    .decision-marker {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 5;
+      transition: all var(--duration-fast) var(--ease);
+      border: 1.5px solid;
+    }
+
+    .decision-marker:hover {
+      transform: translate(-50%, -50%) scale(1.3);
+      z-index: 10;
+    }
+
+    /* Milestone markers */
+    .milestone-marker {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%) rotate(45deg);
+      width: 12px;
+      height: 12px;
+      background: var(--status-verifying);
+      border: 2px solid var(--bg-canvas);
+      cursor: pointer;
+      z-index: 5;
+    }
+
+    .milestone-marker:hover {
+      transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
+    }
+
+    /* Dependency arrows (SVG overlay) */
+    .dependency-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .dep-arrow {
+      fill: none;
+      stroke: var(--fg-subtle);
+      stroke-width: 1.5;
+      opacity: 0.5;
+      marker-end: url(#arrowhead);
+    }
+
+    /* ============================================================
+       DECISION FEED (Right Panel)
+       ============================================================ */
+    .decision-panel {
+      width: 340px;
+      background: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: width var(--duration-slow) var(--ease), opacity var(--duration-normal) var(--ease);
+      overflow: hidden;
+    }
+
+    .decision-panel.collapsed {
+      width: 0;
+      opacity: 0;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .panel-header h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-default);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header .count {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 1px 6px;
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+      border-radius: var(--radius-full);
+    }
+
+    .decision-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .decision-feed::-webkit-scrollbar { width: 6px; }
+    .decision-feed::-webkit-scrollbar-track { background: transparent; }
+    .decision-feed::-webkit-scrollbar-thumb { background: var(--bg-emphasis); border-radius: 3px; }
+
+    .decision-item {
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease);
+      margin-bottom: 2px;
+    }
+
+    .decision-item:hover {
+      background: var(--bg-subtle);
+    }
+
+    .decision-item .d-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .decision-item .d-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .decision-item .d-type {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
+    }
+
+    .decision-item .d-summary {
+      font-size: 12px;
+      color: var(--fg-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .decision-item .d-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    .decision-item .d-confidence {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .confidence-bar-mini {
+      width: 40px;
+      height: 3px;
+      background: var(--bg-emphasis);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .confidence-bar-mini .fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width var(--duration-normal) var(--ease);
+    }
+
+    /* Decision item entrance animation */
+    .decision-item.new {
+      animation: slideInRight 300ms var(--ease);
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ============================================================
+       POPOVER (Decision Detail)
+       ============================================================ */
+    .popover-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+    }
+
+    .popover {
+      position: fixed;
+      width: 360px;
+      background: var(--bg-default);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      z-index: 51;
+      overflow: hidden;
+      animation: popoverIn 200ms var(--ease);
+    }
+
+    @keyframes popoverIn {
+      from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .popover-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+
+    .popover-header .p-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .popover-header .p-title {
+      flex: 1;
+    }
+
+    .popover-header .p-title h4 {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .popover-header .p-title .p-sub {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      font-family: var(--font-mono);
+    }
+
+    .popover-body {
+      padding: 14px 16px;
+    }
+
+    .popover-body .p-section {
+      margin-bottom: 14px;
+    }
+
+    .popover-body .p-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .popover-body .p-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-subtle);
+      margin-bottom: 6px;
+    }
+
+    .popover-body .p-text {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.5;
+    }
+
+    .confidence-bar {
+      height: 6px;
+      background: var(--bg-emphasis);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+      margin-top: 4px;
+    }
+
+    .confidence-bar .fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 400ms var(--ease);
+    }
+
+    .confidence-bar .threshold {
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 1px;
+      background: var(--fg-subtle);
+    }
+
+    .confidence-value {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .p-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .p-tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      background: var(--bg-emphasis);
+      color: var(--fg-muted);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+    }
+
+    .p-alternatives {
+      list-style: none;
+    }
+
+    .p-alternatives li {
+      font-size: 11px;
+      color: var(--fg-subtle);
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .p-alternatives li::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--fg-subtle);
+      flex-shrink: 0;
+    }
+
+    .popover-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .popover-footer .policy-ref {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+    }
+
+    /* ============================================================
+       TOOLTIP (simple)
+       ============================================================ */
+    .tooltip {
+      position: fixed;
+      padding: 6px 10px;
+      background: var(--bg-emphasis);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius);
+      font-size: 11px;
+      color: var(--fg-default);
+      z-index: 60;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: var(--shadow-md);
+    }
+
+    .tooltip .tt-type {
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 2px;
+    }
+
+    .tooltip .tt-label {
+      color: var(--fg-muted);
+    }
+
+    /* ============================================================
+       SIMULATION CONTROLS
+       ============================================================ */
+    .sim-controls {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-muted);
+      border-radius: var(--radius);
+    }
+
+    .sim-controls .btn-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .speed-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      padding: 0 6px;
+    }
+
+    /* ============================================================
+       STATUS BAR (bottom)
+       ============================================================ */
+    .status-bar {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--bg-default);
+      border-top: 1px solid var(--border-default);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      flex-shrink: 0;
+    }
+
+    .status-bar .left, .status-bar .right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-bar .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--status-running);
+      display: inline-block;
+      margin-right: 4px;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    /* ============================================================
+       HIDDEN ROWS (for collapsed groups)
+       ============================================================ */
+    .label-row.hidden, .timeline-row.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- ==============================
+         HEADER BAR
+         ============================== -->
+    <div class="header-bar">
+      <div class="header-left">
+        <div class="header-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <h1>AgentFlow</h1>
+          <span class="view-badge">Timeline</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="metrics-bar">
+          <div class="metric">
+            <span class="label">Agents</span>
+            <span class="value" id="metric-total">33</span>
+          </div>
+          <div class="metric">
+            <span class="label">Running</span>
+            <span class="value running" id="metric-running">0</span>
+          </div>
+          <div class="metric">
+            <span class="label">Completed</span>
+            <span class="value success" id="metric-completed">0</span>
+          </div>
+          <div class="metric">
+            <span class="label">Tokens</span>
+            <span class="value accent" id="metric-tokens">0</span>
+          </div>
+          <div class="metric">
+            <span class="label">Cost</span>
+            <span class="value" id="metric-cost">$0.00</span>
+          </div>
+          <div class="metric">
+            <span class="label">Decisions</span>
+            <span class="value attention" id="metric-decisions">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="sim-controls">
+          <button class="btn-icon" id="sim-reset" title="Reset">&#8635;</button>
+          <button class="btn-icon" id="sim-play" title="Play/Pause">&#9654;</button>
+          <button class="btn-icon" id="sim-step" title="Step">&#9197;</button>
+          <span class="speed-badge" id="sim-speed">1x</span>
+          <button class="btn-icon" id="sim-faster" title="Faster">&#9193;</button>
+        </div>
+
+        <div class="zoom-controls">
+          <button class="btn-icon" id="zoom-out" title="Zoom out">&#8722;</button>
+          <span class="zoom-label" id="zoom-label">8px/m</span>
+          <button class="btn-icon" id="zoom-in" title="Zoom in">&#43;</button>
+          <button class="btn-icon" id="zoom-fit" title="Fit all">&#8644;</button>
+        </div>
+
+        <button class="btn-icon" id="toggle-panel" title="Toggle decision feed">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1 2.5A1.5 1.5 0 012.5 1h11A1.5 1.5 0 0115 2.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5H10V2H2.5zM11 2v12h2.5a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5H11z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==============================
+         MAIN CONTENT
+         ============================== -->
+    <div class="main-content">
+      <!-- Gantt chart -->
+      <div class="gantt-container">
+        <!-- Left labels -->
+        <div class="gantt-labels" id="gantt-labels">
+          <div class="gantt-labels-header">
+            <span>Task / Agent</span>
+          </div>
+          <div id="label-rows"></div>
+        </div>
+
+        <!-- Timeline area -->
+        <div class="gantt-timeline-wrapper" id="timeline-wrapper">
+          <div class="gantt-timeline" id="gantt-timeline">
+            <div class="time-header" id="time-header"></div>
+            <div id="timeline-rows"></div>
+            <!-- SVG for dependency arrows -->
+            <svg class="dependency-layer" id="dep-layer">
+              <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#6e7681" opacity="0.7"/>
+                </marker>
+              </defs>
+            </svg>
+            <div class="now-line" id="now-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decision feed panel -->
+      <div class="decision-panel" id="decision-panel">
+        <div class="panel-header">
+          <h3>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:var(--attention-fg)">
+              <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-.25A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 100-2 1 1 0 000 2z"/>
+            </svg>
+            Decision Feed
+            <span class="count" id="feed-count">0</span>
+          </h3>
+          <button class="btn-icon" id="clear-feed" title="Clear feed">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="decision-feed" id="decision-feed"></div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="left">
+        <span><span class="dot"></span>Simulation active</span>
+        <span id="sb-elapsed">T+0:00</span>
+      </div>
+      <div class="right">
+        <span id="sb-tasks">6 tasks</span>
+        <span id="sb-agents">33 agents</span>
+        <span id="sb-scale">8 px/min</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popover container (rendered by JS) -->
+  <div id="popover-root"></div>
+  <div id="tooltip-root"></div>
+
+  <!-- ======================================================================
+       JAVASCRIPT - DATA + SIMULATION ENGINE
+       ====================================================================== -->
+  <script>
+    // ============================================================
+    // CONFIGURATION
+    // ============================================================
+    const AGENT_TYPE_COLORS = {
+      orchestrator: '#FFD866',
+      planner: '#A78BFA',
+      coder: '#67E8F9',
+      reviewer: '#C084FC',
+      tester: '#FCA572',
+      scanner: '#F87171',
+      deployer: '#34D399'
+    };
+
+    const AGENT_TYPE_ICONS = {
+      orchestrator: '&#9733;',
+      planner: '&#9672;',
+      coder: '&#60;/&#62;',
+      reviewer: '&#128269;',
+      tester: '&#9881;',
+      scanner: '&#9763;',
+      deployer: '&#9650;'
+    };
+
+    const STATUS_COLORS = {
+      completed: '#A78BFA',
+      running: '#34D399',
+      verifying: '#FFD866',
+      blocked: '#FCA572',
+      failed: '#F87171',
+      queued: '#475569'
+    };
+
+    const DECISION_TYPES = {
+      auto_verify:  { icon: '\u26A1', color: '#34D399', label: 'Auto Verify' },
+      route:        { icon: '\u2442', color: '#67E8F9', label: 'Route' },
+      retry:        { icon: '\u21BB', color: '#FCA572', label: 'Retry' },
+      escalate:     { icon: '\u25B2', color: '#F87171', label: 'Escalate' },
+      spawn:        { icon: '\u25C7', color: '#A78BFA', label: 'Spawn' },
+      tool_select:  { icon: '\u2699', color: '#FFD866', label: 'Tool Select' },
+      delegate:     { icon: '\u2192', color: '#67E8F9', label: 'Delegate' },
+      throttle:     { icon: '\u25D1', color: '#FCA572', label: 'Throttle' },
+      prioritize:   { icon: '\u2605', color: '#FFD866', label: 'Prioritize' }
+    };
+
+    // ============================================================
+    // MOCK DATA
+    // ============================================================
+    const tasks = [
+      {
+        id: 'api-v2',
+        name: 'API Platform v2',
+        priority: 'P0',
+        collapsed: false,
+        agents: [
+          { id: 'api-orch',    name: 'Orchestrator',         type: 'orchestrator', status: 'queued', progress: 0, startOffset: 0,   duration: 45, deps: [] },
+          { id: 'api-plan',    name: 'API Planner',          type: 'planner',      status: 'queued', progress: 0, startOffset: 1,   duration: 8,  deps: ['api-orch'] },
+          { id: 'api-code1',   name: 'Routes Coder',         type: 'coder',        status: 'queued', progress: 0, startOffset: 10,  duration: 15, deps: ['api-plan'] },
+          { id: 'api-code2',   name: 'Models Coder',         type: 'coder',        status: 'queued', progress: 0, startOffset: 10,  duration: 12, deps: ['api-plan'] },
+          { id: 'api-code3',   name: 'Auth Middleware',       type: 'coder',        status: 'queued', progress: 0, startOffset: 12,  duration: 10, deps: ['api-plan'] },
+          { id: 'api-review',  name: 'Code Reviewer',        type: 'reviewer',     status: 'queued', progress: 0, startOffset: 26,  duration: 6,  deps: ['api-code1', 'api-code2'] },
+          { id: 'api-test1',   name: 'Unit Tester',          type: 'tester',       status: 'queued', progress: 0, startOffset: 26,  duration: 8,  deps: ['api-code1', 'api-code2'] },
+          { id: 'api-test2',   name: 'Integration Tester',   type: 'tester',       status: 'queued', progress: 0, startOffset: 34,  duration: 10, deps: ['api-review'] },
+          { id: 'api-scan',    name: 'Security Scanner',     type: 'scanner',      status: 'queued', progress: 0, startOffset: 34,  duration: 5,  deps: ['api-review'] },
+          { id: 'api-deploy',  name: 'Deployer',             type: 'deployer',     status: 'queued', progress: 0, startOffset: 44,  duration: 4,  deps: ['api-test2', 'api-scan'] }
+        ]
+      },
+      {
+        id: 'auth-mig',
+        name: 'Auth Migration',
+        priority: 'P0',
+        collapsed: false,
+        agents: [
+          { id: 'auth-plan',   name: 'Migration Planner',    type: 'planner',      status: 'queued', progress: 0, startOffset: 2,   duration: 6,  deps: [] },
+          { id: 'auth-code1',  name: 'OAuth2 Coder',         type: 'coder',        status: 'queued', progress: 0, startOffset: 9,   duration: 14, deps: ['auth-plan'] },
+          { id: 'auth-code2',  name: 'Session Coder',        type: 'coder',        status: 'queued', progress: 0, startOffset: 9,   duration: 10, deps: ['auth-plan'] },
+          { id: 'auth-review', name: 'Security Reviewer',    type: 'reviewer',     status: 'queued', progress: 0, startOffset: 24,  duration: 7,  deps: ['auth-code1', 'auth-code2'] },
+          { id: 'auth-test',   name: 'Auth Tester',          type: 'tester',       status: 'queued', progress: 0, startOffset: 32,  duration: 8,  deps: ['auth-review'] }
+        ]
+      },
+      {
+        id: 'tf-refactor',
+        name: 'Terraform Refactor',
+        priority: 'P1',
+        collapsed: false,
+        agents: [
+          { id: 'tf-plan',     name: 'TF Planner',           type: 'planner',      status: 'queued', progress: 0, startOffset: 3,   duration: 5,  deps: [] },
+          { id: 'tf-code1',    name: 'Module Coder',         type: 'coder',        status: 'queued', progress: 0, startOffset: 9,   duration: 12, deps: ['tf-plan'] },
+          { id: 'tf-code2',    name: 'State Migrator',       type: 'coder',        status: 'queued', progress: 0, startOffset: 9,   duration: 8,  deps: ['tf-plan'] },
+          { id: 'tf-review',   name: 'IaC Reviewer',         type: 'reviewer',     status: 'queued', progress: 0, startOffset: 22,  duration: 5,  deps: ['tf-code1', 'tf-code2'] },
+          { id: 'tf-test',     name: 'Plan Validator',       type: 'tester',       status: 'queued', progress: 0, startOffset: 28,  duration: 6,  deps: ['tf-review'] },
+          { id: 'tf-deploy',   name: 'TF Deployer',          type: 'deployer',     status: 'queued', progress: 0, startOffset: 35,  duration: 5,  deps: ['tf-test'] }
+        ]
+      },
+      {
+        id: 'dash-redesign',
+        name: 'Dashboard Redesign',
+        priority: 'P1',
+        collapsed: false,
+        agents: [
+          { id: 'dash-plan',   name: 'UI Planner',           type: 'planner',      status: 'queued', progress: 0, startOffset: 5,   duration: 4,  deps: [] },
+          { id: 'dash-code1',  name: 'Component Coder',      type: 'coder',        status: 'queued', progress: 0, startOffset: 10,  duration: 14, deps: ['dash-plan'] },
+          { id: 'dash-code2',  name: 'Chart Coder',          type: 'coder',        status: 'queued', progress: 0, startOffset: 10,  duration: 10, deps: ['dash-plan'] },
+          { id: 'dash-review', name: 'UI Reviewer',          type: 'reviewer',     status: 'queued', progress: 0, startOffset: 25,  duration: 5,  deps: ['dash-code1', 'dash-code2'] },
+          { id: 'dash-test',   name: 'Visual Tester',        type: 'tester',       status: 'queued', progress: 0, startOffset: 31,  duration: 6,  deps: ['dash-review'] }
+        ]
+      },
+      {
+        id: 'data-etl',
+        name: 'Data Pipeline ETL',
+        priority: 'P0',
+        collapsed: false,
+        agents: [
+          { id: 'etl-plan',    name: 'ETL Planner',          type: 'planner',      status: 'queued', progress: 0, startOffset: 1,   duration: 5,  deps: [] },
+          { id: 'etl-code1',   name: 'Extractor Coder',      type: 'coder',        status: 'queued', progress: 0, startOffset: 7,   duration: 12, deps: ['etl-plan'] },
+          { id: 'etl-code2',   name: 'Transform Coder',      type: 'coder',        status: 'queued', progress: 0, startOffset: 7,   duration: 10, deps: ['etl-plan'] },
+          { id: 'etl-test',    name: 'Pipeline Tester',      type: 'tester',       status: 'queued', progress: 0, startOffset: 20,  duration: 8,  deps: ['etl-code1', 'etl-code2'] },
+          { id: 'etl-deploy',  name: 'ETL Deployer',         type: 'deployer',     status: 'queued', progress: 0, startOffset: 29,  duration: 4,  deps: ['etl-test'] }
+        ]
+      },
+      {
+        id: 'ci-opt',
+        name: 'CI Optimization',
+        priority: 'P2',
+        collapsed: false,
+        agents: [
+          { id: 'ci-code',     name: 'CI Coder',             type: 'coder',        status: 'queued', progress: 0, startOffset: 8,   duration: 15, deps: [] },
+          { id: 'ci-test',     name: 'CI Tester',            type: 'tester',       status: 'queued', progress: 0, startOffset: 24,  duration: 8,  deps: ['ci-code'] }
+        ]
+      }
+    ];
+
+    // Build flat agent index
+    const agentIndex = {};
+    const allAgents = [];
+    tasks.forEach(t => {
+      t.agents.forEach(a => {
+        a.taskId = t.id;
+        a.startedAt = null;
+        a.completedAt = null;
+        a.decisions = [];
+        a.milestones = [];
+        a.tokens = 0;
+        a.cost = 0;
+        agentIndex[a.id] = a;
+        allAgents.push(a);
+      });
+    });
+
+    // ============================================================
+    // DECISIONS POOL (pre-generated for simulation)
+    // ============================================================
+    const decisionPool = [
+      { type: 'route', summary: 'Selected REST over GraphQL for v2 endpoints', detail: 'REST offers better caching, wider tooling. GraphQL deferred to v3.', confidence: 88, criteria: ['performance', 'compatibility', 'complexity'], alternatives: ['GraphQL', 'gRPC', 'tRPC'], policy: 'arch-decision-001' },
+      { type: 'tool_select', summary: 'Chose Drizzle ORM for database layer', detail: 'Type safety and migration support match project requirements.', confidence: 92, criteria: ['type-safety', 'migration', 'performance'], alternatives: ['Prisma', 'Kysely', 'Raw SQL'], policy: 'tech-stack-policy' },
+      { type: 'auto_verify', summary: 'All 47 unit tests passing', detail: 'Test suite completed in 3.2s. Full coverage on new endpoints.', confidence: 98, criteria: ['test-pass', 'coverage'], alternatives: [], policy: 'quality-gate-001' },
+      { type: 'spawn', summary: 'Spawning parallel coder for auth middleware', detail: 'Auth middleware is independent and can be developed concurrently.', confidence: 85, criteria: ['independence', 'urgency', 'resource'], alternatives: ['Sequential execution', 'Defer to v2.1'], policy: 'concurrency-policy' },
+      { type: 'retry', summary: 'Retrying failed database migration', detail: 'Connection timeout on first attempt. Retrying with exponential backoff.', confidence: 72, criteria: ['error-type', 'retry-budget'], alternatives: ['Abort and escalate', 'Skip migration'], policy: 'retry-policy-001' },
+      { type: 'delegate', summary: 'Delegating security review to scanner', detail: 'Code changes touch authentication. Automated security scan required.', confidence: 90, criteria: ['scope', 'sensitivity', 'compliance'], alternatives: ['Manual review only', 'Skip security scan'], policy: 'security-policy' },
+      { type: 'escalate', summary: 'Breaking change detected in API contract', detail: 'Endpoint /users/:id response shape changed. Requires human approval.', confidence: 95, criteria: ['breaking-change', 'impact-scope'], alternatives: ['Auto-approve', 'Revert change'], policy: 'api-compat-policy' },
+      { type: 'prioritize', summary: 'P0 task queue rebalanced', detail: 'Auth migration elevated due to security deadline. Dashboard deferred.', confidence: 82, criteria: ['deadline', 'dependency', 'risk'], alternatives: ['Keep original order', 'Parallel both'], policy: 'priority-policy' },
+      { type: 'throttle', summary: 'Rate limiting token usage', detail: 'Token consumption exceeding budget threshold. Reducing concurrency.', confidence: 78, criteria: ['budget', 'rate', 'urgency'], alternatives: ['Continue at current rate', 'Pause non-critical'], policy: 'budget-policy' },
+      { type: 'auto_verify', summary: 'OAuth2 flow integration test passed', detail: 'Full token refresh cycle verified. All edge cases covered.', confidence: 96, criteria: ['integration-pass', 'edge-cases'], alternatives: [], policy: 'quality-gate-001' },
+      { type: 'route', summary: 'Selected JWT for session tokens', detail: 'Stateless JWT with short TTL. Refresh tokens in HTTP-only cookies.', confidence: 91, criteria: ['security', 'scalability', 'simplicity'], alternatives: ['Opaque tokens', 'Session cookies'], policy: 'auth-architecture' },
+      { type: 'tool_select', summary: 'Using elkjs for graph layout', detail: 'ELK provides superior hierarchical layouts for dependency graphs.', confidence: 87, criteria: ['layout-quality', 'performance', 'API'], alternatives: ['dagre', 'd3-force', 'manual layout'], policy: 'tech-stack-policy' },
+      { type: 'spawn', summary: 'Parallel extraction and transform coders', detail: 'ETL stages are independent until load phase. Spawning concurrent agents.', confidence: 93, criteria: ['independence', 'timeline'], alternatives: ['Sequential pipeline'], policy: 'concurrency-policy' },
+      { type: 'auto_verify', summary: 'Terraform plan shows 0 destructive changes', detail: 'All changes are additive. No resources will be destroyed or recreated.', confidence: 99, criteria: ['plan-safe', 'no-destroy'], alternatives: [], policy: 'tf-safety-policy' },
+      { type: 'retry', summary: 'Docker build cache miss, rebuilding layer', detail: 'Base image updated. Full rebuild required for security patches.', confidence: 68, criteria: ['cache-hit', 'freshness'], alternatives: ['Use stale cache', 'Skip rebuild'], policy: 'build-policy' },
+      { type: 'delegate', summary: 'UI components delegated to chart coder', detail: 'Recharts integration requires specialized knowledge. Delegating.', confidence: 86, criteria: ['specialization', 'complexity'], alternatives: ['Generic coder handles all'], policy: 'delegation-policy' },
+      { type: 'escalate', summary: 'State migration requires manual validation', detail: 'Terraform state file has drift. Human review needed before apply.', confidence: 94, criteria: ['drift-detected', 'risk-level'], alternatives: ['Auto-apply', 'Rollback'], policy: 'tf-safety-policy' },
+      { type: 'prioritize', summary: 'Security scanner promoted in queue', detail: 'Vulnerability found in dependency. Scanner moved ahead of tester.', confidence: 89, criteria: ['severity', 'exposure-window'], alternatives: ['Queue normally'], policy: 'security-policy' },
+      { type: 'auto_verify', summary: 'Visual regression tests: 0 diffs', detail: 'All 23 component screenshots match baselines. No visual regressions.', confidence: 97, criteria: ['pixel-match', 'component-coverage'], alternatives: [], policy: 'quality-gate-001' },
+      { type: 'tool_select', summary: 'Selected Playwright for E2E testing', detail: 'Cross-browser support and auto-wait make it ideal for CI pipelines.', confidence: 90, criteria: ['reliability', 'speed', 'browser-support'], alternatives: ['Cypress', 'Puppeteer'], policy: 'tech-stack-policy' }
+    ];
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    let simTime = 0; // minutes elapsed
+    let simRunning = false;
+    let simSpeed = 1; // multiplier
+    let simInterval = null;
+    let pixelsPerMinute = 8;
+    let timelineDuration = 60;
+    let decisions = [];
+    let decisionCounter = 0;
+    let popoverData = null;
+    let panelOpen = true;
+    let tooltipEl = null;
+
+    // ============================================================
+    // DOM REFS
+    // ============================================================
+    const $labelRows = document.getElementById('label-rows');
+    const $timelineRows = document.getElementById('timeline-rows');
+    const $timeHeader = document.getElementById('time-header');
+    const $timeline = document.getElementById('gantt-timeline');
+    const $timelineWrapper = document.getElementById('timeline-wrapper');
+    const $nowLine = document.getElementById('now-line');
+    const $depLayer = document.getElementById('dep-layer');
+    const $decisionFeed = document.getElementById('decision-feed');
+    const $feedCount = document.getElementById('feed-count');
+    const $decisionPanel = document.getElementById('decision-panel');
+    const $popoverRoot = document.getElementById('popover-root');
+    const $tooltipRoot = document.getElementById('tooltip-root');
+
+    // ============================================================
+    // RENDER FUNCTIONS
+    // ============================================================
+    function getTimelineWidth() {
+      return timelineDuration * pixelsPerMinute;
+    }
+
+    function buildTimeHeader() {
+      $timeHeader.innerHTML = '';
+      const width = getTimelineWidth();
+      $timeHeader.style.width = width + 'px';
+
+      // Remove old grid lines
+      document.querySelectorAll('.grid-line').forEach(el => el.remove());
+
+      const interval = pixelsPerMinute >= 6 ? 5 : 10;
+      for (let m = 0; m <= timelineDuration; m++) {
+        if (m % interval === 0) {
+          const x = m * pixelsPerMinute;
+          const isMajor = m % (interval * 2) === 0 || m === 0;
+
+          // Tick
+          const tick = document.createElement('div');
+          tick.className = 'time-tick' + (isMajor ? ' major' : '');
+          tick.style.left = x + 'px';
+          tick.innerHTML = `<span class="tick-label">T+${m}m</span><div class="tick-line"></div>`;
+          $timeHeader.appendChild(tick);
+
+          // Grid line
+          const gl = document.createElement('div');
+          gl.className = 'grid-line' + (isMajor ? ' major' : '');
+          gl.style.left = x + 'px';
+          $timeline.appendChild(gl);
+        }
+      }
+    }
+
+    function buildRows() {
+      $labelRows.innerHTML = '';
+      $timelineRows.innerHTML = '';
+
+      const width = getTimelineWidth();
+      $timeline.style.width = width + 'px';
+
+      tasks.forEach(task => {
+        // Group header label
+        const gLabel = document.createElement('div');
+        gLabel.className = 'label-row group-header';
+        gLabel.dataset.taskId = task.id;
+
+        const completedCount = task.agents.filter(a => a.status === 'completed').length;
+        const runningCount = task.agents.filter(a => a.status === 'running').length;
+
+        gLabel.innerHTML = `
+          <span class="group-expand ${task.collapsed ? 'collapsed' : ''}">&#9660;</span>
+          <span class="group-priority ${task.priority.toLowerCase()}">${task.priority}</span>
+          <span class="group-name">${task.name}</span>
+          <span class="group-stats">${completedCount}/${task.agents.length}</span>
+        `;
+
+        gLabel.addEventListener('click', () => {
+          task.collapsed = !task.collapsed;
+          buildRows();
+          drawDependencies();
+        });
+
+        $labelRows.appendChild(gLabel);
+
+        // Group header timeline row
+        const gTimeline = document.createElement('div');
+        gTimeline.className = 'timeline-row group-header';
+        gTimeline.style.width = width + 'px';
+        $timelineRows.appendChild(gTimeline);
+
+        // Agent rows
+        task.agents.forEach(agent => {
+          // Label row
+          const aLabel = document.createElement('div');
+          aLabel.className = 'label-row' + (task.collapsed ? ' hidden' : '');
+          aLabel.dataset.agentId = agent.id;
+
+          const color = AGENT_TYPE_COLORS[agent.type];
+          aLabel.innerHTML = `
+            <span class="agent-icon" style="background:${color}20; color:${color}">${AGENT_TYPE_ICONS[agent.type]}</span>
+            <span class="agent-name">${agent.name}</span>
+            <span class="agent-status-dot ${agent.status}"></span>
+          `;
+          $labelRows.appendChild(aLabel);
+
+          // Timeline row
+          const aTimeline = document.createElement('div');
+          aTimeline.className = 'timeline-row' + (task.collapsed ? ' hidden' : '');
+          aTimeline.dataset.agentId = agent.id;
+          aTimeline.style.width = width + 'px';
+
+          // Agent bar
+          const bar = createAgentBar(agent);
+          if (bar) aTimeline.appendChild(bar);
+
+          // Decision markers
+          agent.decisions.forEach((d, di) => {
+            const marker = createDecisionMarker(d, di, agent);
+            aTimeline.appendChild(marker);
+          });
+
+          // Milestone markers
+          agent.milestones.forEach(m => {
+            const marker = createMilestoneMarker(m, agent);
+            aTimeline.appendChild(marker);
+          });
+
+          $timelineRows.appendChild(aTimeline);
+        });
+      });
+    }
+
+    function createAgentBar(agent) {
+      const color = AGENT_TYPE_COLORS[agent.type];
+      const statusColor = STATUS_COLORS[agent.status];
+
+      const bar = document.createElement('div');
+      bar.className = 'agent-bar ' + agent.status;
+      bar.dataset.agentId = agent.id;
+
+      if (agent.status === 'queued') {
+        // Show a dashed placeholder from expected start
+        const x = agent.startOffset * pixelsPerMinute;
+        const w = agent.duration * pixelsPerMinute;
+        bar.style.left = x + 'px';
+        bar.style.width = w + 'px';
+        bar.innerHTML = `
+          <div class="bar-fill"></div>
+          <span class="bar-label">${agent.name}</span>
+        `;
+      } else if (agent.status === 'blocked') {
+        const x = agent.startOffset * pixelsPerMinute;
+        const w = agent.duration * pixelsPerMinute;
+        bar.style.left = x + 'px';
+        bar.style.width = w + 'px';
+        bar.innerHTML = `
+          <div class="bar-fill"></div>
+          <span class="bar-label">${agent.name}</span>
+        `;
+      } else {
+        // Running, completed, verifying, failed
+        const startMin = agent.startedAt != null ? agent.startedAt : agent.startOffset;
+        const elapsed = agent.status === 'completed' ?
+          (agent.completedAt - startMin) :
+          Math.max(0, simTime - startMin);
+        const progressWidth = elapsed * pixelsPerMinute;
+        const totalWidth = agent.duration * pixelsPerMinute;
+
+        const x = startMin * pixelsPerMinute;
+        bar.style.left = x + 'px';
+
+        if (agent.status === 'completed') {
+          bar.style.width = progressWidth + 'px';
+          bar.innerHTML = `
+            <div class="bar-fill" style="background:${statusColor}"></div>
+            <span class="bar-label">${agent.name}</span>
+          `;
+        } else {
+          // Running or verifying: show progress + estimate
+          const remainingWidth = Math.max(0, totalWidth - progressWidth);
+          bar.style.width = (progressWidth + remainingWidth) + 'px';
+          bar.innerHTML = `
+            <div class="bar-fill" style="background:${statusColor}40">
+              <div class="bar-progress" style="width:${progressWidth}px; background:${statusColor}"></div>
+            </div>
+            <div class="bar-estimate" style="left:${progressWidth}px; width:${remainingWidth}px; border-color:${statusColor}; background:${statusColor}"></div>
+            <span class="bar-label">${agent.name}</span>
+          `;
+        }
+      }
+
+      // Tooltip on hover
+      bar.addEventListener('mouseenter', (e) => showBarTooltip(e, agent));
+      bar.addEventListener('mouseleave', hideTooltip);
+      bar.addEventListener('mousemove', (e) => moveTooltip(e));
+
+      return bar;
+    }
+
+    function createDecisionMarker(decision, index, agent) {
+      const dt = DECISION_TYPES[decision.type];
+      const marker = document.createElement('div');
+      marker.className = 'decision-marker';
+      const x = decision.timeOffset * pixelsPerMinute;
+      marker.style.left = x + 'px';
+      marker.style.background = dt.color + '20';
+      marker.style.borderColor = dt.color;
+      marker.style.color = dt.color;
+      marker.innerHTML = dt.icon;
+
+      marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPopover(decision, e);
+      });
+
+      return marker;
+    }
+
+    function createMilestoneMarker(milestone, agent) {
+      const marker = document.createElement('div');
+      marker.className = 'milestone-marker';
+      const x = milestone.time * pixelsPerMinute;
+      marker.style.left = x + 'px';
+      marker.title = milestone.label;
+
+      marker.addEventListener('mouseenter', (e) => {
+        showSimpleTooltip(e, 'Milestone', milestone.label);
+      });
+      marker.addEventListener('mouseleave', hideTooltip);
+
+      return marker;
+    }
+
+    function updateNowLine() {
+      const x = simTime * pixelsPerMinute;
+      $nowLine.style.left = x + 'px';
+    }
+
+    // ============================================================
+    // DEPENDENCY ARROWS (SVG)
+    // ============================================================
+    function drawDependencies() {
+      // Clear existing arrows
+      const existing = $depLayer.querySelectorAll('.dep-arrow');
+      existing.forEach(el => el.remove());
+
+      // Make SVG match timeline size
+      const width = getTimelineWidth();
+      const allVisibleRows = $timelineRows.querySelectorAll('.timeline-row:not(.hidden):not(.group-header)');
+
+      // Build a map of agentId -> vertical position
+      const agentYMap = {};
+      let y = 0;
+      tasks.forEach(task => {
+        y += parseInt(getComputedStyle(document.documentElement).getPropertyValue('--group-header-height'));
+        task.agents.forEach(agent => {
+          if (!task.collapsed) {
+            agentYMap[agent.id] = y + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) / 2;
+            y += parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height'));
+          }
+        });
+      });
+
+      // Offset for time header
+      const headerOffset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--time-header-height'));
+
+      allAgents.forEach(agent => {
+        if (agent.deps.length === 0) return;
+
+        const childY = agentYMap[agent.id];
+        if (childY === undefined) return;
+
+        agent.deps.forEach(depId => {
+          const parent = agentIndex[depId];
+          if (!parent) return;
+
+          const parentY = agentYMap[depId];
+          if (parentY === undefined) return;
+
+          // From end of parent bar to start of child bar
+          const parentEnd = (parent.startedAt != null ? parent.startedAt : parent.startOffset) * pixelsPerMinute +
+            (parent.status === 'completed' ?
+              ((parent.completedAt - (parent.startedAt != null ? parent.startedAt : parent.startOffset)) * pixelsPerMinute) :
+              parent.duration * pixelsPerMinute);
+
+          const childStart = (agent.startedAt != null ? agent.startedAt : agent.startOffset) * pixelsPerMinute;
+
+          // Curved path
+          const x1 = parentEnd;
+          const y1 = headerOffset + parentY;
+          const x2 = childStart;
+          const y2 = headerOffset + childY;
+
+          const midX = (x1 + x2) / 2;
+
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('class', 'dep-arrow');
+          path.setAttribute('d', `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
+          $depLayer.appendChild(path);
+        });
+      });
+    }
+
+    // ============================================================
+    // TOOLTIP
+    // ============================================================
+    function showBarTooltip(e, agent) {
+      const startMin = agent.startedAt != null ? agent.startedAt : agent.startOffset;
+      const elapsed = agent.status === 'completed' ?
+        (agent.completedAt - startMin) :
+        (agent.status === 'running' || agent.status === 'verifying' ? Math.max(0, simTime - startMin) : 0);
+
+      const tip = document.createElement('div');
+      tip.className = 'tooltip';
+      tip.innerHTML = `
+        <div class="tt-type" style="color:${AGENT_TYPE_COLORS[agent.type]}">${agent.type}</div>
+        <div class="tt-label"><strong>${agent.name}</strong></div>
+        <div class="tt-label">Status: <span style="color:${STATUS_COLORS[agent.status]}">${agent.status}</span></div>
+        <div class="tt-label">Elapsed: ${elapsed.toFixed(1)}m / ${agent.duration}m est.</div>
+        <div class="tt-label">Tokens: ${formatNumber(agent.tokens)}</div>
+        <div class="tt-label">Decisions: ${agent.decisions.length}</div>
+      `;
+      $tooltipRoot.innerHTML = '';
+      $tooltipRoot.appendChild(tip);
+      tooltipEl = tip;
+      moveTooltip(e);
+    }
+
+    function showSimpleTooltip(e, type, label) {
+      const tip = document.createElement('div');
+      tip.className = 'tooltip';
+      tip.innerHTML = `<div class="tt-type">${type}</div><div class="tt-label">${label}</div>`;
+      $tooltipRoot.innerHTML = '';
+      $tooltipRoot.appendChild(tip);
+      tooltipEl = tip;
+      moveTooltip(e);
+    }
+
+    function moveTooltip(e) {
+      if (!tooltipEl) return;
+      tooltipEl.style.left = (e.clientX + 12) + 'px';
+      tooltipEl.style.top = (e.clientY - 10) + 'px';
+    }
+
+    function hideTooltip() {
+      $tooltipRoot.innerHTML = '';
+      tooltipEl = null;
+    }
+
+    // ============================================================
+    // POPOVER (Decision Detail)
+    // ============================================================
+    function showPopover(decision, event) {
+      const dt = DECISION_TYPES[decision.type];
+      const rect = event.target.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.left - 160;
+
+      // Clamp to viewport
+      if (left < 8) left = 8;
+      if (left + 360 > window.innerWidth - 8) left = window.innerWidth - 368;
+      if (top + 400 > window.innerHeight - 8) top = rect.top - 408;
+
+      const confColor = decision.confidence >= 85 ? '#34D399' :
+                        decision.confidence >= 60 ? '#FFD866' : '#F87171';
+
+      $popoverRoot.innerHTML = `
+        <div class="popover-overlay" id="popover-overlay"></div>
+        <div class="popover" style="top:${top}px; left:${left}px">
+          <div class="popover-header">
+            <div class="p-icon" style="background:${dt.color}20; color:${dt.color}; font-size:18px">${dt.icon}</div>
+            <div class="p-title">
+              <h4 style="color:${dt.color}">${dt.label}</h4>
+              <span class="p-sub">T+${decision.timeOffset.toFixed(1)}m &middot; ${decision.agentName || 'Agent'}</span>
+            </div>
+          </div>
+          <div class="popover-body">
+            <div class="p-section">
+              <div class="p-label">Summary</div>
+              <div class="p-text">${decision.summary}</div>
+            </div>
+            <div class="p-section">
+              <div class="p-label">Detail</div>
+              <div class="p-text">${decision.detail}</div>
+            </div>
+            <div class="p-section">
+              <div class="p-label">Confidence</div>
+              <div class="confidence-bar">
+                <div class="fill" style="width:${decision.confidence}%; background:${confColor}"></div>
+                <div class="threshold" style="left:60%"></div>
+                <div class="threshold" style="left:85%"></div>
+              </div>
+              <div class="confidence-value" style="color:${confColor}">${decision.confidence}%</div>
+            </div>
+            <div class="p-section">
+              <div class="p-label">Criteria</div>
+              <div class="p-tags">
+                ${decision.criteria.map(c => `<span class="p-tag">${c}</span>`).join('')}
+              </div>
+            </div>
+            ${decision.alternatives.length ? `
+            <div class="p-section">
+              <div class="p-label">Alternatives Considered</div>
+              <ul class="p-alternatives">
+                ${decision.alternatives.map(a => `<li>${a}</li>`).join('')}
+              </ul>
+            </div>` : ''}
+          </div>
+          <div class="popover-footer">
+            <span class="policy-ref">Policy: ${decision.policy}</span>
+            <button class="btn btn-secondary" style="height:28px; font-size:11px" onclick="closePopover()">
+              Override
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('popover-overlay').addEventListener('click', closePopover);
+    }
+
+    function closePopover() {
+      $popoverRoot.innerHTML = '';
+    }
+
+    // ============================================================
+    // DECISION FEED
+    // ============================================================
+    function addDecisionToFeed(decision) {
+      const dt = DECISION_TYPES[decision.type];
+      const confColor = decision.confidence >= 85 ? '#34D399' :
+                        decision.confidence >= 60 ? '#FFD866' : '#F87171';
+
+      const item = document.createElement('div');
+      item.className = 'decision-item new';
+      item.innerHTML = `
+        <div class="d-icon" style="background:${dt.color}15; color:${dt.color}">${dt.icon}</div>
+        <div class="d-body">
+          <div class="d-type" style="color:${dt.color}">${dt.label}</div>
+          <div class="d-summary">${decision.summary}</div>
+          <div class="d-meta">
+            <span>T+${decision.timeOffset.toFixed(1)}m</span>
+            <span class="d-confidence">
+              <span class="confidence-bar-mini"><span class="fill" style="width:${decision.confidence}%; background:${confColor}"></span></span>
+              ${decision.confidence}%
+            </span>
+            <span>${decision.agentName || ''}</span>
+          </div>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => showPopover(decision, e));
+
+      $decisionFeed.insertBefore(item, $decisionFeed.firstChild);
+      decisions.push(decision);
+      $feedCount.textContent = decisions.length;
+      document.getElementById('metric-decisions').textContent = decisions.length;
+
+      // Remove animation class after it plays
+      setTimeout(() => item.classList.remove('new'), 400);
+    }
+
+    // ============================================================
+    // SIMULATION ENGINE
+    // ============================================================
+    function simTick() {
+      simTime += 0.25 * simSpeed;
+
+      // Update each agent
+      allAgents.forEach(agent => {
+        if (agent.status === 'completed' || agent.status === 'failed') return;
+
+        // Check if dependencies are met
+        const depsMet = agent.deps.every(depId => {
+          const dep = agentIndex[depId];
+          return dep && dep.status === 'completed';
+        });
+
+        if (agent.status === 'queued') {
+          if (simTime >= agent.startOffset && depsMet) {
+            // Start the agent
+            agent.status = 'running';
+            agent.startedAt = simTime;
+          } else if (simTime >= agent.startOffset && !depsMet) {
+            agent.status = 'blocked';
+          }
+        }
+
+        if (agent.status === 'blocked') {
+          if (depsMet) {
+            agent.status = 'running';
+            agent.startedAt = simTime;
+          }
+        }
+
+        if (agent.status === 'running') {
+          const elapsed = simTime - agent.startedAt;
+          agent.progress = Math.min(1, elapsed / agent.duration);
+          agent.tokens += Math.floor(Math.random() * 200 + 50);
+          agent.cost += Math.random() * 0.002 + 0.0005;
+
+          // Generate decisions at random intervals
+          if (Math.random() < 0.02 * simSpeed) {
+            generateDecision(agent);
+          }
+
+          // Generate milestones at ~70% and ~100%
+          if (agent.milestones.length === 0 && agent.progress > 0.7) {
+            agent.milestones.push({
+              time: simTime,
+              label: `${agent.name}: Verification gate`
+            });
+          }
+
+          // Check for verifying state at 90%
+          if (agent.progress >= 0.9 && agent.progress < 1 && agent.type === 'reviewer') {
+            agent.status = 'verifying';
+          }
+
+          // Completion
+          if (elapsed >= agent.duration) {
+            if (agent.status === 'verifying') {
+              // Stay verifying for a bit
+              if (elapsed >= agent.duration + 1) {
+                agent.status = 'completed';
+                agent.completedAt = simTime;
+                agent.progress = 1;
+
+                // Auto-verify decision
+                generateDecision(agent, 'auto_verify');
+              }
+            } else {
+              agent.status = 'completed';
+              agent.completedAt = simTime;
+              agent.progress = 1;
+
+              // Auto-verify decision
+              generateDecision(agent, 'auto_verify');
+            }
+          }
+        }
+
+        if (agent.status === 'verifying') {
+          const elapsed = simTime - agent.startedAt;
+          agent.tokens += Math.floor(Math.random() * 50 + 10);
+
+          if (elapsed >= agent.duration + 1.5) {
+            agent.status = 'completed';
+            agent.completedAt = simTime;
+            agent.progress = 1;
+            generateDecision(agent, 'auto_verify');
+          }
+        }
+      });
+
+      // Extend timeline if needed
+      if (simTime > timelineDuration - 10) {
+        timelineDuration = Math.ceil(simTime + 20);
+        buildTimeHeader();
+      }
+
+      // Rebuild UI
+      buildRows();
+      updateNowLine();
+      drawDependencies();
+      updateMetrics();
+      updateStatusBar();
+
+      // Auto-scroll timeline to follow now line
+      const nowX = simTime * pixelsPerMinute;
+      const wrapperWidth = $timelineWrapper.clientWidth;
+      const scrollLeft = $timelineWrapper.scrollLeft;
+      if (nowX > scrollLeft + wrapperWidth - 100) {
+        $timelineWrapper.scrollLeft = nowX - wrapperWidth + 200;
+      }
+    }
+
+    function generateDecision(agent, forcedType) {
+      const pool = forcedType ?
+        decisionPool.filter(d => d.type === forcedType) :
+        decisionPool;
+
+      if (pool.length === 0) return;
+
+      const template = pool[Math.floor(Math.random() * pool.length)];
+      const decision = {
+        ...template,
+        id: 'dec-' + (++decisionCounter),
+        timeOffset: simTime,
+        agentId: agent.id,
+        agentName: agent.name,
+        confidence: Math.max(50, Math.min(99, template.confidence + (Math.random() * 10 - 5)))
+      };
+
+      agent.decisions.push(decision);
+      addDecisionToFeed(decision);
+    }
+
+    function updateMetrics() {
+      const running = allAgents.filter(a => a.status === 'running' || a.status === 'verifying').length;
+      const completed = allAgents.filter(a => a.status === 'completed').length;
+      const totalTokens = allAgents.reduce((s, a) => s + a.tokens, 0);
+      const totalCost = allAgents.reduce((s, a) => s + a.cost, 0);
+
+      document.getElementById('metric-running').textContent = running;
+      document.getElementById('metric-completed').textContent = completed;
+      document.getElementById('metric-tokens').textContent = formatNumber(totalTokens);
+      document.getElementById('metric-cost').textContent = '$' + totalCost.toFixed(2);
+    }
+
+    function updateStatusBar() {
+      const mins = Math.floor(simTime);
+      const secs = Math.floor((simTime % 1) * 60);
+      document.getElementById('sb-elapsed').textContent = `T+${mins}:${secs.toString().padStart(2, '0')}`;
+      document.getElementById('sb-scale').textContent = `${pixelsPerMinute} px/min`;
+    }
+
+    function formatNumber(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    // ============================================================
+    // CONTROLS
+    // ============================================================
+    document.getElementById('sim-play').addEventListener('click', () => {
+      if (simRunning) {
+        clearInterval(simInterval);
+        simRunning = false;
+        document.getElementById('sim-play').innerHTML = '&#9654;';
+      } else {
+        simRunning = true;
+        document.getElementById('sim-play').innerHTML = '&#9646;&#9646;';
+        simInterval = setInterval(simTick, 250);
+      }
+    });
+
+    document.getElementById('sim-reset').addEventListener('click', () => {
+      clearInterval(simInterval);
+      simRunning = false;
+      simTime = 0;
+      simSpeed = 1;
+      decisions = [];
+      decisionCounter = 0;
+      document.getElementById('sim-play').innerHTML = '&#9654;';
+      document.getElementById('sim-speed').textContent = '1x';
+      $decisionFeed.innerHTML = '';
+      $feedCount.textContent = '0';
+
+      allAgents.forEach(a => {
+        a.status = 'queued';
+        a.progress = 0;
+        a.startedAt = null;
+        a.completedAt = null;
+        a.decisions = [];
+        a.milestones = [];
+        a.tokens = 0;
+        a.cost = 0;
+      });
+
+      timelineDuration = 60;
+      buildTimeHeader();
+      buildRows();
+      updateNowLine();
+      drawDependencies();
+      updateMetrics();
+      updateStatusBar();
+    });
+
+    document.getElementById('sim-step').addEventListener('click', () => {
+      simTick();
+    });
+
+    document.getElementById('sim-faster').addEventListener('click', () => {
+      const speeds = [1, 2, 4, 8];
+      const idx = speeds.indexOf(simSpeed);
+      simSpeed = speeds[(idx + 1) % speeds.length];
+      document.getElementById('sim-speed').textContent = simSpeed + 'x';
+    });
+
+    // Zoom
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      pixelsPerMinute = Math.min(32, pixelsPerMinute + 2);
+      document.getElementById('zoom-label').textContent = pixelsPerMinute + 'px/m';
+      rebuildAll();
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      pixelsPerMinute = Math.max(2, pixelsPerMinute - 2);
+      document.getElementById('zoom-label').textContent = pixelsPerMinute + 'px/m';
+      rebuildAll();
+    });
+
+    document.getElementById('zoom-fit').addEventListener('click', () => {
+      const wrapperWidth = $timelineWrapper.clientWidth;
+      const maxTime = Math.max(60, ...allAgents.map(a => {
+        const start = a.startedAt != null ? a.startedAt : a.startOffset;
+        return start + a.duration;
+      }));
+      pixelsPerMinute = Math.max(2, Math.floor(wrapperWidth / (maxTime + 5)));
+      document.getElementById('zoom-label').textContent = pixelsPerMinute + 'px/m';
+      rebuildAll();
+    });
+
+    // Toggle panel
+    document.getElementById('toggle-panel').addEventListener('click', () => {
+      panelOpen = !panelOpen;
+      $decisionPanel.classList.toggle('collapsed', !panelOpen);
+      document.getElementById('toggle-panel').classList.toggle('active', panelOpen);
+    });
+
+    // Clear feed
+    document.getElementById('clear-feed').addEventListener('click', () => {
+      $decisionFeed.innerHTML = '';
+      decisions = [];
+      $feedCount.textContent = '0';
+    });
+
+    // Sync label scroll with timeline scroll
+    $timelineWrapper.addEventListener('scroll', () => {
+      const labelsContainer = document.getElementById('gantt-labels');
+      labelsContainer.scrollTop = $timelineWrapper.scrollTop;
+    });
+
+    document.getElementById('gantt-labels').addEventListener('scroll', () => {
+      $timelineWrapper.scrollTop = document.getElementById('gantt-labels').scrollTop;
+    });
+
+    function rebuildAll() {
+      buildTimeHeader();
+      buildRows();
+      updateNowLine();
+      drawDependencies();
+      updateStatusBar();
+    }
+
+    // ============================================================
+    // INITIALIZE
+    // ============================================================
+    function init() {
+      buildTimeHeader();
+      buildRows();
+      updateNowLine();
+      drawDependencies();
+      updateMetrics();
+      updateStatusBar();
+
+      // Auto-start simulation
+      setTimeout(() => {
+        simRunning = true;
+        document.getElementById('sim-play').innerHTML = '&#9646;&#9646;';
+        simInterval = setInterval(simTick, 250);
+      }, 800);
+    }
+
+    init();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      drawDependencies();
+    });
+  </script>
+</body>
+</html>

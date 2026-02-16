@@ -1,0 +1,2955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentFlow v2c — Circuit Board Topology | AgentPane</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       Reset & Foundation
+       ======================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    ul, ol { list-style: none; }
+    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+    input { font: inherit; color: inherit; }
+
+    :root {
+      --bg-canvas: #0a0f0a;
+      --bg-default: #161b22;
+      --bg-subtle: #1c2128;
+      --bg-muted: #21262d;
+      --bg-emphasis: #30363d;
+      --fg-default: #e6edf3;
+      --fg-muted: #8b949e;
+      --fg-subtle: #6e7681;
+      --fg-on-emphasis: #ffffff;
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      --border-chip: #3d4450;
+
+      /* PCB colors */
+      --pcb-green: #0d1a0d;
+      --pcb-trace-copper: #D4A574;
+      --pcb-trace-silver: #8b949e;
+      --pcb-trace-dim: #2a3028;
+      --pcb-silk: #c8d0c8;
+      --pcb-via: #1a2a1a;
+      --pcb-via-ring: #3a4a3a;
+
+      /* Agent type colors */
+      --color-orchestrator: #FFD866;
+      --color-planner: #A78BFA;
+      --color-coder: #67E8F9;
+      --color-reviewer: #C084FC;
+      --color-tester: #FCA572;
+      --color-scanner: #F87171;
+      --color-deployer: #34D399;
+
+      /* Status colors */
+      --status-completed: #A78BFA;
+      --status-running: #34D399;
+      --status-verifying: #FFD866;
+      --status-blocked: #FCA572;
+      --status-failed: #F87171;
+      --status-queued: #475569;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-lcd: 'Share Tech Mono', 'Fira Code', monospace;
+
+      --radius-chip: 2px;
+      --radius-sm: 4px;
+      --radius: 6px;
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+      --easing: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--fg-default);
+      background: var(--bg-canvas);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* PCB texture background */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(52, 211, 153, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(52, 211, 153, 0.015) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle green glow */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 800px 500px at 25% 25%, rgba(52, 211, 153, 0.02), transparent),
+        radial-gradient(ellipse 600px 400px at 75% 70%, rgba(212, 165, 116, 0.015), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ========================================
+       Layout
+       ======================================== */
+    .page {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ========================================
+       Header
+       ======================================== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 48px;
+      border-bottom: 1px solid var(--border-default);
+      background: rgba(10, 15, 10, 0.95);
+      backdrop-filter: blur(12px);
+      flex-shrink: 0;
+      z-index: 50;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg-default);
+      letter-spacing: -0.02em;
+    }
+
+    .logo-icon {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, var(--pcb-trace-copper), #34D399);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: #0a0f0a;
+      font-weight: 700;
+    }
+
+    .logo-badge {
+      font-size: 9px;
+      padding: 1px 6px;
+      background: rgba(212, 165, 116, 0.15);
+      color: var(--pcb-trace-copper);
+      border-radius: 9999px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* LCD-style metrics */
+    .lcd-metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #0d120d;
+      border: 1px solid #1a2a1a;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-lcd);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+    }
+
+    .lcd-metric .label {
+      color: var(--fg-subtle);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .lcd-metric .value {
+      color: var(--pcb-trace-copper);
+      font-weight: 400;
+    }
+
+    .lcd-metric .value.running { color: var(--status-running); }
+    .lcd-metric .value.cost { color: var(--color-orchestrator); }
+
+    /* DIP switch sim controls */
+    .dip-switch-group {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px 6px;
+      background: #0d120d;
+      border: 1px solid #1a2a1a;
+      border-radius: var(--radius-sm);
+    }
+
+    .dip-switch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 4px;
+      cursor: pointer;
+      min-width: 24px;
+    }
+
+    .dip-switch .switch-body {
+      width: 14px;
+      height: 22px;
+      background: #1a201a;
+      border: 1px solid #2a3a2a;
+      border-radius: 2px;
+      position: relative;
+      transition: all var(--duration-fast);
+    }
+
+    .dip-switch .switch-toggle {
+      position: absolute;
+      left: 2px;
+      bottom: 2px;
+      width: 8px;
+      height: 9px;
+      background: var(--fg-subtle);
+      border-radius: 1px;
+      transition: all var(--duration-fast);
+    }
+
+    .dip-switch.active .switch-toggle {
+      bottom: auto;
+      top: 2px;
+      background: var(--status-running);
+    }
+
+    .dip-switch .switch-label {
+      font-family: var(--font-lcd);
+      font-size: 7px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .sim-speed-label {
+      font-family: var(--font-lcd);
+      font-size: 10px;
+      color: var(--fg-subtle);
+      padding: 0 4px;
+    }
+
+    .decision-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      background: #0d120d;
+      border: 1px solid #1a2a1a;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-family: var(--font-lcd);
+      color: var(--fg-subtle);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .decision-toggle:hover { border-color: #2a3a2a; }
+    .decision-toggle.active { border-color: var(--pcb-trace-copper); color: var(--pcb-trace-copper); }
+
+    .decision-toggle .led {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--fg-subtle);
+    }
+
+    .decision-toggle.active .led { background: var(--pcb-trace-copper); box-shadow: 0 0 4px var(--pcb-trace-copper); }
+
+    /* ========================================
+       Main Content
+       ======================================== */
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ========================================
+       Canvas Area
+       ======================================== */
+    .canvas-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .canvas-toolbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 3px;
+      z-index: 20;
+      background: rgba(10, 15, 10, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid #1a2a1a;
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+
+    .canvas-toolbar button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 2px;
+      font-size: 12px;
+      color: var(--fg-muted);
+      transition: all var(--duration-fast);
+    }
+
+    .canvas-toolbar button:hover { background: #1a2a1a; color: var(--fg-default); }
+    .canvas-toolbar .separator { width: 1px; background: #1a2a1a; margin: 2px 1px; }
+
+    .zoom-indicator {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      z-index: 20;
+      font-size: 10px;
+      font-family: var(--font-lcd);
+      color: var(--fg-subtle);
+      background: rgba(10, 15, 10, 0.92);
+      border: 1px solid #1a2a1a;
+      border-radius: var(--radius-sm);
+      padding: 3px 8px;
+    }
+
+    .task-filter-bar {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+      z-index: 20;
+    }
+
+    .task-filter-chip {
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      border-radius: var(--radius-sm);
+      background: rgba(10, 15, 10, 0.92);
+      border: 1px solid #1a2a1a;
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .task-filter-chip:hover { border-color: #2a3a2a; color: var(--fg-default); }
+    .task-filter-chip.active { border-color: var(--pcb-trace-copper); color: var(--pcb-trace-copper); background: rgba(212, 165, 116, 0.08); }
+
+    /* SVG Canvas */
+    #pcb-svg {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    #pcb-svg.dragging { cursor: grabbing; }
+
+    /* ========================================
+       Signal Analyzer Panel (Right)
+       ======================================== */
+    .signal-panel {
+      width: 360px;
+      background: var(--bg-default);
+      border-left: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .panel-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--fg-subtle);
+    }
+
+    .panel-empty-icon {
+      width: 56px;
+      height: 56px;
+      border: 2px dashed var(--border-default);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      opacity: 0.5;
+    }
+
+    .panel-empty-text { font-size: 12px; }
+    .panel-empty-hint { font-size: 10px; color: var(--fg-subtle); opacity: 0.6; }
+
+    .panel-content {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .panel-chip-icon {
+      width: 36px;
+      height: 36px;
+      border: 2px solid;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      background: rgba(0,0,0,0.3);
+    }
+
+    .panel-agent-info { flex: 1; min-width: 0; }
+
+    .panel-agent-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .panel-agent-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .panel-agent-type {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: rgba(0,0,0,0.2);
+    }
+
+    .status-badge .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    .status-badge.running { color: var(--status-running); }
+    .status-badge.running .dot { background: var(--status-running); box-shadow: 0 0 4px var(--status-running); }
+    .status-badge.completed { color: var(--status-completed); }
+    .status-badge.completed .dot { background: var(--status-completed); }
+    .status-badge.verifying { color: var(--status-verifying); }
+    .status-badge.verifying .dot { background: var(--status-verifying); }
+    .status-badge.queued { color: var(--status-queued); }
+    .status-badge.queued .dot { background: var(--status-queued); }
+    .status-badge.blocked { color: var(--status-blocked); }
+    .status-badge.blocked .dot { background: var(--status-blocked); }
+    .status-badge.failed { color: var(--status-failed); }
+    .status-badge.failed .dot { background: var(--status-failed); }
+
+    .panel-close {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      font-size: 16px;
+      color: var(--fg-subtle);
+      transition: all var(--duration-fast);
+    }
+    .panel-close:hover { background: var(--bg-subtle); color: var(--fg-default); }
+
+    /* Panel tabs */
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-default);
+      padding: 0 14px;
+    }
+
+    .panel-tab {
+      padding: 8px 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .panel-tab:hover { color: var(--fg-muted); }
+    .panel-tab.active { color: var(--pcb-trace-copper); border-bottom-color: var(--pcb-trace-copper); }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Oscilloscope display */
+    .oscilloscope {
+      margin: 12px 14px;
+      background: #0a0f0a;
+      border: 1px solid #1a2a1a;
+      border-radius: 2px;
+      padding: 8px;
+      position: relative;
+    }
+
+    .oscilloscope-label {
+      font-family: var(--font-lcd);
+      font-size: 8px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+
+    .oscilloscope canvas {
+      width: 100%;
+      height: 80px;
+      display: block;
+    }
+
+    .oscilloscope-readout {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      font-family: var(--font-lcd);
+      font-size: 9px;
+      color: var(--fg-subtle);
+    }
+
+    .oscilloscope-readout .val { color: var(--status-running); }
+
+    /* Terminal readout */
+    .terminal-readout {
+      margin: 0 14px 12px;
+      background: #0a0f0a;
+      border: 1px solid #1a2a1a;
+      border-radius: 2px;
+      padding: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .terminal-readout-title {
+      font-family: var(--font-lcd);
+      font-size: 8px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .terminal-line {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--fg-muted);
+      padding: 2px 0;
+      line-height: 1.5;
+      border-bottom: 1px solid rgba(26, 42, 26, 0.5);
+    }
+
+    .terminal-line .ts { color: var(--fg-subtle); margin-right: 6px; }
+    .terminal-line strong { color: var(--fg-default); font-weight: 500; }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 12px 14px;
+    }
+
+    .stat-cell {
+      background: #0a0f0a;
+      border: 1px solid #1a2a1a;
+      border-radius: 2px;
+      padding: 8px;
+    }
+
+    .stat-cell .label {
+      font-family: var(--font-lcd);
+      font-size: 8px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+
+    .stat-cell .value {
+      font-family: var(--font-lcd);
+      font-size: 16px;
+      color: var(--fg-default);
+    }
+
+    .stat-cell .value.cost { color: var(--color-orchestrator); }
+    .stat-cell .value.tokens { color: var(--color-coder); }
+
+    /* Decision feed in panel */
+    .decision-feed-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border-muted);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .decision-feed-item:hover { background: var(--bg-subtle); }
+
+    .decision-feed-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .decision-feed-content { flex: 1; min-width: 0; }
+
+    .decision-feed-type {
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .decision-feed-summary {
+      font-size: 11px;
+      color: var(--fg-muted);
+      margin-top: 1px;
+    }
+
+    .decision-feed-time {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--fg-subtle);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Relationship items */
+    .relationship-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      font-size: 11px;
+    }
+
+    .relationship-arrow { color: var(--fg-subtle); font-size: 10px; }
+    .relationship-dot { width: 6px; height: 6px; border-radius: 1px; }
+    .relationship-name { color: var(--fg-muted); flex: 1; }
+    .relationship-status { font-family: var(--font-mono); font-size: 9px; }
+
+    .panel-section-title {
+      font-family: var(--font-lcd);
+      font-size: 9px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 8px 14px 4px;
+    }
+
+    /* Progress bar */
+    .progress-container {
+      margin: 4px 14px 12px;
+      height: 4px;
+      background: #1a2a1a;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 1px;
+      transition: width 0.5s ease;
+    }
+
+    /* ========================================
+       Decision Popover (Datasheet style)
+       ======================================== */
+    #popover-container {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    .popover-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: auto;
+    }
+
+    .decision-popover {
+      position: fixed;
+      width: 340px;
+      background: var(--bg-default);
+      border: 1px solid var(--pcb-trace-copper);
+      border-radius: 2px;
+      pointer-events: auto;
+      z-index: 101;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 1px var(--pcb-trace-copper);
+    }
+
+    .popover-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-default);
+      background: rgba(212, 165, 116, 0.04);
+    }
+
+    .popover-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .popover-title {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .popover-subtitle {
+      font-size: 10px;
+      color: var(--fg-subtle);
+      font-family: var(--font-mono);
+    }
+
+    .popover-body { padding: 10px 12px; }
+
+    .popover-section { margin-bottom: 10px; }
+    .popover-section:last-child { margin-bottom: 0; }
+
+    .popover-label {
+      font-family: var(--font-lcd);
+      font-size: 8px;
+      color: var(--fg-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 3px;
+    }
+
+    .popover-text {
+      font-size: 11px;
+      color: var(--fg-muted);
+      line-height: 1.4;
+    }
+
+    .confidence-bar-bg {
+      height: 6px;
+      background: #1a2a1a;
+      border-radius: 1px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: 1px;
+      transition: width 0.3s;
+    }
+
+    .confidence-markers {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      font-family: var(--font-lcd);
+      font-size: 7px;
+      color: var(--fg-subtle);
+    }
+
+    .popover-criteria {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: 3px;
+    }
+
+    .popover-criterion {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      padding: 1px 5px;
+      background: rgba(212, 165, 116, 0.08);
+      border: 1px solid rgba(212, 165, 116, 0.15);
+      border-radius: 1px;
+      color: var(--fg-muted);
+    }
+
+    .popover-alternatives {
+      margin-top: 3px;
+    }
+
+    .popover-alt-item {
+      font-size: 10px;
+      color: var(--fg-subtle);
+      padding: 1px 0;
+      font-family: var(--font-mono);
+    }
+
+    .popover-override-btn {
+      display: block;
+      width: 100%;
+      padding: 5px;
+      margin-top: 8px;
+      background: rgba(212, 165, 116, 0.1);
+      border: 1px solid rgba(212, 165, 116, 0.2);
+      border-radius: 2px;
+      color: var(--pcb-trace-copper);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .popover-override-btn:hover {
+      background: rgba(212, 165, 116, 0.15);
+      border-color: var(--pcb-trace-copper);
+    }
+
+    /* Tooltip */
+    .node-tooltip {
+      position: fixed;
+      z-index: 60;
+      background: var(--bg-default);
+      border: 1px solid var(--border-chip);
+      border-radius: 2px;
+      padding: 8px 10px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--duration-fast);
+      font-size: 11px;
+      min-width: 160px;
+    }
+
+    .node-tooltip.visible { opacity: 1; }
+
+    .tooltip-name {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-family: var(--font-mono);
+    }
+
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1px 0;
+    }
+
+    .tooltip-row .label { color: var(--fg-subtle); font-size: 10px; }
+    .tooltip-row .value { font-family: var(--font-mono); font-size: 10px; }
+
+    .tooltip-progress {
+      margin-top: 4px;
+      height: 3px;
+      background: #1a2a1a;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .tooltip-progress-fill {
+      height: 100%;
+      border-radius: 1px;
+    }
+
+    /* Scrollbar styling */
+    .panel-body::-webkit-scrollbar,
+    .terminal-readout::-webkit-scrollbar {
+      width: 4px;
+    }
+    .panel-body::-webkit-scrollbar-track,
+    .terminal-readout::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .panel-body::-webkit-scrollbar-thumb,
+    .terminal-readout::-webkit-scrollbar-thumb {
+      background: var(--border-default);
+      border-radius: 2px;
+    }
+
+    /* Hidden helper */
+    .hidden { display: none !important; }
+
+    /* Keyframes */
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    @keyframes traceGlow {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">
+          <div class="logo-icon">&#x2394;</div>
+          <span>AgentFlow</span>
+          <span class="logo-badge">PCB</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="lcd-metric">
+          <span class="label">Agents</span>
+          <span class="value running" id="metric-agents">0/33</span>
+        </div>
+        <div class="lcd-metric">
+          <span class="label">Tokens</span>
+          <span class="value" id="metric-tokens">0</span>
+        </div>
+        <div class="lcd-metric">
+          <span class="label">Cost</span>
+          <span class="value cost" id="metric-cost">$0.00</span>
+        </div>
+        <div class="lcd-metric">
+          <span class="label">Tasks</span>
+          <span class="value" id="metric-tasks">0/6</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="decision-toggle" id="decision-toggle" onclick="toggleDecisions()">
+          <span class="led"></span>
+          <span>DECISIONS</span>
+        </div>
+
+        <div class="dip-switch-group">
+          <div class="dip-switch active" id="sw-play" onclick="togglePlay()" title="Run/Pause">
+            <div class="switch-body"><div class="switch-toggle"></div></div>
+            <span class="switch-label">RUN</span>
+          </div>
+          <div class="dip-switch" id="sw-speed" onclick="cycleSpeed()" title="Speed">
+            <div class="switch-body"><div class="switch-toggle"></div></div>
+            <span class="switch-label">SPD</span>
+          </div>
+          <div class="dip-switch" id="sw-reset" onclick="resetSimulation()" title="Reset">
+            <div class="switch-body"><div class="switch-toggle"></div></div>
+            <span class="switch-label">RST</span>
+          </div>
+        </div>
+        <span class="sim-speed-label" id="speed-label">1x</span>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+      <!-- Canvas -->
+      <div class="canvas-area">
+        <div class="canvas-toolbar">
+          <button onclick="zoomIn()" title="Zoom In">+</button>
+          <button onclick="zoomOut()" title="Zoom Out">&minus;</button>
+          <div class="separator"></div>
+          <button onclick="fitView()" title="Fit View">&#x29C9;</button>
+          <button onclick="centerView()" title="Center">&#x25CE;</button>
+        </div>
+
+        <div class="task-filter-bar" id="task-filters"></div>
+
+        <svg id="pcb-svg" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <!-- Via hole pattern -->
+            <pattern id="via-pattern" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
+              <circle cx="24" cy="24" r="2" fill="none" stroke="rgba(52,211,153,0.06)" stroke-width="0.5"/>
+              <circle cx="24" cy="24" r="0.8" fill="rgba(52,211,153,0.04)"/>
+            </pattern>
+            <!-- Glow filters -->
+            <filter id="glow-copper">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feFlood flood-color="#D4A574" flood-opacity="0.4" result="color"/>
+              <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+              <feMerge>
+                <feMergeNode in="shadow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="glow-running">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feFlood flood-color="#34D399" flood-opacity="0.5" result="color"/>
+              <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+              <feMerge>
+                <feMergeNode in="shadow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="glow-status">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <!-- Background via pattern -->
+          <rect width="10000" height="10000" x="-5000" y="-5000" fill="url(#via-pattern)" opacity="0.5"/>
+          <!-- Layers -->
+          <g id="traces-layer"></g>
+          <g id="packets-layer"></g>
+          <g id="bus-layer"></g>
+          <g id="modules-layer"></g>
+          <g id="chips-layer"></g>
+          <g id="decisions-layer"></g>
+        </svg>
+
+        <div class="zoom-indicator" id="zoom-label">100%</div>
+      </div>
+
+      <!-- Signal Analyzer Panel -->
+      <div class="signal-panel">
+        <div class="panel-empty" id="panel-empty">
+          <div class="panel-empty-icon">&#x2394;</div>
+          <div class="panel-empty-text">Signal Analyzer</div>
+          <div class="panel-empty-hint">Click an IC chip to analyze</div>
+        </div>
+
+        <div class="panel-content" id="panel-content">
+          <div class="panel-header" id="panel-header"></div>
+          <div class="panel-tabs">
+            <div class="panel-tab active" data-tab="signal" onclick="switchTab('signal')">SIGNAL</div>
+            <div class="panel-tab" data-tab="details" onclick="switchTab('details')">DETAILS</div>
+            <div class="panel-tab" data-tab="decisions" onclick="switchTab('decisions')">DECISIONS</div>
+            <div class="panel-tab" data-tab="log" onclick="switchTab('log')">LOG</div>
+          </div>
+          <div class="panel-body">
+            <div class="tab-content active" id="tab-signal"></div>
+            <div class="tab-content" id="tab-details"></div>
+            <div class="tab-content" id="tab-decisions"></div>
+            <div class="tab-content" id="tab-log"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="node-tooltip" id="node-tooltip"></div>
+
+  <!-- Decision popover container -->
+  <div id="popover-container"></div>
+
+  <script>
+    // ========================================
+    // CONSTANTS
+    // ========================================
+
+    const AGENT_TYPES = {
+      orchestrator: { label: 'Orchestrator', symbol: '&#x2630;', icon: '\u2630', color: '#FFD866' },
+      planner:      { label: 'Planner',      symbol: '&#x25A8;', icon: '\u25A8', color: '#A78BFA' },
+      coder:        { label: 'Coder',        symbol: '&#x276E;&#x276F;', icon: '<>', color: '#67E8F9' },
+      reviewer:     { label: 'Reviewer',     symbol: '&#x2713;', icon: '\u2713', color: '#C084FC' },
+      tester:       { label: 'Tester',       symbol: '&#x25B6;', icon: '\u25B6', color: '#FCA572' },
+      scanner:      { label: 'Scanner',      symbol: '&#x25C9;', icon: '\u25C9', color: '#F87171' },
+      deployer:     { label: 'Deployer',     symbol: '&#x21E7;', icon: '\u21E7', color: '#34D399' }
+    };
+
+    const STATUS_COLORS = {
+      completed: '#A78BFA',
+      running: '#34D399',
+      verifying: '#FFD866',
+      blocked: '#FCA572',
+      failed: '#F87171',
+      queued: '#475569'
+    };
+
+    const DECISION_TYPES = {
+      auto_verify:  { icon: '\u26A1', label: 'Auto Verify',  color: '#34D399' },
+      route:        { icon: '\u2461', label: 'Route',         color: '#67E8F9' },
+      retry:        { icon: '\u21BB', label: 'Retry',         color: '#FCA572' },
+      escalate:     { icon: '\u25B2', label: 'Escalate',      color: '#F87171' },
+      spawn:        { icon: '\u25C7', label: 'Spawn',         color: '#A78BFA' },
+      tool_select:  { icon: '\u2699', label: 'Tool Select',   color: '#FFD866' },
+      delegate:     { icon: '\u2192', label: 'Delegate',      color: '#67E8F9' },
+      throttle:     { icon: '\u25D1', label: 'Throttle',      color: '#FCA572' },
+      prioritize:   { icon: '\u2605', label: 'Prioritize',    color: '#FFD866' }
+    };
+
+    // ========================================
+    // TASK DEFINITIONS (33 agents)
+    // ========================================
+
+    const TASKS = [
+      {
+        id: 'api-platform',
+        name: 'API Platform v2',
+        priority: 'P0',
+        priorityColor: '#F87171',
+        agents: [
+          { id: 'ap-orch',  type: 'orchestrator', name: 'AP Orchestrator', children: ['ap-plan'] },
+          { id: 'ap-plan',  type: 'planner',      name: 'AP Planner',      children: ['ap-c1','ap-c2','ap-c3'] },
+          { id: 'ap-c1',    type: 'coder',        name: 'AP Coder A',      children: ['ap-r1'] },
+          { id: 'ap-c2',    type: 'coder',        name: 'AP Coder B',      children: ['ap-r1'] },
+          { id: 'ap-c3',    type: 'coder',        name: 'AP Coder C',      children: ['ap-r2'] },
+          { id: 'ap-r1',    type: 'reviewer',     name: 'AP Reviewer 1',   children: ['ap-t1'] },
+          { id: 'ap-r2',    type: 'reviewer',     name: 'AP Reviewer 2',   children: ['ap-t2'] },
+          { id: 'ap-t1',    type: 'tester',       name: 'AP Tester 1',     children: ['ap-scan'] },
+          { id: 'ap-t2',    type: 'tester',       name: 'AP Tester 2',     children: ['ap-scan'] },
+          { id: 'ap-scan',  type: 'scanner',      name: 'AP Scanner',      children: [] }
+        ]
+      },
+      {
+        id: 'auth-migration',
+        name: 'Auth Migration',
+        priority: 'P0',
+        priorityColor: '#F87171',
+        agents: [
+          { id: 'am-orch', type: 'orchestrator', name: 'AM Orchestrator', children: ['am-c1','am-c2'] },
+          { id: 'am-c1',   type: 'coder',        name: 'AM Coder A',     children: ['am-rev'] },
+          { id: 'am-c2',   type: 'coder',        name: 'AM Coder B',     children: ['am-rev'] },
+          { id: 'am-rev',  type: 'reviewer',     name: 'AM Reviewer',    children: ['am-test'] },
+          { id: 'am-test', type: 'tester',       name: 'AM Tester',      children: [] }
+        ]
+      },
+      {
+        id: 'terraform-refactor',
+        name: 'Terraform Refactor',
+        priority: 'P1',
+        priorityColor: '#FFD866',
+        agents: [
+          { id: 'tf-orch', type: 'orchestrator', name: 'TF Orchestrator', children: ['tf-plan'] },
+          { id: 'tf-plan', type: 'planner',      name: 'TF Planner',      children: ['tf-c1','tf-c2'] },
+          { id: 'tf-c1',   type: 'coder',        name: 'TF Coder A',     children: ['tf-rev'] },
+          { id: 'tf-c2',   type: 'coder',        name: 'TF Coder B',     children: ['tf-rev'] },
+          { id: 'tf-rev',  type: 'reviewer',     name: 'TF Reviewer',    children: ['tf-test'] },
+          { id: 'tf-test', type: 'tester',       name: 'TF Tester',      children: [] }
+        ]
+      },
+      {
+        id: 'dashboard-redesign',
+        name: 'Dashboard Redesign',
+        priority: 'P1',
+        priorityColor: '#FFD866',
+        agents: [
+          { id: 'dr-orch', type: 'orchestrator', name: 'DR Orchestrator', children: ['dr-c1','dr-c2'] },
+          { id: 'dr-c1',   type: 'coder',        name: 'DR Coder A',     children: ['dr-rev'] },
+          { id: 'dr-c2',   type: 'coder',        name: 'DR Coder B',     children: ['dr-rev'] },
+          { id: 'dr-rev',  type: 'reviewer',     name: 'DR Reviewer',    children: ['dr-test'] },
+          { id: 'dr-test', type: 'tester',       name: 'DR Tester',      children: [] }
+        ]
+      },
+      {
+        id: 'data-pipeline',
+        name: 'Data Pipeline ETL',
+        priority: 'P0',
+        priorityColor: '#F87171',
+        agents: [
+          { id: 'dp-orch', type: 'orchestrator', name: 'DP Orchestrator', children: ['dp-c1'] },
+          { id: 'dp-c1',   type: 'coder',        name: 'DP Extract',     children: ['dp-c2'] },
+          { id: 'dp-c2',   type: 'coder',        name: 'DP Transform',   children: ['dp-c3'] },
+          { id: 'dp-c3',   type: 'coder',        name: 'DP Load',        children: ['dp-test'] },
+          { id: 'dp-test', type: 'tester',       name: 'DP Tester',      children: [] }
+        ]
+      },
+      {
+        id: 'ci-optimization',
+        name: 'CI Optimization',
+        priority: 'P2',
+        priorityColor: '#67E8F9',
+        agents: [
+          { id: 'ci-c1',   type: 'coder',  name: 'CI Coder',  children: ['ci-test'] },
+          { id: 'ci-test', type: 'tester', name: 'CI Tester', children: [] }
+        ]
+      }
+    ];
+
+    // ========================================
+    // CHIP LAYOUT (positioned as PCB modules)
+    // ========================================
+
+    const CHIP_W = 130;
+    const CHIP_H = 60;
+    const PIN_SIZE = 4;
+    const MODULE_PAD = 30;
+
+    // Lay out task modules in a grid
+    function computeLayout() {
+      const moduleLayouts = [];
+
+      // First pass: compute sizes to determine row heights
+      const taskGrid = [
+        [0, 1, 2],  // Row 1
+        [3, 4, 5],  // Row 2
+      ];
+
+      // Compute each module's size first
+      const moduleSizes = TASKS.map(task => {
+        const agents = task.agents;
+        const depths = {};
+        const roots = agents.filter(a => !agents.some(b => b.children.includes(a.id)));
+
+        function assignDepth(agentId, depth) {
+          if (depths[agentId] !== undefined && depths[agentId] >= depth) return;
+          depths[agentId] = depth;
+          const agent = agents.find(a => a.id === agentId);
+          if (agent) {
+            for (const c of agent.children) assignDepth(c, depth + 1);
+          }
+        }
+        for (const r of roots) assignDepth(r.id, 0);
+
+        const depthGroups = {};
+        let maxDepth = 0;
+        for (const a of agents) {
+          const d = depths[a.id] || 0;
+          if (!depthGroups[d]) depthGroups[d] = [];
+          depthGroups[d].push(a);
+          maxDepth = Math.max(maxDepth, d);
+        }
+
+        let maxWidth = 0;
+        for (let d = 0; d <= maxDepth; d++) {
+          maxWidth = Math.max(maxWidth, (depthGroups[d] || []).length);
+        }
+
+        const chipSpaceX = CHIP_W + 40;
+        const chipSpaceY = CHIP_H + 50;
+        return {
+          w: maxWidth * chipSpaceX + MODULE_PAD * 2,
+          h: (maxDepth + 1) * chipSpaceY + MODULE_PAD * 2 + 30,
+          maxDepth,
+          maxWidth
+        };
+      });
+
+      // Compute row heights
+      const rowHeights = taskGrid.map(row =>
+        Math.max(...row.map(idx => moduleSizes[idx].h)) + 40
+      );
+
+      // Place tasks
+      const colOffsets = [0, 620, 1040];
+      let cumulativeY = 40;
+
+      for (let r = 0; r < taskGrid.length; r++) {
+        for (let c = 0; c < taskGrid[r].length; c++) {
+          const taskIdx = taskGrid[r][c];
+          const task = TASKS[taskIdx];
+          const ml = layoutModule(task, c, r, cumulativeY);
+          moduleLayouts.push(ml);
+        }
+        cumulativeY += rowHeights[r];
+      }
+
+      return moduleLayouts;
+    }
+
+    function layoutModule(task, col, row, startY) {
+      // Calculate module size based on agent count and topology
+      const agents = task.agents;
+      // Build depth map
+      const depths = {};
+      const roots = agents.filter(a => !agents.some(b => b.children.includes(a.id)));
+
+      function assignDepth(agentId, depth) {
+        if (depths[agentId] !== undefined && depths[agentId] >= depth) return;
+        depths[agentId] = depth;
+        const agent = agents.find(a => a.id === agentId);
+        if (agent) {
+          for (const c of agent.children) {
+            assignDepth(c, depth + 1);
+          }
+        }
+      }
+
+      for (const r of roots) {
+        assignDepth(r.id, 0);
+      }
+
+      // Group by depth
+      const depthGroups = {};
+      let maxDepth = 0;
+      for (const a of agents) {
+        const d = depths[a.id] || 0;
+        if (!depthGroups[d]) depthGroups[d] = [];
+        depthGroups[d].push(a);
+        maxDepth = Math.max(maxDepth, d);
+      }
+
+      // Calculate module dimensions
+      let maxWidth = 0;
+      for (let d = 0; d <= maxDepth; d++) {
+        const count = (depthGroups[d] || []).length;
+        maxWidth = Math.max(maxWidth, count);
+      }
+
+      const chipSpaceX = CHIP_W + 40;
+      const chipSpaceY = CHIP_H + 50;
+      const modW = maxWidth * chipSpaceX + MODULE_PAD * 2;
+      const modH = (maxDepth + 1) * chipSpaceY + MODULE_PAD * 2 + 30; // +30 for title
+
+      // Module position based on column/row
+      const colOffsets = [0, 620, 1040];
+      const modX = 40 + (colOffsets[col] || col * 500);
+      const modY = startY || 40;
+
+      // Place chips within module
+      const chipPositions = [];
+      for (let d = 0; d <= maxDepth; d++) {
+        const group = depthGroups[d] || [];
+        const groupWidth = group.length * chipSpaceX;
+        const startChipX = modX + MODULE_PAD + (modW - MODULE_PAD * 2 - groupWidth) / 2 + chipSpaceX / 2 - CHIP_W / 2;
+
+        for (let i = 0; i < group.length; i++) {
+          chipPositions.push({
+            agentDef: group[i],
+            x: startChipX + i * chipSpaceX,
+            y: modY + MODULE_PAD + 24 + d * chipSpaceY
+          });
+        }
+      }
+
+      return {
+        task,
+        x: modX,
+        y: modY,
+        w: modW,
+        h: modH,
+        chips: chipPositions
+      };
+    }
+
+    // ========================================
+    // SIM STATE
+    // ========================================
+
+    const simState = {
+      agents: {},
+      decisions: [],
+      tick: 0,
+      speed: 1,
+      playing: true,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      viewBox: { x: 0, y: 0, w: 0, h: 0 },
+      selectedAgent: null,
+      hoveredAgent: null,
+      showDecisions: false,
+      activeFilters: new Set(),
+      tokenHistory: {} // per-agent token samples
+    };
+
+    window._decisions = [];
+
+    // ========================================
+    // INIT
+    // ========================================
+
+    let moduleLayouts = [];
+
+    function initSimulation() {
+      moduleLayouts = computeLayout();
+
+      // Initialize agent states
+      for (const ml of moduleLayouts) {
+        for (const chip of ml.chips) {
+          const a = chip.agentDef;
+          const typeInfo = AGENT_TYPES[a.type];
+          simState.agents[a.id] = {
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            taskId: ml.task.id,
+            taskName: ml.task.name,
+            status: 'queued',
+            progress: 0,
+            tokens: 0,
+            cost: 0,
+            turns: 0,
+            messages: 0,
+            children: a.children,
+            x: chip.x,
+            y: chip.y,
+            verified: false,
+            verificationScore: 0,
+            startDelay: 0,
+            tokenRate: 80 + Math.random() * 120
+          };
+          simState.tokenHistory[a.id] = [];
+        }
+      }
+
+      // Set start delays based on dependencies
+      for (const task of TASKS) {
+        setStartDelays(task);
+      }
+
+      renderFilters();
+      renderModules();
+      renderChips();
+      renderTraces();
+      updateViewBox();
+
+      // Start animation loop
+      requestAnimationFrame(simLoop);
+    }
+
+    function setStartDelays(task) {
+      const agents = task.agents;
+      const depthMap = {};
+
+      function getDepth(id, visited) {
+        if (visited.has(id)) return 0;
+        visited.add(id);
+        const parents = agents.filter(a => a.children.includes(id));
+        if (parents.length === 0) return 0;
+        return 1 + Math.max(...parents.map(p => getDepth(p.id, visited)));
+      }
+
+      for (const a of agents) {
+        const depth = getDepth(a.id, new Set());
+        simState.agents[a.id].startDelay = depth * 120 + Math.random() * 40;
+      }
+    }
+
+    // ========================================
+    // RENDER: MODULE AREAS (silk-screen)
+    // ========================================
+
+    function renderModules() {
+      const layer = document.getElementById('modules-layer');
+      layer.innerHTML = '';
+
+      for (const ml of moduleLayouts) {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+        // Module border (dotted, silk-screen style)
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', ml.x);
+        rect.setAttribute('y', ml.y);
+        rect.setAttribute('width', ml.w);
+        rect.setAttribute('height', ml.h);
+        rect.setAttribute('rx', 2);
+        rect.setAttribute('ry', 2);
+        rect.setAttribute('fill', 'rgba(13, 26, 13, 0.3)');
+        rect.setAttribute('stroke', 'rgba(200, 208, 200, 0.12)');
+        rect.setAttribute('stroke-width', '1');
+        rect.setAttribute('stroke-dasharray', '6 3');
+        g.appendChild(rect);
+
+        // Silk-screen label
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', ml.x + 10);
+        label.setAttribute('y', ml.y + 16);
+        label.setAttribute('fill', 'rgba(200, 208, 200, 0.35)');
+        label.setAttribute('font-family', "'Share Tech Mono', monospace");
+        label.setAttribute('font-size', '10');
+        label.setAttribute('letter-spacing', '0.1em');
+        label.textContent = ml.task.name.toUpperCase();
+        g.appendChild(label);
+
+        // Priority badge
+        const priLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        priLabel.setAttribute('x', ml.x + ml.w - 10);
+        priLabel.setAttribute('y', ml.y + 16);
+        priLabel.setAttribute('text-anchor', 'end');
+        priLabel.setAttribute('fill', ml.task.priorityColor);
+        priLabel.setAttribute('font-family', "'Share Tech Mono', monospace");
+        priLabel.setAttribute('font-size', '9');
+        priLabel.setAttribute('opacity', '0.6');
+        priLabel.textContent = ml.task.priority;
+        g.appendChild(priLabel);
+
+        // Corner markers (PCB registration marks)
+        const corners = [
+          [ml.x + 3, ml.y + 3],
+          [ml.x + ml.w - 3, ml.y + 3],
+          [ml.x + 3, ml.y + ml.h - 3],
+          [ml.x + ml.w - 3, ml.y + ml.h - 3]
+        ];
+        for (const [cx, cy] of corners) {
+          const mark = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          mark.setAttribute('cx', cx);
+          mark.setAttribute('cy', cy);
+          mark.setAttribute('r', 1.5);
+          mark.setAttribute('fill', 'none');
+          mark.setAttribute('stroke', 'rgba(200, 208, 200, 0.1)');
+          mark.setAttribute('stroke-width', '0.5');
+          g.appendChild(mark);
+        }
+
+        layer.appendChild(g);
+      }
+    }
+
+    // ========================================
+    // RENDER: IC CHIPS
+    // ========================================
+
+    function renderChips() {
+      const layer = document.getElementById('chips-layer');
+      layer.innerHTML = '';
+
+      for (const ml of moduleLayouts) {
+        for (const chip of ml.chips) {
+          const agent = simState.agents[chip.agentDef.id];
+          const typeInfo = AGENT_TYPES[agent.type];
+
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.setAttribute('class', 'agent-chip');
+          g.setAttribute('data-id', agent.id);
+          g.setAttribute('transform', `translate(${agent.x}, ${agent.y})`);
+          g.style.cursor = 'pointer';
+
+          // Chip body
+          const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          body.setAttribute('x', 0);
+          body.setAttribute('y', 0);
+          body.setAttribute('width', CHIP_W);
+          body.setAttribute('height', CHIP_H);
+          body.setAttribute('rx', 2);
+          body.setAttribute('ry', 2);
+          body.setAttribute('fill', '#111611');
+          body.setAttribute('stroke', '#2a3a2a');
+          body.setAttribute('stroke-width', '1.5');
+          g.appendChild(body);
+
+          // Pin notch (top-left corner indicator like real IC)
+          const notch = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          notch.setAttribute('cx', 8);
+          notch.setAttribute('cy', 8);
+          notch.setAttribute('r', 3);
+          notch.setAttribute('fill', 'none');
+          notch.setAttribute('stroke', 'rgba(200,208,200,0.15)');
+          notch.setAttribute('stroke-width', '0.5');
+          g.appendChild(notch);
+
+          // Pins - left side
+          for (let i = 0; i < 3; i++) {
+            const pin = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            pin.setAttribute('x', -6);
+            pin.setAttribute('y', 12 + i * 16);
+            pin.setAttribute('width', 8);
+            pin.setAttribute('height', PIN_SIZE);
+            pin.setAttribute('rx', 0.5);
+            pin.setAttribute('fill', '#3a4a3a');
+            g.appendChild(pin);
+          }
+
+          // Pins - right side
+          for (let i = 0; i < 3; i++) {
+            const pin = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            pin.setAttribute('x', CHIP_W - 2);
+            pin.setAttribute('y', 12 + i * 16);
+            pin.setAttribute('width', 8);
+            pin.setAttribute('height', PIN_SIZE);
+            pin.setAttribute('rx', 0.5);
+            pin.setAttribute('fill', '#3a4a3a');
+            g.appendChild(pin);
+          }
+
+          // Pins - bottom (output)
+          for (let i = 0; i < 2; i++) {
+            const pin = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            pin.setAttribute('x', 35 + i * 40);
+            pin.setAttribute('y', CHIP_H - 2);
+            pin.setAttribute('width', PIN_SIZE);
+            pin.setAttribute('height', 8);
+            pin.setAttribute('rx', 0.5);
+            pin.setAttribute('fill', '#3a4a3a');
+            g.appendChild(pin);
+          }
+
+          // Pins - top (input)
+          for (let i = 0; i < 2; i++) {
+            const pin = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            pin.setAttribute('x', 35 + i * 40);
+            pin.setAttribute('y', -6);
+            pin.setAttribute('width', PIN_SIZE);
+            pin.setAttribute('height', 8);
+            pin.setAttribute('rx', 0.5);
+            pin.setAttribute('fill', '#3a4a3a');
+            g.appendChild(pin);
+          }
+
+          // Type icon (small, top-left area)
+          const typeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          typeIcon.setAttribute('x', 18);
+          typeIcon.setAttribute('y', 10);
+          typeIcon.setAttribute('fill', typeInfo.color);
+          typeIcon.setAttribute('font-size', '9');
+          typeIcon.setAttribute('font-family', "'Share Tech Mono', monospace");
+          typeIcon.setAttribute('text-anchor', 'middle');
+          typeIcon.setAttribute('dominant-baseline', 'central');
+          typeIcon.setAttribute('opacity', '0.8');
+          typeIcon.textContent = typeInfo.icon;
+          g.appendChild(typeIcon);
+
+          // Agent name
+          const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          nameText.setAttribute('x', CHIP_W / 2);
+          nameText.setAttribute('y', 22);
+          nameText.setAttribute('fill', '#e6edf3');
+          nameText.setAttribute('font-family', "'Inter', sans-serif");
+          nameText.setAttribute('font-size', '10');
+          nameText.setAttribute('font-weight', '600');
+          nameText.setAttribute('text-anchor', 'middle');
+          nameText.textContent = agent.name.length > 16 ? agent.name.substring(0, 14) + '..' : agent.name;
+          g.appendChild(nameText);
+
+          // Status LED
+          const ledG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          ledG.setAttribute('class', 'status-led');
+
+          const ledOuter = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          ledOuter.setAttribute('cx', CHIP_W - 10);
+          ledOuter.setAttribute('cy', 10);
+          ledOuter.setAttribute('r', 4);
+          ledOuter.setAttribute('fill', 'none');
+          ledOuter.setAttribute('stroke', '#2a3a2a');
+          ledOuter.setAttribute('stroke-width', '0.5');
+          ledG.appendChild(ledOuter);
+
+          const led = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          led.setAttribute('cx', CHIP_W - 10);
+          led.setAttribute('cy', 10);
+          led.setAttribute('r', 3);
+          led.setAttribute('fill', STATUS_COLORS.queued);
+          led.setAttribute('class', 'led-dot');
+          ledG.appendChild(led);
+          g.appendChild(ledG);
+
+          // Metrics line (tiny monospace)
+          const metricsText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          metricsText.setAttribute('x', CHIP_W / 2);
+          metricsText.setAttribute('y', 37);
+          metricsText.setAttribute('fill', '#6e7681');
+          metricsText.setAttribute('font-family', "'Fira Code', monospace");
+          metricsText.setAttribute('font-size', '8');
+          metricsText.setAttribute('text-anchor', 'middle');
+          metricsText.setAttribute('class', 'chip-metrics');
+          metricsText.textContent = '0 tok | $0.00';
+          g.appendChild(metricsText);
+
+          // Progress bar at bottom of chip
+          const progBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          progBg.setAttribute('x', 4);
+          progBg.setAttribute('y', CHIP_H - 6);
+          progBg.setAttribute('width', CHIP_W - 8);
+          progBg.setAttribute('height', 3);
+          progBg.setAttribute('rx', 1);
+          progBg.setAttribute('fill', '#1a2a1a');
+          g.appendChild(progBg);
+
+          const progFill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          progFill.setAttribute('x', 4);
+          progFill.setAttribute('y', CHIP_H - 6);
+          progFill.setAttribute('width', 0);
+          progFill.setAttribute('height', 3);
+          progFill.setAttribute('rx', 1);
+          progFill.setAttribute('fill', STATUS_COLORS.queued);
+          progFill.setAttribute('class', 'chip-progress');
+          g.appendChild(progFill);
+
+          // Hover/click handlers
+          g.addEventListener('mouseenter', (e) => showTooltip(agent.id, e));
+          g.addEventListener('mouseleave', () => hideTooltip());
+          g.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectAgent(agent.id);
+          });
+
+          layer.appendChild(g);
+        }
+      }
+    }
+
+    // ========================================
+    // RENDER: ORTHOGONAL TRACES (Manhattan routing)
+    // ========================================
+
+    function renderTraces() {
+      const layer = document.getElementById('traces-layer');
+      layer.innerHTML = '';
+
+      for (const ml of moduleLayouts) {
+        for (const chip of ml.chips) {
+          const agent = simState.agents[chip.agentDef.id];
+          const parentX = agent.x + CHIP_W / 2;
+          const parentY = agent.y + CHIP_H;
+
+          for (const childId of agent.children) {
+            const child = simState.agents[childId];
+            if (!child) continue;
+
+            const childX = child.x + CHIP_W / 2;
+            const childY = child.y;
+
+            // Manhattan routing: go down, then horizontal, then down
+            const midY = parentY + (childY - parentY) / 2;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${parentX} ${parentY + 6} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY - 6}`;
+            path.setAttribute('d', d);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('class', 'trace-line');
+            path.setAttribute('data-from', agent.id);
+            path.setAttribute('data-to', childId);
+            path.setAttribute('stroke', '#2a3028');
+
+            layer.appendChild(path);
+
+            // 90-degree turn indicators (small solder joints)
+            if (Math.abs(parentX - childX) > 5) {
+              for (const jx of [parentX, childX]) {
+                const joint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                joint.setAttribute('cx', jx);
+                joint.setAttribute('cy', midY);
+                joint.setAttribute('r', 2);
+                joint.setAttribute('fill', '#2a3028');
+                joint.setAttribute('class', 'trace-joint');
+                joint.setAttribute('data-from', agent.id);
+                joint.setAttribute('data-to', childId);
+                layer.appendChild(joint);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ========================================
+    // RENDER: BUS LINES
+    // ========================================
+
+    function renderBusLines() {
+      // Find bus connections (multiple agents feeding into one)
+      const layer = document.getElementById('bus-layer');
+      layer.innerHTML = '';
+
+      for (const ml of moduleLayouts) {
+        // Find nodes that have multiple parents
+        const parentCount = {};
+        for (const chip of ml.chips) {
+          for (const childId of chip.agentDef.children) {
+            parentCount[childId] = (parentCount[childId] || 0) + 1;
+          }
+        }
+
+        // Draw bus indicators for multi-parent nodes
+        for (const [childId, count] of Object.entries(parentCount)) {
+          if (count < 2) continue;
+
+          const child = simState.agents[childId];
+          if (!child) continue;
+
+          // Draw a small bus label
+          const busLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          const bx = child.x + CHIP_W / 2;
+          const by = child.y - 16;
+          busLabel.setAttribute('x', bx);
+          busLabel.setAttribute('y', by);
+          busLabel.setAttribute('fill', 'rgba(200,208,200,0.2)');
+          busLabel.setAttribute('font-family', "'Share Tech Mono', monospace");
+          busLabel.setAttribute('font-size', '7');
+          busLabel.setAttribute('text-anchor', 'middle');
+          busLabel.textContent = `BUS[${count}:1]`;
+          layer.appendChild(busLabel);
+        }
+      }
+    }
+
+    // ========================================
+    // UPDATE VISUALS
+    // ========================================
+
+    function updateChipVisuals() {
+      document.querySelectorAll('.agent-chip').forEach(g => {
+        const id = g.getAttribute('data-id');
+        const agent = simState.agents[id];
+        if (!agent) return;
+
+        const typeInfo = AGENT_TYPES[agent.type];
+        const statusColor = STATUS_COLORS[agent.status] || STATUS_COLORS.queued;
+
+        // Check filter
+        if (simState.activeFilters.size > 0 && !simState.activeFilters.has(agent.taskId)) {
+          g.setAttribute('opacity', '0.15');
+        } else {
+          g.setAttribute('opacity', '1');
+        }
+
+        // Update chip border color based on status
+        const body = g.querySelector('rect');
+        if (agent.status === 'running') {
+          body.setAttribute('stroke', typeInfo.color);
+          body.setAttribute('stroke-width', '1.5');
+          // Inner glow effect
+          body.setAttribute('filter', 'url(#glow-running)');
+        } else if (agent.status === 'completed') {
+          body.setAttribute('stroke', statusColor);
+          body.setAttribute('stroke-width', '1');
+          body.removeAttribute('filter');
+        } else if (agent.status === 'failed') {
+          body.setAttribute('stroke', statusColor);
+          body.setAttribute('stroke-width', '1.5');
+          body.removeAttribute('filter');
+        } else {
+          body.setAttribute('stroke', '#2a3a2a');
+          body.setAttribute('stroke-width', '1.5');
+          body.removeAttribute('filter');
+        }
+
+        // Selection highlight
+        if (simState.selectedAgent === id) {
+          body.setAttribute('stroke', '#D4A574');
+          body.setAttribute('stroke-width', '2');
+          body.setAttribute('filter', 'url(#glow-copper)');
+        }
+
+        // Update LED
+        const led = g.querySelector('.led-dot');
+        if (led) {
+          led.setAttribute('fill', statusColor);
+          if (agent.status === 'running') {
+            led.style.animation = 'statusPulse 1.5s ease-in-out infinite';
+          } else {
+            led.style.animation = 'none';
+          }
+        }
+
+        // Update metrics
+        const metrics = g.querySelector('.chip-metrics');
+        if (metrics) {
+          metrics.textContent = `${formatTokens(agent.tokens)} | $${agent.cost.toFixed(2)}`;
+        }
+
+        // Update progress bar
+        const prog = g.querySelector('.chip-progress');
+        if (prog) {
+          const maxWidth = CHIP_W - 8;
+          prog.setAttribute('width', maxWidth * agent.progress / 100);
+          prog.setAttribute('fill', statusColor);
+        }
+      });
+    }
+
+    function updateTraceVisuals() {
+      document.querySelectorAll('.trace-line').forEach(path => {
+        const fromId = path.getAttribute('data-from');
+        const toId = path.getAttribute('data-to');
+        const fromAgent = simState.agents[fromId];
+        const toAgent = simState.agents[toId];
+
+        // Determine trace state
+        let color = '#2a3028';
+        let width = 2;
+        let opacity = 1;
+
+        if (fromAgent.status === 'completed' && toAgent.status === 'completed') {
+          color = '#8b949e'; // silver for completed
+          opacity = 0.5;
+        } else if (fromAgent.status === 'running' || toAgent.status === 'running') {
+          color = '#D4A574'; // copper for active
+          opacity = 0.8;
+        } else if (fromAgent.status === 'completed' && (toAgent.status === 'running' || toAgent.status === 'verifying')) {
+          color = '#D4A574';
+          opacity = 0.9;
+        } else if (toAgent.status === 'queued') {
+          color = '#2a3028';
+          opacity = 0.4;
+        }
+
+        // Filter dimming
+        if (simState.activeFilters.size > 0 && !simState.activeFilters.has(fromAgent.taskId)) {
+          opacity *= 0.15;
+        }
+
+        path.setAttribute('stroke', color);
+        path.setAttribute('opacity', opacity);
+      });
+
+      // Update joints too
+      document.querySelectorAll('.trace-joint').forEach(joint => {
+        const fromId = joint.getAttribute('data-from');
+        const toId = joint.getAttribute('data-to');
+        const fromAgent = simState.agents[fromId];
+        const toAgent = simState.agents[toId];
+
+        let color = '#2a3028';
+        if (fromAgent.status === 'completed' && toAgent.status === 'completed') {
+          color = '#8b949e';
+        } else if (fromAgent.status === 'running' || toAgent.status === 'running' ||
+                   (fromAgent.status === 'completed' && toAgent.status === 'running')) {
+          color = '#D4A574';
+        }
+
+        if (simState.activeFilters.size > 0 && !simState.activeFilters.has(fromAgent.taskId)) {
+          joint.setAttribute('opacity', '0.15');
+        } else {
+          joint.setAttribute('opacity', '1');
+        }
+
+        joint.setAttribute('fill', color);
+      });
+    }
+
+    // ========================================
+    // RENDER: DATA PACKETS
+    // ========================================
+
+    function renderPackets() {
+      const layer = document.getElementById('packets-layer');
+      layer.innerHTML = '';
+
+      for (const ml of moduleLayouts) {
+        // Filter
+        if (simState.activeFilters.size > 0 && !simState.activeFilters.has(ml.task.id)) continue;
+
+        for (const chip of ml.chips) {
+          const agent = simState.agents[chip.agentDef.id];
+          if (agent.status !== 'running' && agent.status !== 'completed') continue;
+
+          for (const childId of agent.children) {
+            const child = simState.agents[childId];
+            if (!child || (child.status !== 'running' && child.status !== 'verifying')) continue;
+
+            // Calculate Manhattan path
+            const parentX = agent.x + CHIP_W / 2;
+            const parentY = agent.y + CHIP_H + 6;
+            const childX = child.x + CHIP_W / 2;
+            const childY = child.y - 6;
+            const midY = parentY + (childY - parentY) / 2;
+
+            // Path segments: down, across, down
+            const totalLen = Math.abs(midY - parentY) + Math.abs(childX - parentX) + Math.abs(childY - midY);
+
+            const numPackets = 2;
+            for (let i = 0; i < numPackets; i++) {
+              const t = ((simState.tick * 0.015 * simState.speed + i / numPackets) % 1);
+              const traveled = t * totalLen;
+
+              // Segment 1: vertical down
+              const seg1Len = Math.abs(midY - parentY);
+              // Segment 2: horizontal
+              const seg2Len = Math.abs(childX - parentX);
+              // Segment 3: vertical down
+              const seg3Len = Math.abs(childY - midY);
+
+              let px, py;
+              if (traveled <= seg1Len) {
+                px = parentX;
+                py = parentY + traveled;
+              } else if (traveled <= seg1Len + seg2Len) {
+                const pct = (traveled - seg1Len) / seg2Len;
+                px = parentX + (childX - parentX) * pct;
+                py = midY;
+              } else {
+                const pct = Math.min(1, (traveled - seg1Len - seg2Len) / seg3Len);
+                px = childX;
+                py = midY + (childY - midY) * pct;
+              }
+
+              // Square data packet
+              const packet = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              const size = 4;
+              packet.setAttribute('x', px - size / 2);
+              packet.setAttribute('y', py - size / 2);
+              packet.setAttribute('width', size);
+              packet.setAttribute('height', size);
+              packet.setAttribute('rx', 0.5);
+              packet.setAttribute('fill', '#D4A574');
+              packet.setAttribute('opacity', 0.4 + Math.sin(t * Math.PI) * 0.4);
+              layer.appendChild(packet);
+            }
+          }
+        }
+      }
+    }
+
+    // ========================================
+    // RENDER: DECISIONS
+    // ========================================
+
+    function renderDecisions() {
+      const layer = document.getElementById('decisions-layer');
+      layer.innerHTML = '';
+      if (!simState.showDecisions) return;
+
+      for (const decision of simState.decisions) {
+        const agent = simState.agents[decision.agentId];
+        if (!agent) continue;
+        if (simState.activeFilters.size > 0 && !simState.activeFilters.has(agent.taskId)) continue;
+
+        const dt = DECISION_TYPES[decision.type];
+        if (!dt) continue;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.style.cursor = 'pointer';
+        g.setAttribute('transform', `translate(${agent.x + CHIP_W + 4}, ${agent.y - 2})`);
+
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('x', -9);
+        bg.setAttribute('y', -9);
+        bg.setAttribute('width', 18);
+        bg.setAttribute('height', 18);
+        bg.setAttribute('rx', 2);
+        bg.setAttribute('fill', dt.color + '18');
+        bg.setAttribute('stroke', dt.color + '44');
+        bg.setAttribute('stroke-width', '1');
+        g.appendChild(bg);
+
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        icon.setAttribute('x', 0);
+        icon.setAttribute('y', 1);
+        icon.setAttribute('fill', dt.color);
+        icon.setAttribute('font-size', '10');
+        icon.setAttribute('text-anchor', 'middle');
+        icon.setAttribute('dominant-baseline', 'central');
+        icon.textContent = dt.icon;
+        g.appendChild(icon);
+
+        g.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showDecisionPopover(decision, e);
+        });
+
+        layer.appendChild(g);
+      }
+    }
+
+    // ========================================
+    // SIMULATION LOOP
+    // ========================================
+
+    function simLoop(timestamp) {
+      if (simState.playing) {
+        simState.tick++;
+        updateSimulation();
+      }
+      requestAnimationFrame(simLoop);
+    }
+
+    function updateSimulation() {
+      const tick = simState.tick;
+
+      // Update each agent
+      for (const id in simState.agents) {
+        const agent = simState.agents[id];
+
+        if (agent.status === 'completed' || agent.status === 'failed') continue;
+
+        // Check if dependencies are met
+        const task = TASKS.find(t => t.id === agent.taskId);
+        if (!task) continue;
+
+        const agentDef = task.agents.find(a => a.id === id);
+        if (!agentDef) continue;
+
+        // Find parents
+        const parents = task.agents.filter(a => a.children.includes(id));
+        const allParentsDone = parents.length === 0 || parents.every(p => {
+          const ps = simState.agents[p.id];
+          return ps && (ps.status === 'completed' || ps.status === 'verifying');
+        });
+
+        if (agent.status === 'queued' && tick > agent.startDelay && allParentsDone) {
+          agent.status = 'running';
+          maybeGenerateDecision(agent, 'spawn');
+        }
+
+        if (agent.status === 'running') {
+          const speed = simState.speed;
+          agent.progress = Math.min(100, agent.progress + (0.15 + Math.random() * 0.1) * speed);
+          agent.tokens += Math.round(agent.tokenRate * speed * (0.5 + Math.random()));
+          agent.cost = agent.tokens * 0.000003;
+          agent.turns = Math.floor(agent.progress / 8);
+          agent.messages = agent.turns * 2;
+
+          // Record token history
+          if (tick % 5 === 0) {
+            const hist = simState.tokenHistory[id];
+            hist.push(agent.tokens);
+            if (hist.length > 60) hist.shift();
+          }
+
+          // Random decisions
+          if (Math.random() < 0.003 * speed) {
+            const types = Object.keys(DECISION_TYPES);
+            maybeGenerateDecision(agent, types[Math.floor(Math.random() * types.length)]);
+          }
+
+          // Transition to verifying
+          if (agent.progress >= 100) {
+            agent.progress = 100;
+            agent.status = 'verifying';
+            agent.verificationScore = 0;
+            maybeGenerateDecision(agent, 'auto_verify');
+          }
+        }
+
+        if (agent.status === 'verifying') {
+          agent.verificationScore = Math.min(100, agent.verificationScore + (0.5 + Math.random() * 0.3) * simState.speed);
+          if (agent.verificationScore >= 100) {
+            // Small chance of failure
+            if (Math.random() < 0.05) {
+              agent.status = 'failed';
+              maybeGenerateDecision(agent, 'escalate');
+            } else {
+              agent.status = 'completed';
+              agent.verified = true;
+              agent.verificationScore = 100;
+            }
+          }
+        }
+
+        if (agent.status === 'blocked') {
+          if (Math.random() < 0.01 * simState.speed) {
+            agent.status = 'running';
+            maybeGenerateDecision(agent, 'retry');
+          }
+        }
+      }
+
+      // Update visuals every frame
+      updateChipVisuals();
+      updateTraceVisuals();
+      renderPackets();
+      renderBusLines();
+
+      if (simState.showDecisions) {
+        renderDecisions();
+      }
+
+      // Update header metrics
+      updateHeaderMetrics();
+
+      // Update detail panel if open
+      if (simState.selectedAgent) {
+        updateDetailPanel();
+      }
+    }
+
+    function maybeGenerateDecision(agent, type) {
+      const dt = DECISION_TYPES[type];
+      if (!dt) return;
+
+      const summaries = {
+        auto_verify: ['Tests passed, auto-approving', 'Lint clean, proceeding', 'Type check passed'],
+        route: ['Routing to specialized handler', 'Delegating to sub-module', 'Branching based on input type'],
+        retry: ['Retrying after transient error', 'Re-attempting compilation', 'Network retry with backoff'],
+        escalate: ['Build failure requires attention', 'Test suite regression detected', 'Security vulnerability found'],
+        spawn: ['Agent initialized', 'Spawning worker thread', 'Creating parallel executor'],
+        tool_select: ['Selected file editor tool', 'Using grep for search', 'Switching to test runner'],
+        delegate: ['Forwarding to reviewer', 'Handing off to tester', 'Delegating verification'],
+        throttle: ['Rate limit approaching', 'Throttling API calls', 'Cooling down token usage'],
+        prioritize: ['Prioritizing critical path', 'Reordering task queue', 'Fast-tracking dependency']
+      };
+
+      const details = {
+        auto_verify: 'Automated verification pipeline confirmed all checks pass. No manual review required.',
+        route: 'Decision engine analyzed input characteristics and selected optimal processing path.',
+        retry: 'Transient failure detected. Exponential backoff applied before retry attempt.',
+        escalate: 'Issue severity exceeds automated handling threshold. Human review recommended.',
+        spawn: 'Resource allocation approved. New execution context created with inherited permissions.',
+        tool_select: 'Tool selection heuristic evaluated available options and selected best fit for current task.',
+        delegate: 'Task delegation based on agent capability matrix and current workload distribution.',
+        throttle: 'Resource consumption approaching configured limits. Applying rate limiting.',
+        prioritize: 'Critical path analysis identified this task as blocking multiple downstream dependencies.'
+      };
+
+      const sums = summaries[type] || ['Decision made'];
+      const decision = {
+        type,
+        agentId: agent.id,
+        summary: sums[Math.floor(Math.random() * sums.length)],
+        detail: details[type] || 'No additional details.',
+        confidence: Math.floor(55 + Math.random() * 45),
+        time: formatTime(simState.tick),
+        criteria: ['latency', 'accuracy', 'cost', 'coverage'].slice(0, 2 + Math.floor(Math.random() * 3)),
+        alternatives: ['Option A: Conservative approach', 'Option B: Aggressive optimization'],
+        policy: 'default-v2'
+      };
+
+      simState.decisions.push(decision);
+      window._decisions = simState.decisions;
+
+      // Keep decisions manageable
+      if (simState.decisions.length > 200) {
+        simState.decisions = simState.decisions.slice(-150);
+        window._decisions = simState.decisions;
+      }
+    }
+
+    // ========================================
+    // HEADER METRICS
+    // ========================================
+
+    function updateHeaderMetrics() {
+      const agents = Object.values(simState.agents);
+      const running = agents.filter(a => a.status === 'running').length;
+      const completed = agents.filter(a => a.status === 'completed').length;
+      const total = agents.length;
+      const totalTokens = agents.reduce((s, a) => s + a.tokens, 0);
+      const totalCost = agents.reduce((s, a) => s + a.cost, 0);
+
+      // Count completed tasks
+      let completedTasks = 0;
+      for (const task of TASKS) {
+        const allDone = task.agents.every(a => {
+          const state = simState.agents[a.id];
+          return state && (state.status === 'completed');
+        });
+        if (allDone) completedTasks++;
+      }
+
+      document.getElementById('metric-agents').textContent = `${running}/${total}`;
+      document.getElementById('metric-tokens').textContent = formatTokens(totalTokens);
+      document.getElementById('metric-cost').textContent = `$${totalCost.toFixed(2)}`;
+      document.getElementById('metric-tasks').textContent = `${completedTasks}/${TASKS.length}`;
+    }
+
+    // ========================================
+    // FILTERS
+    // ========================================
+
+    function renderFilters() {
+      const bar = document.getElementById('task-filters');
+      bar.innerHTML = '';
+
+      for (const task of TASKS) {
+        const chip = document.createElement('div');
+        chip.className = 'task-filter-chip';
+        chip.setAttribute('data-task', task.id);
+        chip.textContent = task.name;
+        chip.addEventListener('click', () => toggleFilter(task.id));
+        bar.appendChild(chip);
+      }
+    }
+
+    function toggleFilter(taskId) {
+      if (simState.activeFilters.has(taskId)) {
+        simState.activeFilters.delete(taskId);
+      } else {
+        simState.activeFilters.clear();
+        simState.activeFilters.add(taskId);
+      }
+
+      document.querySelectorAll('.task-filter-chip').forEach(chip => {
+        if (simState.activeFilters.has(chip.getAttribute('data-task'))) {
+          chip.classList.add('active');
+        } else {
+          chip.classList.remove('active');
+        }
+      });
+    }
+
+    // ========================================
+    // VIEW CONTROLS
+    // ========================================
+
+    function updateViewBox() {
+      const svg = document.getElementById('pcb-svg');
+      const rect = svg.getBoundingClientRect();
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const ml of moduleLayouts) {
+        minX = Math.min(minX, ml.x);
+        minY = Math.min(minY, ml.y);
+        maxX = Math.max(maxX, ml.x + ml.w);
+        maxY = Math.max(maxY, ml.y + ml.h);
+      }
+
+      const contentW = maxX - minX + 80;
+      const contentH = maxY - minY + 80;
+      const cx = minX - 40 + contentW / 2;
+      const cy = minY - 40 + contentH / 2;
+
+      const vw = rect.width / simState.zoom;
+      const vh = rect.height / simState.zoom;
+
+      simState.viewBox = {
+        x: cx - vw / 2 + simState.panX,
+        y: cy - vh / 2 + simState.panY,
+        w: vw,
+        h: vh
+      };
+
+      svg.setAttribute('viewBox', `${simState.viewBox.x} ${simState.viewBox.y} ${simState.viewBox.w} ${simState.viewBox.h}`);
+    }
+
+    function zoomIn() {
+      simState.zoom = Math.min(3, simState.zoom * 1.2);
+      updateViewBox();
+      document.getElementById('zoom-label').textContent = Math.round(simState.zoom * 100) + '%';
+    }
+
+    function zoomOut() {
+      simState.zoom = Math.max(0.3, simState.zoom / 1.2);
+      updateViewBox();
+      document.getElementById('zoom-label').textContent = Math.round(simState.zoom * 100) + '%';
+    }
+
+    function fitView() {
+      simState.zoom = 1;
+      simState.panX = 0;
+      simState.panY = 0;
+      updateViewBox();
+      document.getElementById('zoom-label').textContent = '100%';
+    }
+
+    function centerView() {
+      simState.panX = 0;
+      simState.panY = 0;
+      updateViewBox();
+    }
+
+    // Pan & zoom
+    (function setupCanvasInteraction() {
+      const svg = document.getElementById('pcb-svg');
+      let isPanning = false;
+      let startX, startY;
+
+      svg.addEventListener('mousedown', (e) => {
+        if (e.target === svg || e.target.tagName === 'rect' && e.target.getAttribute('fill')?.includes('url')) {
+          isPanning = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          svg.classList.add('dragging');
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        const dx = (e.clientX - startX) / simState.zoom;
+        const dy = (e.clientY - startY) / simState.zoom;
+        simState.panX -= dx;
+        simState.panY -= dy;
+        startX = e.clientX;
+        startY = e.clientY;
+        updateViewBox();
+      });
+
+      window.addEventListener('mouseup', () => {
+        isPanning = false;
+        svg.classList.remove('dragging');
+      });
+
+      svg.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        simState.zoom = Math.min(3, Math.max(0.3, simState.zoom * delta));
+        updateViewBox();
+        document.getElementById('zoom-label').textContent = Math.round(simState.zoom * 100) + '%';
+      }, { passive: false });
+
+      svg.addEventListener('click', (e) => {
+        if (e.target === svg || e.target.getAttribute('fill')?.includes('url')) {
+          deselectAgent();
+        }
+      });
+    })();
+
+    // ========================================
+    // TOOLTIP
+    // ========================================
+
+    function showTooltip(agentId, event) {
+      if (simState.selectedAgent === agentId) return;
+      simState.hoveredAgent = agentId;
+      const agent = simState.agents[agentId];
+      const typeInfo = AGENT_TYPES[agent.type];
+      const statusColor = STATUS_COLORS[agent.status];
+      const tooltip = document.getElementById('node-tooltip');
+
+      tooltip.innerHTML = `
+        <div class="tooltip-name" style="color:${typeInfo.color}">${agent.name}</div>
+        <div class="tooltip-row"><span class="label">Type</span><span class="value" style="color:${typeInfo.color}">${typeInfo.label}</span></div>
+        <div class="tooltip-row"><span class="label">Status</span><span class="value" style="color:${statusColor}">${agent.status}</span></div>
+        <div class="tooltip-row"><span class="label">Progress</span><span class="value">${Math.round(agent.progress)}%</span></div>
+        <div class="tooltip-row"><span class="label">Tokens</span><span class="value">${formatTokens(agent.tokens)}</span></div>
+        <div class="tooltip-row"><span class="label">Cost</span><span class="value" style="color:#FFD866">$${agent.cost.toFixed(2)}</span></div>
+        <div class="tooltip-progress"><div class="tooltip-progress-fill" style="width:${agent.progress}%;background:${statusColor}"></div></div>
+      `;
+
+      const chipEl = event.target.closest('.agent-chip');
+      if (chipEl) {
+        const rect = chipEl.getBoundingClientRect();
+        tooltip.style.left = (rect.right + 10) + 'px';
+        tooltip.style.top = rect.top + 'px';
+      }
+      tooltip.classList.add('visible');
+    }
+
+    function hideTooltip() {
+      simState.hoveredAgent = null;
+      document.getElementById('node-tooltip').classList.remove('visible');
+    }
+
+    // ========================================
+    // AGENT SELECTION & SIGNAL PANEL
+    // ========================================
+
+    function selectAgent(agentId) {
+      simState.selectedAgent = agentId;
+      hideTooltip();
+      updateChipVisuals();
+      updateDetailPanel();
+    }
+
+    function deselectAgent() {
+      simState.selectedAgent = null;
+      updateChipVisuals();
+      document.getElementById('panel-empty').classList.remove('hidden');
+      const pc = document.getElementById('panel-content');
+      pc.classList.add('hidden');
+      pc.style.display = 'none';
+    }
+
+    function updateDetailPanel() {
+      const agent = simState.agents[simState.selectedAgent];
+      if (!agent) return;
+
+      document.getElementById('panel-empty').classList.add('hidden');
+      const pc = document.getElementById('panel-content');
+      pc.classList.remove('hidden');
+      pc.style.display = 'flex';
+
+      const typeInfo = AGENT_TYPES[agent.type];
+      const statusColor = STATUS_COLORS[agent.status];
+
+      // Header
+      document.getElementById('panel-header').innerHTML = `
+        <div class="panel-chip-icon" style="border-color:${typeInfo.color};color:${typeInfo.color}">${typeInfo.icon}</div>
+        <div class="panel-agent-info">
+          <div class="panel-agent-name">${agent.name}</div>
+          <div class="panel-agent-meta">
+            <span class="panel-agent-type" style="color:${typeInfo.color}">${typeInfo.label}</span>
+            <span class="status-badge ${agent.status}"><span class="dot"></span>${agent.status}</span>
+          </div>
+        </div>
+        <button class="panel-close" onclick="deselectAgent()">&times;</button>
+      `;
+
+      updateSignalTab(agent, statusColor);
+      updateDetailsTabContent(agent, typeInfo, statusColor);
+      updateDecisionsTab(agent);
+      updateLogTab(agent);
+    }
+
+    function updateSignalTab(agent, statusColor) {
+      const history = simState.tokenHistory[agent.id] || [];
+
+      let html = `
+        <div class="oscilloscope">
+          <div class="oscilloscope-label">Token Consumption / Time</div>
+          <canvas id="oscilloscope-canvas" width="640" height="160"></canvas>
+          <div class="oscilloscope-readout">
+            <span>RATE: <span class="val">${Math.round(agent.tokenRate)}/s</span></span>
+            <span>PEAK: <span class="val">${formatTokens(Math.max(...(history.length ? history : [0])))}</span></span>
+            <span>AVG: <span class="val">${formatTokens(history.length ? Math.round(history.reduce((a,b) => a+b, 0) / history.length) : 0)}</span></span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <div class="label">Tokens</div>
+            <div class="value tokens">${formatTokens(agent.tokens)}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="label">Cost</div>
+            <div class="value cost">$${agent.cost.toFixed(2)}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="label">Turns</div>
+            <div class="value">${agent.turns}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="label">Messages</div>
+            <div class="value">${agent.messages}</div>
+          </div>
+        </div>
+
+        <div class="panel-section-title">Progress</div>
+        <div style="padding: 0 14px 4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-family:var(--font-lcd);font-size:18px;color:${statusColor}">${Math.round(agent.progress)}%</span>
+          <span style="font-family:var(--font-lcd);font-size:10px;color:var(--fg-subtle)">${agent.status.toUpperCase()}</span>
+        </div>
+        <div class="progress-container">
+          <div class="progress-fill" style="width:${agent.progress}%;background:${statusColor}"></div>
+        </div>
+      `;
+
+      document.getElementById('tab-signal').innerHTML = html;
+
+      // Draw oscilloscope
+      requestAnimationFrame(() => drawOscilloscope(agent));
+    }
+
+    function drawOscilloscope(agent) {
+      const canvas = document.getElementById('oscilloscope-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.06)';
+      ctx.lineWidth = 0.5;
+      for (let y = 0; y < h; y += 20) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      for (let x = 0; x < w; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      const history = simState.tokenHistory[agent.id] || [];
+      if (history.length < 2) return;
+
+      const maxVal = Math.max(...history, 1);
+
+      // Glow effect
+      ctx.shadowColor = '#34D399';
+      ctx.shadowBlur = 4;
+
+      // Signal trace
+      ctx.strokeStyle = '#34D399';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < history.length; i++) {
+        const x = (i / (history.length - 1)) * w;
+        const y = h - (history[i] / maxVal) * (h - 10) - 5;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Fill under curve
+      ctx.shadowBlur = 0;
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(52, 211, 153, 0.05)';
+      ctx.fill();
+
+      // Current value marker
+      if (history.length > 0) {
+        const lastY = h - (history[history.length - 1] / maxVal) * (h - 10) - 5;
+        ctx.fillStyle = '#34D399';
+        ctx.shadowColor = '#34D399';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(w - 2, lastY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function updateDetailsTabContent(agent, typeInfo, statusColor) {
+      const task = TASKS.find(t => t.id === agent.taskId);
+
+      // Find relationships
+      let parentAgent = null;
+      const childAgents = [];
+      if (task) {
+        for (const a of task.agents) {
+          if (a.children.includes(agent.id)) parentAgent = simState.agents[a.id];
+          if (simState.agents[agent.id].children.includes(a.id)) childAgents.push(simState.agents[a.id]);
+        }
+      }
+
+      let html = `
+        <div class="panel-section-title">Task</div>
+        <div style="padding:4px 14px 8px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;font-weight:500">${agent.taskName}</span>
+          <span style="font-family:var(--font-lcd);font-size:9px;color:${task ? task.priorityColor : '#8b949e'}">${task ? task.priority : ''}</span>
+        </div>
+
+        <div class="panel-section-title">Verification</div>
+        <div style="padding:4px 14px 8px;font-size:11px">
+          ${agent.verified
+            ? `<span style="color:var(--status-completed)">\u2713 Verified</span> <span style="color:var(--fg-subtle)">Score ${agent.verificationScore}%</span>`
+            : agent.status === 'verifying'
+              ? `<span style="color:var(--status-verifying)">\u23F3 Verifying</span> <span style="color:var(--fg-subtle)">${Math.round(agent.verificationScore)}% checked</span>`
+              : `<span style="color:var(--fg-subtle)">\u25CB Not yet verified</span>`}
+        </div>
+
+        <div class="panel-section-title">Connections</div>
+        ${parentAgent ? `
+          <div class="relationship-item">
+            <span class="relationship-arrow">\u2190</span>
+            <span class="relationship-dot" style="background:${AGENT_TYPES[parentAgent.type].color}"></span>
+            <span class="relationship-name">${parentAgent.name}</span>
+            <span class="relationship-status" style="color:${STATUS_COLORS[parentAgent.status]}">${parentAgent.status}</span>
+          </div>
+        ` : ''}
+        ${childAgents.map(c => `
+          <div class="relationship-item">
+            <span class="relationship-arrow">\u2192</span>
+            <span class="relationship-dot" style="background:${AGENT_TYPES[c.type].color}"></span>
+            <span class="relationship-name">${c.name}</span>
+            <span class="relationship-status" style="color:${STATUS_COLORS[c.status]}">${c.status}</span>
+          </div>
+        `).join('')}
+      `;
+
+      document.getElementById('tab-details').innerHTML = html;
+    }
+
+    function updateDecisionsTab(agent) {
+      const agentDecisions = simState.decisions.filter(d => d.agentId === agent.id);
+
+      if (agentDecisions.length === 0) {
+        document.getElementById('tab-decisions').innerHTML = `
+          <div style="text-align:center;padding:32px 16px;color:var(--fg-subtle)">
+            <div style="font-size:20px;opacity:0.3;margin-bottom:8px">\u26A1</div>
+            <div style="font-size:11px">No decisions yet</div>
+          </div>
+        `;
+        return;
+      }
+
+      let html = `<div class="panel-section-title">Decisions (${agentDecisions.length})</div>`;
+      html += agentDecisions.slice(-12).reverse().map(d => {
+        const dt = DECISION_TYPES[d.type];
+        return `
+          <div class="decision-feed-item" onclick="showDecisionPopover(window._decisions[${simState.decisions.indexOf(d)}], event)">
+            <div class="decision-feed-icon" style="background:${dt.color}18;color:${dt.color}">${dt.icon}</div>
+            <div class="decision-feed-content">
+              <div class="decision-feed-type" style="color:${dt.color}">${dt.label}</div>
+              <div class="decision-feed-summary">${d.summary}</div>
+            </div>
+            <div class="decision-feed-time">${d.time}</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('tab-decisions').innerHTML = html;
+    }
+
+    function updateLogTab(agent) {
+      const logs = generateActivityLog(agent);
+
+      let html = `
+        <div class="terminal-readout" style="margin:12px 14px;max-height:none">
+          <div class="terminal-readout-title">Activity Log</div>
+          ${logs.map(l => `
+            <div class="terminal-line">
+              <span class="ts">${l.time}</span>
+              ${l.text}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('tab-log').innerHTML = html;
+    }
+
+    function generateActivityLog(agent) {
+      const logs = [];
+      if (agent.status !== 'queued') {
+        logs.push({ time: '00:00', text: `<strong>Initialized</strong> agent ${agent.name}` });
+      }
+      if (agent.progress > 5) {
+        logs.push({ time: '00:08', text: 'Scanning workspace files...' });
+      }
+      if (agent.progress > 15) {
+        logs.push({ time: '00:22', text: '<strong>Planning</strong> - Analyzing dependencies' });
+      }
+      if (agent.progress > 30) {
+        logs.push({ time: '00:45', text: `Executing primary task for <strong>${agent.taskName}</strong>` });
+      }
+      if (agent.progress > 50) {
+        logs.push({ time: '01:30', text: 'Writing code in target module' });
+      }
+      if (agent.progress > 70) {
+        logs.push({ time: '02:15', text: '<strong>Running tests</strong> - 14/16 passing' });
+      }
+      if (agent.progress > 85) {
+        logs.push({ time: '03:00', text: 'Code review cycle completed' });
+      }
+      if (agent.status === 'completed') {
+        logs.push({ time: '03:45', text: '<strong>Completed</strong> - All checks passed' });
+      }
+      if (agent.status === 'failed') {
+        logs.push({ time: '02:30', text: '<strong>Failed</strong> - Build error detected' });
+      }
+      if (agent.status === 'verifying') {
+        logs.push({ time: '03:10', text: `<strong>Verifying</strong> - ${Math.round(agent.verificationScore)}% complete` });
+      }
+      return logs.reverse();
+    }
+
+    // ========================================
+    // TAB SWITCHING
+    // ========================================
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.panel-tab[data-tab="${tabId}"]`).classList.add('active');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    // ========================================
+    // DECISION POPOVER
+    // ========================================
+
+    function showDecisionPopover(decision, event) {
+      if (!decision) return;
+      const dt = DECISION_TYPES[decision.type];
+      const agent = simState.agents[decision.agentId];
+      const container = document.getElementById('popover-container');
+
+      const confColor = decision.confidence >= 85 ? '#34D399' : decision.confidence >= 60 ? '#FFD866' : '#F87171';
+
+      const left = Math.min(event.clientX + 8, window.innerWidth - 360);
+      const top = Math.min(event.clientY - 20, window.innerHeight - 420);
+
+      container.innerHTML = `
+        <div class="popover-overlay" onclick="closePopover()"></div>
+        <div class="decision-popover" style="left:${left}px;top:${top}px">
+          <div class="popover-header">
+            <div class="popover-icon" style="background:${dt.color}18;color:${dt.color}">${dt.icon}</div>
+            <div>
+              <div class="popover-title" style="color:${dt.color}">${dt.label}</div>
+              <div class="popover-subtitle">${agent ? agent.name : 'Unknown'} &middot; ${decision.time}</div>
+            </div>
+          </div>
+          <div class="popover-body">
+            <div class="popover-section">
+              <div class="popover-label">Summary</div>
+              <div class="popover-text">${decision.summary}</div>
+            </div>
+            <div class="popover-section">
+              <div class="popover-label">Detail</div>
+              <div class="popover-text">${decision.detail}</div>
+            </div>
+            <div class="popover-section">
+              <div class="popover-label">Confidence</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--font-lcd);font-size:14px;color:${confColor}">${decision.confidence}%</span>
+              </div>
+              <div class="confidence-bar-bg">
+                <div class="confidence-bar-fill" style="width:${decision.confidence}%;background:${confColor}"></div>
+              </div>
+              <div class="confidence-markers">
+                <span>0</span><span>|60</span><span>|85</span><span>100</span>
+              </div>
+            </div>
+            <div class="popover-section">
+              <div class="popover-label">Criteria</div>
+              <div class="popover-criteria">
+                ${decision.criteria.map(c => `<span class="popover-criterion">${c}</span>`).join('')}
+              </div>
+            </div>
+            <div class="popover-section">
+              <div class="popover-label">Alternatives</div>
+              <div class="popover-alternatives">
+                ${decision.alternatives.map(a => `<div class="popover-alt-item">\u2022 ${a}</div>`).join('')}
+              </div>
+            </div>
+            <div class="popover-section">
+              <div class="popover-label">Policy</div>
+              <div class="popover-text" style="font-family:var(--font-mono);font-size:10px">${decision.policy}</div>
+            </div>
+            <button class="popover-override-btn" onclick="closePopover()">OVERRIDE DECISION</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function closePopover() {
+      document.getElementById('popover-container').innerHTML = '';
+    }
+
+    // ========================================
+    // SIM CONTROLS
+    // ========================================
+
+    function togglePlay() {
+      simState.playing = !simState.playing;
+      const sw = document.getElementById('sw-play');
+      if (simState.playing) {
+        sw.classList.add('active');
+      } else {
+        sw.classList.remove('active');
+      }
+    }
+
+    function cycleSpeed() {
+      const speeds = [1, 2, 4, 8];
+      const idx = speeds.indexOf(simState.speed);
+      simState.speed = speeds[(idx + 1) % speeds.length];
+      document.getElementById('speed-label').textContent = simState.speed + 'x';
+
+      const sw = document.getElementById('sw-speed');
+      if (simState.speed > 1) {
+        sw.classList.add('active');
+      } else {
+        sw.classList.remove('active');
+      }
+    }
+
+    function resetSimulation() {
+      // Flash the reset switch
+      const sw = document.getElementById('sw-reset');
+      sw.classList.add('active');
+      setTimeout(() => sw.classList.remove('active'), 300);
+
+      simState.tick = 0;
+      simState.decisions = [];
+      window._decisions = [];
+      simState.selectedAgent = null;
+
+      for (const id in simState.agents) {
+        const agent = simState.agents[id];
+        agent.status = 'queued';
+        agent.progress = 0;
+        agent.tokens = 0;
+        agent.cost = 0;
+        agent.turns = 0;
+        agent.messages = 0;
+        agent.verified = false;
+        agent.verificationScore = 0;
+        simState.tokenHistory[id] = [];
+      }
+
+      deselectAgent();
+      updateChipVisuals();
+      updateTraceVisuals();
+      renderPackets();
+      renderDecisions();
+      updateHeaderMetrics();
+    }
+
+    function toggleDecisions() {
+      simState.showDecisions = !simState.showDecisions;
+      const toggle = document.getElementById('decision-toggle');
+      if (simState.showDecisions) {
+        toggle.classList.add('active');
+      } else {
+        toggle.classList.remove('active');
+        document.getElementById('decisions-layer').innerHTML = '';
+      }
+    }
+
+    // ========================================
+    // HELPERS
+    // ========================================
+
+    function formatTokens(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function formatTime(tick) {
+      const sec = Math.floor(tick / 60);
+      const min = Math.floor(sec / 60);
+      return `${min}:${String(sec % 60).padStart(2, '0')}`;
+    }
+
+    // ========================================
+    // INIT
+    // ========================================
+
+    initSimulation();
+  </script>
+</body>
+</html>
