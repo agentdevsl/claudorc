@@ -624,6 +624,7 @@ export class ContainerAgentService {
           title: task.title ?? `Container Agent - ${taskId}`,
           url: `/projects/${projectId}/sessions/${sessionId}`,
           status: 'active',
+          sandboxProvider: this.provider.name,
           createdAt: new Date().toISOString(),
         });
         debugLog('startAgent', 'Session record created', { sessionId });

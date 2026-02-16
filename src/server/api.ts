@@ -625,7 +625,7 @@ if (providerType === 'kubernetes') {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(
-      `[API Server] Kubernetes CRD provider init failed: ${message}. ` + 'Falling back to Docker.'
+      `[API Server] Kubernetes CRD provider init failed: ${message}. Falling back to Docker.`
     );
   }
 }

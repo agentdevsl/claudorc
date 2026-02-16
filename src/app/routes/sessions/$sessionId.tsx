@@ -13,6 +13,7 @@ type ClientSession = {
   taskId?: string | null;
   title?: string | null;
   status: string;
+  sandboxProvider?: string | null;
 };
 
 /**
@@ -170,6 +171,7 @@ function SessionPage(): React.JSX.Element {
           )}
           <ContainerAgentPanel
             sessionId={session.id}
+            sandboxProvider={session.sandboxProvider ?? undefined}
             onStop={async () => {
               if (session.taskId) {
                 try {
